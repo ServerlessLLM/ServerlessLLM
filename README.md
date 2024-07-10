@@ -29,7 +29,7 @@ ServerlessLLM is Easy-to-Use:
 
 1. Install ServerlessLLM:
 
-Detailed installation guide: [ServerlessLLM Installation](./docs/installation.md).
+Detailed installation guide: [ServerlessLLM Installation](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
 
 2. Start a local ServerlessLLM cluster:
 
