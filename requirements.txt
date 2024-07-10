@@ -1,0 +1,11 @@
+uvicorn[standard]==0.23.1
+fastapi==0.108.0
+mypy==1.8.0
+ray==2.9.0
+pydantic==2.6.1
+pydantic_core==2.16.2
+requests==2.32.2
+types-requests==2.31.0.20240125
+grpcio==1.49.1
+grpcio-tools==1.49.1
+openai==1.35.7

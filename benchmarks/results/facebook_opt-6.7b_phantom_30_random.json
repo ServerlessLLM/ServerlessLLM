@@ -1,0 +1,212 @@
+[
+    {
+        "model_name": "facebook/opt-6.7b_16",
+        "loading_time": 1.0603504180908203,
+        "end_to_end_time": 1.898390769958496,
+        "throughput": 32.13247818379017,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_10",
+        "loading_time": 1.0053458213806152,
+        "end_to_end_time": 2.425994873046875,
+        "throughput": 25.144323542361153,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_18",
+        "loading_time": 1.068990707397461,
+        "end_to_end_time": 2.372910261154175,
+        "throughput": 25.7068297097463,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_3",
+        "loading_time": 1.0486304759979248,
+        "end_to_end_time": 2.239630699157715,
+        "throughput": 27.236633264109575,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_4",
+        "loading_time": 1.8052313327789307,
+        "end_to_end_time": 2.1210079193115234,
+        "throughput": 28.75991147633269,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_22",
+        "loading_time": 1.9855210781097412,
+        "end_to_end_time": 2.2109146118164062,
+        "throughput": 27.590391629772007,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_25",
+        "loading_time": 1.0989010334014893,
+        "end_to_end_time": 2.0908117294311523,
+        "throughput": 29.175271566223845,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_13",
+        "loading_time": 1.0800120830535889,
+        "end_to_end_time": 2.2011797428131104,
+        "throughput": 27.71241203684799,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_5",
+        "loading_time": 1.0510895252227783,
+        "end_to_end_time": 2.2066802978515625,
+        "throughput": 27.643333771271703,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_17",
+        "loading_time": 1.0642368793487549,
+        "end_to_end_time": 2.160844564437866,
+        "throughput": 28.22970286891916,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_29",
+        "loading_time": 1.0636045932769775,
+        "end_to_end_time": 2.189013719558716,
+        "throughput": 27.866431103180574,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_12",
+        "loading_time": 1.0601158142089844,
+        "end_to_end_time": 2.238553762435913,
+        "throughput": 27.249736425191777,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_27",
+        "loading_time": 1.0342729091644287,
+        "end_to_end_time": 2.213266134262085,
+        "throughput": 27.561077746458057,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_1",
+        "loading_time": 1.0532996654510498,
+        "end_to_end_time": 2.3837199211120605,
+        "throughput": 25.59025473577537,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_11",
+        "loading_time": 1.0353169441223145,
+        "end_to_end_time": 2.4344098567962646,
+        "throughput": 25.057407580610647,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_7",
+        "loading_time": 1.0830974578857422,
+        "end_to_end_time": 2.432058334350586,
+        "throughput": 25.081635229891955,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_28",
+        "loading_time": 1.00742769241333,
+        "end_to_end_time": 2.2210607528686523,
+        "throughput": 27.46435455275787,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_20",
+        "loading_time": 1.013396978378296,
+        "end_to_end_time": 2.121671199798584,
+        "throughput": 28.750920503511992,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_19",
+        "loading_time": 1.0360965728759766,
+        "end_to_end_time": 2.096001148223877,
+        "throughput": 29.10303749198352,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_2",
+        "loading_time": 2.090054750442505,
+        "end_to_end_time": 2.1884405612945557,
+        "throughput": 27.873729393827315,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_15",
+        "loading_time": 1.947800874710083,
+        "end_to_end_time": 2.1587047576904297,
+        "throughput": 28.257685439700012,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_23",
+        "loading_time": 1.2132229804992676,
+        "end_to_end_time": 1.3594067096710205,
+        "throughput": 44.872516492700065,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_9",
+        "loading_time": 1.0096378326416016,
+        "end_to_end_time": 2.3395631313323975,
+        "throughput": 26.073243839015397,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_24",
+        "loading_time": 1.0526819229125977,
+        "end_to_end_time": 2.381564140319824,
+        "throughput": 25.613418915439418,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_8",
+        "loading_time": 1.0283787250518799,
+        "end_to_end_time": 2.4220774173736572,
+        "throughput": 25.18499184313622,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_14",
+        "loading_time": 1.0534887313842773,
+        "end_to_end_time": 2.424642562866211,
+        "throughput": 25.158347434060907,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_0",
+        "loading_time": 1.0570142269134521,
+        "end_to_end_time": 2.218724489212036,
+        "throughput": 27.49327385919092,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_26",
+        "loading_time": 1.061762809753418,
+        "end_to_end_time": 2.2024800777435303,
+        "throughput": 27.696050745891558,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_6",
+        "loading_time": 1.0514404773712158,
+        "end_to_end_time": 2.1386401653289795,
+        "throughput": 28.522797331180108,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    },
+    {
+        "model_name": "facebook/opt-6.7b_21",
+        "loading_time": 1.0297183990478516,
+        "end_to_end_time": 2.2441351413726807,
+        "throughput": 27.181963721974356,
+        "output_text": "The quick brown fox jumps over the lazy dog.\nI'm not sure if this is a joke or not, but I'm going to assume it is.\nIt's a joke.  The joke is that the dog is lazy.  The fox is quick.  The dog is brown."
+    }
+]
