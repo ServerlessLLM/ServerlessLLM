@@ -15,10 +15,8 @@ TODO
 ## Install from source
 Install the package from source by running the following commands:
 ```bash
-# Because this is currelty a private repository, you need to login to github first
-# by `gh auth login` and then clone the repository
-git clone https://github.com/future-xy/Phantom-component.git
-cd Phantom-component
+git clone https://github.com/ServerlessLLM/ServerlessLLM
+cd ServerlessLLM
 ```
 
 ```
