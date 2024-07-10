@@ -1,0 +1,7 @@
+setuptools
+wheel
+cmake>=3.20
+ninja
+torch==2.3.0
+grpcio==1.49.1
+grpcio-tools==1.49.1
