@@ -6,9 +6,9 @@ ServerlessLLM is a fast, cost-effective and easy-to-use library designed for mul
 
 ServerlessLLM is Fast:
 
-- Supports various leading LLM inference libraries including [vLLM](https://github.com/vllm-project/vllm), [HuggingFace Text Generation Inference (TGI)](https://huggingface.co/docs/text-generation-inference/en/index), and [PyTorch TorchScript](https://pytorch.org/docs/stable/jit.html).
-- Capable of loading 70B LLMs (checkpoint size beyond 100GB) onto an 8-GPU server in just 200ms, achieving load times 5 to 100 times faster than [SafeTensor](https://github.com/huggingface/safetensors), PyTorch Checkpoint Loader and HuggingFace Checkpoint Loader.
-- Support locality-aware GPU cluster scheduler and LLM infernece live migration, both contributing to 10 - 150 times faster first-token-latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
+- Supports various leading LLM inference libraries including [vLLM](https://github.com/vllm-project/vllm) and [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index).
+- Capable of loading 70B LLMs (checkpoint size beyond 100GB) onto an 8-GPU server in just 700ms, achieving load times 5 to 10 times faster than [Safetensors](https://github.com/huggingface/safetensors) and PyTorch Checkpoint Loader.
+- Support locality-aware GPU cluster scheduler and LLM infernece live migration, contributing to lower mean and P99 first-token-latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
 
 ServerlessLLM is Cost-Effective:
 
@@ -18,15 +18,12 @@ ServerlessLLM is Cost-Effective:
 ServerlessLLM is Easy-to-Use:
 
 - Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (comming soon).
-- Integrates seamlessly with the OpenAI query API and Ray Serve API.
+- Deploys HuggingFace Transformers models with a single command.
+- Integrates seamlessly with the OpenAI query API.
 
 ## Getting Started
 
 1. Install ServerlessLLM:
-
-```bash
-pip install serverless_llm
-```
 
 Detailed installation guide: [ServerlessLLM Installation](./docs/installation.md).
 
