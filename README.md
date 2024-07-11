@@ -4,7 +4,7 @@
 
 # ServerlessLLM
 
-ServerlessLLM is a fast, cost-effective and easy-to-use library designed for multi-model serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources (GPU poor), as it allows efficient dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
+ServerlessLLM is a fast, affordable and easy library designed for multi-LLM serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources (GPU poor), as it allows efficient dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
 
 ## News
 
@@ -18,12 +18,12 @@ ServerlessLLM is Fast:
 - Capable of loading 70B LLMs (checkpoint size beyond 100GB) onto an 8-GPU server in just 300-700ms, achieving load times 5-10X faster than [Safetensors](https://github.com/huggingface/safetensors) and PyTorch Checkpoint Loader.
 - Support start-time-optimized model loading scheduler, achieving 5-100X better LLM start-up latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
 
-ServerlessLLM is Cost-Effective:
+ServerlessLLM is Affordable:
 
 - Supports many LLM models to share a few GPUs with low model switching overhead and seamless inference live migration.
 - Fully utilizes local storage resources available on multi-GPU servers, reducing the need for employing costly storage servers and network bandwidth.
 
-ServerlessLLM is Easy-to-Use:
+ServerlessLLM is Easy:
 
 - Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (comming soon).
 - Seamlessly deploys [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) models and your custom LLM models.
