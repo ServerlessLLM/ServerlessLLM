@@ -1,35 +1,33 @@
-# ServerlessLLM
-
 <p align="center">
   <img src="./docs/images/serverlessllm.jpg" alt="ServerlessLLM Logo" width="30%">
 </p>
 
-ServerlessLLM is a fast, cost-effective and easy-to-use library designed for multi-model serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources (GPU poor), as it allows dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
+# ServerlessLLM
+
+ServerlessLLM is a fast, cost-effective and easy-to-use library designed for multi-model serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources (GPU poor), as it allows efficient dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
 
 ## About
 
 ServerlessLLM is Fast:
 
 - Supports various leading LLM inference libraries including [vLLM](https://github.com/vllm-project/vllm) and [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index).
-- Capable of loading 70B LLMs (checkpoint size beyond 100GB) onto an 8-GPU server in just 700ms, achieving load times 5 to 10 times faster than [Safetensors](https://github.com/huggingface/safetensors) and PyTorch Checkpoint Loader.
-- Support locality-aware GPU cluster scheduler and LLM infernece live migration, contributing to lower mean and P99 first-token-latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
+- Capable of loading 70B LLMs (checkpoint size beyond 100GB) onto an 8-GPU server in just 300-700ms, achieving load times 5-10X faster than [Safetensors](https://github.com/huggingface/safetensors) and PyTorch Checkpoint Loader.
+- Support start-time-optimized model loading scheduler, achieving 5-100X better LLM start-up latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
 
 ServerlessLLM is Cost-Effective:
 
-- Enables hundreds of LLM models to share a few GPUs with minimal model switching overhead.
-- Utilizes local storage resources on multi-GPU servers efficiently, eliminating the need for additional costly storage and network bandwidth.
+- Supports many LLM models to share a few GPUs with low model switching overhead and seamless inference live migration.
+- Fully utilizes local storage resources available on multi-GPU servers, reducing the need for employing costly storage servers and network bandwidth.
 
 ServerlessLLM is Easy-to-Use:
 
 - Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (comming soon).
-- Deploys HuggingFace Transformers models with a single command.
-- Integrates seamlessly with the OpenAI query API.
+- Seamlessly deploys [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) models and your custom LLM models.
+- Integrates seamlessly with the [OpenAI Query API](https://platform.openai.com/docs/introduction).
 
 ## Getting Started
 
-1. Install ServerlessLLM:
-
-Detailed installation guide: [ServerlessLLM Installation](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
+1. Install ServerlessLLM following [ServerlessLLM Installation Guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
 
 2. Start a local ServerlessLLM cluster:
 
@@ -43,13 +41,11 @@ sllm-serve start
 sllm-cli deploy --model facebook/opt-1.3b
 ```
 
-4. Run an LLM inference for the deployed model:
+4. Run an LLM inference following [ServerlessLLM Usage APIs](https://serverlessllm.github.io/):
 
 ```bash
 sllm-cli generate --model facebook/opt-1.3b --input input.json
 ```
-
-Detailed usage guide: [ServerlessLLM Usage APIs](https://serverlessllm.github.io/).
 
 ## Performance
 
@@ -57,7 +53,7 @@ A detailed analysis of the performance of ServerlessLLM is [here](./benchmarks/R
 
 ## Contributing
 
-We are actively developing ServerlessLLM and we plan to realize a roadmap soon. We also highly welcome contributors to ServerlessLLM and will acknowledge your contributions on the main page. Please check [Contributing Guide](./CONTRIBUTING.md) for details.
+ServerlessLLM is actively maintained and developed by those [Contributors](./CONTRIBUTING.md). We welcome new contributors and together make ServerlessLLM better and more easier to use. Please check [Contributing Guide](./CONTRIBUTING.md) for details.
 
 ## Citation
 
