@@ -6,6 +6,10 @@
 
 ServerlessLLM is a fast, cost-effective and easy-to-use library designed for multi-model serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources (GPU poor), as it allows efficient dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
 
+## News
+
+- We are working towards to the first release and making  documentation ready. Stay tuned!
+
 ## About
 
 ServerlessLLM is Fast:
@@ -27,7 +31,7 @@ ServerlessLLM is Easy-to-Use:
 
 ## Getting Started
 
-1. Install ServerlessLLM following [ServerlessLLM Installation Guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
+1. Install ServerlessLLM following [Installation Guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
 
 2. Start a local ServerlessLLM cluster:
 
@@ -41,7 +45,7 @@ sllm-serve start
 sllm-cli deploy --model facebook/opt-1.3b
 ```
 
-4. Run an LLM inference following [ServerlessLLM Usage APIs](https://serverlessllm.github.io/):
+4. Run an LLM inference following [documentation](https://serverlessllm.github.io/):
 
 ```bash
 sllm-cli generate --model facebook/opt-1.3b --input input.json
@@ -53,7 +57,7 @@ A detailed analysis of the performance of ServerlessLLM is [here](./benchmarks/R
 
 ## Contributing
 
-ServerlessLLM is actively maintained and developed by those [Contributors](./CONTRIBUTING.md). We welcome new contributors and together make ServerlessLLM better and more easier to use. Please check [Contributing Guide](./CONTRIBUTING.md) for details.
+ServerlessLLM is actively maintained and developed by those [Contributors](./CONTRIBUTING.md). We welcome new contributors to join us in making ServerlessLLM faster, better and more easier to use. Please check [Contributing Guide](./CONTRIBUTING.md) for details.
 
 ## Citation
 
