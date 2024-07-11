@@ -8,7 +8,7 @@ ServerlessLLM is a fast, cost-effective and easy-to-use library designed for mul
 
 ## News
 
-- We are working towards to the first release and making  documentation ready. Stay tuned!
+- [07/24] We are working towards to the first release and making  documentation ready. Stay tuned!
 
 ## About
 
