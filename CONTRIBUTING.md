@@ -1,4 +1,18 @@
-# Contributing to serverlessLLM
+# Contributing to ServerlessLLM
+
+# Contributors
+
+ServerlessLLM is currently maintained by the following contributors:
+
+ - [Yao Fu](https://github.com/future-xy)
+ - [Leyang Xue](https://github.com/drunkcoding)
+ - [Yeqi Huang](https://github.com/Chivier)
+ - [Andrei-Octavian Brabete](https://github.com/andrei3131)
+ - [Matej Sandor](https://github.com/MatejSandor)
+ - [Ruiqi Lai](https://github.com/lrq619)
+ - [Siyang Shao](https://github.com/SiyangShao)
+ - [Xinyuan Tong](https://github.com/JustinTong0323)
+ - [Luo Mai](https://github.com/luomai)
 
 ## Check Code Format
 
