@@ -33,23 +33,9 @@ ServerlessLLM is Easy:
 
 1. Install ServerlessLLM following [Installation Guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
 
-2. Start a local ServerlessLLM cluster:
+2. Start a local ServerlessLLM cluster following [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started/quickstart/).
 
-```bash
-sllm-serve start
-```
-
-3. Deploy a model using the ServerlessLLM CLI:
-
-```bash
-sllm-cli deploy --model facebook/opt-1.3b
-```
-
-4. Run an LLM inference following [documentation](https://serverlessllm.github.io/):
-
-```bash
-sllm-cli generate --model facebook/opt-1.3b --input input.json
-```
+3. Just want to try out fast checkpoint loading in your own code? Check out the [ServerlessLLM Store Guide](https://serverlessllm.github.io/docs/stable/store/quickstart).
 
 ## Performance
 
