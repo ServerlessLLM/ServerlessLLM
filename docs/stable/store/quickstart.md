@@ -73,8 +73,10 @@ import torch
 from serverless_llm_store import load_model
 
 # warm up the GPU
-for _ in range(torch.cuda.device_count()):
-    torch.randn(1).cuda()
+num_gpus = torch.cuda.device_count()
+for i in range(num_gpus):
+    torch.ones(1).to(f"cuda:{i}")
+    torch.cuda.synchronize()
 
 start = time.time()
 model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path="./models/", fully_parallel=True)
