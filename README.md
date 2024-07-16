@@ -15,8 +15,8 @@ ServerlessLLM is a fast, affordable and easy library designed for multi-LLM serv
 ServerlessLLM is Fast:
 
 - Supports various leading LLM inference libraries including [vLLM](https://github.com/vllm-project/vllm) and [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index).
-- Capable of loading 70B LLMs (checkpoint size beyond 100GB) onto an 8-GPU server in just 300-700ms, achieving load times 5-10X faster than [Safetensors](https://github.com/huggingface/safetensors) and PyTorch Checkpoint Loader.
-- Support start-time-optimized model loading scheduler, achieving 5-100X better LLM start-up latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
+- Achieves 5-10X faster loading speed than [Safetensors](https://github.com/huggingface/safetensors) and PyTorch Checkpoint Loader.
+- Supports start-time-optimized model loading scheduler, achieving 5-100X better LLM start-up latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
 
 ServerlessLLM is Affordable:
 
