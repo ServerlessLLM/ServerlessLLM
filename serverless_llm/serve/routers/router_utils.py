@@ -48,6 +48,10 @@ class SllmRouter(ABC):
         pass
 
     @abstractmethod
+    async def update(self, auto_scaling_config: Dict[str, int]):
+        pass
+
+    @abstractmethod
     async def generate(self, request_data: dict):
         pass
 

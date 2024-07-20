@@ -72,6 +72,9 @@ class RoundRobinRouter(SllmRouter):
         self.ready_instances: Dict[str, InstanceHandle] = {}  # type:ignore
         self.instance_management_lock = asyncio.Lock()
 
+        self.auto_scaling_config = {}
+        self.auto_scaling_lock = asyncio.Lock()
+
         self.request_count = 0
         self.request_count_lock = asyncio.Lock()
 
@@ -83,13 +86,20 @@ class RoundRobinRouter(SllmRouter):
 
     async def start(self, auto_scaling_config: Dict[str, int]):
         self.model_loading_scheduler = ray.get_actor("model_loading_scheduler")
-        self.auto_scaler = asyncio.create_task(
-            self._auto_scaler_loop(auto_scaling_config)
-        )
+        async with self.auto_scaling_lock:
+            self.auto_scaling_config = auto_scaling_config
+        self.auto_scaler = asyncio.create_task(self._auto_scaler_loop())
         self.load_balancer = asyncio.create_task(self._load_balancer_loop())
         async with self.running_lock:
             self.running = True
         logger.info(f"Started handler for model {self.model_name}")
+
+    async def update(self, auto_scaling_config: Dict[str, int]):
+        async with self.auto_scaling_lock:
+            self.auto_scaling_config = auto_scaling_config
+        logger.info(
+            f"Model {self.model_name}'s auto scaling config updatd to {auto_scaling_config}"
+        )
 
     def _new_instance_id(self):
         pattern = "{model_name}_{id}"
@@ -176,9 +186,11 @@ class RoundRobinRouter(SllmRouter):
                 if not allocated:
                     await asyncio.sleep(1)
 
-    async def _auto_scaler_loop(self, auto_scaling_config: Dict[str, int]):
+    async def _auto_scaler_loop(self):
         while True:
             # logger.info(f"Auto-scaling for model {self.model_name}")
+            async with self.auto_scaling_lock:
+                auto_scaling_config = self.auto_scaling_config.copy()
             auto_scaling_metrics = {"request_count": self.request_count}
             desired_instances = await auto_scaler(
                 auto_scaling_metrics, auto_scaling_config
