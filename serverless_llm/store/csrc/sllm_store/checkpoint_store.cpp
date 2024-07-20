@@ -34,13 +34,11 @@
 CheckpointStore::CheckpointStore(const std::string& storage_path,
                                size_t memory_pool_size,
                                int num_thread,
-                               size_t chunk_size,
-                               bool registration_required)
+                               size_t chunk_size)
     : storage_path_(storage_path),
       memory_pool_size_(memory_pool_size),
       num_thread_(num_thread),
-      chunk_size_(chunk_size),
-      registration_required_(registration_required) {
+      chunk_size_(chunk_size) {
   // Get number of GPUs
   cudaGetDeviceCount(&num_gpus_);
   LOG(INFO) << "Number of GPUs: " << num_gpus_;
@@ -82,17 +80,29 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
 
 CheckpointStore::~CheckpointStore() { ClearMem(); }
 
-int CheckpointStore::RegisterModelInfo(const std::string& model_name) {
+int64_t CheckpointStore::RegisterModelInfo(const std::string& model_name) {
+  std::unique_lock<std::mutex> lock_info(model_info_mutex_);
   if (model_map_.find(model_name) != model_map_.end()) {
     // LOG(WARNING) << "Model " << model_name << " is already regfistered";
-    return 0;
+    auto model = model_map_.at(model_name);
+    return model->GetModelSize();
   }
 
-  model_map_.emplace(model_name, std::make_shared<Model>(model_name));
+  auto model = std::make_shared<Model>(model_name);
+  // model_map_.emplace(model_name, std::make_shared<Model>(model_name));
+
+  auto model_path = std::filesystem::path(storage_path_) / model_name;
+  int ret = model->Initialize(model_path);
+  if (ret != 0) {
+    LOG(ERROR) << "Failed to initialize model " << model_name;
+    return ret;
+  }
+
+  model_map_[model_name] = model;
 
   LOG(INFO) << "Model " << model_name << " is registered";
 
-  return 0;
+  return model->GetModelSize();
 }
 
 int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
@@ -103,13 +113,6 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
     return -1;
   }
   lock_info.unlock();
-
-  auto model_path = std::filesystem::path(storage_path_) / model_name;
-  int ret = model->Initialize(model_path);
-  if (ret != 0) {
-    LOG(ERROR) << "Failed to initialize model " << model_name;
-    return ret;
-  }
 
   // Allocate memory
   lock_info.lock();
@@ -148,7 +151,7 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
   model_last_access_time_[model_name] = std::chrono::system_clock::now();
   lock_info.unlock();
 
-  ret = model->ToHost(num_thread_);
+  int ret = model->ToHost(num_thread_);
 
   if (ret != 0) {
     LOG(ERROR) << "Failed to load model " << model_name << " to host";
@@ -286,12 +289,8 @@ int CheckpointStore::UnloadModelFromHost(const std::string& model_name) {
 
 ModelPtr CheckpointStore::GetModelPtr(const std::string& model_name) {
   if (model_map_.find(model_name) == model_map_.end()) {
-    if (registration_required_) {
-      LOG(ERROR) << "Model " << model_name << " is not registered";
-      return nullptr;
-    } else {
-      RegisterModelInfo(model_name);
-    }
+    LOG(ERROR) << "Model " << model_name << " is not registered";
+    return nullptr;
   }
   return model_map_.at(model_name);
 }

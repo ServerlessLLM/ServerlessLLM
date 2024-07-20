@@ -18,7 +18,7 @@ message RegisterModelRequest {
 
 message RegisterModelResponse {
   string model_name = 1;
-  int32 code = 2;
+  int64 model_size = 2;
 }
 
 enum DeviceType {

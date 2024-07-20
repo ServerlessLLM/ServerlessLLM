@@ -132,14 +132,14 @@ class SllmStoreClient:
                 logger.error(f"Error: {e}")
                 return False
 
-    def register_model(self, model_name):
+    def register_model(self, model_name) -> int:
         logger.info(f"register_model: {model_name}")
         request = storage_pb2.RegisterModelRequest(model_name=model_name)
         try:
             response = self.stub.RegisterModel(request)
         except grpc.RpcError as e:
             logger.error(f"Error: {e}")
-            return False
+            return -1
         else:
             logger.info(f"Model registered")
-            return response
+            return response.model_size

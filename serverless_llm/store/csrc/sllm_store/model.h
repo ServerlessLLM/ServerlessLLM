@@ -63,6 +63,7 @@ class Model {
   int FreeGpu(const std::string& replica_uuid);
   int FreeHost();
   int TryFreeHost();
+  uint64_t GetModelSize() const { return model_size_; }
 
  private:
   std::mutex mutex_;

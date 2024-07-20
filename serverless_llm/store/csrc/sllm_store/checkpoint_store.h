@@ -40,11 +40,10 @@
 class CheckpointStore {
  public:
   CheckpointStore(const std::string& storage_path, size_t memory_pool_size,
-                  int num_thread = 4, size_t chunk_size = 32L * 1024 * 1024,
-                  bool registration_required = false);
+                  int num_thread = 4, size_t chunk_size = 32L * 1024 * 1024);
   ~CheckpointStore();
 
-  int RegisterModelInfo(const std::string& model_name);
+  int64_t RegisterModelInfo(const std::string& model_name);
   int LoadModelFromDisk(const std::string& model_name);
   int LoadModelFromDiskAsync(const std::string& model_name);
   int LoadModelFromMem(const std::string& model_name,
@@ -86,7 +85,6 @@ class CheckpointStore {
   std::shared_ptr<PinnedMemoryPool> memory_pool_;
   int num_thread_;
   size_t chunk_size_;
-  bool registration_required_;  // If true, the model must be registered before loading
 
   std::queue<std::future<int>> async_tasks_;
 

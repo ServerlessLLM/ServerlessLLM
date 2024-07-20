@@ -75,10 +75,9 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       LOG(FATAL) << "storage_path is empty";
     }
     
-    bool registration_required = false;
     const char* node_env = std::getenv("NODE_ENV");
     if (node_env && std::string(node_env) == "production") {
-      registration_required = true;
+      registration_required_ = true;
     }
     storage_ = std::make_unique<CheckpointStore>(
         storage_path, mem_pool_size, num_thread, chunk_size);
@@ -91,6 +90,14 @@ class CheckpointStoreServer final : public storage::Storage::Service {
     if (model_name.empty()) {
       LOG(ERROR) << "model_name is empty";
       return Status::CANCELLED;
+    }
+
+    if (!registration_required_) {
+      int64_t model_size = storage_->RegisterModelInfo(model_name);
+      if (model_size < 0) {
+        LOG(ERROR) << "RegisterModel failed";
+        return Status::CANCELLED;
+      }
     }
 
     auto device_type = request->target_device_type();
@@ -246,11 +253,12 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       return Status::CANCELLED;
     }
 
-    int ret = storage_->RegisterModelInfo(model_name);
-    if (ret != 0) {
+    int64_t model_size = storage_->RegisterModelInfo(model_name);
+    if (model_size < 0) {
       LOG(ERROR) << "RegisterModel failed";
       return Status::CANCELLED;
     }
+    response->set_model_size(model_size);
 
     return Status::OK;
   }
@@ -261,6 +269,8 @@ class CheckpointStoreServer final : public storage::Storage::Service {
   std::mutex disk_mutex_;
   std::mutex queue_mutex_;
   std::queue<std::condition_variable*> wait_queue_;
+
+  bool registration_required_ = false;
 };
 
 void RunServer(const std::string& server_address,
