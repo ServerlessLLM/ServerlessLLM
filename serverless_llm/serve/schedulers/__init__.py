@@ -17,5 +17,6 @@
 # ---------------------------------------------------------------------------- #
 from .fcfs_scheduler import FcfsScheduler
 from .scheduler_utils import SllmScheduler
+from .storage_aware_scheduler import StorageAwareScheduler
 
-__all__ = ["FcfsScheduler", "SllmScheduler"]
+__all__ = ["FcfsScheduler", "SllmScheduler", "StorageAwareScheduler"]

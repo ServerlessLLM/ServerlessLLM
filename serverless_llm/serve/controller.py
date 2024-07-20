@@ -24,16 +24,16 @@ from serverless_llm.serve.logger import init_logger
 
 # from serverless_llm.serve.utils import AllocationPlan, MigrationPlan
 from serverless_llm.serve.routers import RoundRobinRouter
-from serverless_llm.serve.schedulers import FcfsScheduler
-from serverless_llm.serve.sllm_store_manager import SllmStoreManager
+from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
+from serverless_llm.serve.store_manager import SllmStoreManager
 
 logger = init_logger(__name__)
 
 
 @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class SllmController:
-    def __init__(self, scheduler_config: Optional[Mapping] = None):
-        self.scheduler_config = scheduler_config
+    def __init__(self, config: Optional[Mapping] = None):
+        self.config = config
 
         self.running_lock = asyncio.Lock()
         self.running = False
@@ -43,10 +43,6 @@ class SllmController:
         # Register model info
         self.registered_models = {}
 
-    def initilize_cluster(self):
-        # Make sure the cluster (checkpoint store) is ready
-        raise NotImplementedError
-
     async def start(self):
         async with self.running_lock:
             if self.running:
@@ -54,15 +50,30 @@ class SllmController:
                 raise RuntimeError("Controller already started")
             self.running = True
 
-        logger.info("Starting scheduler")
-        self.scheduler = FcfsScheduler.options(
-            name="model_loading_scheduler"
-        ).remote(self.scheduler_config)
-        self.scheduler.start.remote()
-
-        self.sllm_store_manager = SllmStoreManager.options(
+        logger.info("Starting store manager")
+        enable_storage_aware = False
+        hardware_config = None
+        if self.config is not None and "hardware_config" in self.config:
+            hardware_config = self.config["hardware_config"]
+        if hardware_config:
+            enable_storage_aware = True
+        ray_manager_cls = ray.remote(SllmStoreManager)
+        self.sllm_store_manager = ray_manager_cls.options(
             name="sllm_store_manager"
+        ).remote(hardware_config)
+        await self.sllm_store_manager.initialize_cluster.remote()
+
+        logger.info("Starting scheduler")
+        if enable_storage_aware:
+            ray_scheduler_cls = ray.remote(StorageAwareScheduler)
+        else:
+            ray_scheduler_cls = ray.remote(FcfsScheduler)
+
+        self.scheduler = ray_scheduler_cls.options(
+            name="model_loading_scheduler"
         ).remote()
+
+        self.scheduler.start.remote()
 
     async def register(self, model_config):
         if not self.running:

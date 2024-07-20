@@ -20,16 +20,15 @@ import copy
 import time
 from typing import Mapping, Optional
 
-import ray
-
 from serverless_llm.serve.logger import init_logger
-from serverless_llm.serve.schedulers.scheduler_utils import SllmScheduler
 from serverless_llm.serve.utils import get_worker_nodes
+
+from .scheduler_utils import SllmScheduler
 
 logger = init_logger(__name__)
 
 
-@ray.remote(num_cpus=1, resources={"control_node": 0.1})
+# @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class FcfsScheduler(SllmScheduler):
     def __init__(self, scheduler_config: Optional[Mapping] = None):
         super().__init__()
@@ -85,6 +84,7 @@ class FcfsScheduler(SllmScheduler):
     async def deallocate_resource(self, node_id: int, resources: Mapping):
         # TODO: consider other resources
         num_gpus = resources.get("num_gpus", 0)
+        logger.info(f"Node {node_id} deallocated {num_gpus} GPUs")
         async with self.metadata_lock:
             if node_id not in self.worker_nodes:
                 logger.error(f"Node {node_id} not found")
@@ -118,6 +118,7 @@ class FcfsScheduler(SllmScheduler):
             # first come first serve
             if len(loading_requests) > 0:
                 worker_nodes = await self._get_worker_nodes()
+                logger.info(f"Worker nodes: {worker_nodes}")
                 loading_requests.sort(key=lambda x: x[1])
                 for (
                     model_name,
@@ -167,3 +168,4 @@ class FcfsScheduler(SllmScheduler):
             updated_worker_nodes[node_id] = copy.deepcopy(node_info)
         async with self.metadata_lock:
             self.worker_nodes = updated_worker_nodes
+        logger.info(f"Worker nodes updated: {updated_worker_nodes}")

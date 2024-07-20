@@ -20,6 +20,9 @@ from typing import Dict, List, Optional, Tuple, Union
 import torch
 from accelerate import infer_auto_device_map
 from accelerate.utils import get_balanced_memory, get_max_memory
+from serverless_llm_store.logger import init_logger
+
+logger = init_logger(__name__)
 
 DeviceMapType = Union[
     str, Dict[str, Union[int, str, torch.device]], int, torch.device
@@ -161,6 +164,14 @@ def _compute_device_placement_from_map_fast(
                     no_split_modules[module] = tied_size
                     break
 
+        while next(iter(no_split_modules.values())) > next(
+            iter(max_memory.values())
+        ):
+            device_id, memory = max_memory.popitem()
+            logger.warning(
+                f"Device {device_id} has insufficient memory {memory} for the first module."
+            )
+
         total_size = sum(no_split_modules.values())
 
         if total_size > sum(max_memory.values()):
@@ -213,6 +224,7 @@ def _get_balanced_placement(
     length = len(module_names)
     n = len(device_memory)
     if n <= 0 or length == 0:
+        logger.error("No device memory or no modules to place.")
         return None
 
     # "balanced" means that the gap between the sums of the partitions is minimized
