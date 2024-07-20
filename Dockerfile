@@ -36,8 +36,18 @@ RUN pip install -U pip
 # COPY serverless_llm/store/dist/serverless_llm_store-0.0.1.dev3-cp310-cp310-linux_x86_64.whl /app/
 # RUN pip install serverless_llm_store-0.0.1.dev3-cp310-cp310-linux_x86_64.whl
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-COPY serverless_llm/store /app/serverless_llm/store
-RUN cd serverless_llm/store && rm -rf build && pip install .
+COPY serverless_llm/store/cmake /app/serverless_llm/store/cmake
+COPY serverless_llm/store/CMakeLists.txt /app/serverless_llm/store/CMakeLists.txt
+COPY serverless_llm/store/csrc /app/serverless_llm/store/csrc
+COPY serverless_llm/store/serverless_llm_store /app/serverless_llm/store/serverless_llm_store
+COPY serverless_llm/store/setup.py /app/serverless_llm/store/setup.py
+COPY serverless_llm/store/pyproject.toml /app/serverless_llm/store/pyproject.toml
+COPY serverless_llm/store/MANIFEST.in /app/serverless_llm/store/MANIFEST.in
+COPY serverless_llm/store/setup.cfg /app/serverless_llm/store/setup.cfg
+COPY serverless_llm/store/requirements.txt /app/serverless_llm/store/requirements.txt
+COPY serverless_llm/store/README.md /app/serverless_llm/store/README.md
+COPY serverless_llm/store/proto /app/serverless_llm/store/proto
+RUN cd serverless_llm/store && pip install .
 
 COPY requirements.txt /app/
 COPY requirements-worker.txt /app/
