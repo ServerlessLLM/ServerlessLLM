@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 
 import ray
 from fastapi import FastAPI, HTTPException, Request
+import ray.exceptions
 
 from serverless_llm.serve.logger import init_logger
 
@@ -52,6 +53,29 @@ def create_app() -> FastAPI:
         await controller.register.remote(body)
 
         return {"status": "ok"}
+
+    @app.post("/update")
+    async def update_handler(request: Request):
+        body = await request.json()
+        model_name = body.get("model")
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model_name in request body"
+            )
+
+        controller = ray.get_actor("controller")
+        if not controller:
+            raise HTTPException(status_code=500, detail="Controller not initialized")
+
+        logger.info(f"Received request to update model {model_name}")
+        try:
+            await controller.update.remote(model_name, body)
+        except ray.exceptions.RayTaskError as e:
+            raise HTTPException(status_code=400, detail=str(e.cause))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+        return {"status": f"updated model {model_name}"}
 
     @app.post("/delete")
     async def delete_model(request: Request):

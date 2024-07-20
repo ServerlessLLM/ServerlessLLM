@@ -106,9 +106,13 @@ class SllmController:
 
     async def update(self, model_name: str, model_config: Mapping):
         async with self.metadata_lock:
-            if model_name not in self.registered_models:
+            if (
+                model_name not in self.registered_models
+                or model_name not in self.request_routers
+            ):
                 logger.error(f"Model {model_name} not found")
-                return
+                raise ValueError(f"Model {model_name} not found, please register first")
+
         # update auto-scaling config
         auto_scaling_config = model_config.get("auto_scaling_config", None)
         logger.info(f"Try to update the model {model_name} config")
@@ -117,6 +121,8 @@ class SllmController:
                 self.registered_models[model_name]["auto_scaling_config"] = (
                     auto_scaling_config
                 )
+                request_router = self.request_routers[model_name]
+            await request_router.update.remote(auto_scaling_config)
         # TODO: update other config (if possible)
 
     async def exists(self, model_name: str):
