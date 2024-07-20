@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#                                                                              #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+# ---------------------------------------------------------------------------- #
+FROM rocm/pytorch:rocm6.2_ubuntu20.04_py3.9_pytorch_release_2.3.0
+
+# Set non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install necessary packages for wget and HTTPS
+RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize Conda for all shell types
+RUN /opt/conda/bin/conda init
+
+# Add /opt/conda/bin to PATH
+ENV PATH /opt/conda/bin:$PATH
+
+
+# Optional: Install any other dependencies or setup the environment
+RUN conda create -n py310 python=3.10
+# Manually install PyTorch with ROCm support
+RUN /opt/conda/envs/py310/bin/pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/rocm6.0
+
+# Install other parts listed in requirement-build
+COPY requirements-build-rocm.txt .
+RUN /opt/conda/envs/py310/bin/pip install -r requirements-build-rocm.txt
+
+# Add your library files
+WORKDIR /app
+COPY cmake ./cmake
+COPY CMakeLists.txt .
+COPY csrc ./csrc
+COPY serverless_llm_store ./serverless_llm_store
+COPY setup.py .
+COPY pyproject.toml .
+COPY MANIFEST.in .
+COPY setup.cfg .
+COPY requirements.txt .
+COPY README.md .
+COPY proto ./proto
+
+# enable compile without AMD GPU
+ENV PYTORCH_ROCM_ARCH="gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
+
+# ENTRYPOINT [ "/bin/bash", "-c" ]
