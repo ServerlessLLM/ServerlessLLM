@@ -25,26 +25,26 @@ import ray
 logger = logging.getLogger("ray")
 
 
-def get_directory_size(directory):
-    total_size = 0
-    for dirpath, dirnames, filenames in os.walk(directory):
-        for filename in filenames:
-            file_path = os.path.join(dirpath, filename)
-            if not os.path.islink(file_path):
-                total_size += os.path.getsize(file_path)
-    return total_size
+# def get_directory_size(directory):
+#     total_size = 0
+#     for dirpath, dirnames, filenames in os.walk(directory):
+#         for filename in filenames:
+#             file_path = os.path.join(dirpath, filename)
+#             if not os.path.islink(file_path):
+#                 total_size += os.path.getsize(file_path)
+#     return total_size
 
 
 @ray.remote(num_cpus=1)
-def download_transformers_model(model_name: str, torch_dtype: str) -> int:
+def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     # TODO: storage_path = os.path.join(storage_path, "transformers")
     model_dir = os.path.join(storage_path, model_name)
 
     if os.path.exists(model_dir):
-        model_size = get_directory_size(model_dir)
-        logger.info(f"Model {model_name} (size: {model_size}) already exists")
-        return model_size
+        # model_size = get_directory_size(model_dir)
+        logger.info(f"Model {model_name} already exists")
+        return True
 
     import torch
     from transformers import AutoModelForCausalLM
@@ -64,10 +64,10 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> int:
     logger.info(f"Saving model {model_name} to {model_dir}")
     save_model(model, model_dir)
 
-    model_size = get_directory_size(model_dir)
-    logger.info(f"Model {model_name} (size: {model_size}) downloaded")
+    # model_size = get_directory_size(model_dir)
+    # logger.info(f"Model {model_name} (size: {model_size}) downloaded")
 
-    return model_size
+    return True
 
 
 @ray.remote
@@ -127,9 +127,10 @@ class VllmModelDownloader:
         # TODO: storage_path = os.path.join(storage_path, "vllm")
         output_dir = os.path.join(storage_path, model_name)
         if os.path.exists(output_dir):
-            model_size = get_directory_size(output_dir)
-            print(f"Model {model_name} (size: {model_size}) already exists")
-            return model_size
+            # model_size = get_directory_size(output_dir)
+            print(f"Model {model_name} already exists")
+            # return model_size
+            return
         # create the output directory
         os.makedirs(output_dir, exist_ok=True)
 
@@ -143,6 +144,7 @@ class VllmModelDownloader:
             shutil.rmtree(output_dir)
             raise e
 
-        model_size = get_directory_size(output_dir)
-        print(f"Model {model_name} (size: {model_size}) downloaded")
-        return model_size
+        # model_size = get_directory_size(output_dir)
+        # print(f"Model {model_name} (size: {model_size}) downloaded")
+        # return model_size
+        return

@@ -27,14 +27,16 @@ class SllmLocalStore:
 
     lock = asyncio.Lock()
 
-    async def register_model(self, model_name: str, model_size: int):
+    async def register_model(self, model_name: str, pretrained_model_name: str):
         async with self.lock:
             if model_name in self.disk_models:
                 logger.error(f"Model {model_name} already registered")
                 return
-            self.client.register_model(model_name)
+            model_size = self.client.register_model(pretrained_model_name)
             self.disk_models[model_name] = model_size
             logger.info(f"Model {model_name} registered, {self.disk_models}")
+
+        return model_size
 
     async def get_store_info(self):
         async with self.lock:
@@ -209,7 +211,6 @@ class SllmStoreManager:
                 logger.error(f"Node {node_id} not found")
                 return False
             local_server = self.local_servers[node_id]
-            # model_size = self.model_info[model_name]
         logger.info(f"Loading model {model_name} to node {node_id}")
         return await local_server.load_to_host(model_name)
 
@@ -270,11 +271,11 @@ class SllmStoreManager:
                     logger.warning(
                         f"Due to format different issue, please check model path for transformer backend is different compared with using vLLM backend"
                     )
-                    model_size = await self.download_transformers_model(
+                    await self.download_transformers_model(
                         pretrained_model_name, node_id
                     )
                 elif backend == "vllm":
-                    model_size = await self.download_vllm_model(
+                    await self.download_vllm_model(
                         pretrained_model_name,
                         node_id,
                         model_config.get("num_gpus", 1),
@@ -284,12 +285,12 @@ class SllmStoreManager:
                     logger.error(f"Backend {backend} not supported")
                     break
                 local_server = self.local_servers[node_id]
-                await local_server.register_model(model_name, model_size)
+                model_size = await local_server.register_model(model_name, pretrained_model_name)
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
                 logger.info(f"Model {model_name} downloaded to node {node_id}")
             self.model_info[model_name] = model_size
-            logger.info(f"Model {model_name} ({model_size}) registered")
+            logger.info(f"Model {model_name} registered")
         else:
             # TOOD: apply new placement config, if given
             pass
