@@ -40,7 +40,7 @@
 class CheckpointStore {
  public:
   CheckpointStore(const std::string& storage_path, size_t memory_pool_size,
-                  int num_thread = 4, size_t chunk_size = 32L * 1024 * 1024);
+                  int num_thread, size_t chunk_size);
   ~CheckpointStore();
 
   int64_t RegisterModelInfo(const std::string& model_name);
@@ -63,6 +63,10 @@ class CheckpointStore {
   void ClearModelGpuMem(const std::string& model_name,
                         const std::string& replica_uuid);
 
+ public:
+  // Get methods
+  size_t GetChunkSize() const { return chunk_size_; }
+  
  private:
   // A GPU info struct
   struct GpuInfo {
@@ -94,10 +98,6 @@ class CheckpointStore {
                               const std::string& replica_uuid);
   int InitializeModel(const std::shared_ptr<Model>& model);
   int AllocatePinnedMemory(const std::shared_ptr<Model>& model);
-//   int DispatchTensorToGpu(
-//       const std::shared_ptr<Model>& model,
-//       const std::shared_ptr<GpuReplica>& gpu_replica,
-//       const std::unordered_map<int, MemCopyChunkList>& mem_copy_chunks);
   std::vector<std::tuple<int, size_t, size_t>> CalculateChunks(size_t offset,
                                                                size_t size);
   int AllocateCudaMemory(

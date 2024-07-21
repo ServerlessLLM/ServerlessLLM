@@ -143,3 +143,13 @@ class SllmStoreClient:
         else:
             logger.info(f"Model registered")
             return response.model_size
+
+    def get_server_config(self):
+        request = storage_pb2.GetServerConfigRequest()
+        try:
+            response = self.stub.GetServerConfig(request)
+        except grpc.RpcError as e:
+            logger.error(f"Error: {e}")
+            return None
+        else:
+            return {"chunk_size": response.chunk_size}

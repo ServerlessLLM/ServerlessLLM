@@ -10,6 +10,14 @@ service Storage {
   rpc ClearMem (ClearMemRequest) returns (ClearMemResponse) {}
 
   rpc RegisterModel (RegisterModelRequest) returns (RegisterModelResponse) {}
+  rpc GetServerConfig (GetServerConfigRequest) returns (GetServerConfigResponse) {}
+}
+
+message GetServerConfigRequest {
+}
+
+message GetServerConfigResponse {
+  int64 chunk_size = 1;
 }
 
 message RegisterModelRequest {

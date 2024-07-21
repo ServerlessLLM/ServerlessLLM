@@ -1,6 +1,5 @@
 import asyncio
 import time
-from dataclasses import dataclass, field
 from typing import List, Mapping, Optional
 
 from serverless_llm_store.client import SllmStoreClient
@@ -15,17 +14,31 @@ from serverless_llm.serve.utils import get_worker_nodes
 logger = init_logger(__name__)
 
 
-@dataclass
 class SllmLocalStore:
-    node_id: str
-    client: SllmStoreClient
-    hardware_info: Mapping = field(default_factory=dict)
-    disk_models: Mapping = field(default_factory=dict)
-    io_queue: List = field(default_factory=list)
-    queued_models: Mapping = field(default_factory=dict)
-    pinned_memory_pool: Mapping = field(default_factory=dict)
+    def __init__(
+        self,
+        node_id: str,
+        client: SllmStoreClient,
+        chunk_size: int,
+        hardware_info: Optional[Mapping] = None,
+        disk_models: Optional[Mapping] = None,
+        io_queue: Optional[List] = None,
+        queued_models: Optional[Mapping] = None,
+        pinned_memory_pool: Optional[Mapping] = None
+    ):
+        self.node_id = node_id
+        self.client = client
+        self.hardware_info = hardware_info if hardware_info is not None else {}
+        self.disk_models = disk_models if disk_models is not None else {}
+        self.io_queue = io_queue if io_queue is not None else []
+        self.queued_models = queued_models if queued_models is not None else {}
 
-    lock = asyncio.Lock()
+        self.pinned_memory_pool = pinned_memory_pool if pinned_memory_pool is not None else {}
+        host_size = self.hardware_info.get("host_size", 1)
+        self.pinned_memory_pool_chunks = host_size // chunk_size
+        self.pinned_memory_pool_usage = 0
+
+        self.lock = asyncio.Lock()
 
     async def register_model(self, model_name: str, pretrained_model_name: str):
         async with self.lock:
@@ -112,24 +125,24 @@ class SllmLocalStore:
             sorted_models = sorted(
                 self.pinned_memory_pool.items(), key=lambda x: x[1]
             )
-            memory_usage = sum(
-                [self.disk_models[model_name] for model_name in sorted_models]
-            )
+            model_size = self.disk_models[model_name]
+            required_chunks = (model_size + self.pinned_memory_pool_chunks - 1) // self.pinned_memory_pool_chunks
             logger.info(
-                f"Memory usage: {memory_usage}, host size: {self.hardware_info['host_size']},"
-                f" model size: {self.disk_models[model_name]}"
+                f"Pinned memory pool usage: {self.pinned_memory_pool_usage} / {self.pinned_memory_pool_chunks}"
+                f" model {model_name} requires {required_chunks} chunks"
             )
             while (
-                memory_usage + self.disk_models[model_name]
-                > self.hardware_info["host_size"]
+                self.pinned_memory_pool_usage + required_chunks
+                > self.pinned_memory_pool_chunks
                 and len(sorted_models) > 0
             ):
                 model_name, _ = sorted_models.pop(0)
                 if model_name not in self.queued_models:
                     self.client.unload_from_cpu(model_name)
-                    memory_usage -= self.disk_models[model_name]
                     self.pinned_memory_pool.pop(model_name)
-                    logger.info(f"Model {model_name} evicted")
+                    unloaded_chunks = (self.disk_models[model_name] + self.pinned_memory_pool_chunks - 1) // self.pinned_memory_pool_chunks
+                    self.pinned_memory_pool_usage -= unloaded_chunks
+                    logger.info(f"Model {model_name} evicted {unloaded_chunks} chunks")
             return (
                 memory_usage + self.disk_models[model_name]
                 <= self.hardware_info["host_size"]
@@ -162,16 +175,32 @@ class SllmStoreManager:
             for node_id in uninitialized_nodes:
                 if node_id in worker_node_info:
                     node_address = worker_node_info[node_id]["address"]
-                    # TODO: call ping to check if the node is ready
-                    self.local_servers[node_id] = SllmLocalStore(
-                        node_id, SllmStoreClient(f"{node_address}:8073")
-                    )
-                    self.local_servers[
-                        node_id
-                    ].hardware_info = self.hardware_info[node_id]
-                    uninitialized_nodes.remove(node_id)
-                    logger.info(f"Node {node_id} initialized")
-                    break
+                    try:
+                        sllm_store_client = SllmStoreClient(f"{node_address}:8073")
+                        local_server_config = sllm_store_client.get_server_config()
+                    except Exception as e:
+                        logger.warning(f"Failed to connect to node {node_id}: {e}")
+                        continue
+                    else:
+                        if not local_server_config:
+                            logger.warning(
+                                f"Failed to get server config for node {node_id}"
+                            )
+                            continue
+                        if "chunk_size" not in local_server_config:
+                            logger.error(
+                                f"Chunk size not found in server config for node {node_id}"
+                            )
+                        chunk_size = local_server_config["chunk_size"]
+                        self.local_servers[node_id] = SllmLocalStore(
+                            node_id, sllm_store_client, chunk_size
+                        )
+                        self.local_servers[
+                            node_id
+                        ].hardware_info = self.hardware_info[node_id]
+                        uninitialized_nodes.remove(node_id)
+                        logger.info(f"Node {node_id} initialized, chunk size: {chunk_size}")
+                        break
             logger.info(
                 f"Waiting for nodes {uninitialized_nodes} to be initialized"
             )
@@ -241,7 +270,7 @@ class SllmStoreManager:
                 node_address = node_info["address"]
                 if node_id not in self.local_servers:
                     self.local_servers[node_id] = SllmLocalStore(
-                        node_id, SllmStoreClient(f"{node_address}:8073")
+                        node_id, SllmStoreClient(f"{node_address}:8073"), 1
                     )
 
             target_nodes = []

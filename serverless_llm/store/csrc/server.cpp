@@ -52,22 +52,25 @@ using storage::UnloadModelResponse;
 
 DEFINE_string(storage_path, "./models", "storage path");
 DEFINE_int32(server_port, 8073, "Server port");
-DEFINE_int64(mem_pool_size, 32, "Memory pool size in GB");
-DEFINE_int64(disk_size, 128, "Disk size in GB");
-// glog related
-DECLARE_bool(logtostderr);
-DECLARE_string(log_dir);
 
 // system parameter
 DEFINE_int32(num_thread, 4, "Number of I/O threads");
 DEFINE_int32(chunk_size, 32, "Chunk size in MB");
+DEFINE_int64(mem_pool_size, 32, "Memory pool size in GB");
+DEFINE_int64(disk_size, 128, "Disk size in GB");
+
+DEFINE_bool(registration_required, false, "Require registration before loading model");
+
+// glog related
+DECLARE_bool(logtostderr);
+DECLARE_string(log_dir);
 
 const int kMaxRetry = 5;
 
 class CheckpointStoreServer final : public storage::Storage::Service {
  public:
   CheckpointStoreServer(const std::string& storage_path, size_t mem_pool_size, size_t disk_size, 
-  int num_thread, int chunk_size) {
+  int num_thread, int chunk_size, bool registration_required) : registration_required_(registration_required) {
     if (mem_pool_size == 0) {
       LOG(FATAL) << "mem_pool_size is 0";
     }
@@ -75,10 +78,6 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       LOG(FATAL) << "storage_path is empty";
     }
     
-    const char* node_env = std::getenv("NODE_ENV");
-    if (node_env && std::string(node_env) == "production") {
-      registration_required_ = true;
-    }
     storage_ = std::make_unique<CheckpointStore>(
         storage_path, mem_pool_size, num_thread, chunk_size);
   }
@@ -263,6 +262,13 @@ class CheckpointStoreServer final : public storage::Storage::Service {
     return Status::OK;
   }
 
+  Status GetServerConfig(ServerContext* context, const storage::GetServerConfigRequest* request,
+                      storage::GetServerConfigResponse* response) override {
+    response->set_chunk_size(storage_->GetChunkSize());
+
+    return Status::OK;
+  }
+
  private:
   std::unique_ptr<CheckpointStore> storage_;
 
@@ -276,8 +282,9 @@ class CheckpointStoreServer final : public storage::Storage::Service {
 void RunServer(const std::string& server_address,
                const std::string& storage_path,
                size_t mem_pool_size, size_t disk_size,
-               int num_thread, size_t chunk_size) {
-  CheckpointStoreServer service(storage_path, mem_pool_size, disk_size, num_thread, chunk_size);
+               int num_thread, size_t chunk_size,
+               bool registration_required) {
+  CheckpointStoreServer service(storage_path, mem_pool_size, disk_size, num_thread, chunk_size, registration_required);
 
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
@@ -298,6 +305,7 @@ int main(int argc, char** argv) {
   size_t disk_size = (size_t)FLAGS_disk_size * 1024 * 1024 * 1024;
   int num_thread = FLAGS_num_thread;
   size_t chunk_size = (size_t)FLAGS_chunk_size * 1024 * 1024;
+  bool registration_required = FLAGS_registration_required;
 
   if (storage_path.back() != '/') {
     storage_path += "/";
@@ -329,7 +337,7 @@ int main(int argc, char** argv) {
 
   google::InstallFailureSignalHandler();
 
-  RunServer(server_address, storage_path, mem_pool_size, disk_size, num_thread, chunk_size);
+  RunServer(server_address, storage_path, mem_pool_size, disk_size, num_thread, chunk_size, registration_required);
   google::ShutdownGoogleLogging();
 
   return 0;
