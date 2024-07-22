@@ -101,7 +101,7 @@ export LLM_SERVER_URL=http://localhost:8343/
 Deploy a model to the ServerlessLLM server using the `sllm-cli`:
 
 ```bash
-sllm-cli deploy --model "facebook/opt-2.7b"
+sllm-cli deploy --model facebook/opt-2.7b
 ```
 > Note: This command will spend some time downloading the model from the Hugging Face Model Hub.
 > You can use any model from the [Hugging Face Model Hub](https://huggingface.co/models) by specifying the model name in the `--model` argument.
@@ -112,6 +112,14 @@ Expected output:
 INFO xx-xx xx:xx:xx deploy.py:36] Deploying model facebook/opt-1.3b with default configuration.
 INFO xx-xx xx:xx:xx deploy.py:49] Model registered successfully.
 ```
+
+#### Deleting a Model
+To delete a deployed model, use the following command:
+
+```bash
+sllm-cli delete facebook/opt-1.3b
+```
+This will remove the specified model from the ServerlessLLM server.
 
 ### Step 6: Query the Model
 
