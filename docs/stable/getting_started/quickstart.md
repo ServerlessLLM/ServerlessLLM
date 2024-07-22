@@ -72,3 +72,9 @@ sllm-cli delete facebook/opt-1.3b
 ```
 
 This will remove the specified model from the ServerlessLLM server.
+
+You can also remove several models at once by providing multiple model names separated by spaces:
+
+```bash
+sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
+```
