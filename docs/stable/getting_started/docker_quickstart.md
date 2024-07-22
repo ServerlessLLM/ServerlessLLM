@@ -113,14 +113,6 @@ INFO xx-xx xx:xx:xx deploy.py:36] Deploying model facebook/opt-1.3b with default
 INFO xx-xx xx:xx:xx deploy.py:49] Model registered successfully.
 ```
 
-#### Deleting a Model
-To delete a deployed model, use the following command:
-
-```bash
-sllm-cli delete facebook/opt-1.3b
-```
-This will remove the specified model from the ServerlessLLM server.
-
 ### Step 6: Query the Model
 
 Now, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
@@ -140,6 +132,21 @@ Expected output:
 
 ```plaintext
 {"id":"chatcmpl-8b4773e9-a98b-41db-8163-018ed3dc65e2","object":"chat.completion","created":1720183759,"model":"facebook/opt-2.7b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}%
+```
+
+### Deleting a Model
+To delete a deployed model, use the following command:
+
+```bash
+sllm-cli delete facebook/opt-1.3b
+```
+
+This will remove the specified model from the ServerlessLLM server.
+
+You can also remove several models at once by providing multiple model names separated by spaces:
+
+```bash
+sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
 ```
 
 ### Cleanup
