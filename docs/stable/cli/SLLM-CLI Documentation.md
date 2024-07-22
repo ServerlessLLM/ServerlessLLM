@@ -13,6 +13,34 @@ Before using the `sllm-cli` commands, you need to start the ServerlessLLM cluste
 
 After setting up the ServerlessLLM cluster, you can use the commands listed below to manage and interact with your models.
 
+### Example Workflow
+
+1. **Deploy a Model**
+    ```bash
+    sllm-cli deploy --model facebook/opt-1.3b
+    ```
+
+2. **Generate Output**
+    ```bash
+    echo '{
+      "model": "facebook/opt-1.3b",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Please introduce yourself."
+        }
+      ],
+      "temperature": 0.7,
+      "max_tokens": 50
+    }' > input.json
+    sllm-cli generate input.json
+    ```
+
+3. **Delete a Model**
+    ```bash
+    sllm-cli delete facebook/opt-1.3b
+    ```
+
 ### sllm-cli deploy
 Deploy a model using a configuration file or model name.
 
@@ -150,31 +178,3 @@ sllm-cli update [OPTIONS]
 sllm-cli update --model facebook/opt-1.3b
 sllm-cli update --config /path/to/config.json
 ```
-
-### Example Workflow
-
-1. **Deploy a Model**
-    ```bash
-    sllm-cli deploy --model facebook/opt-1.3b
-    ```
-
-2. **Generate Output**
-    ```bash
-    echo '{
-      "model": "facebook/opt-1.3b",
-      "messages": [
-        {
-          "role": "user",
-          "content": "Please introduce yourself."
-        }
-      ],
-      "temperature": 0.7,
-      "max_tokens": 50
-    }' > input.json
-    sllm-cli generate input.json
-    ```
-
-3. **Delete a Model**
-    ```bash
-    sllm-cli delete facebook/opt-1.3b
-    ```
