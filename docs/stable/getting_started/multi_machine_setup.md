@@ -67,7 +67,7 @@ sllm-store-server
 
 ### Step 5: Deploy a Model Using `sllm-cli`
 
-1. **Open a new terminal, activate the `sllm` environment, and set the `LLM_SERVER_URL` environment variable:**
+1. **On any machine, open a new terminal, activate the `sllm` environment, and set the `LLM_SERVER_URL` environment variable:**
 
 ```bash
 conda activate sllm
