@@ -20,24 +20,36 @@ ray start --head --port=6379 --num-cpus=12 --num-gpus=0 \
 --resources='{"control_node": 1}' --block
 ```
 
+Expected output:
+
+```bash
+Local node IP: 129.215.164.142
+
+--------------------
+Ray runtime started.
+--------------------
+```
+
+Here `Local node IP` is the IP address of the head node, which we would use as `<HEAD_NODE_IP>` in the following steps.
+
 ### Step 2: Start Worker Nodes on Different Machines
 
 :::tip
 You can adjust the number of CPUs and GPUs based on the resources available on each machine.
 :::
 
-1. **On the first worker machine, activate the `sllm` environment and connect to the head node:**
+1. **On the first worker machine, activate the `sllm-worker` environment and connect to the head node:**
 
 ```bash
-conda activate sllm
+conda activate sllm-worker
 ray start --address=<HEAD_NODE_IP>:6379 --num-cpus=4 --num-gpus=2 \
 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
 ```
 
-2. **On the second worker machine, activate the `sllm` environment and connect to the head node:**
+2. **On the second worker machine, activate the `sllm-worker` environment and connect to the head node:**
 
 ```bash
-conda activate sllm
+conda activate sllm-worker
 ray start --address=<HEAD_NODE_IP>:6379 --num-cpus=4 --num-gpus=2 \
 --resources='{"worker_node": 1, "worker_id_1": 1}' --block
 ```
@@ -47,22 +59,22 @@ ray start --address=<HEAD_NODE_IP>:6379 --num-cpus=4 --num-gpus=2 \
 
 You can continue adding more worker nodes by repeating the above steps on additional machines, specifying a unique `worker_id` for each node.
 
-### Step 3: Start ServerlessLLM Serve on the Head Node
+### Step 3: Start ServerlessLLM Store Server on the Worker Nodes
+
+1. **On each worker node machine, start the ServerlessLLM Store server:**
+
+```bash
+conda activate sllm-worker
+sllm-store-server
+```
+
+### Step 4: Start ServerlessLLM Serve on the Head Node
 
 1. **On the head node machine, start ServerlessLLM Serve:**
 
 ```bash
 conda activate sllm
 sllm-serve start
-```
-
-### Step 4: Start ServerlessLLM Store Server on the Worker Nodes
-
-1. **On each worker node machine, start the ServerlessLLM Store server:**
-
-```bash
-conda activate sllm
-sllm-store-server
 ```
 
 ### Step 5: Deploy a Model Using `sllm-cli`
