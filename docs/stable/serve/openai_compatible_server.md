@@ -1,2 +1,0 @@
-# OpenAI Compatible Server
-TODO
