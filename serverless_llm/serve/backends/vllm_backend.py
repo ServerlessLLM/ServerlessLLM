@@ -140,8 +140,7 @@ class VllmBackend(SllmBackend):
             filtered_engine_config["model"] = model
         else:
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            # TODO: storage_path = os.path.join(storage_path, "vllm")
-            model_path = os.path.join(storage_path, model)
+            model_path = os.path.join(storage_path, "vllm", model)
             filtered_engine_config["model"] = model_path
             # TODO: fix the load format into serverless_llm
             filtered_engine_config["load_format"] = "sharded_state"

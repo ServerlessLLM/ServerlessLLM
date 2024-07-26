@@ -84,11 +84,6 @@ class SllmController:
         if backend is None:
             logger.error(f"Backend not specified for model {model_name}")
             return
-        if backend != "vllm":
-            # TODO: remove after fix model path problems
-            logger.warning(
-                f"Due to format different issue, please check model path for transformer backend is different compared with using vLLM backend"
-            )
         backend_config = model_config.get("backend_config", {})
         auto_scaling_config = model_config.get("auto_scaling_config", None)
         async with self.metadata_lock:

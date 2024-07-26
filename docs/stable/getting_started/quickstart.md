@@ -79,3 +79,17 @@ Expected output:
 ```json
 {"id":"chatcmpl-9f812a40-6b96-4ef9-8584-0b8149892cb9","object":"chat.completion","created":1720021153,"model":"facebook/opt-1.3b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}
 ```
+
+To delete a deployed model, use the following command:
+
+```bash
+sllm-cli delete facebook/opt-1.3b
+```
+
+This will remove the specified model from the ServerlessLLM server.
+
+You can also remove several models at once by providing multiple model names separated by spaces:
+
+```bash
+sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
+```
