@@ -16,6 +16,7 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
+import os
 import asyncio
 import time
 from typing import List, Mapping, Optional
@@ -58,12 +59,12 @@ class SllmLocalStore:
 
         self.lock = asyncio.Lock()
 
-    async def register_model(self, model_name: str, pretrained_model_name: str):
+    async def register_model(self, model_name: str, model_path: str):
         async with self.lock:
             if model_name in self.disk_models:
                 logger.error(f"Model {model_name} already registered")
                 return
-            model_size = self.client.register_model(pretrained_model_name)
+            model_size = self.client.register_model(model_path)
             self.disk_models[model_name] = model_size
             logger.info(f"Model {model_name} registered, {self.disk_models}")
 
@@ -162,8 +163,8 @@ class SllmLocalStore:
                     self.pinned_memory_pool_usage -= unloaded_chunks
                     logger.info(f"Model {model_name} evicted {unloaded_chunks} chunks")
             return (
-                memory_usage + self.disk_models[model_name]
-                <= self.hardware_info["host_size"]
+                self.pinned_memory_pool_usage + required_chunks
+                > self.pinned_memory_pool_chunks
             )
 
 
@@ -332,7 +333,9 @@ class StoreManager:
                     logger.error(f"Backend {backend} not supported")
                     break
                 local_server = self.local_servers[node_id]
-                model_size = await local_server.register_model(model_name, pretrained_model_name)
+                # backend name + model name
+                model_path = os.path.join(backend, model_name)
+                model_size = await local_server.register_model(model_name, model_path)
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
                 logger.info(f"Model {model_name} downloaded to node {node_id}")
