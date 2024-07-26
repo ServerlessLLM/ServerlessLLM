@@ -168,7 +168,7 @@ class SllmLocalStore:
 
 
 # @ray.remote(num_cpus=1, resources={"control_node": 0.1})
-class SllmStoreManager:
+class StoreManager:
     def __init__(self, hardware_info: Optional[Mapping] = None):
         logger.info("Initializing store manager")
         self.hardware_info = hardware_info

@@ -62,7 +62,7 @@ class StorageAwareScheduler(FcfsScheduler):
             logger.info(f"Loading requests are: {loading_requests}")
             if self.store_manager is None:
                 try:
-                    self.store_manager = ray.get_actor("sllm_store_manager")
+                    self.store_manager = ray.get_actor("store_manager")
                 except ValueError:
                     logger.error("Store manager not found")
                     await asyncio.sleep(1)

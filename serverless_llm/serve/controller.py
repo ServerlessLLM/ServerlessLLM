@@ -25,7 +25,7 @@ from serverless_llm.serve.logger import init_logger
 # from serverless_llm.serve.utils import AllocationPlan, MigrationPlan
 from serverless_llm.serve.routers import RoundRobinRouter
 from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
-from serverless_llm.serve.store_manager import SllmStoreManager
+from serverless_llm.serve.store_manager import StoreManager
 
 logger = init_logger(__name__)
 
@@ -57,11 +57,11 @@ class SllmController:
             hardware_config = self.config["hardware_config"]
         if hardware_config:
             enable_storage_aware = True
-        ray_manager_cls = ray.remote(SllmStoreManager)
-        self.sllm_store_manager = ray_manager_cls.options(
-            name="sllm_store_manager"
+        ray_manager_cls = ray.remote(StoreManager)
+        self.store_manager = ray_manager_cls.options(
+            name="store_manager"
         ).remote(hardware_config)
-        await self.sllm_store_manager.initialize_cluster.remote()
+        await self.store_manager.initialize_cluster.remote()
 
         logger.info("Starting scheduler")
         if enable_storage_aware:
@@ -98,7 +98,7 @@ class SllmController:
             self.registered_models[model_name] = model_config
 
         logger.info(f"Registering new model {model_name}")
-        await self.sllm_store_manager.register.remote(model_config)
+        await self.store_manager.register.remote(model_config)
         # TODO: put resource requirements in model_config
         resource_requirements = {
             "num_cpus": 1,
