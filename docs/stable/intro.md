@@ -4,6 +4,9 @@ sidebar_position: 1
 
 # Serverless LLM
 
+<!-- logo (../images/serverlessllm.jpg) -->
+![ServerlessLLM](../images/serverlessllm.jpg)
+
 ServerlessLLM is a fast, affordable, and easy-to-use library designed for multi-LLM serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources, as it allows efficient dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
 
 ## Documentation
