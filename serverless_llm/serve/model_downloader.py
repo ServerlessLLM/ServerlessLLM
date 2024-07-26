@@ -28,8 +28,10 @@ logger = logging.getLogger("ray")
 @ray.remote(num_cpus=1)
 def download_transformers_model(model_name: str, torch_dtype: str) -> None:
     storage_path = os.getenv("STORAGE_PATH", "./models")
-    # TODO: storage_path = os.path.join(storage_path, "transformers")
-    model_dir = os.path.join(storage_path, model_name)
+    model_dir = os.path.join(storage_path, "transformers", model_name)
+    if os.path.exists(model_dir):
+        logger.info(f"Model {model_name} already exists in {model_dir}")
+        return
 
     import torch
     from transformers import AutoModelForCausalLM
@@ -47,7 +49,12 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> None:
     from serverless_llm_store import save_model
 
     logger.info(f"Saving model {model_name} to {model_dir}")
-    save_model(model, model_dir)
+    try:
+        save_model(model, model_dir)
+    except Exception as e:
+        logger.error(f"Failed to save model {model_name}: {e}")
+        shutil.rmtree(model_dir)
+        raise RuntimeError(f"Failed to save model {model_name} for transformer backend: {e}")
 
     return
 
@@ -106,18 +113,20 @@ class VllmModelDownloader:
                 torch.cuda.synchronize()
 
         storage_path = os.getenv("STORAGE_PATH", "./models")
-        # TODO: storage_path = os.path.join(storage_path, "vllm")
-        output_dir = os.path.join(storage_path, model_name)
+        model_dir = os.path.join(storage_path, "vllm", model_name)
 
         # create the output directory
-        os.makedirs(output_dir, exist_ok=True)
+        if os.path.exists(model_dir):
+            logger.info(f"Model {model_name} already exists in {model_dir}")
+            return
+        os.makedirs(model_dir, exist_ok=True)
 
         try:
             with TemporaryDirectory() as cache_dir:
                 input_dir = snapshot_download(model_name, cache_dir=cache_dir)
-                _run_writer(input_dir, output_dir)
+                _run_writer(input_dir, model_dir)
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
-            shutil.rmtree(output_dir)
-            raise e
+            shutil.rmtree(model_dir)
+            raise RuntimeError(f"Failed to save model {model_name} for vllm backend: {e}")
