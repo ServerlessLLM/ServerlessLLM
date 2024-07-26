@@ -80,6 +80,9 @@ venv/
 # PyCharm
 .idea
 
+# VSCode
+.vscode
+
 # Python mode for VIM
 .ropeproject
 */.ropeproject
