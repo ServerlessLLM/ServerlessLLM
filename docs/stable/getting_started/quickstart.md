@@ -25,14 +25,14 @@ ray start --address=localhost:6379 --num-cpus=4 --num-gpus=2 \
 
 Now, let’s start ServerlessLLM.
 
-First, start ServerlessLLM Serve (i.e., `sllm-serve`)
+First, in another new terminal, start ServerlessLLM Serve (i.e., `sllm-serve`)
 
 ```bash
 conda activate sllm
 sllm-serve start
 ```
 
-Next start ServerlessLLM Store server. This server will use `./models` as the storage path by default.
+Next, in another new terminal, start ServerlessLLM Store server. This server will use `./models` as the storage path by default.
 
 ```bash
 conda activate sllm
@@ -41,7 +41,9 @@ sllm-store-server
 
 Everything is set!
 
-Next, let's deploy a model to the ServerlessLLM server. You can deploy a model by running the following command:
+Now you have opened 4 terminals: started a local ray cluster(head node and worker node), started the ServerlessLLM Serve, and started the ServerlessLLM Store server.
+
+Next, open another new terminal, let's deploy a model to the ServerlessLLM server. You can deploy a model by running the following command:
 
 ```bash
 conda activate sllm
