@@ -72,6 +72,22 @@ class DeployCommand:
             os.path.dirname(__file__), "default_config.json"
         )
 
+        self.validate_args()
+
+    def validate_args(self) -> None:
+        """Validate the provided arguments to ensure correctness."""
+        if self.num_gpus is not None and self.num_gpus < 0:
+            raise ValueError("Number of GPUs cannot be negative.")
+        if self.target is not None and self.target < 0:
+            raise ValueError("Target concurrency cannot be negative.")
+        if self.min_instances is not None and self.min_instances < 0:
+            raise ValueError("Minimum instances cannot be negative.")
+        if self.max_instances is not None and self.max_instances < 0:
+            raise ValueError("Maximum instances cannot be negative.")
+        if self.min_instances is not None and self.max_instances is not None:
+            if self.min_instances > self.max_instances:
+                raise ValueError("Minimum instances cannot be greater than maximum instances.")
+
     def run(self) -> None:
         if self.config_path:
             config_data = read_config(self.config_path)
@@ -83,7 +99,7 @@ class DeployCommand:
             config_data["backend_config"]["pretrained_model_name_or_path"] = (
                 self.model
             )
-            if self.backend is not None:
+            if self.backend:
                 config_data["backend"] = self.backend
             if self.num_gpus is not None:
                 config_data["num_gpus"] = self.num_gpus
