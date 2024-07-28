@@ -29,6 +29,20 @@ conda activate sllm-store
 pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev3
 ```
 
+### Install from source
+1. Clone the repository and enter the `store` directory
+
+``` bash
+git clone git@github.com:ServerlessLLM/ServerlessLLM.git
+cd ServerlessLLM/serverless_llm/store
+```
+
+2. Install the package from source
+
+```bash
+pip install .
+```
+
 ## Usage Examples
 :::tip
 We highly recommend using a fast storage device (e.g., NVMe SSD) to store the model files for the best experience.

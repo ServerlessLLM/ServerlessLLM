@@ -96,10 +96,6 @@ class SllmStoreManager:
 
             for node_id in target_nodes:
                 if backend == "transformers":
-                    # TODO: remove after fix model path problems
-                    logger.warning(
-                        f"Due to format different issue, please check model path for transformer backend is different compared with using vLLM backend"
-                    )
                     await self.download_transformers_model(
                         pretrained_model_name, node_id
                     )

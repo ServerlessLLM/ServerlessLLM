@@ -189,95 +189,106 @@ Signed-off-by: Your Name <your.email@example.com>
 
 Commits that do not include a valid sign-off will not be accepted into the main branch of the repository. Failure to comply with this requirement may result in the rejection of your contributions.
 
-### Squashing Commits
+### Squashing Commits and Merging
 
-We prefer for every commit in the repo to encapsulate a single concrete and atomic change/addition. This means our commit history shows a clear and structured progression and remains concise and readable. In your own branch, you can clean up your commit history by squashing smaller commits together using `git rebase`:
+We maintain a clean and meaningful commit history on the main branch by ensuring each merged pull request represents a single, cohesive change. To achieve this, we use GitHub's "Squash and merge" feature.
 
-1. Find the hash of the oldest commit which you want to squash up to. For example, if you made three commits in sequence (A, B, C, such that C is the latest commit) and you wanted to squash B and C then you would need to find the hash of A. You can find the hash of a commit on GitHub or by using the command:
+#### Why Squash and Merge?
 
-   ```bash
-   git log
-   ```
+Squashing commits before merging offers several advantages:
 
-2. Use the rebase command in interactive mode:
+1. **Clean History**: The main branch maintains a clear, linear history where each commit represents a complete feature or fix.
+2. **Simplified Understanding**: It's easier for contributors to grasp the project's evolution by reading concise, feature-level commit messages.
+3. **Easier Reverting**: If needed, reverting an entire feature becomes straightforward as it's contained in a single commit.
+4. **Preserved Details**: The full commit history of the feature development is retained in the pull request for future reference.
+5. **Reduced Noise**: Intermediate commits, including "work in progress" or "fix typo" commits, are consolidated into a single, meaningful commit.
 
-   ```bash
-   git rebase -i [your hash]
-   ```
+#### Workflow Example
 
-3. For each commit which you would like to squash, replace "pick" with "s". Keep in mind that the "s" option keeps the commit but squashes it into the previous commit, i.e. the one above it. For example, consider the following:
+Let's walk through an example of adding a new checkpoint format:
 
-   ```
-   pick 4f3d934 commit A
-   s c24c160 commit B
-   s f20ac90 commit C
-   pick 7667d38 commit D
-   ```
-
-   This would squash commits A, B, and C into a single commit, and then commit D would be left as a separate commit.
-
-4. Update the commit messages as prompted.
-
-5. Push your changes:
+1. Create and switch to a new feature branch:
 
    ```bash
-   git push --force
+   git checkout -b feature/add-new-checkpoint-format
    ```
 
-Apart from squashing commits, `git rebase -i` can also be used for rearranging the order of commits. If you are currently working on a commit and you already know that you will need to squash it with the previous commit at some point in the future, you can also use `git commit --amend` which automatically squashes with the last commit.
+2. Make changes and commit them:
 
-### Rebasing on the Main Branch
+   ```bash
+   # Implement new checkpoint format
+   git add .
+   git commit -m "Add basic structure for new checkpoint format"
 
-Rebasing is a powerful technique in Git that allows you to integrate changes from one branch into another. When we rebase our branch onto the main branch, we create a linear history and avoid merge commits. This is particularly valuable for maintaining a clean and structured commit history.
+   # Add serialization method
+   git add .
+   git commit -m "Implement serialization for new format"
 
-#### Why Rebase?
+   # Add deserialization method
+   git add .
+   git commit -m "Implement deserialization for new format"
 
-Consider a scenario where you have a branch (`feature`) that you started from the main branch, and both have received new commits since your branch was created:
+   # Fix a bug in serialization
+   git add .
+   git commit -m "Fix endianness issue in serialization"
+   ```
 
-```
-      A---B---C feature
-     /
-D---E---F---G main
-```
+3. Push your branch and create a pull request on GitHub.
 
-When you rebase your branch onto the main branch, Git rewrites the commit history. It moves the starting point of your branch to the tip of the main branch, making the history linear and eliminating the need for merge commits:
+4. After the review process and any necessary changes, the maintainer will use the "Squash and merge" option.
 
-```
-              A'--B'--C' feature
-             /
-D---E---F---G main
-```
+5. The resulting commit on the main branch will look like this:
 
-A messy merge without rebasing can result in a cluttered history:
+   ```
+   Add new checkpoint format (#78)
 
-```
-        A---B---C feature
-       /           \
-D---E---F---G-------M main
-```
+   This pull request implements a new checkpoint format, including:
+   - Basic structure for the new format
+   - Serialization method with correct endianness
+   - Deserialization method
+   
+   The new format improves storage efficiency and load times.
 
-#### How to Rebase on Main
+   Squashed commit of the following:
+   - Add basic structure for new checkpoint format
+   - Implement serialization for new format
+   - Implement deserialization for new format
+   - Fix endianness issue in serialization
+   ```
 
-To rebase on `main`, simply checkout your branch and use the following:
+#### How to Squash and Merge
 
-```bash
-git checkout your-branch
-git rebase main
-```
+When a pull request is ready to be merged:
 
-This command sequence switches to your branch and reapplies your changes on top of the latest main branch. It's important to resolve any conflicts that may arise during the rebase process.
+1. Go to the pull request page on GitHub.
+2. Click the "Merge pull request" dropdown and select "Squash and merge".
+3. Edit the commit message to provide a clear, concise summary of the changes.
+4. Click "Confirm squash and merge".
 
-For more details and options, refer to the [git rebase documentation](https://git-scm.com/docs/git-rebase).
+#### After Merging
 
-### Maintaining a Clean Main Branch & Avoiding Merge Commits
+After your pull request is merged:
 
-Maintaining a clean and linear history on your main branch is essential for several reasons:
+1. Delete your local feature branch:
 
-- It simplifies the process of syncing the forked repository with the upstream repository.
-- A clean main branch minimizes the likelihood of merge conflicts when you synchronize your fork with the upstream repository.
-- A clean main branch enhances collaboration by making it easier for you and your collaborators to review and understand the project's history.
+   ```bash
+   git checkout main
+   git branch -d feature/add-new-checkpoint-format
+   ```
 
-To avoid merge commits, follow the guidelines described above, particularly taking care to rebase on the main branch and keeping your forks in sync.
+2. Update your local main branch:
+
+   ```bash
+   git pull origin main
+   ```
+
+3. Delete the remote feature branch:
+
+   ```bash
+   git push origin --delete feature/add-new-checkpoint-format
+   ```
+
+By following this workflow, we maintain a clean and organized main branch, making it easier for all contributors to understand the project's history and collaborate effectively. The detailed development process remains available in the pull request history, providing the best of both worlds: a clean main branch and preserved development details.
 
 ## Release
 
