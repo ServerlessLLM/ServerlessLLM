@@ -1,37 +1,37 @@
 // ----------------------------------------------------------------------------
 //  ServerlessLLM
-//  Copyright (c) ServerlessLLM Team 2024                                       
-//                                                                               
-//   Licensed under the Apache License, Version 2.0 (the "License");             
-//   you may not use this file except in compliance with the License.            
-//                                                                               
-//   You may obtain a copy of the License at                                     
-//                                                                               
-//                   http://www.apache.org/licenses/LICENSE-2.0                  
-//                                                                               
-//   Unless required by applicable law or agreed to in writing, software         
-//   distributed under the License is distributed on an "AS IS" BASIS,           
-//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    
-//   See the License for the specific language governing permissions and         
-//   limitations under the License.                                              
-//  ---------------------------------------------------------------------------- 
+//  Copyright (c) ServerlessLLM Team 2024
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//
+//   You may obtain a copy of the License at
+//
+//                   http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//  ----------------------------------------------------------------------------
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 
-#include <filesystem>
-#include <thread>
 #include <chrono>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <queue>
-#include <mutex>
 #include <condition_variable>
 #include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <string>
+#include <thread>
+#include <unordered_map>
 
 #include "checkpoint_store.h"
 #include "storage.grpc.pb.h"
@@ -66,27 +66,26 @@ const int kMaxRetry = 5;
 
 class CheckpointStoreServer final : public storage::Storage::Service {
  public:
-  CheckpointStoreServer(const std::string& storage_path, size_t mem_pool_size, size_t disk_size, 
-  int num_thread, int chunk_size) {
+  CheckpointStoreServer(const std::string& storage_path, size_t mem_pool_size,
+                        size_t disk_size, int num_thread, int chunk_size) {
     if (mem_pool_size == 0) {
       LOG(FATAL) << "mem_pool_size is 0";
     }
     if (storage_path.empty()) {
       LOG(FATAL) << "storage_path is empty";
     }
-    
+
     bool registration_required = false;
     const char* node_env = std::getenv("NODE_ENV");
     if (node_env && std::string(node_env) == "production") {
       registration_required = true;
     }
-    storage_ = std::make_unique<CheckpointStore>(
-        storage_path, mem_pool_size, num_thread, chunk_size);
+    storage_ = std::make_unique<CheckpointStore>(storage_path, mem_pool_size,
+                                                 num_thread, chunk_size);
   }
 
-  Status LoadModelAsync(ServerContext* context,
-                    const LoadModelRequest* request,
-                    LoadModelResponse* response) override {
+  Status LoadModelAsync(ServerContext* context, const LoadModelRequest* request,
+                        LoadModelResponse* response) override {
     const std::string& model_name = request->model_name();
     if (model_name.empty()) {
       LOG(ERROR) << "model_name is empty";
@@ -126,7 +125,8 @@ class CheckpointStoreServer final : public storage::Storage::Service {
           mem_copy_chunks[device_uuid].push_back(mem_copy_chunk);
         }
       }
-      int ret = storage_->LoadModelFromMemAsync(model_name, replica_uuid, gpu_memory_handles, mem_copy_chunks);
+      int ret = storage_->LoadModelFromMemAsync(
+          model_name, replica_uuid, gpu_memory_handles, mem_copy_chunks);
       if (ret != 0) {
         LOG(ERROR) << "LoadModel failed";
         return Status::CANCELLED;
@@ -135,15 +135,16 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       LOG(ERROR) << "Unsupported device type: " << device_type;
       return Status::CANCELLED;
     }
-    
-    LOG(INFO) << "LoadModel: success " << request->model_name() << " with target " << device_type;
+
+    LOG(INFO) << "LoadModel: success " << request->model_name()
+              << " with target " << device_type;
 
     return Status::OK;
   }
 
   Status ConfirmModel(ServerContext* context,
-                           const ConfirmModelRequest* request,
-                           ConfirmModelResponse* response) override {
+                      const ConfirmModelRequest* request,
+                      ConfirmModelResponse* response) override {
     const std::string& model_name = request->model_name();
     const std::string& replica_uuid = request->replica_uuid();
     auto device_type = request->target_device_type();
@@ -154,7 +155,7 @@ class CheckpointStoreServer final : public storage::Storage::Service {
     }
 
     LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid;
-    
+
     if (device_type != storage::DEVICE_TYPE_GPU) {
       LOG(ERROR) << "Unsupported device type: " << device_type;
       return Status::CANCELLED;
@@ -167,22 +168,24 @@ class CheckpointStoreServer final : public storage::Storage::Service {
         success = true;
         break;
       }
-      LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid << " failed with retry " << i;
+      LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid
+                << " failed with retry " << i;
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     if (!success) {
-      LOG(ERROR) << "Confirm model " << model_name << " replica " << replica_uuid << " failed";
+      LOG(ERROR) << "Confirm model " << model_name << " replica "
+                 << replica_uuid << " failed";
       return Status::CANCELLED;
     }
-    LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid << " success";
+    LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid
+              << " success";
 
     return Status::OK;
   }
 
-  Status UnloadModel(ServerContext* context,
-                            const UnloadModelRequest* request,
-                            UnloadModelResponse* response) override {
+  Status UnloadModel(ServerContext* context, const UnloadModelRequest* request,
+                     UnloadModelResponse* response) override {
     const std::string& model_name = request->model_name();
     const std::string& replica_uuid = request->replica_uuid();
 
@@ -201,8 +204,9 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       return Status::CANCELLED;
     }
 
-    LOG(INFO) << "UnloadModel: start " << model_name << " with target " << request->target_device_type();
-    
+    LOG(INFO) << "UnloadModel: start " << model_name << " with target "
+              << request->target_device_type();
+
     // retry 5 times
     bool success = false;
     for (int i = 0; i < kMaxRetry; ++i) {
@@ -212,7 +216,7 @@ class CheckpointStoreServer final : public storage::Storage::Service {
         break;
       }
       LOG(INFO) << "UnloadModel failed for model " << model_name
-                 << " with retry " << i;
+                << " with retry " << i;
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -221,7 +225,8 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       return Status::CANCELLED;
     }
 
-    LOG(INFO) << "UnloadModel: success " << model_name << " with target " << request->target_device_type();
+    LOG(INFO) << "UnloadModel: success " << model_name << " with target "
+              << request->target_device_type();
 
     return Status::OK;
   }
@@ -238,8 +243,9 @@ class CheckpointStoreServer final : public storage::Storage::Service {
     return Status::OK;
   }
 
-  Status RegisterModel(ServerContext* context, const storage::RegisterModelRequest* request,
-                      storage::RegisterModelResponse* response) override {
+  Status RegisterModel(ServerContext* context,
+                       const storage::RegisterModelRequest* request,
+                       storage::RegisterModelResponse* response) override {
     const std::string& model_name = request->model_name();
     if (model_name.empty()) {
       LOG(ERROR) << "model_name is empty";
@@ -264,10 +270,10 @@ class CheckpointStoreServer final : public storage::Storage::Service {
 };
 
 void RunServer(const std::string& server_address,
-               const std::string& storage_path,
-               size_t mem_pool_size, size_t disk_size,
-               int num_thread, size_t chunk_size) {
-  CheckpointStoreServer service(storage_path, mem_pool_size, disk_size, num_thread, chunk_size);
+               const std::string& storage_path, size_t mem_pool_size,
+               size_t disk_size, int num_thread, size_t chunk_size) {
+  CheckpointStoreServer service(storage_path, mem_pool_size, disk_size,
+                                num_thread, chunk_size);
 
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
@@ -297,19 +303,21 @@ int main(int argc, char** argv) {
   const std::string kLogDir = home_dir + "/.checkpoint_store/logs";
 
   try {
-      // Create the log directory if it does not exist
-      if (!std::filesystem::exists(kLogDir)) {
-          std::filesystem::create_directories(kLogDir);
-          // std::cout << "Log directory created successfully.\n";
-          LOG(INFO) << "Log directory created successfully.";
-      } else {
-          // std::cout << "Log directory already exists.\n";
-          LOG(INFO) << "Log directory already exists.";
-      }
+    // Create the log directory if it does not exist
+    if (!std::filesystem::exists(kLogDir)) {
+      std::filesystem::create_directories(kLogDir);
+      // std::cout << "Log directory created successfully.\n";
+      LOG(INFO) << "Log directory created successfully.";
+    } else {
+      // std::cout << "Log directory already exists.\n";
+      LOG(INFO) << "Log directory already exists.";
+    }
   } catch (const std::filesystem::filesystem_error& e) {
-      // std::cerr << "Filesystem error while creating the log directory: " << e.what() << '\n';
-      LOG(ERROR) << "Filesystem error while creating the log directory: " << e.what();
-      return -1;
+    // std::cerr << "Filesystem error while creating the log directory: " <<
+    // e.what() << '\n';
+    LOG(ERROR) << "Filesystem error while creating the log directory: "
+               << e.what();
+    return -1;
   }
 
   FLAGS_log_dir = kLogDir;
@@ -319,7 +327,8 @@ int main(int argc, char** argv) {
 
   google::InstallFailureSignalHandler();
 
-  RunServer(server_address, storage_path, mem_pool_size, disk_size, num_thread, chunk_size);
+  RunServer(server_address, storage_path, mem_pool_size, disk_size, num_thread,
+            chunk_size);
   google::ShutdownGoogleLogging();
 
   return 0;
