@@ -20,11 +20,10 @@ from argparse import Namespace, _SubParsersAction
 
 import requests
 
-from serverless_llm.cli._cli_utils import read_config, validate_config
+from serverless_llm.cli._cli_utils import read_config
 from serverless_llm.serve.logger import init_logger
 
 logger = init_logger(__name__)
-
 
 class DeployCommand:
     @staticmethod
@@ -72,27 +71,30 @@ class DeployCommand:
             os.path.dirname(__file__), "default_config.json"
         )
 
-        self.validate_args()
+    def validate_config(self, config_data: dict) -> None:
+        """Validate the provided configuration data to ensure correctness."""
+        try:
+            num_gpus = config_data["num_gpus"]
+            target = config_data["auto_scaling_config"]["target"]
+            min_instances = config_data["auto_scaling_config"]["min_instances"]
+            max_instances = config_data["auto_scaling_config"]["max_instances"]
+        except KeyError as e:
+            raise ValueError(f"Missing key in config_data: {e}")
 
-    def validate_args(self) -> None:
-        """Validate the provided arguments to ensure correctness."""
-        if self.num_gpus is not None and self.num_gpus < 0:
-            raise ValueError("Number of GPUs cannot be negative.")
-        if self.target is not None and self.target < 0:
-            raise ValueError("Target concurrency cannot be negative.")
-        if self.min_instances is not None and self.min_instances < 0:
+        if num_gpus < 1:
+            raise ValueError("Number of GPUs cannot be less than 1.")
+        if target < 1:
+            raise ValueError("Target concurrency cannot be less than 1.")
+        if min_instances < 0:
             raise ValueError("Minimum instances cannot be negative.")
-        if self.max_instances is not None and self.max_instances < 0:
+        if max_instances < 0:
             raise ValueError("Maximum instances cannot be negative.")
-        if self.min_instances is not None and self.max_instances is not None:
-            if self.min_instances > self.max_instances:
-                raise ValueError("Minimum instances cannot be greater than maximum instances.")
+        if min_instances > max_instances:
+            raise ValueError("Minimum instances cannot be greater than maximum instances.")
 
     def run(self) -> None:
         if self.config_path:
             config_data = read_config(self.config_path)
-            validate_config(config_data)
-            self.deploy_model(config_data)
         elif self.model:
             config_data = read_config(self.default_config_path)
             config_data["model"] = self.model
@@ -110,13 +112,16 @@ class DeployCommand:
             if self.max_instances is not None:
                 config_data["auto_scaling_config"]["max_instances"] = self.max_instances
 
-            logger.info(
-                f"Deploying model {self.model} with custom configuration."
-            )
-            self.deploy_model(config_data)
         else:
             logger.error("You must specify either --model or --config.")
             exit(1)
+
+        self.validate_config(config_data)
+        logger.info(
+            f"Deploying model {self.model}."
+        )
+        
+        self.deploy_model(config_data)
 
     def deploy_model(self, config_data: dict) -> None:
         headers = {"Content-Type": "application/json"}
