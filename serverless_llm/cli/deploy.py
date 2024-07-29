@@ -15,18 +15,15 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import json
-import logging
 import os
 from argparse import Namespace, _SubParsersAction
 
 import requests
 
-from serverless_llm.cli._cli_utils import read_config, validate_config
+from serverless_llm.cli._cli_utils import read_config
 from serverless_llm.serve.logger import init_logger
 
 logger = init_logger(__name__)
-
 
 class DeployCommand:
     @staticmethod
@@ -42,11 +39,31 @@ class DeployCommand:
         deploy_parser.add_argument(
             "--config", type=str, help="Path to the JSON config file."
         )
+        deploy_parser.add_argument(
+            "--backend", type=str, help="Overwrite the backend in the default configuration."
+        )
+        deploy_parser.add_argument(
+            "--num_gpus", type=int, help="Overwrite the number of GPUs in the default configuration."
+        )
+        deploy_parser.add_argument(
+            "--target", type=int, help="Overwrite the target concurrency in the default configuration."
+        )
+        deploy_parser.add_argument(
+            "--min_instances", type=int, help="Overwrite the minimum instances in the default configuration."
+        )
+        deploy_parser.add_argument(
+            "--max_instances", type=int, help="Overwrite the maximum instances in the default configuration."
+        )
         deploy_parser.set_defaults(func=DeployCommand)
 
     def __init__(self, args: Namespace) -> None:
         self.model = args.model
         self.config_path = args.config
+        self.backend = args.backend
+        self.num_gpus = args.num_gpus
+        self.target = args.target
+        self.min_instances = args.min_instances
+        self.max_instances = args.max_instances
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://localhost:8343/") + "register"
         )
@@ -54,24 +71,57 @@ class DeployCommand:
             os.path.dirname(__file__), "default_config.json"
         )
 
+    def validate_config(self, config_data: dict) -> None:
+        """Validate the provided configuration data to ensure correctness."""
+        try:
+            num_gpus = config_data["num_gpus"]
+            target = config_data["auto_scaling_config"]["target"]
+            min_instances = config_data["auto_scaling_config"]["min_instances"]
+            max_instances = config_data["auto_scaling_config"]["max_instances"]
+        except KeyError as e:
+            raise ValueError(f"Missing key in config_data: {e}")
+
+        if num_gpus < 1:
+            raise ValueError("Number of GPUs cannot be less than 1.")
+        if target < 1:
+            raise ValueError("Target concurrency cannot be less than 1.")
+        if min_instances < 0:
+            raise ValueError("Minimum instances cannot be negative.")
+        if max_instances < 0:
+            raise ValueError("Maximum instances cannot be negative.")
+        if min_instances > max_instances:
+            raise ValueError("Minimum instances cannot be greater than maximum instances.")
+
     def run(self) -> None:
         if self.config_path:
             config_data = read_config(self.config_path)
-            validate_config(config_data)
-            self.deploy_model(config_data)
         elif self.model:
             config_data = read_config(self.default_config_path)
             config_data["model"] = self.model
             config_data["backend_config"]["pretrained_model_name_or_path"] = (
                 self.model
             )
-            logger.info(
-                f"Deploying model {self.model} with default configuration."
-            )
-            self.deploy_model(config_data)
+            if self.backend:
+                config_data["backend"] = self.backend
+            if self.num_gpus is not None:
+                config_data["num_gpus"] = self.num_gpus
+            if self.target is not None:
+                config_data["auto_scaling_config"]["target"] = self.target
+            if self.min_instances is not None:
+                config_data["auto_scaling_config"]["min_instances"] = self.min_instances
+            if self.max_instances is not None:
+                config_data["auto_scaling_config"]["max_instances"] = self.max_instances
+
         else:
             logger.error("You must specify either --model or --config.")
             exit(1)
+
+        self.validate_config(config_data)
+        logger.info(
+            f"Deploying model {self.model}."
+        )
+        
+        self.deploy_model(config_data)
 
     def deploy_model(self, config_data: dict) -> None:
         headers = {"Content-Type": "application/json"}

@@ -1,30 +1,30 @@
 // ----------------------------------------------------------------------------
 //  ServerlessLLM
-//  Copyright (c) ServerlessLLM Team 2024                                       
-//                                                                               
-//   Licensed under the Apache License, Version 2.0 (the "License");             
-//   you may not use this file except in compliance with the License.            
-//                                                                               
-//   You may obtain a copy of the License at                                     
-//                                                                               
-//                   http://www.apache.org/licenses/LICENSE-2.0                  
-//                                                                               
-//   Unless required by applicable law or agreed to in writing, software         
-//   distributed under the License is distributed on an "AS IS" BASIS,           
-//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    
-//   See the License for the specific language governing permissions and         
-//   limitations under the License.                                              
-//  ---------------------------------------------------------------------------- 
+//  Copyright (c) ServerlessLLM Team 2024
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//
+//   You may obtain a copy of the License at
+//
+//                   http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//  ----------------------------------------------------------------------------
 #pragma once
 
 #include <condition_variable>
+#include <filesystem>
 #include <future>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <queue>
-#include <filesystem>
 
 // Third-party library headers
 #include <cuda_runtime.h>
@@ -32,10 +32,10 @@
 // Own Headers
 #include "cuda_memory.h"
 // #include "cuda_memory_pool.h"
+#include "model.h"
 #include "pinned_memory.h"
 #include "pinned_memory_pool.h"
 #include "types_and_defs.h"
-#include "model.h"
 
 class CheckpointStore {
  public:
@@ -55,7 +55,7 @@ class CheckpointStore {
                             const MemCopyHandleListMap& gpu_memory_handles,
                             const MemCopyChunkListMap& mem_copy_chunks);
   int WaitModelInGpu(const std::string& model_name,
-                        const std::string& replica_uuid);
+                     const std::string& replica_uuid);
   int UnloadModelFromHost(const std::string& model_name);
   int ClearMem();
   void DeleteModelInfo(const std::string& model_name);
@@ -82,7 +82,8 @@ class CheckpointStore {
   int num_gpus_;
   std::unordered_map<int, GpuInfo> gpu_info_map_;
   std::unordered_map<std::string, std::shared_ptr<Model>> model_map_;
-  std::unordered_map<std::string, std::chrono::time_point<std::chrono::system_clock>>
+  std::unordered_map<std::string,
+                     std::chrono::time_point<std::chrono::system_clock>>
       model_last_access_time_;
   std::mutex model_info_mutex_;
   const size_t memory_pool_size_;
@@ -104,5 +105,6 @@ class CheckpointStore {
       const std::shared_ptr<GpuReplica>& gpu_replica,
       std::vector<std::pair<int, uint64_t>> gpu_memory_sizes);
   ModelPtr GetModelByName(const std::string& model_name);
-  MemPtrListMap GetDevicePtrsFromMemHandles(const MemCopyHandleListMap& memory_handles);
+  MemPtrListMap GetDevicePtrsFromMemHandles(
+      const MemCopyHandleListMap& memory_handles);
 };

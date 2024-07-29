@@ -1,20 +1,20 @@
 // ----------------------------------------------------------------------------
 //  ServerlessLLM
-//  Copyright (c) ServerlessLLM Team 2024                                       
-//                                                                               
-//   Licensed under the Apache License, Version 2.0 (the "License");             
-//   you may not use this file except in compliance with the License.            
-//                                                                               
-//   You may obtain a copy of the License at                                     
-//                                                                               
-//                   http://www.apache.org/licenses/LICENSE-2.0                  
-//                                                                               
-//   Unless required by applicable law or agreed to in writing, software         
-//   distributed under the License is distributed on an "AS IS" BASIS,           
-//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    
-//   See the License for the specific language governing permissions and         
-//   limitations under the License.                                              
-//  ---------------------------------------------------------------------------- 
+//  Copyright (c) ServerlessLLM Team 2024
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//
+//   You may obtain a copy of the License at
+//
+//                   http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//  ----------------------------------------------------------------------------
 #include "model.h"
 
 #include <fcntl.h>
@@ -36,7 +36,6 @@
 #include <glog/logging.h>
 
 #include "error_handling.h"
-
 
 int Model::Initialize(const std::filesystem::path& model_path) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -120,9 +119,10 @@ int Model::ToHost(int num_threads) {
   host_ptr_vector_->init("queue_name", num_chunks);
   std::vector<std::future<int>> futures;
   size_t chunk_per_thread = (num_chunks + num_threads - 1) / num_threads;
-  LOG(INFO) << "Loading model " << model_name_ << " to host with " << num_threads
-            << " threads, " << num_chunks << " chunks, " << chunk_size
-            << " chunk size, " << chunk_per_thread << " chunks per thread";
+  LOG(INFO) << "Loading model " << model_name_ << " to host with "
+            << num_threads << " threads, " << num_chunks << " chunks, "
+            << chunk_size << " chunk size, " << chunk_per_thread
+            << " chunks per thread";
 
   state_ = MemoryState::LOADING;
   lock.unlock();
@@ -236,7 +236,7 @@ int Model::ToHost(int num_threads) {
 
     return -1;
   }
-  
+
   state_ = MemoryState::LOADED;
   LOG(INFO) << "Finished loading model " << model_name_ << " from disk";
 
@@ -244,8 +244,7 @@ int Model::ToHost(int num_threads) {
 }
 
 int Model::ToGpu(
-    const std::string& replica_uuid,
-    const MemPtrListMap& device_ptrs,
+    const std::string& replica_uuid, const MemPtrListMap& device_ptrs,
     const std::unordered_map<int, MemCopyChunkList>& mem_copy_chunks,
     const std::unordered_map<int, MemCopyHandleList>& mem_copy_handles) {
   std::unique_lock<std::mutex> lock(mutex_);
@@ -273,8 +272,9 @@ int Model::ToGpu(
   lock.unlock();
 
   // Start a dispatcher first
-  auto dispatch_future =
-      std::async(std::launch::async, [this, gpu_replica, mem_copy_chunks, mem_copy_handles]() {
+  auto dispatch_future = std::async(
+      std::launch::async,
+      [this, gpu_replica, mem_copy_chunks, mem_copy_handles]() {
         return DispatchToGpu(gpu_replica, mem_copy_chunks, mem_copy_handles);
       });
 
@@ -282,8 +282,9 @@ int Model::ToGpu(
 
   std::unordered_map<int, std::future<int>> futures;
   for (auto& [device_id, device_ptr_list] : device_ptrs) {
-    futures.emplace(device_id, std::async(
-        std::launch::async, [this, gpu_replica, device_id, device_ptr_list]() {
+    futures.emplace(
+        device_id, std::async(std::launch::async, [this, gpu_replica, device_id,
+                                                   device_ptr_list]() {
           auto gpu_loading_queue =
               gpu_replica->gpu_loading_queue_.at(device_id);
           if (!pinned_mem_ || pinned_mem_->num_chunks() == 0) {
@@ -315,9 +316,10 @@ int Model::ToGpu(
             }
 
             CUDA_CHECK(
-                cudaMemcpy((void*)((char*)device_ptr_list[handle_idx] + gpu_offset),
-                           (void*)(host_buffers[chunk_id] + chunk_offset), size,
-                           cudaMemcpyHostToDevice),
+                cudaMemcpy(
+                    (void*)((char*)device_ptr_list[handle_idx] + gpu_offset),
+                    (void*)(host_buffers[chunk_id] + chunk_offset), size,
+                    cudaMemcpyHostToDevice),
                 "cudaMemcpy Error");
             loaded_size += size;
           }
@@ -333,7 +335,7 @@ int Model::ToGpu(
             << futures.size() << " state " << gpu_replica->state_;
   dispatch_future.wait();
   bool error = false;
-  for (auto&[device_id, future] : futures) {
+  for (auto& [device_id, future] : futures) {
     int ret = future.get();
     if (ret != 0) {
       LOG(ERROR) << "Error copying to device " << device_id;
@@ -359,7 +361,7 @@ int Model::ToGpu(
       cudaError_t err = cudaIpcCloseMemHandle(device_ptr);
       if (err != cudaSuccess) {
         LOG(ERROR) << "Failed to close memory handle for device " << device_id
-                  << " error: " << cudaGetErrorString(err);
+                   << " error: " << cudaGetErrorString(err);
       }
     }
   }
@@ -377,7 +379,8 @@ int Model::WaitInHost() {
   std::unique_lock<std::mutex> lock(mutex_);
   if (state_ < MemoryState::LOADED) {
     cv_.wait(lock, [this] {
-      return state_ == MemoryState::LOADED || state_ == MemoryState::INTERRUPTED;
+      return state_ == MemoryState::LOADED ||
+             state_ == MemoryState::INTERRUPTED;
     });
   }
 
@@ -425,7 +428,7 @@ int Model::FreeGpu(const std::string& replica_uuid) {
   auto& gpu_replica = gpu_replicas_.at(replica_uuid);
   if (gpu_replica->state_ == MemoryState::UNINITIALIZED) {
     LOG(WARNING) << "Model " << model_name_ << " replica " << replica_uuid
-               << " is not initialized";
+                 << " is not initialized";
     gpu_replicas_.erase(replica_uuid);
     return 0;
   }
@@ -458,7 +461,8 @@ int Model::FreeHost() {
   if (state_ == MemoryState::LOADING) {
     LOG(INFO) << "Waiting for model " << model_name_ << " to be loaded";
     cv_.wait(lock, [this] {
-      return state_ == MemoryState::LOADED || state_ == MemoryState::INTERRUPTED;
+      return state_ == MemoryState::LOADED ||
+             state_ == MemoryState::INTERRUPTED;
     });
   }
 
@@ -517,23 +521,23 @@ int Model::DispatchToGpu(
     const std::unordered_map<int, MemCopyChunkList>& mem_copy_chunks,
     const std::unordered_map<int, MemCopyHandleList>& mem_copy_handles) {
   // device_id, chunk_offset, size, gpu_offset
-  
+
   size_t num_chunks = pinned_mem_->num_chunks();
   std::vector<std::vector<GpuChunk>> chunk_id_to_gpu_chunks(num_chunks);
   for (const auto& [device_id, mem_copy_chunk_list] : mem_copy_chunks) {
-
     const auto& device_handles = mem_copy_handles.at(device_id);
     std::vector<size_t> handle_offsets(device_handles.size(), 0);
-    
-    for (auto [host_offset, size, gpu_offset, handle_idx] : mem_copy_chunk_list) {
-      
+
+    for (auto [host_offset, size, gpu_offset, handle_idx] :
+         mem_copy_chunk_list) {
       handle_offsets[handle_idx] = gpu_offset;
-      
+
       std::vector<std::tuple<int, size_t, size_t>> chunks =
           MapDataToChunks(host_offset, size, pinned_mem_->chunk_size());
       for (const auto& [chunk_id, chunk_offset, size] : chunks) {
         chunk_id_to_gpu_chunks[chunk_id].push_back(
-            std::make_tuple(device_id, chunk_offset, size, handle_offsets[handle_idx], handle_idx));
+            std::make_tuple(device_id, chunk_offset, size,
+                            handle_offsets[handle_idx], handle_idx));
         handle_offsets[handle_idx] += size;
       }
     }
@@ -543,7 +547,8 @@ int Model::DispatchToGpu(
     auto data_chunk = host_ptr_vector_->dequeue(i);
     auto chunk_id = data_chunk.chunk_id_;
     auto& gpu_chunks = chunk_id_to_gpu_chunks[chunk_id];
-    for (const auto& [device_id, chunk_offset, size, gpu_offset, handle_idx] : gpu_chunks) {
+    for (const auto& [device_id, chunk_offset, size, gpu_offset, handle_idx] :
+         gpu_chunks) {
       auto& gpu_loading_queue = gpu_replica->gpu_loading_queue_.at(device_id);
       // LOG(INFO) << "Enqueueing chunk " << chunk_id << " offset " <<
       // chunk_offset

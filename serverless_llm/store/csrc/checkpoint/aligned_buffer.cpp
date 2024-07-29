@@ -1,26 +1,27 @@
 // ----------------------------------------------------------------------------
 //  ServerlessLLM
-//  Copyright (c) ServerlessLLM Team 2024                                       
-//                                                                               
-//   Licensed under the Apache License, Version 2.0 (the "License");             
-//   you may not use this file except in compliance with the License.            
-//                                                                               
-//   You may obtain a copy of the License at                                     
-//                                                                               
-//                   http://www.apache.org/licenses/LICENSE-2.0                  
-//                                                                               
-//   Unless required by applicable law or agreed to in writing, software         
-//   distributed under the License is distributed on an "AS IS" BASIS,           
-//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    
-//   See the License for the specific language governing permissions and         
-//   limitations under the License.                                              
-//  ---------------------------------------------------------------------------- 
+//  Copyright (c) ServerlessLLM Team 2024
+//
+//   Licensed under the Apache License, Version 2.0 (the "License");
+//   you may not use this file except in compliance with the License.
+//
+//   You may obtain a copy of the License at
+//
+//                   http://www.apache.org/licenses/LICENSE-2.0
+//
+//   Unless required by applicable law or agreed to in writing, software
+//   distributed under the License is distributed on an "AS IS" BASIS,
+//   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//   See the License for the specific language governing permissions and
+//   limitations under the License.
+//  ----------------------------------------------------------------------------
 #include "aligned_buffer.h"
 
 #include <fcntl.h>
-#include <iostream>
 #include <unistd.h>
+
 #include <cstring>
+#include <iostream>
 
 AlignedBuffer::AlignedBuffer(const std::string& filename)
     : fd_(-1), buf_size_(kBufferSize), buf_pos_(0), file_offset_(0) {
@@ -58,8 +59,8 @@ size_t AlignedBuffer::writeData(const void* data, size_t size) {
         strerror_r(errno, err_msg, sizeof(err_msg));
         std::cerr << "Failed to allocate aligned memory: " << err_msg
                   << std::endl;
-        std::cerr << "kAlignment: " << kAlignment << " direct_write_size: "
-                  << direct_write_size;
+        std::cerr << "kAlignment: " << kAlignment
+                  << " direct_write_size: " << direct_write_size;
         exit(1);
       }
       memcpy(direct_write_buf, (char*)data + written, direct_write_size);
