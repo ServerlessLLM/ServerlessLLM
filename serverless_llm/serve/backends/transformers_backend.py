@@ -21,8 +21,8 @@ import logging
 import os
 import time
 import uuid
-from typing import Any, Dict, Optional
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import ray
 import torch
@@ -71,7 +71,9 @@ class TransformersBackend(SllmBackend):
                 )
                 torch_dtype = torch.float16
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = Path(os.path.join(storage_path, "transformers", self.model_name)).resolve()
+            model_path = Path(
+                os.path.join(storage_path, "transformers", self.model_name)
+            ).resolve()
             self.model = load_model(
                 str(model_path),
                 device_map=device_map,

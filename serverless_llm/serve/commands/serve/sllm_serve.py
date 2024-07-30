@@ -16,7 +16,9 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import argparse
+import json
 import logging
+import re
 import sys
 
 import ray
@@ -27,6 +29,52 @@ from serverless_llm.serve.controller import SllmController
 from serverless_llm.serve.logger import init_logger
 
 logger = init_logger(__name__)
+
+
+def process_hardware_config(hardware_config):
+    # Define conversion factors
+    conversion_factors = {
+        "B": 1,
+        "KB": 1024,
+        "MB": 1024**2,
+        "GB": 1024**3,
+        "TB": 1024**4,
+        "B/s": 1,
+        "KB/s": 1024,
+        "MB/s": 1024**2,
+        "GB/s": 1024**3,
+        "TB/s": 1024**4,
+        "bps": 1 / 8,  # bits per second to bytes per second
+        "Kbps": 1024 / 8,
+        "Mbps": (1024**2) / 8,
+        "Gbps": (1024**3) / 8,
+        "Tbps": (1024**4) / 8,
+    }
+
+    def convert_value(value):
+        # Regular expression to match number and unit
+        pattern = re.compile(r"([\d.]+)([a-zA-Z/]+)")
+        match = pattern.fullmatch(value.strip())
+        if not match:
+            raise ValueError(f"Invalid value format: {value}")
+
+        number, unit = match.groups()
+        number = float(number)
+
+        if unit not in conversion_factors:
+            raise ValueError(f"Unknown unit in value: {value}")
+
+        return number * conversion_factors[unit]
+
+    converted_config = {}
+
+    for key, specs in hardware_config.items():
+        converted_specs = {}
+        for spec_name, spec_value in specs.items():
+            converted_specs[spec_name] = convert_value(spec_value)
+        converted_config[key] = converted_specs
+
+    return converted_config
 
 
 def main():
@@ -46,17 +94,24 @@ def main():
         "--port", default=8343, type=int, help="Port to run the server on."
     )
     start_parser.add_argument(
-        "--enable-migration",
-        action="store_true",
-        help="Enable migration of models.",
+        "--hardware-config",
+        default=None,
+        type=str,
+        help="Path to hardware config file.",
     )
     args = parser.parse_args()
 
     try:
         if args.command == "start":
             app = create_app()
+            hardware_config_path = args.hardware_config
+            hardware_config = None
+            if hardware_config_path is not None:
+                with open(hardware_config_path, "r") as f:
+                    hardware_config = json.load(f)
+                hardware_config = process_hardware_config(hardware_config)
             controller = SllmController.options(name="controller").remote(
-                {"enable_migration": args.enable_migration}
+                {"hardware_config": hardware_config}
             )
             ray.get(controller.start.remote())
 

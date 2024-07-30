@@ -250,7 +250,9 @@ class VllmBackend(SllmBackend):
                 return
             self.status = BackendStatus.STOPPING
         while await self.request_trace.request_count() > 0:
+            logger.info("Waiting for all requests to finish")
             await asyncio.sleep(1)
+        logger.info("All requests finished. Shutting down the backend.")
         await self.shutdown()
 
     async def get_current_tokens(self) -> List[List[int]]:

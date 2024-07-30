@@ -27,22 +27,7 @@ logger = init_logger(__name__)
 
 # This is a singleton class that manages the checkpoint
 class SllmStoreClient:
-    _instance = None
-    _lock = threading.Lock()
-
-    def __new__(cls, *args, **kwargs):
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = super().__new__(cls)
-                cls._instance._init_and_connect(*args, **kwargs)
-        return cls._instance
-
-    def _init_and_connect(self, server_address="localhost:8073"):
-        if hasattr(self, "server_address"):
-            logger.warning(
-                f"SllmStoreClient already connected to {self.server_address}"
-            )
-            return
+    def __init__(self, server_address="localhost:8073"):
         self.server_address = server_address
         self.channel = grpc.insecure_channel(server_address)
         self.stub = storage_pb2_grpc.StorageStub(self.channel)
@@ -66,6 +51,19 @@ class SllmStoreClient:
             else:
                 logger.error(f"Error: {e}")
                 return False
+        else:
+            return response
+
+    def unload_from_cpu(self, model_name):
+        request = storage_pb2.UnloadModelRequest(
+            model_name=model_name,
+            target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_CPU,
+        )
+        try:
+            response = self.stub.UnloadModel(request)
+        except grpc.RpcError as e:
+            logger.error(f"Error: {e}")
+            return False
         else:
             return response
 
@@ -134,14 +132,24 @@ class SllmStoreClient:
                 logger.error(f"Error: {e}")
                 return False
 
-    def register_model(self, model_name):
+    def register_model(self, model_name) -> int:
         logger.info(f"register_model: {model_name}")
         request = storage_pb2.RegisterModelRequest(model_name=model_name)
         try:
             response = self.stub.RegisterModel(request)
         except grpc.RpcError as e:
             logger.error(f"Error: {e}")
-            return False
+            return -1
         else:
             logger.info(f"Model registered")
-            return response
+            return response.model_size
+
+    def get_server_config(self):
+        request = storage_pb2.GetServerConfigRequest()
+        try:
+            response = self.stub.GetServerConfig(request)
+        except grpc.RpcError as e:
+            logger.error(f"Error: {e}")
+            return None
+        else:
+            return {"chunk_size": response.chunk_size}

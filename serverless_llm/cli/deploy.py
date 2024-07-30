@@ -25,6 +25,7 @@ from serverless_llm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
+
 class DeployCommand:
     @staticmethod
     def register_subcommand(parser: _SubParsersAction):
@@ -40,19 +41,29 @@ class DeployCommand:
             "--config", type=str, help="Path to the JSON config file."
         )
         deploy_parser.add_argument(
-            "--backend", type=str, help="Overwrite the backend in the default configuration."
+            "--backend",
+            type=str,
+            help="Overwrite the backend in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--num_gpus", type=int, help="Overwrite the number of GPUs in the default configuration."
+            "--num_gpus",
+            type=int,
+            help="Overwrite the number of GPUs in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--target", type=int, help="Overwrite the target concurrency in the default configuration."
+            "--target",
+            type=int,
+            help="Overwrite the target concurrency in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--min_instances", type=int, help="Overwrite the minimum instances in the default configuration."
+            "--min_instances",
+            type=int,
+            help="Overwrite the minimum instances in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--max_instances", type=int, help="Overwrite the maximum instances in the default configuration."
+            "--max_instances",
+            type=int,
+            help="Overwrite the maximum instances in the default configuration.",
         )
         deploy_parser.set_defaults(func=DeployCommand)
 
@@ -90,7 +101,9 @@ class DeployCommand:
         if max_instances < 0:
             raise ValueError("Maximum instances cannot be negative.")
         if min_instances > max_instances:
-            raise ValueError("Minimum instances cannot be greater than maximum instances.")
+            raise ValueError(
+                "Minimum instances cannot be greater than maximum instances."
+            )
 
     def run(self) -> None:
         if self.config_path:
@@ -109,19 +122,21 @@ class DeployCommand:
             if self.target is not None:
                 config_data["auto_scaling_config"]["target"] = self.target
             if self.min_instances is not None:
-                config_data["auto_scaling_config"]["min_instances"] = self.min_instances
+                config_data["auto_scaling_config"]["min_instances"] = (
+                    self.min_instances
+                )
             if self.max_instances is not None:
-                config_data["auto_scaling_config"]["max_instances"] = self.max_instances
+                config_data["auto_scaling_config"]["max_instances"] = (
+                    self.max_instances
+                )
 
         else:
             logger.error("You must specify either --model or --config.")
             exit(1)
 
         self.validate_config(config_data)
-        logger.info(
-            f"Deploying model {self.model}."
-        )
-        
+        logger.info(f"Deploying model {self.model}.")
+
         self.deploy_model(config_data)
 
     def deploy_model(self, config_data: dict) -> None:

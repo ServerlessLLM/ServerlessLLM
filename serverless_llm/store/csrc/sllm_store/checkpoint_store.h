@@ -40,11 +40,10 @@
 class CheckpointStore {
  public:
   CheckpointStore(const std::string& storage_path, size_t memory_pool_size,
-                  int num_thread = 4, size_t chunk_size = 32L * 1024 * 1024,
-                  bool registration_required = false);
+                  int num_thread, size_t chunk_size);
   ~CheckpointStore();
 
-  int RegisterModelInfo(const std::string& model_name);
+  int64_t RegisterModelInfo(const std::string& model_name);
   int LoadModelFromDisk(const std::string& model_name);
   int LoadModelFromDiskAsync(const std::string& model_name);
   int LoadModelFromMem(const std::string& model_name,
@@ -63,6 +62,10 @@ class CheckpointStore {
   void ClearModelMem(const std::string& model_name);
   void ClearModelGpuMem(const std::string& model_name,
                         const std::string& replica_uuid);
+
+ public:
+  // Get methods
+  size_t GetChunkSize() const { return chunk_size_; }
 
  private:
   // A GPU info struct
@@ -87,8 +90,6 @@ class CheckpointStore {
   std::shared_ptr<PinnedMemoryPool> memory_pool_;
   int num_thread_;
   size_t chunk_size_;
-  bool registration_required_;  // If true, the model must be registered before
-                                // loading
 
   std::queue<std::future<int>> async_tasks_;
 
@@ -98,10 +99,6 @@ class CheckpointStore {
                               const std::string& replica_uuid);
   int InitializeModel(const std::shared_ptr<Model>& model);
   int AllocatePinnedMemory(const std::shared_ptr<Model>& model);
-  //   int DispatchTensorToGpu(
-  //       const std::shared_ptr<Model>& model,
-  //       const std::shared_ptr<GpuReplica>& gpu_replica,
-  //       const std::unordered_map<int, MemCopyChunkList>& mem_copy_chunks);
   std::vector<std::tuple<int, size_t, size_t>> CalculateChunks(size_t offset,
                                                                size_t size);
   int AllocateCudaMemory(

@@ -23,7 +23,8 @@ from typing import Dict, Optional
 import ray
 
 from serverless_llm.serve.inference_instance import start_instance
-from serverless_llm.serve.routers.router_utils import InstanceHandle, SllmRouter
+
+from .router_utils import InstanceHandle, SllmRouter
 
 logger = logging.getLogger(__name__)
 
