@@ -66,7 +66,7 @@ class CheckpointStore {
  public:
   // Get methods
   size_t GetChunkSize() const { return chunk_size_; }
-  
+
  private:
   // A GPU info struct
   struct GpuInfo {

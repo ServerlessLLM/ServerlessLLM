@@ -117,7 +117,9 @@ class SllmController:
                 or model_name not in self.request_routers
             ):
                 logger.error(f"Model {model_name} not found")
-                raise ValueError(f"Model {model_name} not found, please register first")
+                raise ValueError(
+                    f"Model {model_name} not found, please register first"
+                )
 
         # update auto-scaling config
         auto_scaling_config = model_config.get("auto_scaling_config", None)

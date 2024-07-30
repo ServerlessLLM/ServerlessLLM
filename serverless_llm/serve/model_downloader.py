@@ -17,8 +17,8 @@
 # ---------------------------------------------------------------------------- #
 import logging
 import os
-from typing import Optional
 import shutil
+from typing import Optional
 
 import ray
 
@@ -69,7 +69,9 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
     except Exception as e:
         logger.error(f"Failed to save model {model_name}: {e}")
         shutil.rmtree(model_dir)
-        raise RuntimeError(f"Failed to save model {model_name} for transformer backend: {e}")
+        raise RuntimeError(
+            f"Failed to save model {model_name} for transformer backend: {e}"
+        )
 
     # model_size = get_directory_size(model_dir)
     # logger.info(f"Model {model_name} (size: {model_size}) downloaded")
@@ -147,4 +149,6 @@ class VllmModelDownloader:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
             shutil.rmtree(model_dir)
-            raise RuntimeError(f"Failed to save model {model_name} for vllm backend: {e}")
+            raise RuntimeError(
+                f"Failed to save model {model_name} for vllm backend: {e}"
+            )

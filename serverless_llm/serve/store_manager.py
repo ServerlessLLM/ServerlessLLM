@@ -16,8 +16,8 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-import os
 import asyncio
+import os
 import time
 from typing import List, Mapping, Optional
 
@@ -43,7 +43,7 @@ class SllmLocalStore:
         disk_models: Optional[Mapping] = None,
         io_queue: Optional[List] = None,
         queued_models: Optional[Mapping] = None,
-        pinned_memory_pool: Optional[Mapping] = None
+        pinned_memory_pool: Optional[Mapping] = None,
     ):
         self.node_id = node_id
         self.client = client
@@ -52,7 +52,9 @@ class SllmLocalStore:
         self.io_queue = io_queue if io_queue is not None else []
         self.queued_models = queued_models if queued_models is not None else {}
 
-        self.pinned_memory_pool = pinned_memory_pool if pinned_memory_pool is not None else {}
+        self.pinned_memory_pool = (
+            pinned_memory_pool if pinned_memory_pool is not None else {}
+        )
         host_size = self.hardware_info.get("host_size", 1)
         self.pinned_memory_pool_chunks = host_size // chunk_size
         self.pinned_memory_pool_usage = 0
@@ -110,7 +112,8 @@ class SllmLocalStore:
             )
             self.queued_models[model_name] = True
             logger.info(
-                f"Model {model_name} is being loaded to node {self.node_id}, model size: {model_size}, disk bandwidth: {disk_bandwidth}"
+                f"Model {model_name} is being loaded to node {self.node_id}, "
+                f"estimated time: {self.io_queue[-1]['estimated_time']}"
             )
             return True
 
@@ -145,7 +148,9 @@ class SllmLocalStore:
                 self.pinned_memory_pool.items(), key=lambda x: x[1]
             )
             model_size = self.disk_models[model_name]
-            required_chunks = (model_size + self.pinned_memory_pool_chunks - 1) // self.pinned_memory_pool_chunks
+            required_chunks = (
+                model_size + self.pinned_memory_pool_chunks - 1
+            ) // self.pinned_memory_pool_chunks
             logger.info(
                 f"Pinned memory pool usage: {self.pinned_memory_pool_usage} / {self.pinned_memory_pool_chunks}"
                 f" model {model_name} requires {required_chunks} chunks"
@@ -159,9 +164,15 @@ class SllmLocalStore:
                 if model_name not in self.queued_models:
                     self.client.unload_from_cpu(model_name)
                     self.pinned_memory_pool.pop(model_name)
-                    unloaded_chunks = (self.disk_models[model_name] + self.pinned_memory_pool_chunks - 1) // self.pinned_memory_pool_chunks
+                    unloaded_chunks = (
+                        self.disk_models[model_name]
+                        + self.pinned_memory_pool_chunks
+                        - 1
+                    ) // self.pinned_memory_pool_chunks
                     self.pinned_memory_pool_usage -= unloaded_chunks
-                    logger.info(f"Model {model_name} evicted {unloaded_chunks} chunks")
+                    logger.info(
+                        f"Model {model_name} evicted {unloaded_chunks} chunks"
+                    )
             return (
                 self.pinned_memory_pool_usage + required_chunks
                 > self.pinned_memory_pool_chunks
@@ -195,10 +206,16 @@ class StoreManager:
                 if node_id in worker_node_info:
                     node_address = worker_node_info[node_id]["address"]
                     try:
-                        sllm_store_client = SllmStoreClient(f"{node_address}:8073")
-                        local_server_config = sllm_store_client.get_server_config()
+                        sllm_store_client = SllmStoreClient(
+                            f"{node_address}:8073"
+                        )
+                        local_server_config = (
+                            sllm_store_client.get_server_config()
+                        )
                     except Exception as e:
-                        logger.warning(f"Failed to connect to node {node_id}: {e}")
+                        logger.warning(
+                            f"Failed to connect to node {node_id}: {e}"
+                        )
                         continue
                     else:
                         if not local_server_config:
@@ -218,7 +235,9 @@ class StoreManager:
                             node_id
                         ].hardware_info = self.hardware_info[node_id]
                         uninitialized_nodes.remove(node_id)
-                        logger.info(f"Node {node_id} initialized, chunk size: {chunk_size}")
+                        logger.info(
+                            f"Node {node_id} initialized, chunk size: {chunk_size}"
+                        )
                         break
             logger.info(
                 f"Waiting for nodes {uninitialized_nodes} to be initialized"
@@ -334,8 +353,12 @@ class StoreManager:
                     break
                 local_server = self.local_servers[node_id]
                 # backend name + model name
-                model_path = os.path.join("/models", backend, pretrained_model_name)
-                model_size = await local_server.register_model(model_name, model_path)
+                model_path = os.path.join(
+                    "/models", backend, pretrained_model_name
+                )
+                model_size = await local_server.register_model(
+                    model_name, model_path
+                )
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
                 logger.info(f"Model {model_name} downloaded to node {node_id}")
@@ -352,7 +375,7 @@ class StoreManager:
             f"Downloading model {pretrained_model_name} to node {node_id}"
         )
         return await download_transformers_model.options(
-            resources={f"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
+            resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
         ).remote(pretrained_model_name, "float16")
 
     async def download_vllm_model(
@@ -363,7 +386,7 @@ class StoreManager:
         )
         vllm_backend_downloader = VllmModelDownloader.options(
             num_gpus=num_gpus,
-            resources={f"worker_node": 0.1, f"worker_id_{node_id}": 0.1},
+            resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1},
         ).remote()
         return await vllm_backend_downloader.download_vllm_model.remote(
             pretrained_model_name,

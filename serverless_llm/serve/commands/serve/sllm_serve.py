@@ -16,10 +16,10 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import argparse
-import logging
-import sys
 import json
+import logging
 import re
+import sys
 
 import ray
 import uvicorn

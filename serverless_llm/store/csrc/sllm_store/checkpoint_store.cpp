@@ -30,9 +30,8 @@
 #include "error_handling.h"
 
 CheckpointStore::CheckpointStore(const std::string& storage_path,
-                               size_t memory_pool_size,
-                               int num_thread,
-                               size_t chunk_size)
+                                 size_t memory_pool_size, int num_thread,
+                                 size_t chunk_size)
     : storage_path_(storage_path),
       memory_pool_size_(memory_pool_size),
       num_thread_(num_thread),
