@@ -92,16 +92,25 @@ class DeployCommand:
         if min_instances > max_instances:
             raise ValueError("Minimum instances cannot be greater than maximum instances.")
 
+    def update_config(self, default_config: dict, provided_config: dict) -> dict:
+        """Update the default configuration with values from the provided configuration."""
+        for key, value in provided_config.items():
+            if isinstance(value, dict) and key in default_config:
+                default_config[key] = self.update_config(default_config[key], value)
+            else:
+                default_config[key] = value
+        return default_config
+
     def run(self) -> None:
+        default_config = read_config(self.default_config_path)
+
         if self.config_path:
-            config_data = read_config(self.config_path)
-            self.model = config_data.get("model")
+            provided_config = read_config(self.config_path)
+            config_data = self.update_config(default_config, provided_config)
         elif self.model:
-            config_data = read_config(self.default_config_path)
+            config_data = default_config
             config_data["model"] = self.model
-            config_data["backend_config"]["pretrained_model_name_or_path"] = (
-                self.model
-            )
+            config_data["backend_config"]["pretrained_model_name_or_path"] = self.model
             if self.backend:
                 config_data["backend"] = self.backend
             if self.num_gpus is not None:
@@ -112,16 +121,12 @@ class DeployCommand:
                 config_data["auto_scaling_config"]["min_instances"] = self.min_instances
             if self.max_instances is not None:
                 config_data["auto_scaling_config"]["max_instances"] = self.max_instances
-
         else:
             logger.error("You must specify either --model or --config.")
             exit(1)
 
         self.validate_config(config_data)
-        logger.info(
-            f"Deploying model {self.model}."
-        )
-        
+        logger.info(f"Deploying model {self.model}.")
         self.deploy_model(config_data)
 
     def deploy_model(self, config_data: dict) -> None:
