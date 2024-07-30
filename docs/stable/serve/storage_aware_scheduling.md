@@ -173,6 +173,12 @@ As shown in the log message, the model "opt-2.7b" is scheduled on server 0, whil
 
 ### Step 4: Clean Up
 
+Delete the model deployment by running the following command:
+
+```bash
+sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
+```
+
 If you need to stop and remove the containers, you can use the following commands:
 
 ```bash
