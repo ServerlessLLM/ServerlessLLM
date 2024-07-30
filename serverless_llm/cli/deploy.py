@@ -107,6 +107,9 @@ class DeployCommand:
         if self.config_path:
             provided_config = read_config(self.config_path)
             config_data = self.update_config(default_config, provided_config)
+            # If pretrained_model_name_or_path is not provided, use the model name
+            if config_data["backend_config"]["pretrained_model_name_or_path"] == "":
+                config_data["backend_config"]["pretrained_model_name_or_path"] = config_data["model"]
         elif self.model:
             config_data = default_config
             config_data["model"] = self.model
@@ -126,7 +129,7 @@ class DeployCommand:
             exit(1)
 
         self.validate_config(config_data)
-        logger.info(f"Deploying model {self.model}.")
+        logger.info(f"Deploying model {config_data['model']}.")
         self.deploy_model(config_data)
 
     def deploy_model(self, config_data: dict) -> None:
