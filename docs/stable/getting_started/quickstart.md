@@ -6,8 +6,8 @@ sidebar_position: 1
 
 This guide will help you get started with the basics of using ServerlessLLM. Please make sure you have installed the ServerlessLLM following the [installation guide](./installation.md).
 
-## Local test
-First, let's start a local ray cluster to test the ServerlessLLM. You can start a local ray cluster by running the following command:
+## Run ServerlessLLM on your local machine
+First, let's start a local ray cluster to run ServerlessLLM. You can start a local ray cluster by running the following command:
 
 Start a local ray cluster with 1 head node and 1 worker node:
 ```bash
