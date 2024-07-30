@@ -28,7 +28,6 @@ from .scheduler_utils import SllmScheduler
 logger = init_logger(__name__)
 
 
-# @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class FcfsScheduler(SllmScheduler):
     def __init__(self, scheduler_config: Optional[Mapping] = None):
         super().__init__()
