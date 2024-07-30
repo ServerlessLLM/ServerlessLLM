@@ -101,7 +101,7 @@ export LLM_SERVER_URL=http://localhost:8343/
 Deploy a model to the ServerlessLLM server using the `sllm-cli`:
 
 ```bash
-sllm-cli deploy --model facebook/opt-2.7b
+sllm-cli deploy --model facebook/opt-1.3b
 ```
 > Note: This command will spend some time downloading the model from the Hugging Face Model Hub.
 > You can use any model from the [Hugging Face Model Hub](https://huggingface.co/models) by specifying the model name in the `--model` argument.
@@ -120,7 +120,7 @@ Now, you can query the model by any OpenAI API client. For example, you can use 
 curl http://localhost:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
-        "model": "facebook/opt-2.7b",
+        "model": "facebook/opt-1.3b",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -131,7 +131,7 @@ curl http://localhost:8343/v1/chat/completions \
 Expected output:
 
 ```plaintext
-{"id":"chatcmpl-8b4773e9-a98b-41db-8163-018ed3dc65e2","object":"chat.completion","created":1720183759,"model":"facebook/opt-2.7b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}%
+{"id":"chatcmpl-8b4773e9-a98b-41db-8163-018ed3dc65e2","object":"chat.completion","created":1720183759,"model":"facebook/opt-1.3b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}%
 ```
 
 ### Deleting a Model
