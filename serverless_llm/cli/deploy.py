@@ -108,6 +108,7 @@ class DeployCommand:
     def run(self) -> None:
         if self.config_path:
             config_data = read_config(self.config_path)
+            self.model = config_data.get("model")
         elif self.model:
             config_data = read_config(self.default_config_path)
             config_data["model"] = self.model

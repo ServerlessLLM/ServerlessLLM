@@ -47,7 +47,7 @@ I20240720 08:41:24.318261 141776 server.cpp:279] Server listening on 0.0.0.0:807
 
 Now, let’s start ServerlessLLM.
 
-First, start ServerlessLLM Serve (i.e., `sllm-serve`)
+First, in another new terminal, start ServerlessLLM Serve (i.e., `sllm-serve`)
 
 ```bash
 conda activate sllm
@@ -56,7 +56,9 @@ sllm-serve start
 
 Everything is set!
 
-Next, let's deploy a model to the ServerlessLLM server. You can deploy a model by running the following command:
+Now you have opened 4 terminals: started a local ray cluster(head node and worker node), started the ServerlessLLM Serve, and started the ServerlessLLM Store server.
+
+Next, open another new terminal, let's deploy a model to the ServerlessLLM server. You can deploy a model by running the following command:
 
 ```bash
 conda activate sllm
