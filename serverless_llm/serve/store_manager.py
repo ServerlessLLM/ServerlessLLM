@@ -334,7 +334,7 @@ class StoreManager:
                     break
                 local_server = self.local_servers[node_id]
                 # backend name + model name
-                model_path = os.path.join(backend, model_name)
+                model_path = os.path.join("/models", backend, pretrained_model_name)
                 model_size = await local_server.register_model(model_name, model_path)
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True

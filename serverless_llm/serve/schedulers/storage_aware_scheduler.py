@@ -39,7 +39,7 @@ class StorageAwareScheduler(FcfsScheduler):
         logger.info("Starting control loop")
         while self.running:
             loading_requests = []
-            logger.info(f"Loading requests: {loading_requests}")
+            # logger.info(f"Loading requests: {loading_requests}")
             async with self.queue_lock:
                 for (
                     model_name,
@@ -59,7 +59,8 @@ class StorageAwareScheduler(FcfsScheduler):
                                 allocation_result,
                             )
                         )
-            logger.info(f"Loading requests are: {loading_requests}")
+            if loading_requests:
+                logger.info(f"Loading requests are: {loading_requests}")
             if self.store_manager is None:
                 try:
                     self.store_manager = ray.get_actor("store_manager")
