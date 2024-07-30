@@ -26,7 +26,7 @@ echo '{
 }' > hardware_config.json
 ```
 
-We will use Docker to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Docker Quickstart Guide](./getting_started/docker_quickstart.md) before proceeding.
+We will use Docker to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md) before proceeding.
 
 ## Usage
 Start a local Docker-based ray cluster.
@@ -46,6 +46,12 @@ docker run -d --name ray_head \
 ```
 
 2. Start the Ray worker nodes.
+
+Ensure that you have a directory for storing your models and set the `MODEL_FOLDER` environment variable to this directory:
+
+```bash
+export MODEL_FOLDER=path/to/models
+```
 
 ```bash
 docker run -d --name ray_worker_0 \
@@ -163,11 +169,11 @@ curl http://localhost:8343/v1/chat/completions \
 As shown in the log message, the model "opt-2.7b" is scheduled on server 0, while the model "opt-1.3b" is scheduled on server 1.
 ```plaintext
 ...
-(StorageAwareScheduler pid=1585) INFO 07-21 02:36:54 storage_aware_scheduler.py:119] Sorted scheduling options: [('0', 0.9877967834472656)]
-(StorageAwareScheduler pid=1585) INFO 07-21 02:36:54 storage_aware_scheduler.py:126] Allocated node 0 for model opt-2.7b
+(StorageAwareScheduler pid=1584) INFO 07-30 12:08:40 storage_aware_scheduler.py:138] Sorted scheduling options: [('0', 0.9877967834472656)]
+(StorageAwareScheduler pid=1584) INFO 07-30 12:08:40 storage_aware_scheduler.py:145] Allocated node 0 for model opt-2.7b
 ...
-(StorageAwareScheduler pid=1585) INFO 07-21 02:37:05 storage_aware_scheduler.py:119] Sorted scheduling options: [('1', 0.4901580810546875)]
-(StorageAwareScheduler pid=1585) INFO 07-21 02:37:05 storage_aware_scheduler.py:126] Allocated node 1 for model opt-1.3b
+(StorageAwareScheduler pid=1584) INFO 07-30 12:08:51 storage_aware_scheduler.py:138] Sorted scheduling options: [('1', 0.4901580810546875)]
+(StorageAwareScheduler pid=1584) INFO 07-30 12:08:51 storage_aware_scheduler.py:145] Allocated node 1 for model opt-1.3b
 ...
 ```
 
