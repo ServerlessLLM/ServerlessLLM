@@ -18,8 +18,8 @@
 from contextlib import asynccontextmanager
 
 import ray
-from fastapi import FastAPI, HTTPException, Request
 import ray.exceptions
+from fastapi import FastAPI, HTTPException, Request
 
 from serverless_llm.serve.logger import init_logger
 
@@ -65,7 +65,9 @@ def create_app() -> FastAPI:
 
         controller = ray.get_actor("controller")
         if not controller:
-            raise HTTPException(status_code=500, detail="Controller not initialized")
+            raise HTTPException(
+                status_code=500, detail="Controller not initialized"
+            )
 
         logger.info(f"Received request to update model {model_name}")
         try:

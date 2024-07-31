@@ -48,7 +48,7 @@ initialize_worker_node() {
 
   # Start checkpoint store
   STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
-  CMD="sllm-store-server -storage_path=$STORAGE_PATH &"
+  CMD="sllm-store-server -storage_path=$STORAGE_PATH -registration_required=true &"
   echo "Executing: $CMD"
   eval "$CMD"
 

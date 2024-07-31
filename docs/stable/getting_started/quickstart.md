@@ -18,9 +18,31 @@ ray start --head --port=6379 --num-cpus=4 --num-gpus=0 \
 
 In a new terminal, start the worker node:
 ```bash
-conda activate sllm
+conda activate sllm-worker
 ray start --address=localhost:6379 --num-cpus=4 --num-gpus=2 \
 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
+```
+
+And start ServerlessLLM Store server. This server will use `./models` as the storage path by default.
+
+```bash
+conda activate sllm-worker
+sllm-store-server
+```
+
+Expected output:
+```bash
+$ sllm-store-server
+TODO Run server...
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+I20240720 08:40:59.634253 141776 server.cpp:307] Log directory already exists.
+I20240720 08:40:59.671192 141776 checkpoint_store.cpp:46] Number of GPUs: 2
+I20240720 08:40:59.671768 141776 checkpoint_store.cpp:48] I/O threads: 4, chunk size: 32MB
+I20240720 08:40:59.797175 141776 checkpoint_store.cpp:69] GPU 0 UUID: cef23f2a-71f7-44f3-8246-5ebd870755e7
+I20240720 08:40:59.951408 141776 checkpoint_store.cpp:69] GPU 1 UUID: bbd10d20-aed8-4324-8b2e-7b6e54aaca0e
+I20240720 08:41:00.759124 141776 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 1024 buffers of 33554432 bytes
+I20240720 08:41:24.315564 141776 checkpoint_store.cpp:80] Memory pool created with 32GB
+I20240720 08:41:24.318261 141776 server.cpp:279] Server listening on 0.0.0.0:8073
 ```
 
 Now, let’s start ServerlessLLM.
@@ -30,13 +52,6 @@ First, in another new terminal, start ServerlessLLM Serve (i.e., `sllm-serve`)
 ```bash
 conda activate sllm
 sllm-serve start
-```
-
-Next, in another new terminal, start ServerlessLLM Store server. This server will use `./models` as the storage path by default.
-
-```bash
-conda activate sllm
-sllm-store-server
 ```
 
 Everything is set!

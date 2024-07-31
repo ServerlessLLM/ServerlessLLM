@@ -17,21 +17,36 @@
 # ---------------------------------------------------------------------------- #
 import logging
 import os
-from typing import Optional
 import shutil
+from typing import Optional
 
 import ray
 
 logger = logging.getLogger("ray")
 
 
+# def get_directory_size(directory):
+#     total_size = 0
+#     for dirpath, dirnames, filenames in os.walk(directory):
+#         for filename in filenames:
+#             file_path = os.path.join(dirpath, filename)
+#             if not os.path.islink(file_path):
+#                 total_size += os.path.getsize(file_path)
+#     return total_size
+
+
 @ray.remote(num_cpus=1)
-def download_transformers_model(model_name: str, torch_dtype: str) -> None:
+def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_dir = os.path.join(storage_path, "transformers", model_name)
     if os.path.exists(model_dir):
         logger.info(f"Model {model_name} already exists in {model_dir}")
         return
+
+    if os.path.exists(model_dir):
+        # model_size = get_directory_size(model_dir)
+        logger.info(f"Model {model_name} already exists")
+        return True
 
     import torch
     from transformers import AutoModelForCausalLM
@@ -54,9 +69,14 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> None:
     except Exception as e:
         logger.error(f"Failed to save model {model_name}: {e}")
         shutil.rmtree(model_dir)
-        raise RuntimeError(f"Failed to save model {model_name} for transformer backend: {e}")
+        raise RuntimeError(
+            f"Failed to save model {model_name} for transformer backend: {e}"
+        )
 
-    return
+    # model_size = get_directory_size(model_dir)
+    # logger.info(f"Model {model_name} (size: {model_size}) downloaded")
+
+    return True
 
 
 @ray.remote
@@ -129,4 +149,6 @@ class VllmModelDownloader:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
             shutil.rmtree(model_dir)
-            raise RuntimeError(f"Failed to save model {model_name} for vllm backend: {e}")
+            raise RuntimeError(
+                f"Failed to save model {model_name} for vllm backend: {e}"
+            )
