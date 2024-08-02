@@ -35,7 +35,6 @@ from serverless_llm.serve.logger import init_logger
 logger = init_logger(__name__)
 
 
-@ray.remote
 class TransformersBackend(SllmBackend):
     def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
         self.backend_config = backend_config

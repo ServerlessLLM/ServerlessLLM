@@ -30,15 +30,15 @@ def start_instance(instance_id, backend, backend_config, startup_config):
     if backend == "vllm":
         from serverless_llm.serve.backends import VllmBackend
 
-        model_backend_cls = VllmBackend
+        model_backend_cls = ray.remote(VllmBackend)
     elif backend == "dummy":
         from serverless_llm.serve.backends import DummyBackend
 
-        model_backend_cls = DummyBackend
+        model_backend_cls = ray.remote(DummyBackend)
     elif backend == "transformers":
         from serverless_llm.serve.backends import TransformersBackend
 
-        model_backend_cls = TransformersBackend
+        model_backend_cls = ray.remote(TransformersBackend)
     else:
         logger.error(f"Unknown backend: {backend}")
         raise ValueError(f"Unknown backend: {backend}")
