@@ -365,7 +365,7 @@ class StoreManager:
             self.model_info[model_name] = model_size
             logger.info(f"Model {model_name} registered")
         else:
-            # TOOD: apply new placement config, if given
+            # TODO: apply new placement config, if given
             pass
 
     async def download_transformers_model(

@@ -15,7 +15,7 @@ Ensure you have the following pre-requirements installed:
 
 ## Local Test Using Docker
 
-First, let's start a local Docker-based ray cluster to test the ServerlessLLM. 
+First, let's start a local Docker-based ray cluster to test the ServerlessLLM.
 
 ### Step 1: Build Docker Images
 

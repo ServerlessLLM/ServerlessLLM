@@ -246,7 +246,7 @@ Let's walk through an example of adding a new checkpoint format:
    - Basic structure for the new format
    - Serialization method with correct endianness
    - Deserialization method
-   
+
    The new format improves storage efficiency and load times.
 
    Squashed commit of the following:

@@ -47,7 +47,7 @@ docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_builder /bin/bash
 export PYTHON_VERSION=310
 export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
 conda activate py${PYTHON_VERSION} && python setup.py sdist bdist_wheel
-``` 
+```
 
 4. Install the package in local environment
 ``` bash

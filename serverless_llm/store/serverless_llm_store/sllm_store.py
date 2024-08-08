@@ -70,7 +70,7 @@ def save_dict(model_state_dict: Dict[str, torch.Tensor], model_path: str):
         data_ptr = param_storage.data_ptr()
         size = param_storage.size()
         tensor_data_index[name] = (data_ptr, size)
-        
+
     if not os.path.exists(model_path):
         os.makedirs(model_path, exist_ok=True)
 
@@ -376,7 +376,7 @@ def request_load_into_gpu(
     storage_path: str = "./models",
 ):
     client = SllmStoreClient("localhost:8073")
-    
+
     with open(
         os.path.join(storage_path, model_name_or_path, "tensor_index.json"), "r"
     ) as f:
@@ -421,13 +421,13 @@ def request_load_into_gpu(
     )
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_name_or_path} into GPU")
-    
+
     start = time.time()
     state_dict = restore_tensors(
         tensor_meta_index, cuda_memory_ptrs, tensor_device_offsets
     )
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
-    
+
     return replica_uuid, state_dict, device_map
 
 def load_dict_single_device(
@@ -437,12 +437,12 @@ def load_dict_single_device(
     # all tensor load to one device
     device_id = torch.cuda.current_device()
     device_map = {"": device_id}
-    
+
     client = SllmStoreClient("localhost:8073")
     ret = client.load_into_cpu(model_name_or_path)
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_name_or_path} into CPU")
-    
+
     replica_uuid, state_dict, device_map = request_load_into_gpu(model_name_or_path, device_map, storage_path)
 
     client.confirm_model_loaded(model_name_or_path, replica_uuid)

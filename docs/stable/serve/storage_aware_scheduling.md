@@ -5,7 +5,7 @@ sidebar_position: 0
 # Storage Aware Scheduling
 
 ## Pre-requisites
-To enable storage aware model loading scheduling, a hardward configuration file is required.
+To enable storage aware model loading scheduling, a hardware configuration file is required.
 For example, the following is a sample configuration file for two serverls:
 ```bash
 echo '{
