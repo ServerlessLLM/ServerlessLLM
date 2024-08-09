@@ -50,10 +50,11 @@ ServerlessLLM is actively maintained and developed by those [Contributors](./CON
 If you use ServerlessLLM for your research, please cite our [paper](https://arxiv.org/abs/2401.14351):
 
 ```bibtex
-@article{fu2024serverlessllm,
+@inproceedings{fu2024serverlessllm,
   title={ServerlessLLM: Low-Latency Serverless Inference for Large Language Models},
   author={Fu, Yao and Xue, Leyang and Huang, Yeqi and Brabete, Andrei-Octavian and Ustiugov, Dmitrii and Patel, Yuvraj and Mai, Luo},
-  booktitle={USENIX Symposium on Operating Systems Design and Implementation (OSDI'24)},
+  booktitle={18th USENIX Symposium on Operating Systems Design and Implementation (OSDI 24)},
+  pages={135--153},
   year={2024}
 }
 ```
