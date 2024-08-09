@@ -15,6 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-from .sllm_store import load_dict, load_model, save_model
+from .sllm_store import load_dict, load_model, save_model, save_dict, load_dict_single_device
 
-__all__ = ["load_model", "save_model", "load_dict"]
+__all__ = ["load_model", "save_model", "load_dict", "save_dict", "load_dict_single_device"]

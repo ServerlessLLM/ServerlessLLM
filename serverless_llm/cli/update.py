@@ -27,19 +27,32 @@ from serverless_llm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
+
 class UpdateCommand:
     @staticmethod
     def register_subcommand(parser: _SubParsersAction):
-        update_parser = parser.add_parser("update", help="Update a model using a config file or model name.")
-        update_parser.add_argument("--model", type=str, help="Model name to update with new configuration.")
-        update_parser.add_argument("--config", type=str, help="Path to the JSON config file.")
+        update_parser = parser.add_parser(
+            "update", help="Update a model using a config file or model name."
+        )
+        update_parser.add_argument(
+            "--model",
+            type=str,
+            help="Model name to update with new configuration.",
+        )
+        update_parser.add_argument(
+            "--config", type=str, help="Path to the JSON config file."
+        )
         update_parser.set_defaults(func=UpdateCommand)
 
     def __init__(self, args: Namespace) -> None:
         self.model = args.model
         self.config_path = args.config
-        self.url = os.getenv("LLM_SERVER_URL", "http://localhost:8343/") + "update"
-        self.default_config_path = os.path.join(os.path.dirname(__file__), 'default_config.json')
+        self.url = (
+            os.getenv("LLM_SERVER_URL", "http://localhost:8343/") + "update"
+        )
+        self.default_config_path = os.path.join(
+            os.path.dirname(__file__), "default_config.json"
+        )
 
     def run(self) -> None:
         if self.config_path:
@@ -49,8 +62,12 @@ class UpdateCommand:
         elif self.model:
             config_data = read_config(self.default_config_path)
             config_data["model"] = self.model
-            config_data["backend_config"]["pretrained_model_name_or_path"] = self.model
-            logger.info(f"Updating model {self.model} with default configuration.")
+            config_data["backend_config"]["pretrained_model_name_or_path"] = (
+                self.model
+            )
+            logger.info(
+                f"Updating model {self.model} with default configuration."
+            )
             self.update_model(config_data)
         else:
             logger.error("You must specify either --model or --config.")
@@ -65,4 +82,6 @@ class UpdateCommand:
         if response.status_code == 200:
             logger.info("Model updated successfully.")
         else:
-            logger.error(f"Failed to update model. Status code: {response.status_code}. Response: {response.text}")
+            logger.error(
+                f"Failed to update model. Status code: {response.status_code}. Response: {response.text}"
+            )

@@ -25,7 +25,7 @@ ServerlessLLM is Affordable:
 
 ServerlessLLM is Easy:
 
-- Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (comming soon).
+- Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (coming soon).
 - Seamlessly deploys [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) models and your custom LLM models.
 - Integrates seamlessly with the [OpenAI Query API](https://platform.openai.com/docs/introduction).
 

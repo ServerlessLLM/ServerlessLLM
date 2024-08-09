@@ -25,6 +25,7 @@ from serverless_llm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
+
 class DeployCommand:
     @staticmethod
     def register_subcommand(parser: _SubParsersAction):
@@ -40,19 +41,29 @@ class DeployCommand:
             "--config", type=str, help="Path to the JSON config file."
         )
         deploy_parser.add_argument(
-            "--backend", type=str, help="Overwrite the backend in the default configuration."
+            "--backend",
+            type=str,
+            help="Overwrite the backend in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--num_gpus", type=int, help="Overwrite the number of GPUs in the default configuration."
+            "--num_gpus",
+            type=int,
+            help="Overwrite the number of GPUs in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--target", type=int, help="Overwrite the target concurrency in the default configuration."
+            "--target",
+            type=int,
+            help="Overwrite the target concurrency in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--min_instances", type=int, help="Overwrite the minimum instances in the default configuration."
+            "--min_instances",
+            type=int,
+            help="Overwrite the minimum instances in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--max_instances", type=int, help="Overwrite the maximum instances in the default configuration."
+            "--max_instances",
+            type=int,
+            help="Overwrite the maximum instances in the default configuration.",
         )
         deploy_parser.set_defaults(func=DeployCommand)
 
@@ -90,14 +101,39 @@ class DeployCommand:
         if max_instances < 0:
             raise ValueError("Maximum instances cannot be negative.")
         if min_instances > max_instances:
-            raise ValueError("Minimum instances cannot be greater than maximum instances.")
+            raise ValueError(
+                "Minimum instances cannot be greater than maximum instances."
+            )
+
+    def update_config(
+        self, default_config: dict, provided_config: dict
+    ) -> dict:
+        """Update the default configuration with values from the provided configuration."""
+        for key, value in provided_config.items():
+            if isinstance(value, dict) and key in default_config:
+                default_config[key] = self.update_config(
+                    default_config[key], value
+                )
+            else:
+                default_config[key] = value
+        return default_config
 
     def run(self) -> None:
+        default_config = read_config(self.default_config_path)
+
         if self.config_path:
-            config_data = read_config(self.config_path)
-            self.model = config_data.get("model")
+            provided_config = read_config(self.config_path)
+            config_data = self.update_config(default_config, provided_config)
+            # If pretrained_model_name_or_path is not provided, use the model name
+            if (
+                config_data["backend_config"]["pretrained_model_name_or_path"]
+                == ""
+            ):
+                config_data["backend_config"][
+                    "pretrained_model_name_or_path"
+                ] = config_data["model"]
         elif self.model:
-            config_data = read_config(self.default_config_path)
+            config_data = default_config
             config_data["model"] = self.model
             config_data["backend_config"]["pretrained_model_name_or_path"] = (
                 self.model
@@ -109,19 +145,19 @@ class DeployCommand:
             if self.target is not None:
                 config_data["auto_scaling_config"]["target"] = self.target
             if self.min_instances is not None:
-                config_data["auto_scaling_config"]["min_instances"] = self.min_instances
+                config_data["auto_scaling_config"]["min_instances"] = (
+                    self.min_instances
+                )
             if self.max_instances is not None:
-                config_data["auto_scaling_config"]["max_instances"] = self.max_instances
-
+                config_data["auto_scaling_config"]["max_instances"] = (
+                    self.max_instances
+                )
         else:
             logger.error("You must specify either --model or --config.")
             exit(1)
 
         self.validate_config(config_data)
-        logger.info(
-            f"Deploying model {self.model}."
-        )
-        
+        logger.info(f"Deploying model {config_data['model']}.")
         self.deploy_model(config_data)
 
     def deploy_model(self, config_data: dict) -> None:
