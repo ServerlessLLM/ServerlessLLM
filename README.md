@@ -1,5 +1,12 @@
 <p align="center">
-  <img src="./docs/images/serverlessllm.jpg" alt="ServerlessLLM Logo" width="30%">
+  <picture>
+    <img src="./docs/images/serverlessllm.jpg" alt="ServerlessLLM" width="30%">
+  </picture>
+</p>
+
+<p align="center">
+| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> |
+
 </p>
 
 # ServerlessLLM
