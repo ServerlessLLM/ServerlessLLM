@@ -81,6 +81,9 @@ class TransformersBackend(SllmBackend):
             )
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model_initialized = True
+    
+    def _tokenize(self, prompt: str):
+        return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
 
     async def generate(self, request_data: Optional[Dict[str, Any]]):
         await self.init_backend()
@@ -101,7 +104,7 @@ class TransformersBackend(SllmBackend):
         if not prompt:
             return {"error": "Missing prompt in request data"}
 
-        inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
+        inputs = self._tokenize(prompt) 
 
         # Generate response
         with torch.no_grad():

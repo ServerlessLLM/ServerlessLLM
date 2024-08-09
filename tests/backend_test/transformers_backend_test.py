@@ -21,9 +21,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
+from transformers import AutoTokenizer
 
 from serverless_llm.serve.backends.transformers_backend import (
-    TransformersBackend)
+    TransformersBackend,
+)
 
 
 @pytest.fixture
@@ -81,11 +83,20 @@ def model():
     yield model
 
 
+@pytest.fixture
+def tokenizer():
+    tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
+    yield tokenizer("test_prompt", return_tensors="pt")
+
+
 @pytest.mark.asyncio
-async def test_generate(transformers_backend, model):
+async def test_generate(transformers_backend, model, tokenizer):
     with patch(
         "serverless_llm.serve.backends.transformers_backend.load_model",
         return_value=model,
+    ), patch(
+        "serverless_llm.serve.backends.transformers_backend.TransformersBackend._tokenize",
+        return_value=tokenizer,
     ):
         input = {
             "model": "facebook/opt-125m",
