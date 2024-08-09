@@ -38,7 +38,7 @@ def backend_config():
     }
 
 
-async def generate_result(
+async def generate(
     inputs, sampling_params, request_id
 ) -> AsyncIterator[RequestOutput]:
     prompt = inputs
@@ -82,7 +82,7 @@ def async_llm_engine():
             async_llm_engine_obj
         )
         async_llm_engine_obj.abort = AsyncMock()
-        async_llm_engine_obj.generate.side_effect = generate_result
+        async_llm_engine_obj.generate.side_effect = generate
         yield async_llm_engine_obj
 
 

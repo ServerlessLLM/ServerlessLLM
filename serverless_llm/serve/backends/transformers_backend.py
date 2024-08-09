@@ -86,7 +86,9 @@ class TransformersBackend(SllmBackend):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
 
     async def generate(self, request_data: Optional[Dict[str, Any]]):
-        await self.init_backend()
+        async with self.model_status_lock:
+            if not self.model_initialized:
+                return {"error": "Model not initialized"}
         model_name = request_data.get("model", "dummy-model")
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)

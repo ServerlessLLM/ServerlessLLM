@@ -17,11 +17,11 @@
 # ---------------------------------------------------------------------------- #
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import torch
-from transformers import AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from serverless_llm.serve.backends.transformers_backend import (
     TransformersBackend,
@@ -72,14 +72,9 @@ async def test_init_backend(transformers_backend, backend_config):
         )
 
 
-def generate(input_ids, max_new_tokens, temperature, **kwargs):
-    return input_ids
-
-
 @pytest.fixture
 def model():
-    model = MagicMock()
-    model.generate.side_effect = generate
+    model = AutoModelForCausalLM.from_pretrained("facebook/opt-125m").to("cpu")
     yield model
 
 
@@ -98,6 +93,7 @@ async def test_generate(transformers_backend, model, tokenizer):
         "serverless_llm.serve.backends.transformers_backend.TransformersBackend._tokenize",
         return_value=tokenizer,
     ):
+        await transformers_backend.init_backend()
         input = {
             "model": "facebook/opt-125m",
             "messages": [
@@ -112,3 +108,24 @@ async def test_generate(transformers_backend, model, tokenizer):
         result = await transformers_backend.generate(input)
         assert "error" not in result
         assert "choices" in result and len(result["choices"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_generate_without_init(transformers_backend):
+    with patch(
+        "serverless_llm.serve.backends.transformers_backend.load_model",
+        return_value=model,
+    ):
+        request_data = {
+            "model": "facebook/opt-125m",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, how are you? I am fine, thank you!",
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 10,
+        }
+        response = await transformers_backend.generate(request_data)
+        assert "error" in response
