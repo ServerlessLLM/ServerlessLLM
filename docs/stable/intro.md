@@ -14,14 +14,14 @@ ServerlessLLM is a **fast** and **easy-to-use** serving system designed for **af
 ### Getting Started
 
 - [Install ServerlessLLM](./getting_started/installation.md)
-- [Deploy a ServerlessLLM cluster on your local machine](./getting_started/quickstart.md)
-- [Deploy ServerlessLLM using Docker (Recommended)](./getting_started/docker_quickstart.md)
-- [Deploy ServerlessLLM on a multi-machine cluster](./getting_started/multi_machine_setup.md)
+- [Quickstart](./getting_started/quickstart.md)
+- [Quickstart with Docker](./getting_started/docker_quickstart.md)
+- [Multi-machine quickstart](./getting_started/multi_machine_setup.md)
 
 ### ServerlessLLM Store
 
-- [Use ServerlessLLM Store in your own code](./store/quickstart.md)
+- [Quickstart](./store/quickstart.md)
 
 ### ServerlessLLM CLI
 
-- [ServerlessLLM CLI Documentation](./cli/cli_api.md)
+- [ServerlessLLM CLI API](./cli/cli_api.md)
