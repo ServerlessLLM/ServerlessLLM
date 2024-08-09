@@ -179,6 +179,12 @@ class cmake_build_ext(build_ext):
             "-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY={}".format(self.build_temp),
         ]
 
+        build_tests = os.getenv('BUILD_TESTS', 'OFF').upper() == 'ON'
+        if build_tests:
+            cmake_args.append('-DBUILD_TESTS=ON')
+        else:
+            cmake_args.append('-DBUILD_TESTS=OFF')
+
         # verbose = bool(int(os.getenv('VERBOSE', '1')))
         verbose = True
         if verbose:
