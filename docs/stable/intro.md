@@ -18,6 +18,10 @@ ServerlessLLM is a **fast** and **easy-to-use** serving system designed for **af
 - [Quickstart with Docker](./getting_started/docker_quickstart.md)
 - [Multi-machine quickstart](./getting_started/multi_machine_setup.md)
 
+### ServerlessLLM Serve
+
+- [Storage-aware scheduler](./serve/storage_aware_scheduling.md)
+
 ### ServerlessLLM Store
 
 - [Quickstart](./store/quickstart.md)
