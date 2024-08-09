@@ -33,7 +33,12 @@
 #include <thread>
 #include <unordered_map>
 
-#include "checkpoint_store.h"
+#ifdef USE_HIP
+  #include "checkpoint_store_hip.h"
+#else
+  #include "checkpoint_store.h"
+#endif
+
 #include "storage.grpc.pb.h"
 #include "storage.pb.h"
 

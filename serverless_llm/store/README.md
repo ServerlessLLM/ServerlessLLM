@@ -55,3 +55,27 @@ pip install dist/*.whl
 ```
 
 5. Following the [quick start guide](https://serverlessllm.github.io/docs/stable/store/quickstart) to use the library.
+
+## ROCm Support
+
+Currently, `sllm-store` only support build ROCm wheel from source. We now only tested on Pytorch 2.3.0 with ROCm 6.0. To build the ROCm version of `sllm-store`, we recommend you to use the docker and build it in ROCm container.
+
+1. Build the Docker image from `Dockerfile.rocm`
+
+``` bash
+docker build -t sllm_store_rocm -f Dockerfile.rocm .
+```
+
+2. Build the package inside the ROCm docker container
+``` bash
+docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_rocm /bin/bash
+export PYTHON_VERSION=310
+conda activate py${PYTHON_VERSION} && python setup.py sdist bdist_wheel
+```
+
+3. After that, you can install the ROCm version of `sllm-store` in your local environment.
+
+``` bash
+pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/rocm6.0
+pip install dist/*.whl
+```
