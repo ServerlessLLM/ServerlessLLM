@@ -13,9 +13,9 @@ Ensure you have the following pre-requirements installed:
 1. **GPUs**: Ensure you have at least 2 GPUs available. If more GPUs are provided, you can adjust the number of workers and the number of devices assigned to each worker.
 2. **NVIDIA Docker Toolkit**: This allows Docker to use NVIDIA GPUs. You can find the installation guide [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-## Local Test Using Docker
+## Run ServerlessLLM using Docker
 
-First, let's start a local Docker-based ray cluster to test the ServerlessLLM.
+First, let's start a local Docker-based ray cluster to run ServerlessLLM. 
 
 ### Step 1: Build Docker Images
 
