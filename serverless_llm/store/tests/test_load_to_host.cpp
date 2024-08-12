@@ -38,6 +38,10 @@ size_t CheckpointStoreTest::chunk_size = 0;
 
 TEST_F(CheckpointStoreTest, LoadModelFromDisk) {
   std::string model_name = "facebook/opt-1.3b";
+
+  // Register model
+  EXPECT_GE(storage->RegisterModelInfo(model_name), 0);
+
   // Load model from disk
   EXPECT_EQ(storage->LoadModelFromDisk(model_name), 0);
 
