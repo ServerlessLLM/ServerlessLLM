@@ -143,13 +143,7 @@ class VllmBackend(SllmBackend):
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = os.path.join(storage_path, "vllm", model)
             filtered_engine_config["model"] = model_path
-            if "serverless_llm" not in LoadFormat.__members__:
-                logger.warning(
-                    "Serverless LLM load format is not available, please check whether the sllm patch is applied. Use sharded_state instead"
-                )
-                filtered_engine_config["load_format"] = "sharded_state"
-            else:
-                filtered_engine_config["load_format"] = "serverless_llm"
+            filtered_engine_config["load_format"] = "serverless_llm"
 
         # NOTE: Automatic enable prefix cachinging
         filtered_engine_config["enable_prefix_caching"] = True
