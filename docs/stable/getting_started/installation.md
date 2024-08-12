@@ -32,3 +32,10 @@ conda activate sllm-worker
 pip install -e ".[worker]"
 pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev3
 ```
+
+# vLLM Patch
+To use vLLM with ServerlessLLM, we need to apply our patch `vllm_patch/sllm_load.patch` to the vLLM repository. You may do that by running the following commands:
+```bash
+VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
+patch -p2 -d $VLLM_PATH < vllm_patch/sllm_load.patch
+```

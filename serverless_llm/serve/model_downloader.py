@@ -99,6 +99,7 @@ class VllmModelDownloader:
         import torch
         from huggingface_hub import snapshot_download
         from vllm import LLM
+        from vllm.config import LoadFormat
 
         def _run_writer(input_dir, output_dir):
             llm_writer = LLM(
@@ -112,10 +113,17 @@ class VllmModelDownloader:
                 max_model_len=1,
             )
             model_executer = llm_writer.llm_engine.model_executor
-            # TODO: change the `save_sharded_state` to `save_serverless_llm_state`
-            model_executer.save_sharded_state(
-                path=output_dir, pattern=pattern, max_size=max_size
-            )
+            if "serverless_llm" not in LoadFormat.__members__:
+                logger.warning(
+                    "Serverless LLM load format is not available, please check whether the sllm patch is applied. Use sharded_state instead"
+                )
+                model_executer.save_sharded_state(
+                    path=output_dir, pattern=pattern, max_size=max_size
+                )
+            else:
+                model_executer.save_serverless_llm_state(
+                    path=output_dir, pattern=pattern, max_size=max_size
+                )
             for file in os.listdir(input_dir):
                 if os.path.splitext(file)[1] not in (
                     ".bin",
