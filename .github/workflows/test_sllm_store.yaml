@@ -26,7 +26,10 @@ jobs:
       - name: Install ServerlessLLM
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          ls -l /usr/local/cuda
+          export CUDA_HOME=/usr/local/cuda
+          export CUDA_PATH=/usr/local/cuda
+          export PATH=$CUDA_HOME/bin:$PATH
+          export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
           cd serverless_llm/store && pip install .
 
       - name: Run Python tests
