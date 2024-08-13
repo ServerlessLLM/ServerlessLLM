@@ -5,10 +5,6 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-22.04
-    env:
-      CUDA_HOME: /usr/local/cuda
-      PATH: /usr/local/cuda/bin:${{ env.PATH }}
-      LD_LIBRARY_PATH: /usr/local/cuda/lib64:${{ env.LD_LIBRARY_PATH }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
