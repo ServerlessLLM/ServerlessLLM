@@ -1,5 +1,12 @@
 <p align="center">
-  <img src="./docs/images/serverlessllm.jpg" alt="ServerlessLLM Logo" width="30%">
+  <picture>
+    <img src="./docs/images/serverlessllm.jpg" alt="ServerlessLLM" width="30%">
+  </picture>
+</p>
+
+<p align="center">
+| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> |
+
 </p>
 
 # ServerlessLLM
@@ -25,7 +32,7 @@ ServerlessLLM is Affordable:
 
 ServerlessLLM is Easy:
 
-- Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (comming soon).
+- Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (coming soon).
 - Seamlessly deploys [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) models and your custom LLM models.
 - Integrates seamlessly with the [OpenAI Query API](https://platform.openai.com/docs/introduction).
 
@@ -50,10 +57,11 @@ ServerlessLLM is actively maintained and developed by those [Contributors](./CON
 If you use ServerlessLLM for your research, please cite our [paper](https://arxiv.org/abs/2401.14351):
 
 ```bibtex
-@article{fu2024serverlessllm,
+@inproceedings{fu2024serverlessllm,
   title={ServerlessLLM: Low-Latency Serverless Inference for Large Language Models},
   author={Fu, Yao and Xue, Leyang and Huang, Yeqi and Brabete, Andrei-Octavian and Ustiugov, Dmitrii and Patel, Yuvraj and Mai, Luo},
-  booktitle={USENIX Symposium on Operating Systems Design and Implementation (OSDI'24)},
+  booktitle={18th USENIX Symposium on Operating Systems Design and Implementation (OSDI 24)},
+  pages={135--153},
   year={2024}
 }
 ```

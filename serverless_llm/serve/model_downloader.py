@@ -107,6 +107,9 @@ class VllmModelDownloader:
                 dtype=torch_dtype,
                 tensor_parallel_size=tensor_parallel_size,
                 distributed_executor_backend="mp",
+                num_gpu_blocks_override=1,
+                enforce_eager=True,
+                max_model_len=1,
             )
             model_executer = llm_writer.llm_engine.model_executor
             # TODO: change the `save_sharded_state` to `save_serverless_llm_state`
