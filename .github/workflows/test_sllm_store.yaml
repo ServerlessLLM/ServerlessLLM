@@ -7,8 +7,8 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       CUDA_HOME: /usr/local/cuda
-      PATH: /usr/local/cuda/bin:$PATH
-      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+      PATH: /usr/local/cuda/bin:${{ env.PATH }}
+      LD_LIBRARY_PATH: /usr/local/cuda/lib64:${{ env.LD_LIBRARY_PATH }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
