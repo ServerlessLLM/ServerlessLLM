@@ -33,3 +33,7 @@ npm run build
 ```
 
 This command generates static content into the `build` directory, which can be served using any static content hosting service.
+
+### About the image path
+
+Images are stored in `images` path. For example, we have an image called `a.jpg` in `images`. When we use this image in any position in the documents, we just use `/img/a.jpg`. (The document sync bot can copy `images` path into `img` folder in `serverlessllm.github.io` repo)
