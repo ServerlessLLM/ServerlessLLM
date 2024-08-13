@@ -35,7 +35,6 @@ from serverless_llm.serve.logger import init_logger
 logger = init_logger(__name__)
 
 
-@ray.remote
 class TransformersBackend(SllmBackend):
     def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
         self.backend_config = backend_config
@@ -82,9 +81,14 @@ class TransformersBackend(SllmBackend):
             )
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model_initialized = True
+    
+    def _tokenize(self, prompt: str):
+        return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
 
     async def generate(self, request_data: Optional[Dict[str, Any]]):
-        await self.init_backend()
+        async with self.model_status_lock:
+            if not self.model_initialized:
+                return {"error": "Model not initialized"}
         model_name = request_data.get("model", "dummy-model")
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
@@ -102,7 +106,7 @@ class TransformersBackend(SllmBackend):
         if not prompt:
             return {"error": "Missing prompt in request data"}
 
-        inputs = self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
+        inputs = self._tokenize(prompt) 
 
         # Generate response
         with torch.no_grad():

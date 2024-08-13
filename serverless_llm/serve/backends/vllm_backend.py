@@ -103,7 +103,6 @@ class LLMEngineStatusDict:
 
 
 # Note the GPU resource will be decided when the backend is created
-@ray.remote
 class VllmBackend(SllmBackend):
     # This class implements every method in vllm.entrypoints.openai.api_server
     # https://github.com/vllm-project/vllm/blob/main/vllm/entrypoints/openai/api_server.py
