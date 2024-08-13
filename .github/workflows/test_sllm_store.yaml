@@ -47,7 +47,7 @@ jobs:
       # C++ Tests
       - name: Build C++ project
         run: |
-          cd serverless_llm/store && bash cpp_build.sh
+          cd serverless_llm/store && pip install -r requirements-build.txt && bash cpp_build.sh
 
       - name: Run C++ tests
         run: |
