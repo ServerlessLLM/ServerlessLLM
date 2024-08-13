@@ -30,7 +30,8 @@ jobs:
         run: |
           bash -x .github/workflows/scripts/cuda-install.sh 12.1 ubuntu-22.04
 
-      - name: Install ServerlessLLM
+      # Python Tests
+      - name: Install ServerlessLLM Store
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
           export CUDA_HOME=/usr/local/cuda
@@ -42,3 +43,13 @@ jobs:
       - name: Run Python tests
         run: |
           pytest serverless_llm/store/tests/python
+
+      # C++ Tests
+      - name: Build C++ project
+        run: |
+          bash build.sh
+
+      - name: Run C++ tests
+        run: |
+          cd build/
+          ctest
