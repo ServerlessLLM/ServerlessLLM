@@ -20,6 +20,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
 
+      - name: Install CUDA 12.1
+        run: |
+          bash -x .github/workflows/scripts/cuda-install.sh 12.1 ubuntu-22.04
+
       - name: Install ServerlessLLM
         run: |
           cd serverless_llm/store && pip install .
