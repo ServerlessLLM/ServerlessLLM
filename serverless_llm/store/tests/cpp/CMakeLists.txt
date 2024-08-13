@@ -7,7 +7,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 # Specify the test source file
-set(TEST_SOURCES test_load_to_host.cpp)
+set(TEST_SOURCES test_load_to_host.cpp test_pinned_memory.cpp)
 
 # Create an executable for the tests
 add_executable(runTests ${TEST_SOURCES})

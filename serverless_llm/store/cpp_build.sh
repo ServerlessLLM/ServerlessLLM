@@ -18,8 +18,9 @@
 # ---------------------------------------------------------------------------- #
 set -e
 
-rm -rf build/
-mkdir build/
+if [ ! -d "build" ]; then
+  mkdir build/
+fi
 cd build/
 
 export SLLM_STORE_PYTHON_EXECUTABLE=$(which python3)
