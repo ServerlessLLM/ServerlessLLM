@@ -1,11 +1,11 @@
-import unittest
-from unittest.mock import patch, MagicMock
 import sys
+import unittest
+from unittest.mock import MagicMock, patch
+
 from serverless_llm.cli.sllm_cli import main
 
 
 class TestSllmCLI(unittest.TestCase):
-
     @patch("serverless_llm.cli.deploy.DeployCommand.run")
     def test_deploy_command(self, mock_deploy_run):
         # Simulate command-line input
@@ -29,7 +29,14 @@ class TestSllmCLI(unittest.TestCase):
     @patch("serverless_llm.cli.replay.ReplayCommand.run")
     def test_replay_command(self, mock_replay_run):
         # Simulate command-line input
-        test_args = ["sllm-cli", "replay", "--workload", "workload.json", "--dataset", "dataset.json"]
+        test_args = [
+            "sllm-cli",
+            "replay",
+            "--workload",
+            "workload.json",
+            "--dataset",
+            "dataset.json",
+        ]
         with patch.object(sys, "argv", test_args):
             main()
 
@@ -39,7 +46,12 @@ class TestSllmCLI(unittest.TestCase):
     @patch("serverless_llm.cli.delete.DeleteCommand.run")
     def test_delete_command(self, mock_delete_run):
         # Simulate command-line input
-        test_args = ["sllm-cli", "delete", "facebook/opt-1.3b", "facebook/opt-2.7b"]
+        test_args = [
+            "sllm-cli",
+            "delete",
+            "facebook/opt-1.3b",
+            "facebook/opt-2.7b",
+        ]
         with patch.object(sys, "argv", test_args):
             main()
 
@@ -55,7 +67,7 @@ class TestSllmCLI(unittest.TestCase):
 
         # Check that UpdateCommand.run was called
         mock_update_run.assert_called_once()
-        
+
     @patch("argparse.ArgumentParser.print_help")
     def test_no_command(self, mock_print_help):
         with patch("sys.argv", ["sllm-cli"]):
@@ -65,6 +77,6 @@ class TestSllmCLI(unittest.TestCase):
         # Check that the help message was printed
         mock_print_help.assert_called_once()
 
+
 if __name__ == "__main__":
     unittest.main()
-

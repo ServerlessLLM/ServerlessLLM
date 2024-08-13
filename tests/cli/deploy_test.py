@@ -1,11 +1,11 @@
 import unittest
-from unittest.mock import patch, MagicMock
 from argparse import Namespace
+from unittest.mock import MagicMock, patch
+
 from serverless_llm.cli.deploy import DeployCommand
 
 
 class TestDeployCommand(unittest.TestCase):
-    
     @patch("serverless_llm.cli.deploy.read_config")
     @patch("serverless_llm.cli.deploy.requests.post")
     def test_deploy_with_model_only(self, mock_post, mock_read_config):
@@ -25,7 +25,7 @@ class TestDeployCommand(unittest.TestCase):
                 "torch_dtype": "float16",
             },
         }
-        
+
         # Mock the response of the requests.post
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -72,7 +72,7 @@ class TestDeployCommand(unittest.TestCase):
             default_config,
             {"model": "custom-model", "backend": "transformers"},
         ]
-        
+
         # Mock the response of the requests.post
         mock_response = MagicMock()
         mock_response.status_code = 200

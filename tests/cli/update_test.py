@@ -1,21 +1,23 @@
 import unittest
-from unittest.mock import patch, MagicMock
 from argparse import Namespace
+from unittest.mock import MagicMock, patch
+
 from serverless_llm.cli.update import UpdateCommand
 
 
 class TestUpdateCommand(unittest.TestCase):
-
     @patch("serverless_llm.cli.update.requests.post")
     @patch("serverless_llm.cli.update.read_config")
     @patch("serverless_llm.cli.update.validate_config")
-    def test_update_with_config_file(self, mock_validate, mock_read_config, mock_post):
+    def test_update_with_config_file(
+        self, mock_validate, mock_read_config, mock_post
+    ):
         # Mock the configuration reading and validation
         mock_read_config.return_value = {
             "model": "facebook/opt-1.3b",
             "backend_config": {
                 "pretrained_model_name_or_path": "facebook/opt-1.3b"
-            }
+            },
         }
         mock_post.return_value.status_code = 200
 
@@ -32,8 +34,8 @@ class TestUpdateCommand(unittest.TestCase):
                 "model": "facebook/opt-1.3b",
                 "backend_config": {
                     "pretrained_model_name_or_path": "facebook/opt-1.3b"
-                }
-            }
+                },
+            },
         )
 
     @patch("serverless_llm.cli.update.requests.post")
@@ -42,9 +44,7 @@ class TestUpdateCommand(unittest.TestCase):
         # Mock the default configuration reading
         mock_read_config.return_value = {
             "model": "",
-            "backend_config": {
-                "pretrained_model_name_or_path": ""
-            }
+            "backend_config": {"pretrained_model_name_or_path": ""},
         }
         mock_post.return_value.status_code = 200
 
@@ -60,8 +60,8 @@ class TestUpdateCommand(unittest.TestCase):
                 "model": "facebook/opt-1.3b",
                 "backend_config": {
                     "pretrained_model_name_or_path": "facebook/opt-1.3b"
-                }
-            }
+                },
+            },
         )
 
     @patch("serverless_llm.cli.update.requests.post")
@@ -70,10 +70,8 @@ class TestUpdateCommand(unittest.TestCase):
         # Mock the default configuration reading
         mock_read_config.return_value = {
             "model": "",
-            "backend_config": {
-                "pretrained_model_name_or_path": ""
-            }
-        }
+            "backend_config": {"pretrained_model_name_or_path": ""},
+        self.assertEqual(mock_post.return_value.status_code, 500)
         mock_post.return_value.status_code = 500
 
         args = Namespace(model="facebook/opt-1.3b", config=None)
@@ -87,7 +85,7 @@ class TestUpdateCommand(unittest.TestCase):
     def test_update_missing_arguments(self):
         args = Namespace(model=None, config=None)
         command = UpdateCommand(args)
-        
+
         with self.assertRaises(SystemExit):
             command.run()
 
