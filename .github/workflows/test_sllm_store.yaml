@@ -47,9 +47,8 @@ jobs:
       # C++ Tests
       - name: Build C++ project
         run: |
-          bash cpp_build.sh
+          cd serverless_llm/store && bash cpp_build.sh
 
       - name: Run C++ tests
         run: |
-          cd build/
-          ctest
+          cd serverless_llm/store/build && ctest --output-on-failure
