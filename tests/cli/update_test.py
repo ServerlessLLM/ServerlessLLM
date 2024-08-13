@@ -71,7 +71,7 @@ class TestUpdateCommand(unittest.TestCase):
         mock_read_config.return_value = {
             "model": "",
             "backend_config": {"pretrained_model_name_or_path": ""},
-        self.assertEqual(mock_post.return_value.status_code, 500)
+        }
         mock_post.return_value.status_code = 500
 
         args = Namespace(model="facebook/opt-1.3b", config=None)
@@ -80,7 +80,7 @@ class TestUpdateCommand(unittest.TestCase):
 
         mock_read_config.assert_called_once()
         mock_post.assert_called_once()
-        self.assertTrue(mock_post.return_value.status_code, 500)
+        self.assertEqual(mock_post.return_value.status_code, 500)
 
     def test_update_missing_arguments(self):
         args = Namespace(model=None, config=None)

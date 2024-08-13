@@ -57,7 +57,7 @@ class TestGenerateCommand(unittest.TestCase):
 
         mock_read_config.assert_called_once_with("/path/to/input.json")
         mock_post.assert_called_once()
-        self.assertTrue(mock_post.return_value.status_code, 500)
+        self.assertEqual(mock_post.return_value.status_code, 500)
 
     @patch("serverless_llm.cli.generate.requests.post")
     @patch("serverless_llm.cli.generate.read_config")
