@@ -186,5 +186,5 @@ define_gpu_extension_target(
 if(BUILD_SLLM_TESTS)
     enable_testing()
 
-    add_subdirectory(tests)
+    add_subdirectory(tests/cpp)
 endif()
