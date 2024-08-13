@@ -5,7 +5,10 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-22.04
-
+    env:
+      CUDA_HOME: /usr/local/cuda
+      PATH: /usr/local/cuda/bin:$PATH
+      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,6 +30,7 @@ jobs:
       - name: Install ServerlessLLM
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
+          ls -l /usr/local/cuda
           cd serverless_llm/store && pip install .
 
       - name: Run Python tests
