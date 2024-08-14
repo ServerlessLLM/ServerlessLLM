@@ -42,6 +42,8 @@ jobs:
       # C++ Tests
       - name: Build C++ project
         run: |
+          echo $CUDA_HOME
+          echo $PATH
           cd serverless_llm/store && pip install -r requirements-build.txt && bash cpp_build.sh
 
       - name: Run C++ tests
