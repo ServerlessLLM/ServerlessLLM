@@ -17,8 +17,8 @@ jobs:
       - name: Free disk space
         run: |
           df -h
-          rm -rf /usr/local/cuda-* /opt/cuda
-          rm -rf /usr/local/cuda
+          sudo rm -rf /usr/local/cuda-* /opt/cuda
+          sudo rm -rf /usr/local/cuda
           bash -x .github/workflows/scripts/free-disk-space.sh
 
       - name: Install dependencies
