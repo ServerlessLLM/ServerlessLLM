@@ -23,7 +23,6 @@ g++ --version
 c++ --version
 
 # Export CUDA_HOME
-echo "CUDA_HOME=/usr/local/cuda-${cuda_version}" >> $GITHUB_ENV
-echo "PATH=/usr/local/cuda-${cuda_version}/bin:${PATH}" >> $GITHUB_ENV
-echo "LD_LIBRARY_PATH=/usr/local/cuda-${cuda_version}/lib64:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
-echo "CUDACXX=/usr/local/cuda-${cuda_version}/bin/nvcc" >> $GITHUB_ENV
+echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV
+echo "PATH=${PATH}:${CUDA_HOME}/bin" >> $GITHUB_ENV
+echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${CUDA_HOME}/lib64" >> $GITHUB_ENV
