@@ -21,3 +21,9 @@ nvcc --version
 gcc --version
 g++ --version
 c++ --version
+
+# Export CUDA_HOME
+echo "export CUDA_HOME=/usr/local/cuda-${cuda_version}" >> $GITHUB_ENV
+echo "export PATH=/usr/local/cuda-${cuda_version}/bin:\${PATH}" >> $GITHUB_ENV
+echo "export LD_LIBRARY_PATH=/usr/local/cuda-${cuda_version}/lib64:\${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+echo "export CUDACXX=/usr/local/cuda-${cuda_version}/bin/nvcc" >> $GITHUB_ENV
