@@ -1,6 +1,6 @@
 name: Test Sllm Store
 
-on: [push, pull_request]
+on: workflow_dispatch
 
 jobs:
   test:
@@ -43,8 +43,6 @@ jobs:
       # C++ Tests
       - name: Build C++ project
         run: |
-          echo $CUDA_HOME
-          echo $PATH
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
           cd serverless_llm/store && pip install -r requirements-build.txt && bash cpp_build.sh
 
