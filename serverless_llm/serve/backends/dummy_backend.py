@@ -26,7 +26,6 @@ from serverless_llm.serve.backends.backend_utils import SllmBackend
 from serverless_llm.serve.logger import init_logger
 
 
-@ray.remote
 class DummyBackend(SllmBackend):
     def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
         self.backend_config = backend_config
