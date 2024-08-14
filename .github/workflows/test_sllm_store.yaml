@@ -2,6 +2,13 @@ name: Test Sllm Store
 
 on: [push, pull_request]
 
+env:
+  TORCH_CUDA_ARCH_LIST: "8.0 8.6 8.9 9.0"
+  CUDA_HOME: /usr/local/cuda
+  CUDA_PATH: /usr/local/cuda
+  PATH: /usr/local/cuda/bin:$PATH
+  LD_LIBRARY_PATH: /usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
 jobs:
   test:
     runs-on: ubuntu-22.04
@@ -33,11 +40,6 @@ jobs:
       # Python Tests
       - name: Install ServerlessLLM Store
         run: |
-          export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          export CUDA_HOME=/usr/local/cuda
-          export CUDA_PATH=/usr/local/cuda
-          export PATH=$CUDA_HOME/bin:$PATH
-          export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
           cd serverless_llm/store && pip install .
 
       - name: Run Python tests
