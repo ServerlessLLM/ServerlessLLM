@@ -1,4 +1,4 @@
-name: Backend Tests
+name: CLI Tests
 
 on: [push, pull_request]
 
