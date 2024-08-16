@@ -6,9 +6,9 @@ sidebar_position: 2
 
 This guide will help you get started with the basics of using ServerlessLLM with Docker. Please make sure you have Docker installed on your system and have installed ServerlessLLM CLI following the [installation guide](./installation.md).
 
-## Pre-requirements
+## Pre-requisites
 
-Ensure you have the following pre-requirements installed:
+Ensure you have the following pre-requisites:
 
 1. **GPUs**: Ensure you have at least 2 GPUs available. If more GPUs are provided, you can adjust the number of workers and the number of devices assigned to each worker.
 2. **NVIDIA Docker Toolkit**: This allows Docker to use NVIDIA GPUs. You can find the installation guide [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
@@ -109,8 +109,8 @@ sllm-cli deploy --model facebook/opt-1.3b
 Expected output:
 
 ```plaintext
-INFO xx-xx xx:xx:xx deploy.py:36] Deploying model facebook/opt-1.3b with default configuration.
-INFO xx-xx xx:xx:xx deploy.py:49] Model registered successfully.
+INFO 08-01 07:38:12 deploy.py:36] Deploying model facebook/opt-1.3b with default configuration.
+INFO 08-01 07:39:00 deploy.py:49] Model registered successfully.
 ```
 
 ### Step 6: Query the Model
