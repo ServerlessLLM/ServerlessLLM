@@ -1,0 +1,31 @@
+name: Backend Tests
+
+on: [push, pull_request]
+
+jobs:
+    worker_tests:
+        runs-on: ubuntu-22.04
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: '3.10'
+            
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -r requirements.txt
+                  pip install -r requirements-worker.txt
+                  pip install -r requirements-test.txt
+                  pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev3
+
+            - name: Install ServerlessLLM
+              run: |
+                    pip install -e .
+
+            - name: Run tests
+              run: |
+                  pytest tests/backend_test

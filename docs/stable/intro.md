@@ -4,24 +4,28 @@ sidebar_position: 1
 
 # Serverless LLM
 
-<!-- logo (../images/serverlessllm.jpg) -->
-![ServerlessLLM](../images/serverlessllm.jpg)
+<!-- Scaled logo -->
+<img src="/img/serverlessllm.jpg" alt="ServerlessLLM" width="256px"/>
 
-ServerlessLLM is a fast, affordable, and easy-to-use library designed for multi-LLM serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources, as it allows efficient dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
+ServerlessLLM is a **fast** and **easy-to-use** serving system designed for **affordable** multi-LLM serving, also known as LLM-as-a-Service. ServerlessLLM is ideal for environments with multiple LLMs that need to be served on limited GPU resources, as it enables efficient dynamic loading of LLMs onto GPUs. By elastically scaling model instances and multiplexing GPUs, ServerlessLLM can significantly reduce costs compared to traditional GPU-dedicated serving systems while still providing low-latency (Time-to-First-Token, TTFT) LLM completions.
 
 ## Documentation
 
 ### Getting Started
 
 - [Install ServerlessLLM](./getting_started/installation.md)
-- [Deploy a ServerlessLLM cluster on your local machine](./getting_started/quickstart.md)
-- [Deploy ServerlessLLM using Docker (Recommended)](./getting_started/docker_quickstart.md)
-- [Deploy ServerlessLLM on a multi-machine cluster](./getting_started/multi_machine_setup.md)
+- [Quickstart](./getting_started/quickstart.md)
+- [Quickstart with Docker](./getting_started/docker_quickstart.md)
+- [Multi-machine Quickstart](./getting_started/multi_machine_setup.md)
+
+### ServerlessLLM Serve
+
+- [Storage-Aware Scheduler](./serve/storage_aware_scheduling.md)
 
 ### ServerlessLLM Store
 
-- [Use ServerlessLLM Store in your own code](./store/quickstart.md)
+- [Quickstart](./store/quickstart.md)
 
 ### ServerlessLLM CLI
 
-- [ServerlessLLM CLI Documentation](./cli/cli_api.md)
+- [ServerlessLLM CLI API](./cli/cli_api.md)
