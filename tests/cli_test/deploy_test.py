@@ -106,6 +106,7 @@ class TestDeployCommand(unittest.TestCase):
 
     @patch("serverless_llm.cli.deploy.read_config")
     def test_validate_config(self, mock_read_config):
+        # Mocked valid configuration
         mock_read_config.return_value = {
             "model": "facebook/opt-1.3b",
             "backend": "transformers",
@@ -122,6 +123,7 @@ class TestDeployCommand(unittest.TestCase):
             },
         }
 
+        # Initialize DeployCommand with valid arguments
         args = Namespace(
             model="facebook/opt-1.3b",
             config=None,
@@ -133,13 +135,40 @@ class TestDeployCommand(unittest.TestCase):
         )
         command = DeployCommand(args)
 
+        # Test with valid config (should not raise any exception)
         valid_config = mock_read_config.return_value
-        command.validate_config(valid_config)  # Should not raise any exception
+        command.validate_config(valid_config)
 
-        invalid_config = valid_config.copy()
-        invalid_config["num_gpus"] = -1
+        # Test with invalid num_gpus < 1
+        invalid_config_num_gpus = valid_config.copy()
+        invalid_config_num_gpus["num_gpus"] = -1
         with self.assertRaises(ValueError):
-            command.validate_config(invalid_config)
+            command.validate_config(invalid_config_num_gpus)
+
+        # Test with invalid target < 1
+        invalid_config_target = valid_config.copy()
+        invalid_config_target["auto_scaling_config"]["target"] = 0
+        with self.assertRaises(ValueError):
+            command.validate_config(invalid_config_target)
+
+        # Test with min_instances < 0
+        invalid_config_min_instances = valid_config.copy()
+        invalid_config_min_instances["auto_scaling_config"]["min_instances"] = -1
+        with self.assertRaises(ValueError):
+            command.validate_config(invalid_config_min_instances)
+
+        # Test with max_instances < 0
+        invalid_config_max_instances = valid_config.copy()
+        invalid_config_max_instances["auto_scaling_config"]["max_instances"] = -1
+        with self.assertRaises(ValueError):
+            command.validate_config(invalid_config_max_instances)
+
+        # Test with min_instances > max_instances
+        invalid_config_min_greater_than_max = valid_config.copy()
+        invalid_config_min_greater_than_max["auto_scaling_config"]["min_instances"] = 6
+        invalid_config_min_greater_than_max["auto_scaling_config"]["max_instances"] = 5
+        with self.assertRaises(ValueError):
+            command.validate_config(invalid_config_min_greater_than_max)
 
     @patch("serverless_llm.cli.deploy.read_config")
     def test_update_config(self, mock_read_config):
