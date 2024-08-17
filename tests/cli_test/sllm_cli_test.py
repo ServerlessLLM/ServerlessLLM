@@ -1,33 +1,35 @@
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch, MagicMock
 
 from serverless_llm.cli.sllm_cli import main
 
 
 class TestSllmCLI(unittest.TestCase):
-    @patch("serverless_llm.cli.deploy.DeployCommand.run")
-    def test_deploy_command(self, mock_deploy_run):
+    @patch("serverless_llm.cli.deploy.DeployCommand")
+    def test_deploy_command(self, mock_deploy_command):
         # Simulate command-line input
         test_args = ["sllm-cli", "deploy", "--model", "facebook/opt-1.3b"]
         with patch.object(sys, "argv", test_args):
             main()
 
-        # Check that DeployCommand.run was called
-        mock_deploy_run.assert_called_once()
+        # Check that DeployCommand was called with the correct arguments
+        mock_deploy_command.assert_called_once()
+        self.assertEqual(mock_deploy_command.call_args[0][0].model, "facebook/opt-1.3b")
 
-    @patch("serverless_llm.cli.generate.GenerateCommand.run")
-    def test_generate_command(self, mock_generate_run):
+    @patch("serverless_llm.cli.generate.GenerateCommand")
+    def test_generate_command(self, mock_generate_command):
         # Simulate command-line input
         test_args = ["sllm-cli", "generate", "input.json"]
         with patch.object(sys, "argv", test_args):
             main()
 
-        # Check that GenerateCommand.run was called
-        mock_generate_run.assert_called_once()
+        # Check that GenerateCommand was called with the correct arguments
+        mock_generate_command.assert_called_once()
+        self.assertEqual(mock_generate_command.call_args[0][0].input_path, "input.json")
 
-    @patch("serverless_llm.cli.replay.ReplayCommand.run")
-    def test_replay_command(self, mock_replay_run):
+    @patch("serverless_llm.cli.replay.ReplayCommand")
+    def test_replay_command(self, mock_replay_command):
         # Simulate command-line input
         test_args = [
             "sllm-cli",
@@ -40,11 +42,13 @@ class TestSllmCLI(unittest.TestCase):
         with patch.object(sys, "argv", test_args):
             main()
 
-        # Check that ReplayCommand.run was called
-        mock_replay_run.assert_called_once()
+        # Check that ReplayCommand was called with the correct arguments
+        mock_replay_command.assert_called_once()
+        self.assertEqual(mock_replay_command.call_args[0][0].workload, "workload.json")
+        self.assertEqual(mock_replay_command.call_args[0][0].dataset, "dataset.json")
 
-    @patch("serverless_llm.cli.delete.DeleteCommand.run")
-    def test_delete_command(self, mock_delete_run):
+    @patch("serverless_llm.cli.delete.DeleteCommand")
+    def test_delete_command(self, mock_delete_command):
         # Simulate command-line input
         test_args = [
             "sllm-cli",
@@ -55,18 +59,20 @@ class TestSllmCLI(unittest.TestCase):
         with patch.object(sys, "argv", test_args):
             main()
 
-        # Check that DeleteCommand.run was called
-        mock_delete_run.assert_called_once()
+        # Check that DeleteCommand was called with the correct arguments
+        mock_delete_command.assert_called_once()
+        self.assertEqual(mock_delete_command.call_args[0][0].models, ["facebook/opt-1.3b", "facebook/opt-2.7b"])
 
-    @patch("serverless_llm.cli.update.UpdateCommand.run")
-    def test_update_command(self, mock_update_run):
+    @patch("serverless_llm.cli.update.UpdateCommand")
+    def test_update_command(self, mock_update_command):
         # Simulate command-line input
         test_args = ["sllm-cli", "update", "--model", "facebook/opt-1.3b"]
         with patch.object(sys, "argv", test_args):
             main()
 
-        # Check that UpdateCommand.run was called
-        mock_update_run.assert_called_once()
+        # Check that UpdateCommand was called with the correct arguments
+        mock_update_command.assert_called_once()
+        self.assertEqual(mock_update_command.call_args[0][0].model, "facebook/opt-1.3b")
 
     @patch("argparse.ArgumentParser.print_help")
     def test_no_command(self, mock_print_help):
