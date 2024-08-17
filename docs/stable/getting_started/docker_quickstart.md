@@ -15,7 +15,7 @@ Ensure you have the following pre-requirements installed:
 
 ## Run ServerlessLLM using Docker
 
-First, let's start a local Docker-based ray cluster to run ServerlessLLM. 
+First, let's start a local Docker-based ray cluster to run ServerlessLLM.
 
 ### Step 1: Build Docker Images
 
