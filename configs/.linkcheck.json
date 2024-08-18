@@ -1,0 +1,27 @@
+{
+    "ignorePatterns": [
+        {
+            "pattern": "^http://localhost:*"
+        },
+        {
+            "pattern": "^https://opensource.org*"
+        },
+        {
+            "pattern": "^https://twitter.com*"
+        }
+    ],
+    "replacementPatterns": [
+        {
+            "pattern": "^/",
+            "replacement": "/github/workspace/"
+        }
+    ],
+    "httpHeaders": [
+        {
+            "urls": ["https://docs.github.com/"],
+            "headers": {
+                "Accept-Encoding": "zstd, br, gzip, deflate"
+            }
+        }
+    ]
+}
