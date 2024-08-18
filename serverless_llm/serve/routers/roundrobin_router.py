@@ -16,6 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
+from datetime import datetime, timezone, timedelta
 import logging
 import uuid
 from typing import Dict, Optional
@@ -37,6 +38,7 @@ async def auto_scaler(
     """
 
     request_count = auto_scaling_metrics.get("request_count", 0)
+    last_used = auto_scaling_metrics.get("last_used", datetime.min)
 
     min_instances = auto_scaling_config.get("min_instances", 0)
     max_instances = auto_scaling_config.get("max_instances", 10)
@@ -48,6 +50,12 @@ async def auto_scaler(
     desired_instances = min(
         max_instances, max(min_instances, desired_instances)
     )
+
+    if last_used != datetime.min and datetime.now(timezone.utc) - last_used > timedelta(
+        seconds=auto_scaling_config.get("idle_seconds_before_scale_down", 10)
+    ):
+        logger.info(f"Model is idle since {last_used}, scaling down")
+        desired_instances = 0
 
     return desired_instances
 
@@ -77,6 +85,9 @@ class RoundRobinRouter(SllmRouter):
         self.auto_scaling_lock = asyncio.Lock()
 
         self.request_count = 0
+        # Set last used to utc now
+        self.last_used = datetime.min
+
         self.request_count_lock = asyncio.Lock()
 
         self.running = False
@@ -113,6 +124,7 @@ class RoundRobinRouter(SllmRouter):
 
         async with self.request_count_lock:
             self.request_count += 1
+            self.last_used = datetime.now(timezone.utc)
 
         instance_allocation = self.loop.create_future()
         await self.request_queue.put(instance_allocation)
@@ -192,7 +204,7 @@ class RoundRobinRouter(SllmRouter):
             # logger.info(f"Auto-scaling for model {self.model_name}")
             async with self.auto_scaling_lock:
                 auto_scaling_config = self.auto_scaling_config.copy()
-            auto_scaling_metrics = {"request_count": self.request_count}
+            auto_scaling_metrics = {"request_count": self.request_count, "last_used": self.last_used}
             desired_instances = await auto_scaler(
                 auto_scaling_metrics, auto_scaling_config
             )
