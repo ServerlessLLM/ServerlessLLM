@@ -90,7 +90,6 @@ class SllmController:
             if model_name in self.registered_models:
                 logger.error(f"Model {model_name} already registered")
                 return
-            self.registered_models[model_name] = model_config
 
         logger.info(f"Registering new model {model_name}")
         await self.store_manager.register.remote(model_config)
@@ -106,9 +105,14 @@ class SllmController:
             if model_name in self.request_routers:
                 logger.error(f"Model {model_name} already registered")
                 return
-            self.request_routers[model_name] = request_router
+
         request_router.start.remote(auto_scaling_config)
         logger.info(f"Model {model_name} registered")
+
+        # Mark model as registered only after model registered successfully
+        async with self.metadata_lock:
+            self.registered_models[model_name] = model_config
+            self.request_routers[model_name] = request_router
 
     async def update(self, model_name: str, model_config: Mapping):
         async with self.metadata_lock:
