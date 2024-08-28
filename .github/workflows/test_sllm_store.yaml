@@ -1,6 +1,12 @@
 name: Test Sllm Store
 
-on: [push, pull_request]
+on:
+    push:
+        paths:
+            - 'serverless_llm/store/**'
+    pull_request:
+        paths:
+            - 'serverless_llm/store/**'
 
 jobs:
   test:
