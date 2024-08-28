@@ -1,6 +1,12 @@
 name: Backend Tests
 
-on: [push, pull_request]
+on:
+    push:
+        paths:
+            - 'serverless_llm/serve/backends/**'
+    pull_request:
+        paths:
+            - 'serverless_llm/serve/backends/**'
 
 jobs:
     worker_tests:
