@@ -1,0 +1,27 @@
+name: Linters
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Spellcheck
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: rojopolis/spellcheck-github-actions@0.40.0
+      name: Spellcheck
+      with:
+        config_path: configs/.spellcheck.yml
+
+  markdown-link-check:
+    name: LinkCheck
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: 'yes'
+          config-file: 'configs/.linkcheck.json'

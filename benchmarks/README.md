@@ -110,9 +110,9 @@ python plot.py --models facebook/opt-66b meta-llama/Meta-Llama-3-70B mistralai/M
 --test-name random --num-repeats 10 --results-dir results --output-file images/random_large_loading_latency.png
 ```
 
-Here is an example of the output visualization:
+<!-- Here is an example of the output visualization:
 
-![Random Large Loading Latency](images/random_large_loading_latency.png)
+![Random Large Loading Latency](images/random_large_loading_latency.png) -->
 
 
 ## Contact
