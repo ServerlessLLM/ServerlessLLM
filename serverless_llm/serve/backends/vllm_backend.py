@@ -28,7 +28,6 @@ from typing import Any, Dict, List, Optional, Union
 import ray
 import torch
 from vllm import AsyncEngineArgs, AsyncLLMEngine, RequestOutput, SamplingParams
-from vllm.config import LoadFormat
 from vllm.inputs import TokensPrompt
 
 from serverless_llm.serve.backends.backend_utils import (

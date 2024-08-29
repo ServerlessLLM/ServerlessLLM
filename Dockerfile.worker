@@ -64,7 +64,7 @@ COPY README.md /app/
 
 RUN pip install .[worker]
 
-COPY vllm_patch/sllm_load.patch /app/
+COPY vllm_patch/sllm_load.patch /app/serverless_llm/store/sllm_load.patch
 
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
