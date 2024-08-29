@@ -191,7 +191,11 @@ class VllmModelDownloader:
         try:
             with TemporaryDirectory() as cache_dir:
                 # download model from huggingface
-                input_dir = snapshot_download(model_name, cache_dir=cache_dir)
+                input_dir = snapshot_download(
+                    model_name,
+                    cache_dir=cache_dir,
+                    allow_patterns=["*.safetensors", "*.bin", "*.json"],
+                )
                 _run_writer(input_dir, model_dir)
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
