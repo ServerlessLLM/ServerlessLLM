@@ -27,6 +27,13 @@ from serverless_llm.serve.routers import RoundRobinRouter
 from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from serverless_llm.serve.store_manager import StoreManager
 
+class SllmControllerException(Exception):
+    def __init__(self, message, method):
+        real_message = f"[{method}]: {message}"
+        super().__init__(real_message)
+        
+
+
 logger = init_logger(__name__)
 
 
@@ -92,7 +99,11 @@ class SllmController:
                 return
 
         logger.info(f"Registering new model {model_name}")
-        await self.store_manager.register.remote(model_config)
+        try:
+            await self.store_manager.register.remote(model_config)
+        except RuntimeError as e:
+            error_message = e.args[0]
+            raise RuntimeError(f"{error_message}")
         # TODO: put resource requirements in model_config
         resource_requirements = {
             "num_cpus": 1,
