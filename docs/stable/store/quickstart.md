@@ -109,7 +109,7 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
 ## Usage with vLLM
 
-To use ServerlessLLM as a load format for vLLM, you need to apply our patch `vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please make sure you have read and followed the steps in the `vLLM Patch` section under our [installation guide](../getting_started/installation.md).
+To use ServerlessLLM as a load format for vLLM, you need to apply our patch `serverless_llm/store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please make sure you have read and followed the steps in the `vLLM Patch` section under our [installation guide](../getting_started/installation.md).
 
 Our api aims to be compatible with the `sharded_state` load format in vLLM. Thus, due to the model modifications about the model architecture done by vLLM, the model format for vLLM is **not** the same as we used in transformers. Thus, the `ServerlessLLM format` mentioned in the subsequent sections means the format integrated with vLLM, which is different from the `ServerlessLLM format` used in the previous sections.
 
