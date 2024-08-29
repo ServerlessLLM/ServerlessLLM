@@ -194,7 +194,7 @@ class VllmModelDownloader:
                 input_dir = snapshot_download(
                     model_name,
                     cache_dir=cache_dir,
-                    allow_patterns=["*.safetensors", "*.bin", "*.json"],
+                    allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
                 )
                 _run_writer(input_dir, model_dir)
         except Exception as e:
