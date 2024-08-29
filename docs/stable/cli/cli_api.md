@@ -16,7 +16,7 @@ After setting up the ServerlessLLM cluster, you can use the commands listed belo
 ### Example Workflow
 
 1. **Deploy a Model**
-    > Deploy a model using the model name, which must be a huggingface pretrained model name. i.e. "facebook/opt-1.3b" instead of "opt-1.3b".
+    > Deploy a model using the model name, which must be a HuggingFace pretrained model name. i.e. "facebook/opt-1.3b" instead of "opt-1.3b".
     ```bash
     sllm-cli deploy --model facebook/opt-1.3b
     ```
@@ -43,7 +43,9 @@ After setting up the ServerlessLLM cluster, you can use the commands listed belo
     ```
 
 ### sllm-cli deploy
-Deploy a model using a configuration file or model name.
+Deploy a model using a configuration file or model name, with options to overwrite default configurations. The configuration file requires minimal specifications, as sensible defaults are provided for advanced configuration options. 
+
+For more details on the advanced configuration options and their default values, please refer to the [Example Configuration File](#example-configuration-file-configjson) section.
 
 ##### Usage
 ```bash
@@ -52,18 +54,49 @@ sllm-cli deploy [OPTIONS]
 
 ##### Options
 - `--model <model_name>`
-  - Model name to deploy with default configuration. The model name must be a huggingface pretrained model name. You can find the list of available models [here](https://huggingface.co/models).
+  - Model name to deploy with default configuration. The model name must be a Hugging Face pretrained model name. You can find the list of available models [here](https://huggingface.co/models).
 
 - `--config <config_path>`
-  - Path to the JSON configuration file.
+  - Path to the JSON configuration file. The configuration file can be incomplete, and missing sections will be filled in by the default configuration.
 
-##### Example
+- `--backend <backend_name>`
+  - Overwrite the backend in the default configuration.
+
+- `--num_gpus <number>`
+  - Overwrite the number of GPUs in the default configuration.
+
+- `--target <number>`
+  - Overwrite the target concurrency in the default configuration.
+
+- `--min_instances <number>`
+  - Overwrite the minimum instances in the default configuration.
+
+- `--max_instances <number>`
+  - Overwrite the maximum instances in the default configuration.
+
+##### Examples
+Deploy using a model name with default configuration:
 ```bash
 sllm-cli deploy --model facebook/opt-1.3b
+```
+
+Deploy using a configuration file:
+```bash
 sllm-cli deploy --config /path/to/config.json
 ```
 
+Deploy using a model name and overwrite the backend:
+```bash
+sllm-cli deploy --model facebook/opt-1.3b --backend transformers
+```
+
+Deploy using a model name and overwrite multiple configurations:
+```bash
+sllm-cli deploy --model facebook/opt-1.3b --num_gpus 2 --target 5 --min_instances 1 --max_instances 5
+```
+
 ##### Example Configuration File (`config.json`)
+This file can be incomplete, and missing sections will be filled in by the default configuration:
 ```json
 {
     "model": "facebook/opt-1.3b",

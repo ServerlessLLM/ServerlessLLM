@@ -1,3 +1,4 @@
+#!/bin/bash
 # ---------------------------------------------------------------------------- #
 #  serverlessllm                                                               #
 #  copyright (c) serverlessllm team 2024                                       #
@@ -15,34 +16,16 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import asyncio
+set -e
 
-import ray
+if [ ! -d "build" ]; then
+  mkdir build/
+fi
+cd build/
 
-from serverless_llm.serve.logger import init_logger
-
-logger = init_logger(__name__)
-
-
-@ray.remote
-def start_instance(instance_id, backend, backend_config, startup_config):
-    logger.info(f"Starting instance {instance_id} with backend {backend}")
-    if backend == "vllm":
-        from serverless_llm.serve.backends import VllmBackend
-
-        model_backend_cls = ray.remote(VllmBackend)
-    elif backend == "dummy":
-        from serverless_llm.serve.backends import DummyBackend
-
-        model_backend_cls = ray.remote(DummyBackend)
-    elif backend == "transformers":
-        from serverless_llm.serve.backends import TransformersBackend
-
-        model_backend_cls = ray.remote(TransformersBackend)
-    else:
-        logger.error(f"Unknown backend: {backend}")
-        raise ValueError(f"Unknown backend: {backend}")
-
-    return model_backend_cls.options(name=instance_id, **startup_config).remote(
-        backend_config
-    )
+export SLLM_STORE_PYTHON_EXECUTABLE=$(which python3)
+cmake -DCMAKE_BUILD_TYPE=Release \
+  -DSLLM_STORE_PYTHON_EXECUTABLE=$SLLM_STORE_PYTHON_EXECUTABLE \
+  -DBUILD_SLLM_TESTS=ON \
+  -G Ninja ..
+cmake --build . --target all -j
