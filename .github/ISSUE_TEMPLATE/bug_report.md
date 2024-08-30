@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Please provide as much detail as possible to help us address the issue efficiently. If you're unsure if this is a bug, consider asking in [Discussions](https://github.com/ServerlessLLM/ServerlessLLM/discussions) first.
+        Please provide as much detail as possible to help us address the issue efficiently. If you're unsure if this is a bug, consider asking by creating an issue.
 
   - type: checkboxes
     id: prerequisites
@@ -16,7 +16,7 @@ body:
       options:
         - label: I have read the [ServerlessLLM documentation](https://serverlessllm.github.io/).
           required: true
-        - label: I have searched the [Issue Tracker](https://github.com/ServerlessLLM/ServerlessLLM/issues) and [Discussions](https://github.com/ServerlessLLM/ServerlessLLM/discussions) to ensure this hasn't been reported before.
+        - label: I have searched the [Issue Tracker](https://github.com/ServerlessLLM/ServerlessLLM/issues) to ensure this hasn't been reported before.
           required: true
 
   - type: textarea
