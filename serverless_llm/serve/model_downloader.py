@@ -99,7 +99,6 @@ class VllmModelDownloader:
         import torch
         from huggingface_hub import snapshot_download
         from vllm import LLM
-        from vllm.config import LoadFormat
 
         def _run_writer(input_dir, output_dir):
             llm_writer = LLM(
