@@ -662,3 +662,10 @@ pwd
 py
 sdist
 signoff
+os
+shutil
+VllmModelDownloader
+downloader
+vllm
+SamplingParams
+getenv
