@@ -83,36 +83,34 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
 
 CheckpointStore::~CheckpointStore() { ClearMem(); }
 
-int64_t CheckpointStore::RegisterModelInfo(const std::string& model_name) {
+int64_t CheckpointStore::RegisterModelInfo(const std::string& model_path) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  if (model_map_.find(model_name) != model_map_.end()) {
-    // LOG(WARNING) << "Model " << model_name << " is already regfistered";
-    auto model = model_map_.at(model_name);
+  if (model_map_.find(model_path) != model_map_.end()) {
+    // LOG(WARNING) << "Model " << model_path << " is already regfistered";
+    auto model = model_map_.at(model_path);
     return model->GetModelSize();
   }
 
-  auto model = std::make_shared<Model>(model_name);
-  // model_map_.emplace(model_name, std::make_shared<Model>(model_name));
+  auto model = std::make_shared<Model>(model_path);
 
-  auto model_path = std::filesystem::path(storage_path_) / model_name;
-  int ret = model->Initialize(model_path);
+  int ret = model->Initialize(storage_path_); 
   if (ret != 0) {
-    LOG(ERROR) << "Failed to initialize model " << model_name;
+    LOG(ERROR) << "Failed to initialize model " << model_path;
     return ret;
   }
 
-  model_map_[model_name] = model;
+  model_map_[model_path] = model;
 
-  LOG(INFO) << "Model " << model_name << " is registered";
+  LOG(INFO) << "Model " << model_path << " is registered";
 
   return model->GetModelSize();
 }
 
-int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
+int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  auto model = GetModelPtr(model_name);
+  auto model = GetModelPtr(model_path);
   if (model == nullptr) {
-    LOG(ERROR) << "Model " << model_name << " is not registered";
+    LOG(ERROR) << "Model " << model_path << " is not registered";
     return -1;
   }
   lock_info.unlock();
@@ -121,7 +119,7 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
   lock_info.lock();
   int remaining_size = model->AllocatePinnedMemory(memory_pool_);
   if (remaining_size < 0) {
-    LOG(ERROR) << "Failed to allocate memory for model " << model_name;
+    LOG(ERROR) << "Failed to allocate memory for model " << model_path;
     return -1;
   } else if (remaining_size > 0) {
     int mem_chunks_needed = remaining_size;
@@ -131,14 +129,14 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
                                model_last_access_time_.end());
     std::sort(model_last_access_time.begin(), model_last_access_time.end(),
               [](const auto& a, const auto& b) { return a.second < b.second; });
-    for (const auto& [model_name, last_access_time] : model_last_access_time) {
-      auto& model = model_map_[model_name];
+    for (const auto& [model_path, last_access_time] : model_last_access_time) {
+      auto& model = model_map_[model_path];
       int freed_chunks =
           model->TryFreeHost();  // try to free memory, non-blocking
       LOG(INFO) << "Free " << freed_chunks << " chunks, remaining "
                 << mem_chunks_needed;
       if (freed_chunks > 0) {
-        LOG(INFO) << "Model " << model_name << " is freed from memory";
+        LOG(INFO) << "Model " << model_path << " is freed from memory";
         mem_chunks_needed -= freed_chunks;
         if (mem_chunks_needed <= 0) {
           break;
@@ -146,24 +144,24 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
       }
     }
     if (mem_chunks_needed > 0) {
-      LOG(ERROR) << "Failed to free enough memory for model " << model_name;
+      LOG(ERROR) << "Failed to free enough memory for model " << model_path;
       return -1;
     }
     ssize_t remaining_size = model->AllocatePinnedMemory(memory_pool_);
     if (remaining_size < 0) {
-      LOG(ERROR) << "Failed to allocate memory for model " << model_name;
+      LOG(ERROR) << "Failed to allocate memory for model " << model_path;
       return -1;
     }
   }
-  model_last_access_time_[model_name] = std::chrono::system_clock::now();
+  model_last_access_time_[model_path] = std::chrono::system_clock::now();
   lock_info.unlock();
 
   int ret = model->ToHost(num_thread_);
 
   if (ret != 0) {
-    LOG(ERROR) << "Failed to load model " << model_name << " to host";
+    LOG(ERROR) << "Failed to load model " << model_path << " to host";
     if (model->FreeHost() != 0) {
-      LOG(ERROR) << "Failed to free memory for model " << model_name;
+      LOG(ERROR) << "Failed to free memory for model " << model_path;
     }
     return ret;
   }
@@ -171,21 +169,21 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_name) {
   return ret;
 }
 
-int CheckpointStore::LoadModelFromDiskAsync(const std::string& model_name) {
+int CheckpointStore::LoadModelFromDiskAsync(const std::string& model_path) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  async_tasks_.emplace(std::async(std::launch::async, [this, model_name]() {
-    return LoadModelFromDisk(model_name);
+  async_tasks_.emplace(std::async(std::launch::async, [this, model_path]() {
+    return LoadModelFromDisk(model_path);
   }));
 
   return 0;
 }
 
 int CheckpointStore::LoadModelFromMem(
-    const std::string& model_name, const std::string& replica_uuid,
+    const std::string& model_path, const std::string& replica_uuid,
     const MemCopyHandleListMap& gpu_memory_handles,
     const MemCopyChunkListMap& mem_copy_chunks) {
   // Sanity check
-  if (model_name.empty() || replica_uuid.empty()) {
+  if (model_path.empty() || replica_uuid.empty()) {
     LOG(ERROR) << "Model name or replica uuid is empty";
     return -1;
   } else if (mem_copy_chunks.empty()) {
@@ -198,15 +196,15 @@ int CheckpointStore::LoadModelFromMem(
     return -1;
   }
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  auto model = GetModelPtr(model_name);
+  auto model = GetModelPtr(model_path);
   if (model == nullptr) {
-    LOG(ERROR) << "Model " << model_name << " is not registered";
+    LOG(ERROR) << "Model " << model_path << " is not registered";
     return -1;
   }
-  model_last_access_time_[model_name] = std::chrono::system_clock::now();
+  model_last_access_time_[model_path] = std::chrono::system_clock::now();
   lock_info.unlock();
 
-  LOG(INFO) << "Loading model " << model_name;
+  LOG(INFO) << "Loading model " << model_path;
 
   // Convert device uuid to device id
   std::unordered_map<int, MemCopyChunkList> converted_mem_copy_chunks;
@@ -233,9 +231,9 @@ int CheckpointStore::LoadModelFromMem(
 
   // TODO: check if the model is loaded successfully
   if (ret != 0) {
-    LOG(ERROR) << "Failed to load model " << model_name << " to GPU";
+    LOG(ERROR) << "Failed to load model " << model_path << " to GPU";
     if (model->FreeGpu(replica_uuid) != 0) {
-      LOG(ERROR) << "Failed to free memory for model " << model_name;
+      LOG(ERROR) << "Failed to free memory for model " << model_path;
     }
   }
 
@@ -243,31 +241,31 @@ int CheckpointStore::LoadModelFromMem(
 }
 
 int CheckpointStore::LoadModelFromMemAsync(
-    const std::string& model_name, const std::string& replica_uuid,
+    const std::string& model_path, const std::string& replica_uuid,
     const std::unordered_map<std::string, MemCopyHandleList>&
         gpu_memory_handles,
     const std::unordered_map<std::string, MemCopyChunkList>& mem_copy_chunks) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
   async_tasks_.emplace(std::async(
       std::launch::async,
-      [this, model_name, replica_uuid, gpu_memory_handles, mem_copy_chunks]() {
-        return LoadModelFromMem(model_name, replica_uuid, gpu_memory_handles,
+      [this, model_path, replica_uuid, gpu_memory_handles, mem_copy_chunks]() {
+        return LoadModelFromMem(model_path, replica_uuid, gpu_memory_handles,
                                 mem_copy_chunks);
       }));
 
   return 0;
 }
 
-int CheckpointStore::WaitModelInGpu(const std::string& model_name,
+int CheckpointStore::WaitModelInGpu(const std::string& model_path,
                                     const std::string& replica_uuid) {
   // check if the model is in memory
   std::shared_ptr<Model> model;
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  if (model_map_.find(model_name) == model_map_.end()) {
-    LOG(ERROR) << "Model " << model_name << " is not registered";
+  if (model_map_.find(model_path) == model_map_.end()) {
+    LOG(ERROR) << "Model " << model_path << " is not registered";
     return 1;
   }
-  model = model_map_[model_name];
+  model = model_map_[model_path];
   lock_info.unlock();
 
   return model->WaitInGpu(replica_uuid);
@@ -275,11 +273,11 @@ int CheckpointStore::WaitModelInGpu(const std::string& model_name,
 
 int CheckpointStore::ClearMem() {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  for (auto& [model_name, model] : model_map_) {
-    LOG(INFO) << "Unloading model " << model_name;
+  for (auto& [model_path, model] : model_map_) {
+    LOG(INFO) << "Unloading model " << model_path;
     int ret = model->FreeHost();
     if (ret != 0) {
-      LOG(ERROR) << "Failed to free memory for model " << model_name;
+      LOG(ERROR) << "Failed to free memory for model " << model_path;
     }
   }
   model_map_.clear();
@@ -287,24 +285,24 @@ int CheckpointStore::ClearMem() {
   return 0;
 }
 
-int CheckpointStore::UnloadModelFromHost(const std::string& model_name) {
+int CheckpointStore::UnloadModelFromHost(const std::string& model_path) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  if (model_map_.find(model_name) == model_map_.end()) {
-    LOG(ERROR) << "Model " << model_name << " is not registered";
+  if (model_map_.find(model_path) == model_map_.end()) {
+    LOG(ERROR) << "Model " << model_path << " is not registered";
     return 1;
   }
-  auto model = model_map_.at(model_name);
+  auto model = model_map_.at(model_path);
   lock_info.unlock();
 
   return model->FreeHost();
 }
 
-ModelPtr CheckpointStore::GetModelPtr(const std::string& model_name) {
-  if (model_map_.find(model_name) == model_map_.end()) {
-    LOG(ERROR) << "Model " << model_name << " is not registered";
+ModelPtr CheckpointStore::GetModelPtr(const std::string& model_path) {
+  if (model_map_.find(model_path) == model_map_.end()) {
+    LOG(ERROR) << "Model " << model_path << " is not registered";
     return nullptr;
   }
-  return model_map_.at(model_name);
+  return model_map_.at(model_path);
 }
 
 MemPtrListMap CheckpointStore::GetDevicePtrsFromMemHandles(

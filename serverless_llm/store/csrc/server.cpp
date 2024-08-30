@@ -87,14 +87,14 @@ class CheckpointStoreServer final : public storage::Storage::Service {
 
   Status LoadModelAsync(ServerContext* context, const LoadModelRequest* request,
                         LoadModelResponse* response) override {
-    const std::string& model_name = request->model_name();
-    if (model_name.empty()) {
-      LOG(ERROR) << "model_name is empty";
+    const std::string& model_path = request->model_path();
+    if (model_path.empty()) {
+      LOG(ERROR) << "model_path is empty";
       return Status::CANCELLED;
     }
 
     if (!registration_required_) {
-      int64_t model_size = storage_->RegisterModelInfo(model_name);
+      int64_t model_size = storage_->RegisterModelInfo(model_path);
       if (model_size < 0) {
         LOG(ERROR) << "RegisterModel failed";
         return Status::CANCELLED;
@@ -104,7 +104,7 @@ class CheckpointStoreServer final : public storage::Storage::Service {
     auto device_type = request->target_device_type();
 
     if (device_type == storage::DEVICE_TYPE_CPU) {
-      int ret = storage_->LoadModelFromDiskAsync(model_name);
+      int ret = storage_->LoadModelFromDiskAsync(model_path);
       if (ret != 0) {
         LOG(ERROR) << "LoadModel failed";
         return Status::CANCELLED;
@@ -135,7 +135,7 @@ class CheckpointStoreServer final : public storage::Storage::Service {
         }
       }
       int ret = storage_->LoadModelFromMemAsync(
-          model_name, replica_uuid, gpu_memory_handles, mem_copy_chunks);
+          model_path, replica_uuid, gpu_memory_handles, mem_copy_chunks);
       if (ret != 0) {
         LOG(ERROR) << "LoadModel failed";
         return Status::CANCELLED;
@@ -145,7 +145,7 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       return Status::CANCELLED;
     }
 
-    LOG(INFO) << "LoadModel: success " << request->model_name()
+    LOG(INFO) << "LoadModel: success " << request->model_path()
               << " with target " << device_type;
 
     return Status::OK;
@@ -154,16 +154,16 @@ class CheckpointStoreServer final : public storage::Storage::Service {
   Status ConfirmModel(ServerContext* context,
                       const ConfirmModelRequest* request,
                       ConfirmModelResponse* response) override {
-    const std::string& model_name = request->model_name();
+    const std::string& model_path = request->model_path();
     const std::string& replica_uuid = request->replica_uuid();
     auto device_type = request->target_device_type();
 
-    if (model_name.empty()) {
-      LOG(ERROR) << "model_name is empty";
+    if (model_path.empty()) {
+      LOG(ERROR) << "model_path is empty";
       return Status::CANCELLED;
     }
 
-    LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid;
+    LOG(INFO) << "Confirm model " << model_path << " replica " << replica_uuid;
 
     if (device_type != storage::DEVICE_TYPE_GPU) {
       LOG(ERROR) << "Unsupported device type: " << device_type;
@@ -172,22 +172,22 @@ class CheckpointStoreServer final : public storage::Storage::Service {
 
     bool success = false;
     for (int i = 0; i < kMaxRetry; ++i) {
-      int ret = storage_->WaitModelInGpu(model_name, replica_uuid);
+      int ret = storage_->WaitModelInGpu(model_path, replica_uuid);
       if (ret == 0) {
         success = true;
         break;
       }
-      LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid
+      LOG(INFO) << "Confirm model " << model_path << " replica " << replica_uuid
                 << " failed with retry " << i;
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     if (!success) {
-      LOG(ERROR) << "Confirm model " << model_name << " replica "
+      LOG(ERROR) << "Confirm model " << model_path << " replica "
                  << replica_uuid << " failed";
       return Status::CANCELLED;
     }
-    LOG(INFO) << "Confirm model " << model_name << " replica " << replica_uuid
+    LOG(INFO) << "Confirm model " << model_path << " replica " << replica_uuid
               << " success";
 
     return Status::OK;
@@ -195,11 +195,11 @@ class CheckpointStoreServer final : public storage::Storage::Service {
 
   Status UnloadModel(ServerContext* context, const UnloadModelRequest* request,
                      UnloadModelResponse* response) override {
-    const std::string& model_name = request->model_name();
+    const std::string& model_path = request->model_path();
     const std::string& replica_uuid = request->replica_uuid();
 
-    if (model_name.empty()) {
-      LOG(ERROR) << "model_name is empty";
+    if (model_path.empty()) {
+      LOG(ERROR) << "model_path is empty";
       return Status::CANCELLED;
     }
 
@@ -213,28 +213,28 @@ class CheckpointStoreServer final : public storage::Storage::Service {
       return Status::CANCELLED;
     }
 
-    LOG(INFO) << "UnloadModel: start " << model_name << " with target "
+    LOG(INFO) << "UnloadModel: start " << model_path << " with target "
               << request->target_device_type();
 
     // retry 5 times
     bool success = false;
     for (int i = 0; i < kMaxRetry; ++i) {
-      int ret = unload_func(model_name);
+      int ret = unload_func(model_path);
       if (ret == 0) {
         success = true;
         break;
       }
-      LOG(INFO) << "UnloadModel failed for model " << model_name
+      LOG(INFO) << "UnloadModel failed for model " << model_path
                 << " with retry " << i;
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (!success) {
-      LOG(ERROR) << "UnloadModel failed for model " << model_name;
+      LOG(ERROR) << "UnloadModel failed for model " << model_path;
       return Status::CANCELLED;
     }
 
-    LOG(INFO) << "UnloadModel: success " << model_name << " with target "
+    LOG(INFO) << "UnloadModel: success " << model_path << " with target "
               << request->target_device_type();
 
     return Status::OK;
@@ -255,13 +255,13 @@ class CheckpointStoreServer final : public storage::Storage::Service {
   Status RegisterModel(ServerContext* context,
                        const storage::RegisterModelRequest* request,
                        storage::RegisterModelResponse* response) override {
-    const std::string& model_name = request->model_name();
-    if (model_name.empty()) {
-      LOG(ERROR) << "model_name is empty";
+    const std::string& model_path = request->model_path();
+    if (model_path.empty()) {
+      LOG(ERROR) << "model_path is empty";
       return Status::CANCELLED;
     }
 
-    int64_t model_size = storage_->RegisterModelInfo(model_name);
+    int64_t model_size = storage_->RegisterModelInfo(model_path);
     if (model_size < 0) {
       LOG(ERROR) << "RegisterModel failed";
       return Status::CANCELLED;

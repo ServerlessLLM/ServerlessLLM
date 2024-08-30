@@ -37,18 +37,18 @@
 
 #include "error_handling.h"
 
-int Model::Initialize(const std::filesystem::path& model_path) {
+int Model::Initialize(const std::filesystem::path storage_path) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (state_ != MemoryState::UNINITIALIZED) {
     return 0;
   }
   model_size_ = 0;
-  model_path_ = model_path;
   partition_sizes_.clear();
+  partition_paths_.clear();
   // Attempt to read from 0 until the file is not found
   for (int partition_id = 0;; ++partition_id) {
-    auto tensor_path =
-        model_path / ("tensor.data_" + std::to_string(partition_id));
+    auto tensor_path = storage_path / 
+        model_path_ / ("tensor.data_" + std::to_string(partition_id));
     if (access(tensor_path.c_str(), F_OK) == -1) {
       LOG(INFO) << "Tensor file " << tensor_path << " does not exist";
       break;
@@ -60,9 +60,10 @@ int Model::Initialize(const std::filesystem::path& model_path) {
     }
     model_size_ += st.st_size;
     partition_sizes_.push_back(st.st_size);
+    partition_paths_.push_back(tensor_path);
   }
   if (model_size_ == 0) {
-    LOG(ERROR) << "Model " << model_name_ << " does not exist";
+    LOG(ERROR) << "Model " << model_path_ << " does not exist";
     return -1;
   }
   state_ = MemoryState::UNALLOCATED;
@@ -76,7 +77,7 @@ int Model::ToHost(int num_threads) {
     if (state_ == MemoryState::LOADING || state_ == MemoryState::LOADED) {
       return 0;
     } else {
-      LOG(ERROR) << "Model " << model_name_ << " is at state " << state_;
+      LOG(ERROR) << "Model " << model_path_ << " is at state " << state_;
       return -1;
     }
   }
@@ -85,9 +86,7 @@ int Model::ToHost(int num_threads) {
   // Attempt to read from 0 until the file is not found
   for (int partition_id = 0; partition_id < partition_sizes_.size();
        ++partition_id) {
-    auto tensor_path =
-        model_path_ / ("tensor.data_" + std::to_string(partition_id));
-
+    auto tensor_path = partition_paths_[partition_id];
     if (access(tensor_path.c_str(), F_OK) == -1) {
       LOG(ERROR) << "File " << tensor_path << " does not exist";
       return -1;
@@ -105,7 +104,7 @@ int Model::ToHost(int num_threads) {
     file_descriptors.push_back(fd);
   }
 
-  LOG(INFO) << "Loading model " << model_name_ << " size " << model_size_
+  LOG(INFO) << "Loading model " << model_path_ << " size " << model_size_
             << " to host";
   if (!pinned_mem_ || pinned_mem_->num_chunks() == 0) {
     LOG(ERROR) << "CPU memory not allocated";
@@ -119,7 +118,7 @@ int Model::ToHost(int num_threads) {
   host_ptr_vector_->init("queue_name", num_chunks);
   std::vector<std::future<int>> futures;
   size_t chunk_per_thread = (num_chunks + num_threads - 1) / num_threads;
-  LOG(INFO) << "Loading model " << model_name_ << " to host with "
+  LOG(INFO) << "Loading model " << model_path_ << " to host with "
             << num_threads << " threads, " << num_chunks << " chunks, "
             << chunk_size << " chunk size, " << chunk_per_thread
             << " chunks per thread";
@@ -154,7 +153,7 @@ int Model::ToHost(int num_threads) {
         }
 
         if (state_ == MemoryState::CANCELLED) {
-          LOG(INFO) << "Loading from disk for model " << model_name_
+          LOG(INFO) << "Loading from disk for model " << model_path_
                     << " is cancelled";
           return 0;
         }
@@ -163,8 +162,7 @@ int Model::ToHost(int num_threads) {
         ssize_t ret =
             pread(fd, (void*)host_buffers[chunk_idx], size, file_offset);
         if (ret < 0) {
-          std::string tensor_path =
-              model_path_ / ("tensor.data_" + std::to_string(partition_id));
+          auto tensor_path = partition_paths_[partition_id];
           LOG(ERROR) << "pread() failed for file: " << tensor_path
                      << ", error: " << strerror(errno);
           return -1;
@@ -177,15 +175,13 @@ int Model::ToHost(int num_threads) {
             ret = pread(fd, (void*)(host_buffers[chunk_idx] + ret),
                         remaining_size, file_offset);
             if (ret != remaining_size) {
-              std::string tensor_path =
-                  model_path_ / ("tensor.data_" + std::to_string(partition_id));
+              auto tensor_path = partition_paths_[partition_id];
               LOG(ERROR) << "Failed to read file: " << tensor_path
                          << " read: " << ret << " expected: " << remaining_size;
               return -1;
             }
           } else {
-            std::string tensor_path =
-                model_path_ / ("tensor.data_" + std::to_string(partition_id));
+            auto tensor_path = partition_paths_[partition_id];
             LOG(ERROR) << "Failed to read file: " << tensor_path
                        << " read: " << ret << " expected: " << size;
             return -1;
@@ -238,7 +234,7 @@ int Model::ToHost(int num_threads) {
   }
 
   state_ = MemoryState::LOADED;
-  LOG(INFO) << "Finished loading model " << model_name_ << " from disk";
+  LOG(INFO) << "Finished loading model " << model_path_ << " from disk";
 
   return 0;
 }
@@ -249,7 +245,7 @@ int Model::ToGpu(
     const std::unordered_map<int, MemCopyHandleList>& mem_copy_handles) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (state_ == MemoryState::UNINITIALIZED) {
-    LOG(ERROR) << "Model " << model_name_ << " is not initialized";
+    LOG(ERROR) << "Model " << model_path_ << " is not initialized";
     return -1;
   }
 
@@ -278,7 +274,7 @@ int Model::ToGpu(
         return DispatchToGpu(gpu_replica, mem_copy_chunks, mem_copy_handles);
       });
 
-  LOG(INFO) << "Dispatcher started for model " << model_name_;
+  LOG(INFO) << "Dispatcher started for model " << model_path_;
 
   std::unordered_map<int, std::future<int>> futures;
   for (auto& [device_id, device_ptr_list] : device_ptrs) {
@@ -308,7 +304,7 @@ int Model::ToGpu(
               break;
             }
             if (gpu_replica->state_ == MemoryState::CANCELLED) {
-              LOG(INFO) << "Loading from mem for model " << model_name_
+              LOG(INFO) << "Loading from mem for model " << model_path_
                         << " is cancelled,"
                         << " chunk " << chunk_id << " offset "
                         << " size " << size;
@@ -331,7 +327,7 @@ int Model::ToGpu(
         }));
   }
 
-  LOG(INFO) << "Waiting for model " << model_name_ << " num tasks "
+  LOG(INFO) << "Waiting for model " << model_path_ << " num tasks "
             << futures.size() << " state " << gpu_replica->state_;
   dispatch_future.wait();
   bool error = false;
@@ -347,7 +343,7 @@ int Model::ToGpu(
   futures.clear();
 
   if (error) {
-    LOG(ERROR) << "Failed to load model " << model_name_;
+    LOG(ERROR) << "Failed to load model " << model_path_;
     gpu_replica->state_ = MemoryState::INTERRUPTED;
   } else {
     gpu_replica->state_ = MemoryState::LOADED;
@@ -367,7 +363,7 @@ int Model::ToGpu(
   }
 
   if (gpu_replica->state_ == MemoryState::INTERRUPTED) {
-    LOG(ERROR) << "Model " << model_name_ << " replica " << replica_uuid
+    LOG(ERROR) << "Model " << model_path_ << " replica " << replica_uuid
                << " is interrupted";
     return -1;
   }
@@ -385,7 +381,7 @@ int Model::WaitInHost() {
   }
 
   if (state_ >= MemoryState::INTERRUPTED) {
-    LOG(INFO) << "Model " << model_name_ << " is interrupted";
+    LOG(INFO) << "Model " << model_path_ << " is interrupted";
     return 1;
   }
 
@@ -410,7 +406,7 @@ int Model::WaitInGpu(const std::string& replica_uuid) {
   }
 
   if (gpu_replica->state_ >= MemoryState::INTERRUPTED) {
-    LOG(INFO) << "Model " << model_name_ << " is interrupted";
+    LOG(INFO) << "Model " << model_path_ << " is interrupted";
     return 1;
   }
 
@@ -420,21 +416,21 @@ int Model::WaitInGpu(const std::string& replica_uuid) {
 int Model::FreeGpu(const std::string& replica_uuid) {
   std::unique_lock<std::mutex> lock(mutex_);
   if (gpu_replicas_.find(replica_uuid) == gpu_replicas_.end()) {
-    LOG(ERROR) << "Model " << model_name_ << " replica " << replica_uuid
+    LOG(ERROR) << "Model " << model_path_ << " replica " << replica_uuid
                << " is not registered";
     return -1;
   }
 
   auto& gpu_replica = gpu_replicas_.at(replica_uuid);
   if (gpu_replica->state_ == MemoryState::UNINITIALIZED) {
-    LOG(WARNING) << "Model " << model_name_ << " replica " << replica_uuid
+    LOG(WARNING) << "Model " << model_path_ << " replica " << replica_uuid
                  << " is not initialized";
     gpu_replicas_.erase(replica_uuid);
     return 0;
   }
 
   if (gpu_replica->state_ == MemoryState::LOADING) {
-    LOG(INFO) << "Waiting for model " << model_name_ << " replica "
+    LOG(INFO) << "Waiting for model " << model_path_ << " replica "
               << replica_uuid << " to be loaded";
     gpu_replica->cv_.wait(lock, [&gpu_replica] {
       return gpu_replica->state_ == MemoryState::LOADED ||
@@ -449,17 +445,17 @@ int Model::FreeGpu(const std::string& replica_uuid) {
 int Model::FreeHost() {
   std::unique_lock<std::mutex> lock(mutex_);
   if (state_ == MemoryState::UNINITIALIZED) {
-    LOG(WARNING) << "Model " << model_name_ << " is not initialized";
+    LOG(WARNING) << "Model " << model_path_ << " is not initialized";
     return 0;
   }
 
   if (state_ == MemoryState::UNALLOCATED) {
-    LOG(WARNING) << "Model " << model_name_ << " is not allocated";
+    LOG(WARNING) << "Model " << model_path_ << " is not allocated";
     return 0;
   }
 
   if (state_ == MemoryState::LOADING) {
-    LOG(INFO) << "Waiting for model " << model_name_ << " to be loaded";
+    LOG(INFO) << "Waiting for model " << model_path_ << " to be loaded";
     cv_.wait(lock, [this] {
       return state_ == MemoryState::LOADED ||
              state_ == MemoryState::INTERRUPTED;
@@ -488,12 +484,12 @@ int Model::FreeHost() {
 int Model::TryFreeHost() {
   std::unique_lock<std::mutex> lock(mutex_);
   if (state_ == MemoryState::UNINITIALIZED) {
-    LOG(WARNING) << "Model " << model_name_ << " is not initialized";
+    LOG(WARNING) << "Model " << model_path_ << " is not initialized";
     return 0;
   }
 
   if (state_ == MemoryState::UNALLOCATED) {
-    LOG(WARNING) << "Model " << model_name_ << " is not allocated";
+    LOG(WARNING) << "Model " << model_path_ << " is not allocated";
     return 0;
   }
 
@@ -590,7 +586,7 @@ std::vector<std::tuple<int, size_t, size_t>> Model::MapDataToChunks(
 int Model::AllocatePinnedMemory(std::shared_ptr<PinnedMemoryPool> pool) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (state_ == MemoryState::UNINITIALIZED) {
-    LOG(ERROR) << "Model " << model_name_ << " is not initialized";
+    LOG(ERROR) << "Model " << model_path_ << " is not initialized";
     return -1;
   }
   if (state_ != MemoryState::UNALLOCATED) {
@@ -599,10 +595,10 @@ int Model::AllocatePinnedMemory(std::shared_ptr<PinnedMemoryPool> pool) {
   pinned_mem_ = std::make_shared<PinnedMemory>();
   int ret = pinned_mem_->Allocate(model_size_, pool);
   if (ret < 0) {
-    LOG(ERROR) << "Error allocating CPU memory for model " << model_name_;
+    LOG(ERROR) << "Error allocating CPU memory for model " << model_path_;
     return ret;
   } else if (ret > 0) {
-    LOG(WARNING) << "Not enough memory for model " << model_name_;
+    LOG(WARNING) << "Not enough memory for model " << model_path_;
     return ret;
   } else if (!pinned_mem_ || pinned_mem_->num_chunks() == 0) {
     LOG(ERROR) << "CPU memory not allocated";

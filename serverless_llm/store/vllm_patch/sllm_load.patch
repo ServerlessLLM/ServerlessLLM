@@ -351,7 +351,7 @@ index 0f8279e6..2a9f6b71 100644
 +                tensor_copy_chunks,
 +                cuda_memory_handles,
 +            )        
-+            client.confirm_model_loaded(model_name_or_path, replica_uuid)
++            client.confirm_model_loaded(model_path, replica_uuid)
 +            # for key in sllm_state_dict:
 +            #     tensor = sllm_state_dict[key]
 +            #     # If loading with LoRA enabled, additional padding may
@@ -621,28 +621,28 @@ index 2a9f6b71..4c82f9c9 100644
 +                    (offset, size, 0, idx)
                  )
              cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)    
-+            model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
++            model_path = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
 +            
-+            ret = client.load_into_cpu(model_name)
++            ret = client.load_into_cpu(model_path)
 +            if not ret or ret == False:
-+                raise ValueError(f"Failed to load model {model_name} into CPU")
++                raise ValueError(f"Failed to load model {model_path} into CPU")
 +            
 +            
              
              ret = client.load_into_gpu(
 -                local_model_path,
-+                model_name,
++                model_path,
                  replica_uuid,
 -                tensor_copy_chunks,
 -                cuda_memory_handles,
 -            )        
--            client.confirm_model_loaded(model_name_or_path, replica_uuid)
+-            client.confirm_model_loaded(model_path, replica_uuid)
 +                {device_uuid: tensor_copy_chunks[rank]},
 +                {device_uuid: cuda_memory_handles[rank]}
 +            )
 +            if not ret or ret == False:
-+                raise ValueError(f"Failed to load model {model_name} into GPU")
-+            client.confirm_model_loaded(model_name, replica_uuid)
++                raise ValueError(f"Failed to load model {model_path} into GPU")
++            client.confirm_model_loaded(model_path, replica_uuid)
              # for key in sllm_state_dict:
              #     tensor = sllm_state_dict[key]
              #     # If loading with LoRA enabled, additional padding may
@@ -699,10 +699,10 @@ index 4c82f9c9..ceee9ecb 100644
          local_model_path = model_config.model
          local_model_path = os.path.join(local_model_path, f"rank_{rank}")
 -        
-+        model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
-+        ret = client.load_into_cpu(model_name)
++        model_path = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
++        ret = client.load_into_cpu(model_path)
 +        if not ret or ret == False:
-+            raise ValueError(f"Failed to load model {model_name} into CPU")
++            raise ValueError(f"Failed to load model {model_path} into CPU")
          
          tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
          with open(tensor_index_path, "r") as f:
@@ -715,20 +715,20 @@ index 4c82f9c9..ceee9ecb 100644
                      (offset, size, 0, idx)
                  )
              cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)    
--            model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
+-            model_path = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
 -            
--            ret = client.load_into_cpu(model_name)
+-            ret = client.load_into_cpu(model_path)
 -            if not ret or ret == False:
--                raise ValueError(f"Failed to load model {model_name} into CPU")
+-                raise ValueError(f"Failed to load model {model_path} into CPU")
 -            
 -            
              
              ret = client.load_into_gpu(
-                 model_name,
+                 model_path,
 @@ -665,26 +662,6 @@ class ServerlessLLMLoader(BaseModelLoader):
              if not ret or ret == False:
-                 raise ValueError(f"Failed to load model {model_name} into GPU")
-             client.confirm_model_loaded(model_name, replica_uuid)
+                 raise ValueError(f"Failed to load model {model_path} into GPU")
+             client.confirm_model_loaded(model_path, replica_uuid)
 -            # for key in sllm_state_dict:
 -            #     tensor = sllm_state_dict[key]
 -            #     # If loading with LoRA enabled, additional padding may
@@ -798,13 +798,13 @@ index ceee9ecb..684fd522 100644
  
          local_model_path = model_config.model
          local_model_path = os.path.join(local_model_path, f"rank_{rank}")
--        model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
-+        model_name = "/".join(local_model_path.split("/")[-2:])
+-        model_path = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
++        model_path = "/".join(local_model_path.split("/")[-2:])
 +        
-         ret = client.load_into_cpu(model_name)
+         ret = client.load_into_cpu(model_path)
          if not ret or ret == False:
--            raise ValueError(f"Failed to load model {model_name} into CPU")
-+            raise ValueError(f"Failed to load model {model_name} into CPU")  
+-            raise ValueError(f"Failed to load model {model_path} into CPU")
++            raise ValueError(f"Failed to load model {model_path} into CPU")  
          
          tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
          with open(tensor_index_path, "r") as f:
@@ -859,7 +859,7 @@ index ceee9ecb..684fd522 100644
 +            # }
              
              ret = client.load_into_gpu(
-                 model_name,
+                 model_path,
 @@ -672,41 +695,16 @@ class ServerlessLLMLoader(BaseModelLoader):
          max_size: Optional[int] = None,
      ) -> None:
@@ -946,13 +946,13 @@ index 684fd522..5bcfbc08 100644
  
          local_model_path = model_config.model
          local_model_path = os.path.join(local_model_path, f"rank_{rank}")
--        model_name = "/".join(local_model_path.split("/")[-2:])
+-        model_path = "/".join(local_model_path.split("/")[-2:])
          
--        ret = client.load_into_cpu(model_name)
+-        ret = client.load_into_cpu(model_path)
 -        if not ret or ret == False:
--            raise ValueError(f"Failed to load model {model_name} into CPU")  
+-            raise ValueError(f"Failed to load model {model_path} into CPU")  
 +        # model name is everything after models
-+        model_name = local_model_path.split("models/")[1]
++        model_path = local_model_path.split("models/")[1]
 +        storage_path = local_model_path.split("models/")[0]
 +        if storage_path.endswith("/"):
 +            storage_path = os.path.join(storage_path, "models")
@@ -960,8 +960,8 @@ index 684fd522..5bcfbc08 100644
 +            storage_path = storage_path + "models"
 +        device_map = {"": rank}
 +        
-+        load_into_cpu_non_blocking(model_name, device_map, storage_path)
-+        replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
++        load_into_cpu_non_blocking(model_path, device_map, storage_path)
++        replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_path, device_map, storage_path)
          
 -        tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
 -        with open(tensor_index_path, "r") as f:
@@ -1007,7 +1007,7 @@ index 684fd522..5bcfbc08 100644
 +            # model = dispatch_model(model, {"": torch.device("meta")})
 +            torch.cuda.empty_cache()
 +            
-+            wait_dict_loaded(model_name, replica_uuid)
++            wait_dict_loaded(model_path, replica_uuid)
 +            
 +            for key, param in model.named_parameters(recurse=True):
 +                if key in key_list:
@@ -1104,24 +1104,24 @@ index 684fd522..5bcfbc08 100644
 +            # # }
              
 -            ret = client.load_into_gpu(
--                model_name,
+-                model_path,
 -                replica_uuid,
 -                {device_uuid: tensor_copy_chunks[rank]},
 -                {device_uuid: cuda_memory_handles[rank]}
 -            )
 -            if not ret or ret == False:
--                raise ValueError(f"Failed to load model {model_name} into GPU")
--            client.confirm_model_loaded(model_name, replica_uuid)
+-                raise ValueError(f"Failed to load model {model_path} into GPU")
+-            client.confirm_model_loaded(model_path, replica_uuid)
 -        return model.eval()
 +            # ret = client.load_into_gpu(
-+            #     model_name,
++            #     model_path,
 +            #     replica_uuid,
 +            #     {device_uuid: tensor_copy_chunks[rank]},
 +            #     {device_uuid: cuda_memory_handles[rank]}
 +            # )
 +            # if not ret or ret == False:
-+            #     raise ValueError(f"Failed to load model {model_name} into GPU")
-+            # client.confirm_model_loaded(model_name, replica_uuid)
++            #     raise ValueError(f"Failed to load model {model_path} into GPU")
++            # client.confirm_model_loaded(model_path, replica_uuid)
 +        return model
  
      @staticmethod
@@ -1230,8 +1230,8 @@ index 5bcfbc08..a2ca1618 100644
              storage_path = storage_path + "models"
          device_map = {"": rank}
          
--        load_into_cpu_non_blocking(model_name, device_map, storage_path)
--        replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
+-        load_into_cpu_non_blocking(model_path, device_map, storage_path)
+-        replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_path, device_map, storage_path)
 -        
          # tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
          # with open(tensor_index_path, "r") as f:
@@ -1269,11 +1269,11 @@ index 5bcfbc08..a2ca1618 100644
 +            
 +            # print cuda free memory
 +            # print("Memory reserved ", torch.cuda.memory_reserved() / 1024 / 1024 / 1024, "GB")
-+            load_into_cpu_non_blocking(model_name, device_map, storage_path)
-+            replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
++            load_into_cpu_non_blocking(model_path, device_map, storage_path)
++            replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_path, device_map, storage_path)
              
-             wait_dict_loaded(model_name, replica_uuid)
-+            # sllm_state_dict = load_dict(model_name, device_map, storage_path)
+             wait_dict_loaded(model_path, replica_uuid)
++            # sllm_state_dict = load_dict(model_path, device_map, storage_path)
              
              for key, param in model.named_parameters(recurse=True):
                  if key in key_list:
@@ -1349,12 +1349,12 @@ index a2ca1618..0608bff9 100644
              
 -            # print cuda free memory
 -            # print("Memory reserved ", torch.cuda.memory_reserved() / 1024 / 1024 / 1024, "GB")
--            load_into_cpu_non_blocking(model_name, device_map, storage_path)
--            replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
+-            load_into_cpu_non_blocking(model_path, device_map, storage_path)
+-            replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_path, device_map, storage_path)
 -            
--            wait_dict_loaded(model_name, replica_uuid)
--            # sllm_state_dict = load_dict(model_name, device_map, storage_path)
-+            sllm_state_dict = load_dict_single_device(model_name, storage_path)
+-            wait_dict_loaded(model_path, replica_uuid)
+-            # sllm_state_dict = load_dict(model_path, device_map, storage_path)
++            sllm_state_dict = load_dict_single_device(model_path, storage_path)
              
              for key, param in model.named_parameters(recurse=True):
                  if key in key_list:
@@ -1432,14 +1432,14 @@ index a2ca1618..0608bff9 100644
 -            # # }
 -            
 -            # ret = client.load_into_gpu(
--            #     model_name,
+-            #     model_path,
 -            #     replica_uuid,
 -            #     {device_uuid: tensor_copy_chunks[rank]},
 -            #     {device_uuid: cuda_memory_handles[rank]}
 -            # )
 -            # if not ret or ret == False:
--            #     raise ValueError(f"Failed to load model {model_name} into GPU")
--            # client.confirm_model_loaded(model_name, replica_uuid)
+-            #     raise ValueError(f"Failed to load model {model_path} into GPU")
+-            # client.confirm_model_loaded(model_path, replica_uuid)
          return model
  
      @staticmethod

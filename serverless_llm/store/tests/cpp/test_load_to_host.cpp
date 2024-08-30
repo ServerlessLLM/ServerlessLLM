@@ -68,21 +68,21 @@ int CheckpointStoreTest::num_thread = 0;
 size_t CheckpointStoreTest::chunk_size = 0;
 
 TEST_F(CheckpointStoreTest, LoadModelFromDisk) {
-  std::string model_name = "facebook/opt-1.3b";
+  std::string model_path = "facebook/opt-1.3b";
   size_t model_size = 256 * 1024 * 1024;  // 256MB
 
   std::vector<uint8_t> model_data(model_size, 0xFF);
-  std::string data_path = storage_path + "/" + model_name + "/tensor.data_0";
+  std::string data_path = storage_path + "/" + model_path + "/tensor.data_0";
   
   bool write_success = WriteBytesToFile(data_path, model_data);
   ASSERT_TRUE(write_success) << "Failed to write test data to file";
 
   // Register model
-  size_t registered_model_size = storage->RegisterModelInfo(model_name);
+  size_t registered_model_size = storage->RegisterModelInfo(model_path);
   EXPECT_EQ(registered_model_size, model_size);
 
   // Load model from disk
-  EXPECT_EQ(storage->LoadModelFromDisk(model_name), 0);
+  EXPECT_EQ(storage->LoadModelFromDisk(model_path), 0);
 
   // Clear all models
   EXPECT_EQ(storage->ClearMem(), 0);

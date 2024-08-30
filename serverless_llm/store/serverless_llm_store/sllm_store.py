@@ -61,10 +61,10 @@ def _get_uuid():
     return str(uuid.uuid4())
 
 
-def save_dict(model_state_dict: Dict[str, torch.Tensor], model_path: str):
-    tensor_names = list(model_state_dict.keys())
+def save_dict(state_dict: Dict[str, torch.Tensor], model_path: str):
+    tensor_names = list(state_dict.keys())
     tensor_data_index = {}
-    for name, param in model_state_dict.items():
+    for name, param in state_dict.items():
         param_storage = param.untyped_storage()
         data_ptr = param_storage.data_ptr()
         size = param_storage.size()
@@ -78,7 +78,7 @@ def save_dict(model_state_dict: Dict[str, torch.Tensor], model_path: str):
 
     # create tensor index
     tensor_index = {}
-    for name, param in model_state_dict.items():
+    for name, param in state_dict.items():
         # name: offset, size
         tensor_index[name] = (tensor_offsets[name], tensor_data_index[name][1], tuple(param.shape), tuple(param.stride()), str(param.dtype))
 
@@ -168,7 +168,7 @@ def save_model(model: nn.Module, model_path: str):
 
 
 def load_model(
-    model_name_or_path: Optional[Union[str, os.PathLike]],
+    model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: str = "./models",
@@ -176,7 +176,7 @@ def load_model(
 ):
     if fully_parallel:
         return fully_parallel_load(
-            model_name_or_path=model_name_or_path,
+            model_path=model_path,
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
@@ -184,7 +184,7 @@ def load_model(
     # if fully_parallel is disabled, we still try to parallelize the model
     # initialization and data loading in the best effort
     return best_effort_load(
-        model_name_or_path=model_name_or_path,
+        model_path=model_path,
         device_map=device_map,
         torch_dtype=torch_dtype,
         storage_path=storage_path,
@@ -192,7 +192,7 @@ def load_model(
 
 
 def fully_parallel_load(
-    model_name_or_path: Optional[Union[str, os.PathLike]],
+    model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: str = "./models",
@@ -201,7 +201,7 @@ def fully_parallel_load(
     # TODO: offload `load_dict_non_blocking` to c++ for real parallelism
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(
-            load_dict_non_blocking, model_name_or_path, device_map, storage_path
+            load_dict_non_blocking, model_path, device_map, storage_path
         )
         logger.debug(
             f"load_dict_non_blocking takes {time.time() - start} seconds"
@@ -209,7 +209,7 @@ def fully_parallel_load(
 
         start = time.time()
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_name_or_path)}"
+            f"{os.path.join(storage_path, model_path)}"
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
@@ -236,7 +236,7 @@ def fully_parallel_load(
     )
 
     client = SllmStoreClient("localhost:8073")
-    client.confirm_model_loaded(model_name_or_path, replica_uuid)
+    client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
     model.hf_device_map = device_map
 
@@ -244,22 +244,22 @@ def fully_parallel_load(
 
 
 def best_effort_load(
-    model_name_or_path: Optional[Union[str, os.PathLike]],
+    model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: str = "./models",
 ):
     client = SllmStoreClient("localhost:8073")
-    ret = client.load_into_cpu(model_name_or_path)
+    ret = client.load_into_cpu(model_path)
     if not ret or ret == False:
-        raise ValueError(f"Failed to load model {model_name_or_path} into CPU")
+        raise ValueError(f"Failed to load model {model_path} into CPU")
 
     replica_uuid = _get_uuid()
     device_map = _transform_device_map_to_dict(device_map)
 
     start = time.time()
     config = AutoConfig.from_pretrained(
-        f"{os.path.join(storage_path, model_name_or_path)}"
+        f"{os.path.join(storage_path, model_path)}"
     )
     if torch_dtype is not None:
         config.torch_dtype = torch_dtype
@@ -286,7 +286,7 @@ def best_effort_load(
     )
 
     with open(
-        os.path.join(storage_path, model_name_or_path, "tensor_index.json"), "r"
+        os.path.join(storage_path, model_path, "tensor_index.json"), "r"
     ) as f:
         tensor_index = json.load(f)
 
@@ -315,7 +315,7 @@ def best_effort_load(
     logger.debug(f"allocate_cuda_memory takes {time.time() - start} seconds")
 
     ret = client.load_into_gpu(
-        model_name_or_path,
+        model_path,
         replica_uuid,
         {
             device_uuid_map[device_id]: v
@@ -327,7 +327,7 @@ def best_effort_load(
         },
     )
     if not ret or ret == False:
-        raise ValueError(f"Failed to load model {model_name_or_path} into GPU")
+        raise ValueError(f"Failed to load model {model_path} into GPU")
 
     # load model state_dict
     start = time.time()
@@ -347,7 +347,7 @@ def best_effort_load(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
 
-    client.confirm_model_loaded(model_name_or_path, replica_uuid)
+    client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
     model.hf_device_map = device_map
 
@@ -355,29 +355,29 @@ def best_effort_load(
 
 
 def load_dict(
-    model_name_or_path: Optional[Union[str, os.PathLike]],
+    model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     storage_path: str = "./models",
 ):
     replica_uuid, state_dict, device_map = load_dict_non_blocking(
-        model_name_or_path, device_map, storage_path
+        model_path, device_map, storage_path
     )
 
     client = SllmStoreClient("localhost:8073")
-    client.confirm_model_loaded(model_name_or_path, replica_uuid)
+    client.confirm_model_loaded(model_path, replica_uuid)
 
     return state_dict
 
 
 def request_load_into_gpu(
-    model_name_or_path: Optional[Union[str, os.PathLike]],
+    model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     storage_path: str = "./models",
 ):
     client = SllmStoreClient("localhost:8073")
     
     with open(
-        os.path.join(storage_path, model_name_or_path, "tensor_index.json"), "r"
+        os.path.join(storage_path, model_path, "tensor_index.json"), "r"
     ) as f:
         tensor_index = json.load(f)
 
@@ -407,7 +407,7 @@ def request_load_into_gpu(
 
     replica_uuid = _get_uuid()
     ret = client.load_into_gpu(
-        model_name_or_path,
+        model_path,
         replica_uuid,
         {
             device_uuid_map[device_id]: v
@@ -419,7 +419,7 @@ def request_load_into_gpu(
         },
     )
     if not ret or ret == False:
-        raise ValueError(f"Failed to load model {model_name_or_path} into GPU")
+        raise ValueError(f"Failed to load model {model_path} into GPU")
     
     start = time.time()
     state_dict = restore_tensors(
@@ -430,7 +430,7 @@ def request_load_into_gpu(
     return replica_uuid, state_dict, device_map
 
 def load_dict_single_device(
-    model_name_or_path: Optional[Union[str, os.PathLike]],
+    model_path: Optional[Union[str, os.PathLike]],
     storage_path: str = "./models",
 ):
     # all tensor load to one device
@@ -438,30 +438,30 @@ def load_dict_single_device(
     device_map = {"": device_id}
     
     client = SllmStoreClient("localhost:8073")
-    ret = client.load_into_cpu(model_name_or_path)
+    ret = client.load_into_cpu(model_path)
     if not ret or ret == False:
-        raise ValueError(f"Failed to load model {model_name_or_path} into CPU")
+        raise ValueError(f"Failed to load model {model_path} into CPU")
     
-    replica_uuid, state_dict, device_map = request_load_into_gpu(model_name_or_path, device_map, storage_path)
+    replica_uuid, state_dict, device_map = request_load_into_gpu(model_path, device_map, storage_path)
 
-    client.confirm_model_loaded(model_name_or_path, replica_uuid)
+    client.confirm_model_loaded(model_path, replica_uuid)
 
     return state_dict
 
 def load_dict_non_blocking(
-    model_name_or_path: Optional[Union[str, os.PathLike]],
+    model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     storage_path: str = "./models",
 ):
     client = SllmStoreClient("localhost:8073")
-    ret = client.load_into_cpu(model_name_or_path)
+    ret = client.load_into_cpu(model_path)
     if not ret or ret == False:
-        raise ValueError(f"Failed to load model {model_name_or_path} into CPU")
+        raise ValueError(f"Failed to load model {model_path} into CPU")
 
     device_map = _transform_device_map_to_dict(device_map)
     with open(
         os.path.join(
-            storage_path, model_name_or_path, "tied_no_split_modules.json"
+            storage_path, model_path, "tied_no_split_modules.json"
         ),
         "r",
     ) as f:
@@ -471,7 +471,7 @@ def load_dict_non_blocking(
     if isinstance(device_map, str):
         with open(
             os.path.join(
-                storage_path, model_name_or_path, "no_split_modules.json"
+                storage_path, model_path, "no_split_modules.json"
             ),
             "r",
         ) as f:
@@ -482,7 +482,7 @@ def load_dict_non_blocking(
 
     start = time.time()
     with open(
-        os.path.join(storage_path, model_name_or_path, "tensor_index.json"), "r"
+        os.path.join(storage_path, model_path, "tensor_index.json"), "r"
     ) as f:
         tensor_index = json.load(f)
 
@@ -512,7 +512,7 @@ def load_dict_non_blocking(
 
     replica_uuid = _get_uuid()
     ret = client.load_into_gpu(
-        model_name_or_path,
+        model_path,
         replica_uuid,
         {
             device_uuid_map[device_id]: v
@@ -524,7 +524,7 @@ def load_dict_non_blocking(
         },
     )
     if not ret or ret == False:
-        raise ValueError(f"Failed to load model {model_name_or_path} into GPU")
+        raise ValueError(f"Failed to load model {model_path} into GPU")
 
     # load model state_dict
     start = time.time()

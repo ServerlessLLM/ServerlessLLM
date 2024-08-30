@@ -26,9 +26,9 @@ from serverless_llm_store import save_model
 class TestSaveModelIntegration(unittest.TestCase):
     def setUp(self):
         # Set up a temporary directory for the test
-        self.model_name = "facebook/opt-1.3b"
+        self.model_path = "facebook/opt-1.3b"
         self.save_dir = "./test_models"
-        self.model_dir = os.path.join(self.save_dir, self.model_name)
+        self.model_dir = os.path.join(self.save_dir, self.model_path)
 
         # Ensure the save directory is clean before the test
         if os.path.exists(self.save_dir):
@@ -43,7 +43,7 @@ class TestSaveModelIntegration(unittest.TestCase):
     def test_save_model(self):
         # Load the actual model
         model = AutoModelForCausalLM.from_pretrained(
-            self.model_name, torch_dtype=torch.float16
+            self.model_path, torch_dtype=torch.float16
         )
 
         # Save the model
