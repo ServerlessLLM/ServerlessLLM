@@ -19,15 +19,6 @@ body:
         - label: I have searched the [Issue Tracker](https://github.com/ServerlessLLM/ServerlessLLM/issues) and [Discussions](https://github.com/ServerlessLLM/ServerlessLLM/discussions) to ensure this hasn't been reported before.
           required: true
 
-  - type: input
-    id: version
-    attributes:
-      label: ServerlessLLM Version
-      description: What version of ServerlessLLM are you using?
-      placeholder: E.g., 1.0.0
-    validations:
-      required: true
-
   - type: textarea
     id: system-info
     attributes:
