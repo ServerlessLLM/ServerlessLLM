@@ -127,16 +127,16 @@ If reverting a previous commit, the message should start with `revert:` followed
 
 ## Pull Requests
 
-When contributing to the repository, you should work in a separate branch and create a GitHub pull request for your branch. For all pull requests to `serverlessLLM`, we require that you do the following:
+When contributing to the repository, you should work in a separate branch and create a GitHub pull request for your branch. For all pull requests to `ServerlessLLM`, we require that you do the following:
 
 ### Sync Your Repo
 
-When working on a fork of the `serverlessLLM` repository, keeping your fork in sync with the main repository keeps your workspace up-to-date and reduces the risk of merge conflicts.
+When working on a fork of the `ServerlessLLM` repository, keeping your fork in sync with the main repository keeps your workspace up-to-date and reduces the risk of merge conflicts.
 
-1. If you have not done so already, create a new remote for the upstream `serverlessLLM` repo:
+1. If you have not done so already, create a new remote for the upstream `ServerlessLLM` repo:
 
    ```bash
-   git remote add upstream https://github.com/your-organization/serverlessLLM.git
+   git remote add upstream https://github.com/your-organization/ServerlessLLM.git
    ```
 
 2. You can always check your existing remotes with:
@@ -145,7 +145,7 @@ When working on a fork of the `serverlessLLM` repository, keeping your fork in s
    git remote -v
    ```
 
-3. Fetch branches and commits from the upstream (serverlessLLM) repo:
+3. Fetch branches and commits from the upstream (ServerlessLLM) repo:
 
    ```bash
    git fetch upstream

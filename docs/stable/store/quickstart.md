@@ -106,3 +106,147 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ```
 
 4. Clean up by "Ctrl+C" the server process.
+
+## Usage with vLLM
+
+To use ServerlessLLM as a load format for vLLM, you need to apply our patch `serverless_llm/store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please make sure you have read and followed the steps in the `vLLM Patch` section under our [installation guide](../getting_started/installation.md).
+
+Our api aims to be compatible with the `sharded_state` load format in vLLM. Thus, due to the model modifications about the model architecture done by vLLM, the model format for vLLM is **not** the same as we used in transformers. Thus, the `ServerlessLLM format` mentioned in the subsequent sections means the format integrated with vLLM, which is different from the `ServerlessLLM format` used in the previous sections.
+
+Thus, for fist-time users, you have to load the model from other backends and then converted it to the ServerlessLLM format.
+
+1. Download the model from HuggingFace and save it in the ServerlessLLM format:
+``` python
+import os
+import shutil
+from typing import Optional
+
+class VllmModelDownloader:
+    def __init__(self):
+        pass
+
+    def download_vllm_model(
+        self,
+        model_name: str,
+        torch_dtype: str,
+        tensor_parallel_size: int = 1,
+        pattern: Optional[str] = None,
+        max_size: Optional[int] = None,
+    ):
+        import gc
+        import shutil
+        from tempfile import TemporaryDirectory
+
+        import torch
+        from huggingface_hub import snapshot_download
+        from vllm import LLM
+        from vllm.config import LoadFormat
+
+        def _run_writer(input_dir, output_dir):
+            # load models from the input directory
+            llm_writer = LLM(
+                model=input_dir,
+                download_dir=input_dir,
+                dtype=torch_dtype,
+                tensor_parallel_size=tensor_parallel_size,
+                num_gpu_blocks_override=1,
+                enforce_eager=True,
+                max_model_len=1,
+            )
+            model_executer = llm_writer.llm_engine.model_executor
+            # save the models in the ServerlessLLM format
+            model_executer.save_serverless_llm_state(
+                path=output_dir, pattern=pattern, max_size=max_size
+            )
+            for file in os.listdir(input_dir):
+                # Copy the metadata files into the output directory
+                if os.path.splitext(file)[1] not in (
+                    ".bin",
+                    ".pt",
+                    ".safetensors",
+                ):
+                    src_path = os.path.join(input_dir, file)
+                    dest_path = os.path.join(output_dir, file)
+                    if os.path.isdir(src_path):
+                        shutil.copytree(src_path, dest_path)
+                    else:
+                        shutil.copy(src_path, output_dir)
+            del model_executer
+            del llm_writer
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+
+        # set the model storage path
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        model_dir = os.path.join(storage_path, model_name)
+
+        # create the output directory
+        if os.path.exists(model_dir):
+            print(f"Already exists: {model_dir}")
+            return
+        os.makedirs(model_dir, exist_ok=True)
+
+        try:
+            with TemporaryDirectory() as cache_dir:
+                # download model from huggingface
+                input_dir = snapshot_download(
+                    model_name,
+                    cache_dir=cache_dir,
+                    allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
+                )
+                _run_writer(input_dir, model_dir)
+        except Exception as e:
+            print(f"An error occurred while saving the model: {e}")
+            # remove the output dir
+            shutil.rmtree(model_dir)
+            raise RuntimeError(
+                f"Failed to save model {model_name} for vllm backend: {e}"
+            )
+
+downloader = VllmModelDownloader()
+downloader.download_vllm_model("facebook/opt-1.3b", "float16", 1)
+
+```
+
+After downloading the model, you can launch the checkpoint store server and load the model in vLLM through `serverless_llm` load format.
+
+2. Launch the checkpoint store server in a separate process:
+```bash
+# 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.
+sllm-store-server --storage_path $PWD/models --mem_pool_size 32
+```
+
+3. Load the model in vLLM:
+```python
+from vllm import LLM, SamplingParams
+
+import os
+
+storage_path = os.getenv("STORAGE_PATH", "./models")
+model_name = "facebook/opt-1.3b"
+model_path = os.path.join(storage_path, model_name)
+
+llm = LLM(
+    model=model_path,
+    load_format="serverless_llm",
+    dtype="float16"
+)
+
+prompts = [
+    "Hello, my name is",
+    "The president of the United States is",
+    "The capital of France is",
+    "The future of AI is",
+]
+
+sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
+outputs = llm.generate(prompts, sampling_params)
+
+# Print the outputs.
+for output in outputs:
+    prompt = output.prompt
+    generated_text = output.outputs[0].text
+    print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+```

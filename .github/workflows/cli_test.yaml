@@ -1,12 +1,6 @@
-name: Backend Tests
+name: CLI Tests
 
-on:
-    push:
-        paths:
-            - 'serverless_llm/serve/backends/**'
-    pull_request:
-        paths:
-            - 'serverless_llm/serve/backends/**'
+on: [push, pull_request]
 
 jobs:
     worker_tests:
@@ -34,4 +28,4 @@ jobs:
 
             - name: Run tests
               run: |
-                  pytest tests/backend_test
+                  pytest tests/cli_test

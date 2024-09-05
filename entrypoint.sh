@@ -46,9 +46,15 @@ initialize_head_node() {
 initialize_worker_node() {
   echo "Initializing worker node..."
 
+  # Patch the vLLM code
+  VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
+  patch -p2 -d $VLLM_PATH < ./serverless_llm/store/vllm_patch/sllm_load.patch
+
   # Start checkpoint store
   STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
-  CMD="sllm-store-server -storage_path=$STORAGE_PATH -registration_required=true &"
+  # TODO: Temporary remove the registration required flag, as registration is not working for vLLM backend
+  # CMD="sllm-store-server -storage_path=$STORAGE_PATH -registration_required=true &"
+  CMD="sllm-store-server -storage_path=$STORAGE_PATH &"
   echo "Executing: $CMD"
   eval "$CMD"
 

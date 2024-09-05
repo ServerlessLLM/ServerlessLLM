@@ -112,8 +112,7 @@ class VllmModelDownloader:
                 max_model_len=1,
             )
             model_executer = llm_writer.llm_engine.model_executor
-            # TODO: change the `save_sharded_state` to `save_serverless_llm_state`
-            model_executer.save_sharded_state(
+            model_executer.save_serverless_llm_state(
                 path=output_dir, pattern=pattern, max_size=max_size
             )
             for file in os.listdir(input_dir):
@@ -146,7 +145,11 @@ class VllmModelDownloader:
 
         try:
             with TemporaryDirectory() as cache_dir:
-                input_dir = snapshot_download(model_name, cache_dir=cache_dir)
+                input_dir = snapshot_download(
+                    model_name,
+                    cache_dir=cache_dir,
+                    allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
+                )
                 _run_writer(input_dir, model_dir)
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")

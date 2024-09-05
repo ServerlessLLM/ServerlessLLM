@@ -6,7 +6,9 @@ project(storage LANGUAGES CXX)
 # Set c++ 17
 set(CMAKE_CXX_STANDARD 17)
 
-option(BUILD_TESTS "Build tests" ON)
+option(BUILD_SLLM_TESTS "Build tests" OFF)
+# Disable other tests
+set(BUILD_TESTING OFF)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -209,3 +211,10 @@ define_gpu_extension_target(
   COMPILE_FLAGS ${SLLM_STORE_GPU_FLAGS}
   ARCHITECTURES ${SLLM_STORE_GPU_ARCHES}
   WITH_SOABI)
+
+# Enable testing if the option is ON
+if(BUILD_SLLM_TESTS)
+    enable_testing()
+
+    add_subdirectory(tests/cpp)
+endif()
