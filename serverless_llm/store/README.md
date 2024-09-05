@@ -58,7 +58,7 @@ pip install dist/*.whl
 
 ## ROCm Support
 
-Currently, `sllm-store` only support build ROCm wheel from source. We now only tested on Pytorch 2.3.0 with ROCm 6.2.0. Versions lower than ROCm 6.2.0 will face shared memory not released issue due to the memory leak in `hipIpcCloseMemHandle`. For more details, please refer to this [ROCm issue](https://github.com/ROCm/HIP/issues/3580).
+Currently, `sllm-store` only support build ROCm wheel from source. We now only tested on PyTorch 2.3.0 with ROCm 6.2.0. Versions lower than ROCm 6.2.0 will face shared memory not released issue due to the memory leak in `hipIpcCloseMemHandle`. For more details, please refer to this [ROCm issue](https://github.com/ROCm/HIP/issues/3580).
 
 To build the ROCm version of `sllm-store`, we recommend you to use the docker and build it in ROCm container.
 
