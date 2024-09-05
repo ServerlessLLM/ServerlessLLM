@@ -670,3 +670,4 @@ vllm
 SamplingParams
 getenv
 ROCm
+PyTorch
