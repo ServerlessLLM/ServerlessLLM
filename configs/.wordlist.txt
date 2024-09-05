@@ -669,3 +669,4 @@ downloader
 vllm
 SamplingParams
 getenv
+ROCm
