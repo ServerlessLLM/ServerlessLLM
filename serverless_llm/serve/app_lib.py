@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
         try:
             await controller.register.remote(body)
         except Exception as e:
-            raise HTTPException(status_code=500, detail="Cannot register model, please contant the administrator")
+            raise HTTPException(status_code=500, detail="Cannot register model, please contact the administrator")
 
         return {"status": "ok"}
 
