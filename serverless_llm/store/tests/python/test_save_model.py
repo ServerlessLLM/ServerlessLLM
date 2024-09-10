@@ -20,7 +20,7 @@ import os
 import shutil
 import torch
 from transformers import AutoModelForCausalLM
-from serverless_llm_store import save_model
+from serverless_llm_store.transformers import save_model
 
 
 class TestSaveModelIntegration(unittest.TestCase):
