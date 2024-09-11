@@ -61,7 +61,7 @@ def _get_uuid():
     return str(uuid.uuid4())
 
 
-def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Optional[Union[str, os.PathLike]], storage_path: str = "./models"):
+def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.PathLike], storage_path: str = "./models"):
     tensor_names = list(state_dict.keys())
     tensor_data_index = {}
     for name, param in state_dict.items():
@@ -89,11 +89,11 @@ def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Optional[Union[st
 
 
 def load_dict(
-    model_path: Optional[Union[str, os.PathLike]],
-    device_map: DeviceMapType = "auto",
+    model_path: Union[str, os.PathLike],
+    device_map: Dict[str, int],
     storage_path: str = "./models",
 ):
-    replica_uuid, state_dict, device_map = load_dict_non_blocking(
+    replica_uuid, state_dict = load_dict_non_blocking(
         model_path, device_map, storage_path
     )
 
@@ -105,7 +105,7 @@ def load_dict(
 
 def load_dict_non_blocking(
     model_path: Optional[Union[str, os.PathLike]],
-    device_map: DeviceMapType = "auto",
+    device_map: Dict[str, int],
     storage_path: str = "./models",
 ):
     client = SllmStoreClient("localhost:8073")
@@ -113,29 +113,6 @@ def load_dict_non_blocking(
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
-    device_map = _transform_device_map_to_dict(device_map)
-    with open(
-        os.path.join(
-            storage_path, model_path, "tied_no_split_modules.json"
-        ),
-        "r",
-    ) as f:
-        tied_no_split_modules = json.load(f)
-
-    start = time.time()
-    if isinstance(device_map, str):
-        with open(
-            os.path.join(
-                storage_path, model_path, "no_split_modules.json"
-            ),
-            "r",
-        ) as f:
-            no_split_modules = json.load(f)
-        device_map = _compute_device_placement_from_map_fast(
-            no_split_modules, tied_no_split_modules, device_map
-        )
-
-    start = time.time()
     with open(
         os.path.join(storage_path, model_path, "tensor_index.json"), "r"
     ) as f:
@@ -188,4 +165,4 @@ def load_dict_non_blocking(
     )
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
-    return replica_uuid, state_dict, device_map
+    return replica_uuid, state_dict

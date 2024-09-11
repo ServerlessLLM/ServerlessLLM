@@ -173,6 +173,26 @@ def fully_parallel_load(
     storage_path: str = "./models",
 ):
     start = time.time()
+    device_map = _transform_device_map_to_dict(device_map)
+    with open(
+        os.path.join(
+            storage_path, model_path, "tied_no_split_modules.json"
+        ),
+        "r",
+    ) as f:
+        tied_no_split_modules = json.load(f)
+
+    if isinstance(device_map, str):
+        with open(
+            os.path.join(
+                storage_path, model_path, "no_split_modules.json"
+            ),
+            "r",
+        ) as f:
+            no_split_modules = json.load(f)
+        device_map = _compute_device_placement_from_map_fast(
+            no_split_modules, tied_no_split_modules, device_map
+        )
     # TODO: offload `load_dict_non_blocking` to c++ for real parallelism
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(
