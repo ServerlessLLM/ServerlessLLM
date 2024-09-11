@@ -57,20 +57,20 @@ class TestSaveModelIntegration(unittest.TestCase):
                 cache_dir=cache_dir,
                 allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
             )
-        # load models from the input directory
-        model_executer = LLM(
-            model=input_dir,
-            download_dir=input_dir,
-            dtype=self.torch_dtype,
-            tensor_parallel_size=self.tensor_parallel_size,
-            num_gpu_blocks_override=1,
-            enforce_eager=True,
-            max_model_len=1,
-        ).llm_engine.model_executor
-        # save the models in the ServerlessLLM format
-        model_executer.save_serverless_llm_state(
-            path=self.save_dir
-        )
+          # load models from the input directory
+          model_executer = LLM(
+              model=input_dir,
+              download_dir=input_dir,
+              dtype=self.torch_dtype,
+              tensor_parallel_size=self.tensor_parallel_size,
+              num_gpu_blocks_override=1,
+              enforce_eager=True,
+              max_model_len=1,
+          ).llm_engine.model_executor
+          # save the models in the ServerlessLLM format
+          model_executer.save_serverless_llm_state(
+              path=self.save_dir
+          )
 
         # Check if the model directory was created
         self.assertTrue(os.path.exists(self.model_dir))
