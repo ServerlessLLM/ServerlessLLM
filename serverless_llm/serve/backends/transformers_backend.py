@@ -26,7 +26,7 @@ from typing import Any, Dict, Optional
 
 import ray
 import torch
-from serverless_llm_store import load_model
+from serverless_llm_store.transformers import load_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from serverless_llm.serve.backends.backend_utils import SllmBackend
