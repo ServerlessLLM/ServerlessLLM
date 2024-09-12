@@ -39,9 +39,6 @@ logger = logging.getLogger("ray")
 def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_dir = os.path.join(storage_path, "transformers", model_name)
-    if os.path.exists(model_dir):
-        logger.info(f"Model {model_name} already exists in {model_dir}")
-        return
 
     if os.path.exists(model_dir):
         # model_size = get_directory_size(model_dir)
@@ -79,7 +76,6 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
     return True
 
 
-@ray.remote
 class VllmModelDownloader:
     def __init__(self):
         pass
@@ -114,10 +110,11 @@ class VllmModelDownloader:
                 enforce_eager=True,
                 max_model_len=1,
             )
+            model_path = os.path.join("vllm", model_name)
             model_executer = llm_writer.llm_engine.model_executor
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
-                path=model_name, pattern=pattern, max_size=max_size
+                path=model_path, pattern=pattern, max_size=max_size
             )
             for file in os.listdir(input_dir):
                 # Copy the metadata files into the output directory
@@ -127,7 +124,7 @@ class VllmModelDownloader:
                     ".safetensors",
                 ):
                     src_path = os.path.join(input_dir, file)
-                    dest_path = os.path.join(storage_path, model_name, file)
+                    dest_path = os.path.join(storage_path, model_path, file)
                     logger.info(src_path)
                     logger.info(dest_path)
                     if os.path.isdir(src_path):

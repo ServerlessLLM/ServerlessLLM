@@ -61,7 +61,7 @@ def _get_uuid():
     return str(uuid.uuid4())
 
 
-def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.PathLike], storage_path: str = "./models"):
+def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.PathLike], storage_path: Optional[str] = None):
     tensor_names = list(state_dict.keys())
     tensor_data_index = {}
     for name, param in state_dict.items():
@@ -70,6 +70,8 @@ def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.Pat
         size = param_storage.size()
         tensor_data_index[name] = (data_ptr, size)
     
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, model_path)
     if not os.path.exists(model_path):
         os.makedirs(model_path, exist_ok=True)
@@ -91,7 +93,7 @@ def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.Pat
 def load_dict(
     model_path: Union[str, os.PathLike],
     device_map: Dict[str, int],
-    storage_path: str = "./models",
+    storage_path: Optional[str] = None,
 ):
     replica_uuid, state_dict = load_dict_non_blocking(
         model_path, device_map, storage_path
@@ -106,13 +108,15 @@ def load_dict(
 def load_dict_non_blocking(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: Dict[str, int],
-    storage_path: str = "./models",
+    storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("localhost:8073")
     ret = client.load_into_cpu(model_path)
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
     with open(
         os.path.join(storage_path, model_path, "tensor_index.json"), "r"
     ) as f:

@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 
 import asyncio
+import ray
 import os
 import time
 from typing import List, Mapping, Optional
@@ -384,7 +385,7 @@ class StoreManager:
         logger.info(
             f"Downloading model {pretrained_model_name} to node {node_id}"
         )
-        vllm_backend_downloader = VllmModelDownloader.options(
+        vllm_backend_downloader = ray.remote(VllmModelDownloader).options(
             num_gpus=num_gpus,
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1},
         ).remote()

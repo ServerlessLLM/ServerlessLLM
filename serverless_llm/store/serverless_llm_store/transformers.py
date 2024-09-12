@@ -146,7 +146,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    storage_path: str = "./models",
+    storage_path: Optional[str] = None,
     fully_parallel: bool = False,
 ):
     if fully_parallel:
@@ -170,8 +170,10 @@ def fully_parallel_load(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    storage_path: str = "./models",
+    storage_path: Optional[str] = None,
 ):
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
     start = time.time()
     device_map = _transform_device_map_to_dict(device_map)
     with open(
@@ -242,7 +244,7 @@ def best_effort_load(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    storage_path: str = "./models",
+    storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("localhost:8073")
     ret = client.load_into_cpu(model_path)
@@ -252,6 +254,8 @@ def best_effort_load(
     replica_uuid = _get_uuid()
     device_map = _transform_device_map_to_dict(device_map)
 
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
     start = time.time()
     config = AutoConfig.from_pretrained(
         f"{os.path.join(storage_path, model_path)}"
