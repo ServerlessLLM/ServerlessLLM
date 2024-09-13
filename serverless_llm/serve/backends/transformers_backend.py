@@ -53,7 +53,6 @@ class TransformersBackend(SllmBackend):
             json_obj = json.loads(json_str)
             return json_obj
         except json.JSONDecodeError as e:
-            # print(f"Failed to decode JSON string: {e}")
             logger.error(f"Failed to decode JSON string: {e}")
             return None
 
