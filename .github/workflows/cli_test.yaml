@@ -3,7 +3,7 @@ name: CLI Tests
 on: [push, pull_request]
 
 jobs:
-    worker_tests:
+    cli_tests:
         runs-on: ubuntu-22.04
         steps:
             - name: Checkout code
