@@ -42,6 +42,8 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
 
   LOG(INFO) << "I/O threads: " << num_thread
             << ", chunk size: " << chunk_size / MB << "MB";
+  LOG(INFO) << "Storage path: " << storage_path_;
+  
   for (size_t i = 0; i < num_gpus_; ++i) {
     cudaSetDevice(i);
 

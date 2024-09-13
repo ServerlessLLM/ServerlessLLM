@@ -62,12 +62,20 @@ class SllmLocalStore:
 
         self.lock = asyncio.Lock()
 
-    async def register_model(self, model_name: str, model_path: str):
+    async def register_model(self, model_name: str, backend: str, backend_config):
         async with self.lock:
             if model_name in self.disk_models:
                 logger.error(f"Model {model_name} already registered")
                 return
-            model_size = self.client.register_model(model_path)
+            model_path = os.path.join(backend, model_name)
+            if backend == "transformers":
+                model_size = self.client.register_model(model_path)
+            elif backend == "vllm":
+                tensor_parallel_size = backend_config.get("tensor_parallel_size", 1)
+                model_size = 0
+                for rank in range(tensor_parallel_size):
+                    model_rank_path = os.path.join(model_path, f"rank_{rank}")
+                    model_size += self.client.register_model(model_rank_path)
             self.disk_models[model_name] = model_size
             logger.info(f"Model {model_name} registered, {self.disk_models}")
 
@@ -353,12 +361,8 @@ class StoreManager:
                     logger.error(f"Backend {backend} not supported")
                     break
                 local_server = self.local_servers[node_id]
-                # backend name + model name
-                model_path = os.path.join(
-                    "/models", backend, pretrained_model_name
-                )
                 model_size = await local_server.register_model(
-                    model_name, model_path
+                    model_name, backend, backend_config
                 )
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
