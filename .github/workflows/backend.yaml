@@ -8,7 +8,7 @@ on:
             - 'serverless_llm/serve/backends/**'
 
 jobs:
-    worker_tests:
+    backend_tests:
         runs-on: self-hosted
         if: contains(github.event.pull_request.labels.*.name, 'ready-for-testing')
         container:
