@@ -10,7 +10,7 @@ on:
 jobs:
     worker_tests:
         runs-on: self-hosted
-        if: github.event.pull_request.labels.*.name == 'ready-for-testing'
+        if: contains(github.event.pull_request.labels.*.name, 'ready-for-testing')
         container:
           image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
           options: --gpus all
