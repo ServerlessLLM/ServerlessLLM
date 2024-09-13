@@ -50,35 +50,36 @@ class TestSaveModelIntegration(unittest.TestCase):
             shutil.rmtree(self.save_dir)
 
     def test_save_model(self):
-        with TemporaryDirectory() as cache_dir:
-            # download model from huggingface
-            input_dir = snapshot_download(
-                self.model_name,
-                cache_dir=cache_dir,
-                allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
-            )
-            # load models from the input directory
-            model_executer = LLM(
-                model=input_dir,
-                download_dir=input_dir,
-                dtype=self.torch_dtype,
-                tensor_parallel_size=self.tensor_parallel_size,
-                num_gpu_blocks_override=1,
-                enforce_eager=True,
-                max_model_len=1,
-            ).llm_engine.model_executor
-            # save the models in the ServerlessLLM format
-            model_executer.save_serverless_llm_state(
-                path=self.save_dir
-            )
+        # with TemporaryDirectory() as cache_dir:
+        cache_dir = "./test_models"
+        # download model from huggingface
+        input_dir = snapshot_download(
+            self.model_name,
+            cache_dir=cache_dir,
+            allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
+        )
+        # load models from the input directory
+        model_executer = LLM(
+            model=input_dir,
+            download_dir=input_dir,
+            dtype=self.torch_dtype,
+            tensor_parallel_size=self.tensor_parallel_size,
+            num_gpu_blocks_override=1,
+            enforce_eager=True,
+            max_model_len=1,
+        ).llm_engine.model_executor
+        # save the models in the ServerlessLLM format
+        model_executer.save_serverless_llm_state(
+            path=self.save_dir
+        )
 
         # Check if the model directory was created
-        self.assertTrue(os.path.exists(self.model_dir))
+        self.assertTrue(os.path.exists(self.model_path))
 
         # Check if each partition directory was created
         for i in range(self.tensor_parallel_size):
-            self.assertTrue(os.path.exists(f"{self.model_dir}/rank_{i}"))
-        self.assertFalse(os.path.exists(f"{self.model_dir}/rank_{self.tensor_parallel_size}"))
+            self.assertTrue(os.path.exists(f"{self.model_path}/rank_{i}"))
+        self.assertFalse(os.path.exists(f"{self.model_path}/rank_{self.tensor_parallel_size}"))
 
         # Check if certain files exist to verify that the model was saved
         expected_files = [
@@ -89,14 +90,14 @@ class TestSaveModelIntegration(unittest.TestCase):
         for i in range(self.tensor_parallel_size):
             for filename in expected_files:
                 self.assertTrue(
-                    os.path.isfile(os.path.join(self.model_dir, f"rank_{i}", filename))
+                    os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))
                 )
             for filename in unexpected_files:
                 self.assertFalse(
-                    os.path.isfile(os.path.join(self.model_dir, f"rank_{i}", filename))
+                    os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))
                 )
         
         for filename in unexpected_files:
             self.assertFalse(
-                os.path.isfile(os.path.join(self.model_dir, f"rank_{i}", filename))
+                os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))
             )
