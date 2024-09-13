@@ -10,7 +10,10 @@ on:
 
 jobs:
     worker_tests:
-        runs-on: ubuntu-22.04
+        runs-on: self-hosted
+        container:
+          image: nvcr.io/nvidia/cuda:12.6.1-cudnn-runtime-ubuntu22.04
+          options: --gpus all
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
