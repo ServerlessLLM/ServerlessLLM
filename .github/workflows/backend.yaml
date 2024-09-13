@@ -4,16 +4,15 @@ on:
     pull_request:
         branches:
             - main
-        types: [labeled]
         paths:
             - 'serverless_llm/serve/backends/**'
 
 jobs:
     worker_tests:
         runs-on: self-hosted
-        if: github.event.label.name == 'ready-for-testing'
+        if: github.event.pull_request.labels.*.name == 'ready-for-testing'
         container:
-          image: nvcr.io/nvidia/cuda:12.6.1-cudnn-runtime-ubuntu22.04
+          image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
           options: --gpus all
         steps:
             - name: Checkout code
