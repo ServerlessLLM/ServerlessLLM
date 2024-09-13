@@ -14,7 +14,7 @@ jobs:
         if: github.event.label.name == 'ready-for-testing'
         container:
           image: nvcr.io/nvidia/cuda:12.6.1-cudnn-runtime-ubuntu22.04
-          options: --gpus '"device=0"'
+          options: --gpus all
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
