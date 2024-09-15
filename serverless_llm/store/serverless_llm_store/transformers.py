@@ -51,7 +51,7 @@ from serverless_llm_store.utils import (
     get_tied_no_split_modules,
     send_module_buffers_to_device,
 )
-from serverless_llm_store.torch import load_dict_non_blocking
+from serverless_llm_store.torch import load_dict_non_blocking, save_dict
 from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM, GenerationConfig
 
@@ -75,28 +75,8 @@ def save_model(model: nn.Module, model_path: str):
 
     model = model.cpu()
     model_state_dict = model.state_dict()
-    tensor_names = list(model_state_dict.keys())
-    tensor_data_index = {}
-    for name, param in model_state_dict.items():
-        param_storage = param.untyped_storage()
-        data_ptr = param_storage.data_ptr()
-        size = param_storage.size()
-        tensor_data_index[name] = (data_ptr, size)
 
-    # save tensors
-    tensor_offsets = save_tensors(tensor_names, tensor_data_index, model_path)
-
-    # create tensor index
-    tensor_index = {}
-    for name, param in model_state_dict.items():
-        # name: offset, size
-        tensor_index[name] = (
-            tensor_offsets[name],
-            tensor_data_index[name][1],
-            tuple(param.shape),
-            tuple(param.stride()),
-            str(param.dtype),
-        )
+    save_dict(model_state_dict, model_path)
 
     # This section of code was adopted from the Hugging Face Transformers project under Apache-2.0 License.
     # Source: https://github.com/huggingface/transformers/blob/9fe3f585bb4ea29f209dc705d269fbe292e1128f/src/transformers/modeling_utils.py#L2425-L2447
@@ -126,10 +106,6 @@ def save_model(model: nn.Module, model_path: str):
                     "exception in v4.41."
                 )
         model.generation_config.save_pretrained(model_path)
-
-    # save tensor index
-    with open(os.path.join(model_path, "tensor_index.json"), "w") as f:
-        json.dump(tensor_index, f)
 
     # save module index
     no_split_modules = get_no_split_modules(model, model._no_split_modules)

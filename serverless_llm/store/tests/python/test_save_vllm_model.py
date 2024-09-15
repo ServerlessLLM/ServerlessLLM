@@ -30,7 +30,7 @@ class TestSaveModelIntegration(unittest.TestCase):
         # Set up a temporary directory for the test
         self.model_name = "facebook/opt-1.3b"
         self.torch_dtype = "float16"
-        self.tensor_parallel_size = 2
+        self.tensor_parallel_size = 1
         self.save_dir = "./test_models"
         self.model_path = os.path.join(self.save_dir, self.model_name)
 
@@ -44,6 +44,8 @@ class TestSaveModelIntegration(unittest.TestCase):
             shutil.rmtree(self.save_dir)
         os.makedirs(self.save_dir)
 
+        os.environ["STORAGE_PATH"] = self.save_dir
+
     def tearDown(self):
         # Clean up by deleting the directory after the test
         if os.path.exists(self.save_dir):
@@ -51,11 +53,11 @@ class TestSaveModelIntegration(unittest.TestCase):
 
     def test_save_model(self):
         # with TemporaryDirectory() as cache_dir:
-        cache_dir = "./test_models"
+        # cache_dir = "./test_models"
         # download model from huggingface
         input_dir = snapshot_download(
             self.model_name,
-            cache_dir=cache_dir,
+            # cache_dir=cache_dir,
             allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
         )
         # load models from the input directory
@@ -70,7 +72,7 @@ class TestSaveModelIntegration(unittest.TestCase):
         ).llm_engine.model_executor
         # save the models in the ServerlessLLM format
         model_executer.save_serverless_llm_state(
-            path=self.save_dir
+            path=self.model_path
         )
 
         # Check if the model directory was created

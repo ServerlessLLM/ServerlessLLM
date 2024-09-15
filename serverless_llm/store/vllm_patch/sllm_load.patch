@@ -230,7 +230,7 @@ index 3ad201f4..d71da2ba 100644
  
  class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
 diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index 06de2fcc..1cbb39c8 100644
+index 06de2fcc..eb50af26 100644
 --- a/vllm/model_executor/model_loader/loader.py
 +++ b/vllm/model_executor/model_loader/loader.py
 @@ -14,6 +14,7 @@ import numpy as np
@@ -249,7 +249,7 @@ index 06de2fcc..1cbb39c8 100644
  class ShardedStateLoader(BaseModelLoader):
      """
      Model loader that directly loads each worker's model state dict, which
-@@ -577,6 +577,141 @@ class ShardedStateLoader(BaseModelLoader):
+@@ -577,6 +577,145 @@ class ShardedStateLoader(BaseModelLoader):
              )
  
  
@@ -384,14 +384,18 @@ index 06de2fcc..1cbb39c8 100644
 +        # move all tensors to CPU
 +        for key, tensor in state_dict.items():
 +            state_dict[key] = tensor.cpu().contiguous()
++
++        save_path = os.path.join(path, f"rank_{rank}")
++        if not os.path.exists(save_path):
++            os.makedirs(save_path)
 +            
-+        save_dict(state_dict, os.path.join(path, f"rank_{rank}"))
++        save_dict(state_dict, save_path)
 +
 +
  class BitsAndBytesModelLoader(BaseModelLoader):
      """Model loader to load model weights with BitAndBytes quantization."""
  
-@@ -826,6 +961,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
+@@ -826,6 +965,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
  
      if load_config.load_format == LoadFormat.SHARDED_STATE:
          return ShardedStateLoader(load_config)

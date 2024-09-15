@@ -38,11 +38,10 @@ logger = logging.getLogger("ray")
 @ray.remote(num_cpus=1)
 def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
-    model_dir = os.path.join(storage_path, "transformers", model_name)
+    model_path = os.path.join(storage_path, "transformers", model_name)
 
-    if os.path.exists(model_dir):
-        # model_size = get_directory_size(model_dir)
-        logger.info(f"Model {model_name} already exists")
+    if os.path.exists(model_path):
+        logger.info(f"{model_path} already exists")
         return True
 
     import torch
@@ -52,7 +51,7 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
     if torch_dtype is None:
         raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
 
-    logger.info(f"Downloading model {model_name}")
+    logger.info(f"Downloading {model_path}")
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch_dtype
@@ -60,18 +59,18 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
 
     from serverless_llm_store.transformers import save_model
 
-    logger.info(f"Saving model {model_name} to {model_dir}")
+    logger.info(f"Saving {model_path}")
     try:
-        save_model(model, model_dir)
+        save_model(model, model_path)
     except Exception as e:
-        logger.error(f"Failed to save model {model_name}: {e}")
-        shutil.rmtree(model_dir)
+        logger.error(f"Failed to save {model_path}: {e}")
+        # shutil.rmtree(model_path)  # TODO: deal with error in save_model
         raise RuntimeError(
-            f"Failed to save model {model_name} for transformer backend: {e}"
+            f"Failed to save {model_name} for transformer backend: {e}"
         )
 
-    # model_size = get_directory_size(model_dir)
-    # logger.info(f"Model {model_name} (size: {model_size}) downloaded")
+    # model_size = get_directory_size(model_path)
+    # logger.info(f"{model_name} (size: {model_size}) downloaded")
 
     return True
 
@@ -96,7 +95,7 @@ class VllmModelDownloader:
         from huggingface_hub import snapshot_download
         from vllm import LLM
 
-        # set the model storage path
+        # set the storage path
         storage_path = os.getenv("STORAGE_PATH", "./models")
 
         def _run_writer(input_dir, model_name):
@@ -110,7 +109,7 @@ class VllmModelDownloader:
                 enforce_eager=True,
                 max_model_len=1,
             )
-            model_path = os.path.join("vllm", model_name)
+            model_path = os.path.join(storage_path, "vllm", model_name)
             model_executer = llm_writer.llm_engine.model_executor
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
@@ -124,7 +123,7 @@ class VllmModelDownloader:
                     ".safetensors",
                 ):
                     src_path = os.path.join(input_dir, file)
-                    dest_path = os.path.join(storage_path, model_path, file)
+                    dest_path = os.path.join(model_path, file)
                     logger.info(src_path)
                     logger.info(dest_path)
                     if os.path.isdir(src_path):
@@ -140,7 +139,7 @@ class VllmModelDownloader:
 
         try:
             with TemporaryDirectory() as cache_dir:
-                # download model from huggingface
+                # download from huggingface
                 input_dir = snapshot_download(
                     model_name,
                     cache_dir=cache_dir,
@@ -151,7 +150,7 @@ class VllmModelDownloader:
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
-            shutil.rmtree(os.path.join(storage_path, model_name))
+            shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
             raise RuntimeError(
-                f"Failed to save model {model_name} for vllm backend: {e}"
+                f"Failed to save {model_name} for vllm backend: {e}"
             )

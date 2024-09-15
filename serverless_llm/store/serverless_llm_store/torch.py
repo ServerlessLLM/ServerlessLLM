@@ -61,7 +61,7 @@ def _get_uuid():
     return str(uuid.uuid4())
 
 
-def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.PathLike], storage_path: Optional[str] = None):
+def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.PathLike]):
     tensor_names = list(state_dict.keys())
     tensor_data_index = {}
     for name, param in state_dict.items():
@@ -70,9 +70,6 @@ def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.Pat
         size = param_storage.size()
         tensor_data_index[name] = (data_ptr, size)
     
-    if not storage_path:
-        storage_path = os.getenv("STORAGE_PATH", "./models")
-    model_path = os.path.join(storage_path, model_path)
     if not os.path.exists(model_path):
         os.makedirs(model_path, exist_ok=True)
 
