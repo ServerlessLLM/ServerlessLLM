@@ -28,7 +28,6 @@ jobs:
               run: |
                   apt-get update && apt-get install -y ca-certificates git
                   python -m pip install --upgrade pip
-                  bash -x .github/workflows/scripts/clean-patch.sh
                   pip install -r requirements.txt
                   pip install -r requirements-worker.txt
                   pip install -r requirements-test.txt
@@ -41,3 +40,7 @@ jobs:
             - name: Run tests
               run: |
                   pytest tests/backend_test
+
+            - name: Cleanup
+              run: |
+                  
