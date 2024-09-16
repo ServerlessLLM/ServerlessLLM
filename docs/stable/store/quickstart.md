@@ -112,8 +112,7 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 :::tip
 To use ServerlessLLM as the load format for vLLM, you need to apply our patch `serverless_llm/store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please ensure you have applied our `vLLM Patch` as instructed in [installation guide](../getting_started/installation.md).
 ```bash
-VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
-patch -p2 -d $VLLM_PATH < serverless_llm/store/vllm_patch/sllm_load.patch
+./serverless_llm/store/patch.sh
 ```
 :::
 
