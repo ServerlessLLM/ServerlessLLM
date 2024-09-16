@@ -35,7 +35,7 @@ jobs:
             - name: Install ServerlessLLM
               run: |
                   pip install .
-                  cd serverless_llm/store && pip install .
+                  cd serverless_llm/store && pip install . $$ ./patch.sh
 
             - name: Run tests
               run: |
