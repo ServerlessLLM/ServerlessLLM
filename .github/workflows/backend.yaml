@@ -28,13 +28,13 @@ jobs:
               run: |
                   apt-get update && apt-get install -y ca-certificates git
                   python -m pip install --upgrade pip
+                  bash -x .github/workflows/scripts/clean-patch.sh
                   pip install -r requirements.txt
                   pip install -r requirements-worker.txt
                   pip install -r requirements-test.txt
 
             - name: Install ServerlessLLM
               run: |
-                  echo $(which python)
                   pip install .
                   cd serverless_llm/store && pip install . && ./patch.sh
 
