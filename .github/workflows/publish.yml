@@ -1,0 +1,185 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+# Needed to create release and upload assets
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Retrieve tag and create release
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Extract branch info
+        shell: bash
+        run: |
+          echo "release_tag=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - name: Create Release
+        id: create_release
+        uses: "actions/github-script@v6"
+        env:
+          RELEASE_TAG: ${{ env.release_tag }}
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          script: |
+            const script = require('.github/workflows/scripts/create_release.js')
+            await script(github, context, core)
+  sllm:
+    name: Build Wheel For ServerlessLLM
+    runs-on: ${{ matrix.os }}
+    needs: release
+
+    strategy:
+      fail-fast: false
+      matrix:
+          os: ['ubuntu-20.04']
+          python-version: ['3.10']
+          pytorch-version: ['2.3.0']  # Must be the most recent version that meets requirements-cuda.txt.
+          cuda-version: ['12.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: ${{ github.job }}-${{ matrix.python-version }}-${{ matrix.cuda-version }}
+
+      - name: Set up Linux Env
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          bash -x .github/workflows/scripts/env.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+            python-version: ${{ matrix.python-version }}
+
+      - name: Install CUDA ${{ matrix.cuda-version }}
+        run: |
+          bash -x .github/workflows/scripts/cuda-install.sh ${{ matrix.cuda-version }} ${{ matrix.os }}
+
+      - name: Build wheel
+        shell: bash
+        env:
+          CMAKE_BUILD_TYPE: Release # do not compile with debug symbol to reduce wheel size
+          TORCH_CUDA_ARCH_LIST: "8.0 8.6 8.9 9.0"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install setuptools wheel twine
+          python setup.py sdist bdist_wheel
+          wheel_name=$(ls dist/*whl | xargs -n 1 basename)
+          asset_name=${wheel_name//"linux"/"manylinux1"}
+          echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
+          echo "asset_name=${asset_name}" >> $GITHUB_ENV
+
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: ./dist/${{ env.wheel_name }}
+          asset_name: ${{ env.asset_name }}
+          asset_content_type: application/*
+
+
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1.8
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          skip-existing: true
+
+  sllm-store:
+    name: Build Wheel For ServerlessLLM Store
+    runs-on: ${{ matrix.os }}
+    needs: release
+
+    strategy:
+      fail-fast: false
+      matrix:
+          os: ['ubuntu-20.04']
+          python-version: ['3.10']
+          pytorch-version: ['2.3.0']  # Must be the most recent version that meets requirements-cuda.txt.
+          cuda-version: ['12.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: ${{ github.job }}-${{ matrix.python-version }}-${{ matrix.cuda-version }}
+
+      - name: Set up Linux Env
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          bash -x .github/workflows/scripts/env.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+            python-version: ${{ matrix.python-version }}
+
+      - name: Install CUDA ${{ matrix.cuda-version }}
+        run: |
+          bash -x .github/workflows/scripts/cuda-install.sh ${{ matrix.cuda-version }} ${{ matrix.os }}
+
+      - name: Build wheel
+        working-directory: serverless_llm/store  # Specify the directory
+        shell: bash
+        env:
+          CMAKE_BUILD_TYPE: Release # do not compile with debug symbol to reduce wheel size
+          TORCH_CUDA_ARCH_LIST: "8.0 8.6 8.9 9.0"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+          pip install setuptools wheel twine
+          python setup.py sdist bdist_wheel
+          wheel_name=$(ls dist/*whl | xargs -n 1 basename)
+          asset_name=${wheel_name//"linux"/"manylinux1"}
+          echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
+          echo "asset_name=${asset_name}" >> $GITHUB_ENV
+
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: ./serverless_llm/store/dist/${{ env.wheel_name }}
+          asset_name: ${{ env.asset_name }}
+          asset_content_type: application/*
+
+      - name: Rename wheel
+        working-directory: serverless_llm/store  # Specify the directory
+        run: |
+          mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
+
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1.8
+        with:
+          packages-dir: ./serverless_llm/store/dist/
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          skip-existing: true
