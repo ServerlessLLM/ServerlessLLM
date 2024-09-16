@@ -1,11 +1,12 @@
 name: Test Sllm Store
 
 on:
-    pull_request:
-        branches:
-            - main
-        paths:
-            - 'serverless_llm/store/**'
+  pull_request:
+    types: [opened, synchronize, labeled]
+    branches:
+      - main
+    paths:
+      - 'serverless_llm/store/**'
 
 jobs:
   sllm_store_tests:

@@ -1,11 +1,12 @@
 name: Backend Tests
 
 on:
-    pull_request:
-        branches:
-            - main
-        paths:
-            - 'serverless_llm/serve/backends/**'
+  pull_request:
+    types: [opened, synchronize, labeled]
+    branches:
+      - main
+    paths:
+      - 'serverless_llm/serve/backends/**'
 
 jobs:
     backend_tests:
