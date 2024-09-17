@@ -1,221 +1,8 @@
-<<<<<<< HEAD
-diff --git a/examples/load_sllm_state.py b/examples/load_sllm_state.py
-new file mode 100644
-index 00000000..e3dbdb82
---- /dev/null
-+++ b/examples/load_sllm_state.py
-@@ -0,0 +1,56 @@
-+"""
-+Saves each worker's model state dict directly to a checkpoint, which enables a
-+fast load path for large tensor-parallel models where each worker only needs to
-+read its own shard rather than the entire checkpoint.
-+
-+Example usage:
-+
-+python save_sharded_state.py \
-+    --model /path/to/load \
-+    --quantization deepspeedfp \
-+    --tensor-parallel-size 8 \
-+    --output /path/to/save
-+
-+Then, the model can be loaded with
-+
-+llm = LLM(
-+    model="/path/to/save",
-+    load_format="sharded_state",
-+    quantization="deepspeedfp",
-+    tensor_parallel_size=8,
-+)
-+"""
-+import argparse
-+import dataclasses
-+import os
-+import shutil
-+from pathlib import Path
-+
-+from vllm import LLM, EngineArgs
-+
-+parser = argparse.ArgumentParser()
-+EngineArgs.add_cli_args(parser)
-+parser.add_argument("--output",
-+                    "-o",
-+                    required=True,
-+                    type=str,
-+                    help="path to output checkpoint")
-+
-+if __name__ == "__main__":
-+    args = parser.parse_args()
-+    # main(args)
-+    
-+    llm = LLM(
-+        model=args.output,
-+        load_format="serverless_llm",
-+        # load_format="sharded_state",
-+        gpu_memory_utilization=0.9,
-+        distributed_executor_backend="mp",
-+        max_model_len = 512,
-+        tensor_parallel_size=args.tensor_parallel_size,
-+        # num_gpu_blocks_override=128,
-+    )
-+    
-+    input_text = "Explain thread and process in python."
-+    
-+    print(llm.generate(input_text))
-diff --git a/examples/save_load_sllm_state.sh b/examples/save_load_sllm_state.sh
-new file mode 100644
-index 00000000..a33520ef
---- /dev/null
-+++ b/examples/save_load_sllm_state.sh
-@@ -0,0 +1,9 @@
-+CUDA_VISIBLE_DEVICES=0,1 python save_sllm_state.py \
-+    --model /mnt/raid0sata1/huggingface/hub/models--facebook--opt-125m/snapshots/27dcfa74d334bc871f3234de431e71c6eeba5dd6 \
-+    --tensor-parallel-size 4 \
-+    --output /mnt/raid0nvme1/xly/test_data/vllm/opt-125m
-+
-+CUDA_VISIBLE_DEVICES=0,1 python load_sllm_state.py \
-+    --model /home/fuji/.cache/huggingface/hub/models--facebook--opt-1.3b/snapshots/3f5c25d0bc631cb57ac65913f76e22c2dfb61d62 \
-+    --tensor-parallel-size 2 \
-+    --output /home/fuji/sllm_models/opt-1.3b
-\ No newline at end of file
-diff --git a/examples/save_sllm_state.py b/examples/save_sllm_state.py
-new file mode 100644
-index 00000000..4070cb7d
---- /dev/null
-+++ b/examples/save_sllm_state.py
-@@ -0,0 +1,92 @@
-+"""
-+Saves each worker's model state dict directly to a checkpoint, which enables a
-+fast load path for large tensor-parallel models where each worker only needs to
-+read its own shard rather than the entire checkpoint.
-+
-+Example usage:
-+
-+python save_sharded_state.py \
-+    --model /path/to/load \
-+    --quantization deepspeedfp \
-+    --tensor-parallel-size 8 \
-+    --output /path/to/save
-+
-+Then, the model can be loaded with
-+
-+llm = LLM(
-+    model="/path/to/save",
-+    load_format="sharded_state",
-+    quantization="deepspeedfp",
-+    tensor_parallel_size=8,
-+)
-+"""
-+import argparse
-+import dataclasses
-+import os
-+import shutil
-+from pathlib import Path
-+
-+from vllm import LLM, EngineArgs
-+
-+parser = argparse.ArgumentParser()
-+EngineArgs.add_cli_args(parser)
-+parser.add_argument("--output",
-+                    "-o",
-+                    required=True,
-+                    type=str,
-+                    help="path to output checkpoint")
-+parser.add_argument("--file-pattern",
-+                    type=str,
-+                    help="string pattern of saved filenames")
-+parser.add_argument("--max-file-size",
-+                    type=str,
-+                    default=5 * 1024**3,
-+                    help="max size (in bytes) of each safetensors file")
-+
-+
-+def main(args):
-+    engine_args = EngineArgs.from_cli_args(args)
-+    engine_args.distributed_executor_backend = "mp"
-+    engine_args.gpu_memory_utilization = 0.4
-+    engine_args.max_seq_len_to_capture = 512
-+    engine_args.max_model_len = 512
-+    engine_args.max_num_seqs = 1
-+    engine_args.num_gpu_blocks_override = 128
-+    if engine_args.enable_lora:
-+        raise ValueError("Saving with enable_lora=True is not supported!")
-+    model_path = engine_args.model
-+    if not Path(model_path).is_dir():
-+        raise ValueError("model path must be a local directory")
-+    # Create LLM instance from arguments
-+    print(dataclasses.asdict(engine_args))
-+    llm = LLM(**dataclasses.asdict(engine_args))
-+    # Prepare output directory
-+    Path(args.output).mkdir(exist_ok=True)
-+    # Dump worker states to output directory
-+    model_executor = llm.llm_engine.model_executor
-+    model_executor.save_serverless_llm_state(path=args.output,
-+                                      pattern=args.file_pattern,
-+                                      max_size=args.max_file_size)
-+    # Copy metadata files to output directory
-+    for file in os.listdir(model_path):
-+        if os.path.splitext(file)[1] not in (".bin", ".pt", ".safetensors"):
-+            if os.path.isdir(os.path.join(model_path, file)):
-+                shutil.copytree(os.path.join(model_path, file),
-+                                os.path.join(args.output, file))
-+            else:
-+                shutil.copy(os.path.join(model_path, file), args.output)
-+
-+from vllm.distributed import get_tensor_model_parallel_rank
-+if __name__ == "__main__":
-+    args = parser.parse_args()    
-+    main(args)
-+    
-+    # llm = LLM(
-+    #     model=args.output,
-+    #     load_format="serverless_llm",
-+    #     tensor_parallel_size=2,
-+    # )
-+    
-+    # input_text = "Hello, world!"
-+    
-+    # print(llm.generate(input_text))
 diff --git a/vllm/config.py b/vllm/config.py
 index d9e4a619..9d257858 100644
 --- a/vllm/config.py
 +++ b/vllm/config.py
 @@ -498,6 +498,7 @@ class LoadFormat(str, enum.Enum):
-=======
-From 16415cbb9511ccdeb6644aafe710f3c3bda4db06 Mon Sep 17 00:00:00 2001
-From: xly <leyang.xue@ed.ac.uk>
-Date: Sun, 30 Jun 2024 22:01:43 +0100
-Subject: [PATCH] add serverless-llm loader
-
-custom load api
-
-save load sllm
-
-early load cpu & single gpu save
-
-update loader
-
-vllm loader new API
-
-set empty tensor
-
-clean up loader
-
-fix: remove new files created
----
- vllm/config.py                             |   1 +
- vllm/executor/distributed_gpu_executor.py  |  11 ++
- vllm/executor/gpu_executor.py              |  10 ++
- vllm/model_executor/model_loader/loader.py | 126 +++++++++++++++++++++
- vllm/worker/model_runner.py                |  14 +++
- vllm/worker/worker.py                      |  12 ++
- 6 files changed, 174 insertions(+)
-
-diff --git a/vllm/config.py b/vllm/config.py
-index 50b0156b..7aeea079 100644
---- a/vllm/config.py
-+++ b/vllm/config.py
-@@ -497,6 +497,7 @@ class LoadFormat(str, enum.Enum):
->>>>>>> main
      TENSORIZER = "tensorizer"
      SHARDED_STATE = "sharded_state"
      BITSANDBYTES = "bitsandbytes"
@@ -267,11 +54,7 @@ index 3ad201f4..d71da2ba 100644
  
  class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
 diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-<<<<<<< HEAD
 index 06de2fcc..eb50af26 100644
-=======
-index 9c2eaee2..0608bff9 100644
->>>>>>> main
 --- a/vllm/model_executor/model_loader/loader.py
 +++ b/vllm/model_executor/model_loader/loader.py
 @@ -14,6 +14,7 @@ import numpy as np
@@ -282,7 +65,6 @@ index 9c2eaee2..0608bff9 100644
  
  from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoadFormat,
                           LoRAConfig, ModelConfig, ParallelConfig,
-<<<<<<< HEAD
 @@ -418,7 +419,6 @@ class TensorizerLoader(BaseModelLoader):
              tensorizer_config=tensorizer_config,
          )
@@ -295,12 +77,6 @@ index 9c2eaee2..0608bff9 100644
              )
  
  
-=======
-@@ -545,6 +546,128 @@ class ShardedStateLoader(BaseModelLoader):
-                 os.path.join(path, filename),
-             )
- 
->>>>>>> main
 +class ServerlessLLMLoader(BaseModelLoader):
 +    # DEFAULT_PATTERN = "model-rank-{rank}-part-{part}.safetensors"
 +
@@ -349,10 +125,6 @@ index 9c2eaee2..0608bff9 100644
 +                    result[k] = t
 +        return result
 +        
-<<<<<<< HEAD
-=======
-+
->>>>>>> main
 +    def load_model(self, *, model_config: ModelConfig,
 +                   device_config: DeviceConfig,
 +                   lora_config: Optional[LoRAConfig],
@@ -360,11 +132,7 @@ index 9c2eaee2..0608bff9 100644
 +                   parallel_config: ParallelConfig,
 +                   scheduler_config: SchedulerConfig,
 +                   cache_config: CacheConfig) -> nn.Module:
-<<<<<<< HEAD
 +        from serverless_llm_store.torch import load_dict
-=======
-+        from serverless_llm_store import load_dict_single_device
->>>>>>> main
 +        from vllm.distributed import get_tensor_model_parallel_rank
 +        
 +        assert os.path.isdir(model_config.model)
@@ -373,7 +141,6 @@ index 9c2eaee2..0608bff9 100644
 +
 +        local_model_path = model_config.model
 +        local_model_path = os.path.join(local_model_path, f"rank_{rank}")
-<<<<<<< HEAD
 +
 +        def remove_prefix(path, prefix):
 +            # Normalize the paths to ensure consistency across different platforms
@@ -392,16 +159,6 @@ index 9c2eaee2..0608bff9 100644
 +        # ServerlessLLM Store requires a global model path as the model ID
 +        storage_path = os.getenv("STORAGE_PATH", "./models")
 +        model_path = remove_prefix(local_model_path, storage_path)
-=======
-+        
-+        # model name is everything after models
-+        model_name = local_model_path.split("models/")[1]
-+        storage_path = local_model_path.split("models/")[0]
-+        if storage_path.endswith("/"):
-+            storage_path = os.path.join(storage_path, "models")
-+        else:
-+            storage_path = storage_path + "models"
->>>>>>> main
 +        
 +        with set_default_torch_dtype(model_config.dtype):
 +            # with torch.device(device_config.device):
@@ -419,14 +176,10 @@ index 9c2eaee2..0608bff9 100644
 +                    param.data = torch.empty(1, device="cuda")
 +            gc.collect()
 +            
-<<<<<<< HEAD
 +            device_id = torch.cuda.current_device()
 +            device_map = {"": device_id}
 +            # Note: storage path is already included in the local model path
 +            sllm_state_dict = load_dict(model_path, device_map)
-=======
-+            sllm_state_dict = load_dict_single_device(model_name, storage_path)
->>>>>>> main
 +            
 +            for key, param in model.named_parameters(recurse=True):
 +                if key in key_list:
@@ -447,11 +200,7 @@ index 9c2eaee2..0608bff9 100644
 +        max_size: Optional[int] = None,
 +    ) -> None:
 +        from vllm.distributed import get_tensor_model_parallel_rank
-<<<<<<< HEAD
 +        from serverless_llm_store.torch import save_dict
-=======
-+        from serverless_llm_store import save_dict
->>>>>>> main
 +        
 +        rank = get_tensor_model_parallel_rank()
 +        state_dict = ServerlessLLMLoader._filter_subtensors(model.state_dict())
@@ -459,7 +208,6 @@ index 9c2eaee2..0608bff9 100644
 +        # move all tensors to CPU
 +        for key, tensor in state_dict.items():
 +            state_dict[key] = tensor.cpu().contiguous()
-<<<<<<< HEAD
 +
 +        save_path = os.path.join(path, f"rank_{rank}")
 +        if not os.path.exists(save_path):
@@ -472,15 +220,6 @@ index 9c2eaee2..0608bff9 100644
      """Model loader to load model weights with BitAndBytes quantization."""
  
 @@ -826,6 +965,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
-=======
-+            
-+        save_dict(state_dict, os.path.join(path, f"rank_{rank}"))
-+
- 
- class BitsAndBytesModelLoader(BaseModelLoader):
-     """Model loader to load model weights with BitAndBytes quantization."""
-@@ -795,6 +918,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
->>>>>>> main
  
      if load_config.load_format == LoadFormat.SHARDED_STATE:
          return ShardedStateLoader(load_config)
@@ -491,17 +230,10 @@ index 9c2eaee2..0608bff9 100644
      if load_config.load_format == LoadFormat.BITSANDBYTES:
          return BitsAndBytesModelLoader(load_config)
 diff --git a/vllm/worker/model_runner.py b/vllm/worker/model_runner.py
-<<<<<<< HEAD
 index 476e9ba3..02bbceca 100644
 --- a/vllm/worker/model_runner.py
 +++ b/vllm/worker/model_runner.py
 @@ -222,6 +222,20 @@ class ModelRunner:
-=======
-index 99b12293..c5f60488 100644
---- a/vllm/worker/model_runner.py
-+++ b/vllm/worker/model_runner.py
-@@ -221,6 +221,20 @@ class ModelRunner:
->>>>>>> main
              pattern=pattern,
              max_size=max_size,
          )
@@ -520,7 +252,6 @@ index 99b12293..c5f60488 100644
 +            max_size=max_size,
 +        )
  
-<<<<<<< HEAD
      def save_tensorized_model(
          self,
 diff --git a/vllm/worker/worker.py b/vllm/worker/worker.py
@@ -528,15 +259,6 @@ index 7a378a86..b4c73f43 100644
 --- a/vllm/worker/worker.py
 +++ b/vllm/worker/worker.py
 @@ -132,6 +132,18 @@ class Worker(WorkerBase):
-=======
-     def get_max_block_per_batch(self) -> int:
-         block_size = self.block_size
-diff --git a/vllm/worker/worker.py b/vllm/worker/worker.py
-index 10411a2b..f143382f 100644
---- a/vllm/worker/worker.py
-+++ b/vllm/worker/worker.py
-@@ -131,6 +131,18 @@ class Worker(WorkerBase):
->>>>>>> main
              pattern=pattern,
              max_size=max_size,
          )
@@ -553,13 +275,5 @@ index 10411a2b..f143382f 100644
 +            max_size=max_size,
 +        )
  
-<<<<<<< HEAD
      def save_tensorized_model(
          self,
-=======
-     @torch.inference_mode()
-     def determine_num_available_blocks(self) -> Tuple[int, int]:
--- 
-2.25.1
-
->>>>>>> main
