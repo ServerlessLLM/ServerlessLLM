@@ -114,15 +114,15 @@ To use ServerlessLLM as the load format for vLLM, you need to apply our patch `s
 
 You may check the patch status by running the following command:
 ``` bash
-./serverless_llm/store/check_patch.sh
+./serverless_llm/store/vllm_patch/check_patch.sh
 ```
 If the patch is not applied, you can apply it by running the following command:
 ```bash
-./serverless_llm/store/patch.sh
+./serverless_llm/store/vllm_patch/patch.sh
 ```
 To remove the applied patch, you can run the following command:
 ```bash
-./serverless_llm/store/remove_patch.sh
+./serverless_llm/store/vllm_patch/remove_patch.sh
 ```
 :::
 

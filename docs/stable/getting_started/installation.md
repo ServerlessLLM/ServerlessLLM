@@ -38,5 +38,5 @@ To use vLLM with ServerlessLLM, we need to apply our patch `serverless_llm/store
 
 You may do that by running our script:
 ```bash
-./serverless_llm/store/patch.sh
+./serverless_llm/store/vllm_patch/patch.sh
 ```

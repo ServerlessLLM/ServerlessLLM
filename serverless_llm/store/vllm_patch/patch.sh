@@ -19,11 +19,11 @@
 set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
-PATCH_FILE="$SCRIPT_DIR/vllm_patch/sllm_load.patch"
+PATCH_FILE="$SCRIPT_DIR/sllm_load.patch"
 if [ ! -f "$PATCH_FILE" ]; then
     echo "File does not exist: $PATCH_FILE"
     exit 1
 fi
 
 VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
-patch -p2 -d $VLLM_PATH -R < $PATCH_FILE
+patch -p2 -d $VLLM_PATH < $PATCH_FILE
