@@ -35,12 +35,7 @@ jobs:
             - name: Install ServerlessLLM
               run: |
                   pip install .
-                  cd serverless_llm/store && pip install .
-
-            - name: Install VLLM
-              run: |
-                  git clone --branch fy/sllm_checkpoint https://github.com/ServerlessLLM/vllm.git
-                  cd vllm && pip install .
+                  cd serverless_llm/store && pip install . && ./vllm_patch/patch.sh
 
             - name: Run tests
               run: |
