@@ -34,9 +34,10 @@ jobs:
       - name: Run Python tests
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          cd serverless_llm/store && pip install . && ./vllm_patch/patch.sh
+          cd serverless_llm/store && pip install .
+          git clone --branch fy/sllm_checkpoint https://github.com/ServerlessLLM/vllm.git
+          cd vllm && pip install .
           pytest serverless_llm/store/tests/python
-          ./serverless_llm/store/vllm_patch/remove_patch.sh
 
       # C++ Tests
       - name: Build C++ project

@@ -35,13 +35,10 @@ jobs:
             - name: Install ServerlessLLM
               run: |
                   pip install .
-                  cd serverless_llm/store && pip install . && ./vllm_patch/patch.sh
+                  cd serverless_llm/store && pip install .
+                  git clone --branch fy/sllm_checkpoint https://github.com/ServerlessLLM/vllm.git
+                  cd vllm && pip install .
 
             - name: Run tests
               run: |
                   pytest tests/backend_test
-
-            - name: Cleanup
-              run: |
-                  ./serverless_llm/store/vllm_patch/remove_patch.sh
-                  
