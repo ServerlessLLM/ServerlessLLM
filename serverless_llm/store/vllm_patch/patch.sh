@@ -19,7 +19,7 @@
 set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
-PATCH_FILE="$SCRIPT_DIR/vllm_patch/sllm_load.patch"
+PATCH_FILE="$SCRIPT_DIR/sllm_load.patch"
 if [ ! -f "$PATCH_FILE" ]; then
     echo "File does not exist: $PATCH_FILE"
     exit 1

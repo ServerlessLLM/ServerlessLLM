@@ -1,15 +1,31 @@
-From da40decd0430ec66bd18a641af70a227a1de5b6d Mon Sep 17 00:00:00 2001
+From 16415cbb9511ccdeb6644aafe710f3c3bda4db06 Mon Sep 17 00:00:00 2001
 From: xly <leyang.xue@ed.ac.uk>
 Date: Sun, 30 Jun 2024 22:01:43 +0100
-Subject: [PATCH 1/8] add serverless-llm loader
+Subject: [PATCH] add serverless-llm loader
 
+custom load api
+
+save load sllm
+
+early load cpu & single gpu save
+
+update loader
+
+vllm loader new API
+
+set empty tensor
+
+clean up loader
+
+fix: remove new files created
 ---
  vllm/config.py                             |   1 +
  vllm/executor/distributed_gpu_executor.py  |  11 ++
- vllm/model_executor/model_loader/loader.py | 154 +++++++++++++++++++++
- vllm/worker/model_runner.py                |  14 ++
+ vllm/executor/gpu_executor.py              |  10 ++
+ vllm/model_executor/model_loader/loader.py | 126 +++++++++++++++++++++
+ vllm/worker/model_runner.py                |  14 +++
  vllm/worker/worker.py                      |  12 ++
- 5 files changed, 192 insertions(+)
+ 6 files changed, 174 insertions(+)
 
 diff --git a/vllm/config.py b/vllm/config.py
 index 50b0156b..7aeea079 100644
@@ -45,11 +61,40 @@ index f7c608af..e9c09c6f 100644
  
      @abstractmethod
      def _driver_execute_model(
+diff --git a/vllm/executor/gpu_executor.py b/vllm/executor/gpu_executor.py
+index 3ad201f4..d71da2ba 100644
+--- a/vllm/executor/gpu_executor.py
++++ b/vllm/executor/gpu_executor.py
+@@ -106,6 +106,16 @@ class GPUExecutor(ExecutorBase):
+         # GPUExecutor will always be healthy as long as
+         # it's running.
+         return
++    
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: Optional[str] = None,
++        max_size: Optional[int] = None,
++    ) -> None:
++        self.driver_worker.save_serverless_llm_state(
++            path=path, pattern=pattern, max_size=max_size
++        )
+ 
+ 
+ class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
 diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index 9c2eaee2..0f8279e6 100644
+index 9c2eaee2..0608bff9 100644
 --- a/vllm/model_executor/model_loader/loader.py
 +++ b/vllm/model_executor/model_loader/loader.py
-@@ -545,6 +545,157 @@ class ShardedStateLoader(BaseModelLoader):
+@@ -14,6 +14,7 @@ import numpy as np
+ import torch
+ from huggingface_hub import HfApi, hf_hub_download
+ from torch import nn
++import gc
+ 
+ from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoadFormat,
+                          LoRAConfig, ModelConfig, ParallelConfig,
+@@ -545,6 +546,128 @@ class ShardedStateLoader(BaseModelLoader):
                  os.path.join(path, filename),
              )
  
@@ -100,6 +145,7 @@ index 9c2eaee2..0f8279e6 100644
 +                else:
 +                    result[k] = t
 +        return result
++        
 +
 +    def load_model(self, *, model_config: ModelConfig,
 +                   device_config: DeviceConfig,
@@ -108,57 +154,52 @@ index 9c2eaee2..0f8279e6 100644
 +                   parallel_config: ParallelConfig,
 +                   scheduler_config: SchedulerConfig,
 +                   cache_config: CacheConfig) -> nn.Module:
-+
-+        from serverless_llm_store import load_dict
-+        from serverless_llm_store.client import SllmStoreClient
-+        from serverless_llm_store._C import (
-+            save_tensors,
-+            restore_tensors,
-+            allocate_cuda_memory,
-+            get_cuda_memory_handles,
-+            get_device_uuid_map,
-+        )
-+        
++        from serverless_llm_store import load_dict_single_device
 +        from vllm.distributed import get_tensor_model_parallel_rank
 +        
 +        assert os.path.isdir(model_config.model)
++        
++        rank = get_tensor_model_parallel_rank()
 +
 +        local_model_path = model_config.model
-+        rank = get_tensor_model_parallel_rank()
++        local_model_path = os.path.join(local_model_path, f"rank_{rank}")
 +        
-+        # client = SllmStoreClient("localhost:8073")
-+        
-+        sllm_state_dict = load_dict(os.path.join(local_model_path, f"rank_{rank}", device_config.device))
++        # model name is everything after models
++        model_name = local_model_path.split("models/")[1]
++        storage_path = local_model_path.split("models/")[0]
++        if storage_path.endswith("/"):
++            storage_path = os.path.join(storage_path, "models")
++        else:
++            storage_path = storage_path + "models"
 +        
 +        with set_default_torch_dtype(model_config.dtype):
-+            with torch.device(device_config.device):
++            # with torch.device(device_config.device):
++            with torch.device("cpu"):
 +                model = _initialize_model(model_config, self.load_config,
-+                                          lora_config, vision_language_config,
-+                                          cache_config)
++                                        lora_config, vision_language_config,
++                                        cache_config)
++                model = model.eval()
++            # set all parameters to meta device
 +            state_dict = self._filter_subtensors(model.state_dict())
++            key_list = list(state_dict.keys())
 +            
++            for key, param in model.named_parameters(recurse=True):
++                if key in key_list:
++                    param.data = torch.empty(1, device="cuda")
++            gc.collect()
 +            
-+            for key in sllm_state_dict:
-+                tensor = sllm_state_dict[key]
-+                # If loading with LoRA enabled, additional padding may
-+                # be added to certain parameters. We only load into a
-+                # narrowed view of the parameter data.
-+                param_data = state_dict[key].data
-+                param_shape = state_dict[key].shape
-+                for dim, size in enumerate(tensor.shape):
-+                    if size < param_shape[dim]:
-+                        param_data = param_data.narrow(dim, 0, size)
-+                if tensor.shape != param_shape:
-+                    logger.warning(
-+                        "loading tensor of shape %s into "
-+                        "parameter '%s' of shape %s", tensor.shape,
-+                        key, param_shape)
-+                param_data.copy_(tensor)
-+                state_dict.pop(key)
++            sllm_state_dict = load_dict_single_device(model_name, storage_path)
++            
++            for key, param in model.named_parameters(recurse=True):
++                if key in key_list:
++                    tensor = sllm_state_dict[key]
++                    param.data = tensor
++                    state_dict.pop(key)
 +            if state_dict:
 +                raise ValueError(
 +                    f"Missing keys {tuple(state_dict)} in loaded state!")
-+        return model.eval()
++            
++        return model
 +
 +    @staticmethod
 +    def save_model(
@@ -168,46 +209,21 @@ index 9c2eaee2..0f8279e6 100644
 +        max_size: Optional[int] = None,
 +    ) -> None:
 +        from vllm.distributed import get_tensor_model_parallel_rank
-+        from serverless_llm_store._C import save_tensors
++        from serverless_llm_store import save_dict
 +        
-+        # if pattern is None:
-+        #     pattern = ShardedStateLoader.DEFAULT_PATTERN
 +        rank = get_tensor_model_parallel_rank()
-+        state_dict = ShardedStateLoader._filter_subtensors(model.state_dict())
++        state_dict = ServerlessLLMLoader._filter_subtensors(model.state_dict())
 +        
 +        # move all tensors to CPU
 +        for key, tensor in state_dict.items():
-+            state_dict[key] = tensor.cpu()
-+        
-+        tensor_names = list(state_dict.keys())
-+        tensor_data_index = {}
-+        for name, param in state_dict.items():
-+            param_storage = param.untyped_storage()
-+            data_ptr = param_storage.data_ptr()
-+            size = param_storage.size()
-+            tensor_data_index[name] = (data_ptr, size)
-+        
-+        print(tensor_data_index)
-+        rank_path = os.path.join(path, f"rank_{rank}")
-+        if not os.path.exists(rank_path):
-+            os.makedirs(rank_path)
-+        # save tensors
-+        tensor_offsets = save_tensors(tensor_names, tensor_data_index, rank_path)
-+        
-+        # create tensor index
-+        tensor_index = {}
-+        for name, param in state_dict.items():
-+            # name: offset, size
-+            tensor_index[name] = (tensor_offsets[name], tensor_data_index[name][1], tuple(param.shape), tuple(param.stride()), str(param.dtype))
-+
-+        # save tensor index
-+        with open(os.path.join(rank_path, "tensor_index.json"), "w") as f:
-+            json.dump(tensor_index, f)
++            state_dict[key] = tensor.cpu().contiguous()
++            
++        save_dict(state_dict, os.path.join(path, f"rank_{rank}"))
 +
  
  class BitsAndBytesModelLoader(BaseModelLoader):
      """Model loader to load model weights with BitAndBytes quantization."""
-@@ -795,6 +946,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
+@@ -795,6 +918,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
  
      if load_config.load_format == LoadFormat.SHARDED_STATE:
          return ShardedStateLoader(load_config)
@@ -265,1184 +281,6 @@ index 10411a2b..f143382f 100644
  
      @torch.inference_mode()
      def determine_num_available_blocks(self) -> Tuple[int, int]:
--- 
-2.25.1
-
-
-From d2977d8ff45be444965db75ec44e6d7af0d41625 Mon Sep 17 00:00:00 2001
-From: xly <leyang.xue@ed.ac.uk>
-Date: Sun, 30 Jun 2024 23:38:27 +0100
-Subject: [PATCH 2/8] custom load api
-
----
- vllm/model_executor/model_loader/loader.py | 71 +++++++++++++++-------
- 1 file changed, 49 insertions(+), 22 deletions(-)
-
-diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index 0f8279e6..2a9f6b71 100644
---- a/vllm/model_executor/model_loader/loader.py
-+++ b/vllm/model_executor/model_loader/loader.py
-@@ -612,15 +612,24 @@ class ServerlessLLMLoader(BaseModelLoader):
-         )
-         
-         from vllm.distributed import get_tensor_model_parallel_rank
-+        import uuid
-         
-         assert os.path.isdir(model_config.model)
- 
-         local_model_path = model_config.model
-+        local_model_path = os.path.join(local_model_path, f"rank_{rank}")
-         rank = get_tensor_model_parallel_rank()
-         
--        # client = SllmStoreClient("localhost:8073")
-+        tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
-+        with open(tensor_index_path, "r") as f:
-+            tensor_index = json.load(f)
-         
--        sllm_state_dict = load_dict(os.path.join(local_model_path, f"rank_{rank}", device_config.device))
-+        device_uuid_map = get_device_uuid_map()
-+        device_uuid = device_uuid_map[device_config.device]
-+        replica_uuid = str(uuid.uuid4())
-+        client = SllmStoreClient("localhost:8073")
-+        
-+        # sllm_state_dict = load_dict(os.path.join(local_model_path, f"rank_{rank}", device_config.device))
-         
-         with set_default_torch_dtype(model_config.dtype):
-             with torch.device(device_config.device):
-@@ -629,27 +638,45 @@ class ServerlessLLMLoader(BaseModelLoader):
-                                           cache_config)
-             state_dict = self._filter_subtensors(model.state_dict())
-             
-+            memory_ptrs = {device_uuid: []}
-+            tensor_copy_chunks = {device_uuid: []}
-+            for name, param in state_dict.items():
-+                data_ptr = param.untyped_storage().data_ptr()
-+                memory_ptrs[device_uuid].append(data_ptr)
-+                
-+                offset, size = tensor_index[name]
-+                tensor_copy_chunks[device_uuid].append(
-+                    (offset, size, 0)
-+                )
-+            cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)    
-             
--            for key in sllm_state_dict:
--                tensor = sllm_state_dict[key]
--                # If loading with LoRA enabled, additional padding may
--                # be added to certain parameters. We only load into a
--                # narrowed view of the parameter data.
--                param_data = state_dict[key].data
--                param_shape = state_dict[key].shape
--                for dim, size in enumerate(tensor.shape):
--                    if size < param_shape[dim]:
--                        param_data = param_data.narrow(dim, 0, size)
--                if tensor.shape != param_shape:
--                    logger.warning(
--                        "loading tensor of shape %s into "
--                        "parameter '%s' of shape %s", tensor.shape,
--                        key, param_shape)
--                param_data.copy_(tensor)
--                state_dict.pop(key)
--            if state_dict:
--                raise ValueError(
--                    f"Missing keys {tuple(state_dict)} in loaded state!")
-+            ret = client.load_into_gpu(
-+                local_model_path,
-+                replica_uuid,
-+                tensor_copy_chunks,
-+                cuda_memory_handles,
-+            )        
-+            client.confirm_model_loaded(model_name_or_path, replica_uuid)
-+            # for key in sllm_state_dict:
-+            #     tensor = sllm_state_dict[key]
-+            #     # If loading with LoRA enabled, additional padding may
-+            #     # be added to certain parameters. We only load into a
-+            #     # narrowed view of the parameter data.
-+            #     param_data = state_dict[key].data
-+            #     param_shape = state_dict[key].shape
-+            #     for dim, size in enumerate(tensor.shape):
-+            #         if size < param_shape[dim]:
-+            #             param_data = param_data.narrow(dim, 0, size)
-+            #     if tensor.shape != param_shape:
-+            #         logger.warning(
-+            #             "loading tensor of shape %s into "
-+            #             "parameter '%s' of shape %s", tensor.shape,
-+            #             key, param_shape)
-+            #     param_data.copy_(tensor)
-+            #     state_dict.pop(key)
-+            # if state_dict:
-+            #     raise ValueError(
-+            #         f"Missing keys {tuple(state_dict)} in loaded state!")
-         return model.eval()
- 
-     @staticmethod
--- 
-2.25.1
-
-
-From 9e4237bd246440cd9dbe22f6b21e65a9634aec0e Mon Sep 17 00:00:00 2001
-From: Leyang Xue <leyang.xue@ed.ac.uk>
-Date: Tue, 2 Jul 2024 16:45:04 +0100
-Subject: [PATCH 3/8] save load sllm
-
----
- examples/load_sllm_state.py                | 51 +++++++++++++
- examples/save_load_sllm_state.sh           |  9 +++
- examples/save_sllm_state.py                | 85 ++++++++++++++++++++++
- vllm/model_executor/model_loader/loader.py | 46 +++++++-----
- 4 files changed, 172 insertions(+), 19 deletions(-)
- create mode 100644 examples/load_sllm_state.py
- create mode 100644 examples/save_load_sllm_state.sh
- create mode 100644 examples/save_sllm_state.py
-
-diff --git a/examples/load_sllm_state.py b/examples/load_sllm_state.py
-new file mode 100644
-index 00000000..5a172cf5
---- /dev/null
-+++ b/examples/load_sllm_state.py
-@@ -0,0 +1,51 @@
-+"""
-+Saves each worker's model state dict directly to a checkpoint, which enables a
-+fast load path for large tensor-parallel models where each worker only needs to
-+read its own shard rather than the entire checkpoint.
-+
-+Example usage:
-+
-+python save_sharded_state.py \
-+    --model /path/to/load \
-+    --quantization deepspeedfp \
-+    --tensor-parallel-size 8 \
-+    --output /path/to/save
-+
-+Then, the model can be loaded with
-+
-+llm = LLM(
-+    model="/path/to/save",
-+    load_format="sharded_state",
-+    quantization="deepspeedfp",
-+    tensor_parallel_size=8,
-+)
-+"""
-+import argparse
-+import dataclasses
-+import os
-+import shutil
-+from pathlib import Path
-+
-+from vllm import LLM, EngineArgs
-+
-+parser = argparse.ArgumentParser()
-+EngineArgs.add_cli_args(parser)
-+parser.add_argument("--output",
-+                    "-o",
-+                    required=True,
-+                    type=str,
-+                    help="path to output checkpoint")
-+
-+if __name__ == "__main__":
-+    args = parser.parse_args()
-+    # main(args)
-+    
-+    llm = LLM(
-+        model=args.output,
-+        load_format="serverless_llm",
-+        tensor_parallel_size=2,
-+    )
-+    
-+    input_text = "Hello, world!"
-+    
-+    print(llm.generate(input_text))
-diff --git a/examples/save_load_sllm_state.sh b/examples/save_load_sllm_state.sh
-new file mode 100644
-index 00000000..a33520ef
---- /dev/null
-+++ b/examples/save_load_sllm_state.sh
-@@ -0,0 +1,9 @@
-+CUDA_VISIBLE_DEVICES=0,1 python save_sllm_state.py \
-+    --model /mnt/raid0sata1/huggingface/hub/models--facebook--opt-125m/snapshots/27dcfa74d334bc871f3234de431e71c6eeba5dd6 \
-+    --tensor-parallel-size 4 \
-+    --output /mnt/raid0nvme1/xly/test_data/vllm/opt-125m
-+
-+CUDA_VISIBLE_DEVICES=0,1 python load_sllm_state.py \
-+    --model /home/fuji/.cache/huggingface/hub/models--facebook--opt-1.3b/snapshots/3f5c25d0bc631cb57ac65913f76e22c2dfb61d62 \
-+    --tensor-parallel-size 2 \
-+    --output /home/fuji/sllm_models/opt-1.3b
-\ No newline at end of file
-diff --git a/examples/save_sllm_state.py b/examples/save_sllm_state.py
-new file mode 100644
-index 00000000..c74ff684
---- /dev/null
-+++ b/examples/save_sllm_state.py
-@@ -0,0 +1,85 @@
-+"""
-+Saves each worker's model state dict directly to a checkpoint, which enables a
-+fast load path for large tensor-parallel models where each worker only needs to
-+read its own shard rather than the entire checkpoint.
-+
-+Example usage:
-+
-+python save_sharded_state.py \
-+    --model /path/to/load \
-+    --quantization deepspeedfp \
-+    --tensor-parallel-size 8 \
-+    --output /path/to/save
-+
-+Then, the model can be loaded with
-+
-+llm = LLM(
-+    model="/path/to/save",
-+    load_format="sharded_state",
-+    quantization="deepspeedfp",
-+    tensor_parallel_size=8,
-+)
-+"""
-+import argparse
-+import dataclasses
-+import os
-+import shutil
-+from pathlib import Path
-+
-+from vllm import LLM, EngineArgs
-+
-+parser = argparse.ArgumentParser()
-+EngineArgs.add_cli_args(parser)
-+parser.add_argument("--output",
-+                    "-o",
-+                    required=True,
-+                    type=str,
-+                    help="path to output checkpoint")
-+parser.add_argument("--file-pattern",
-+                    type=str,
-+                    help="string pattern of saved filenames")
-+parser.add_argument("--max-file-size",
-+                    type=str,
-+                    default=5 * 1024**3,
-+                    help="max size (in bytes) of each safetensors file")
-+
-+
-+def main(args):
-+    engine_args = EngineArgs.from_cli_args(args)
-+    if engine_args.enable_lora:
-+        raise ValueError("Saving with enable_lora=True is not supported!")
-+    model_path = engine_args.model
-+    if not Path(model_path).is_dir():
-+        raise ValueError("model path must be a local directory")
-+    # Create LLM instance from arguments
-+    llm = LLM(**dataclasses.asdict(engine_args))
-+    # Prepare output directory
-+    Path(args.output).mkdir(exist_ok=True)
-+    # Dump worker states to output directory
-+    model_executor = llm.llm_engine.model_executor
-+    model_executor.save_serverless_llm_state(path=args.output,
-+                                      pattern=args.file_pattern,
-+                                      max_size=args.max_file_size)
-+    # Copy metadata files to output directory
-+    for file in os.listdir(model_path):
-+        if os.path.splitext(file)[1] not in (".bin", ".pt", ".safetensors"):
-+            if os.path.isdir(os.path.join(model_path, file)):
-+                shutil.copytree(os.path.join(model_path, file),
-+                                os.path.join(args.output, file))
-+            else:
-+                shutil.copy(os.path.join(model_path, file), args.output)
-+
-+from vllm.distributed import get_tensor_model_parallel_rank
-+if __name__ == "__main__":
-+    args = parser.parse_args()    
-+    main(args)
-+    
-+    # llm = LLM(
-+    #     model=args.output,
-+    #     load_format="serverless_llm",
-+    #     tensor_parallel_size=2,
-+    # )
-+    
-+    # input_text = "Hello, world!"
-+    
-+    # print(llm.generate(input_text))
-diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index 2a9f6b71..4c82f9c9 100644
---- a/vllm/model_executor/model_loader/loader.py
-+++ b/vllm/model_executor/model_loader/loader.py
-@@ -600,13 +600,10 @@ class ServerlessLLMLoader(BaseModelLoader):
-                    parallel_config: ParallelConfig,
-                    scheduler_config: SchedulerConfig,
-                    cache_config: CacheConfig) -> nn.Module:
--
--        from serverless_llm_store import load_dict
-+        print("Loading model")
-         from serverless_llm_store.client import SllmStoreClient
-         from serverless_llm_store._C import (
--            save_tensors,
-             restore_tensors,
--            allocate_cuda_memory,
-             get_cuda_memory_handles,
-             get_device_uuid_map,
-         )
-@@ -615,17 +612,19 @@ class ServerlessLLMLoader(BaseModelLoader):
-         import uuid
-         
-         assert os.path.isdir(model_config.model)
-+        
-+        rank = get_tensor_model_parallel_rank()
- 
-         local_model_path = model_config.model
-         local_model_path = os.path.join(local_model_path, f"rank_{rank}")
--        rank = get_tensor_model_parallel_rank()
-+        
-         
-         tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
-         with open(tensor_index_path, "r") as f:
-             tensor_index = json.load(f)
-         
-         device_uuid_map = get_device_uuid_map()
--        device_uuid = device_uuid_map[device_config.device]
-+        device_uuid = device_uuid_map[rank]
-         replica_uuid = str(uuid.uuid4())
-         client = SllmStoreClient("localhost:8073")
-         
-@@ -638,25 +637,34 @@ class ServerlessLLMLoader(BaseModelLoader):
-                                           cache_config)
-             state_dict = self._filter_subtensors(model.state_dict())
-             
--            memory_ptrs = {device_uuid: []}
--            tensor_copy_chunks = {device_uuid: []}
--            for name, param in state_dict.items():
-+            memory_ptrs = {rank: []}
-+            tensor_copy_chunks = {rank: []}
-+            for idx, (name, param) in enumerate(state_dict.items()):
-                 data_ptr = param.untyped_storage().data_ptr()
--                memory_ptrs[device_uuid].append(data_ptr)
-+                memory_ptrs[rank].append(data_ptr)
-+                offset, size, _, _, _ = tensor_index[name]
-                 
--                offset, size = tensor_index[name]
--                tensor_copy_chunks[device_uuid].append(
--                    (offset, size, 0)
-+                tensor_copy_chunks[rank].append(
-+                    (offset, size, 0, idx)
-                 )
-             cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)    
-+            model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
-+            
-+            ret = client.load_into_cpu(model_name)
-+            if not ret or ret == False:
-+                raise ValueError(f"Failed to load model {model_name} into CPU")
-+            
-+            
-             
-             ret = client.load_into_gpu(
--                local_model_path,
-+                model_name,
-                 replica_uuid,
--                tensor_copy_chunks,
--                cuda_memory_handles,
--            )        
--            client.confirm_model_loaded(model_name_or_path, replica_uuid)
-+                {device_uuid: tensor_copy_chunks[rank]},
-+                {device_uuid: cuda_memory_handles[rank]}
-+            )
-+            if not ret or ret == False:
-+                raise ValueError(f"Failed to load model {model_name} into GPU")
-+            client.confirm_model_loaded(model_name, replica_uuid)
-             # for key in sllm_state_dict:
-             #     tensor = sllm_state_dict[key]
-             #     # If loading with LoRA enabled, additional padding may
-@@ -707,7 +715,7 @@ class ServerlessLLMLoader(BaseModelLoader):
-             tensor_data_index[name] = (data_ptr, size)
-         
-         print(tensor_data_index)
--        rank_path = os.path.join(path, f"rank_{rank}")
-+        rank_path = path + f"rank_{rank}" 
-         if not os.path.exists(rank_path):
-             os.makedirs(rank_path)
-         # save tensors
--- 
-2.25.1
-
-
-From 7228ab84dd424fcfcd021a50549a04a3472277c5 Mon Sep 17 00:00:00 2001
-From: Leyang Xue <leyang.xue@ed.ac.uk>
-Date: Fri, 5 Jul 2024 11:04:58 +0100
-Subject: [PATCH 4/8] early load cpu & single gpu save
-
----
- vllm/executor/gpu_executor.py              | 10 +++++++
- vllm/model_executor/model_loader/loader.py | 35 ++++------------------
- 2 files changed, 16 insertions(+), 29 deletions(-)
-
-diff --git a/vllm/executor/gpu_executor.py b/vllm/executor/gpu_executor.py
-index 3ad201f4..d71da2ba 100644
---- a/vllm/executor/gpu_executor.py
-+++ b/vllm/executor/gpu_executor.py
-@@ -106,6 +106,16 @@ class GPUExecutor(ExecutorBase):
-         # GPUExecutor will always be healthy as long as
-         # it's running.
-         return
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+    ) -> None:
-+        self.driver_worker.save_serverless_llm_state(
-+            path=path, pattern=pattern, max_size=max_size
-+        )
- 
- 
- class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
-diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index 4c82f9c9..ceee9ecb 100644
---- a/vllm/model_executor/model_loader/loader.py
-+++ b/vllm/model_executor/model_loader/loader.py
-@@ -617,7 +617,10 @@ class ServerlessLLMLoader(BaseModelLoader):
- 
-         local_model_path = model_config.model
-         local_model_path = os.path.join(local_model_path, f"rank_{rank}")
--        
-+        model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
-+        ret = client.load_into_cpu(model_name)
-+        if not ret or ret == False:
-+            raise ValueError(f"Failed to load model {model_name} into CPU")
-         
-         tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
-         with open(tensor_index_path, "r") as f:
-@@ -644,17 +647,11 @@ class ServerlessLLMLoader(BaseModelLoader):
-                 memory_ptrs[rank].append(data_ptr)
-                 offset, size, _, _, _ = tensor_index[name]
-                 
-+                # every tensor has its own base address, so GPU offset is always 0
-                 tensor_copy_chunks[rank].append(
-                     (offset, size, 0, idx)
-                 )
-             cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)    
--            model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
--            
--            ret = client.load_into_cpu(model_name)
--            if not ret or ret == False:
--                raise ValueError(f"Failed to load model {model_name} into CPU")
--            
--            
-             
-             ret = client.load_into_gpu(
-                 model_name,
-@@ -665,26 +662,6 @@ class ServerlessLLMLoader(BaseModelLoader):
-             if not ret or ret == False:
-                 raise ValueError(f"Failed to load model {model_name} into GPU")
-             client.confirm_model_loaded(model_name, replica_uuid)
--            # for key in sllm_state_dict:
--            #     tensor = sllm_state_dict[key]
--            #     # If loading with LoRA enabled, additional padding may
--            #     # be added to certain parameters. We only load into a
--            #     # narrowed view of the parameter data.
--            #     param_data = state_dict[key].data
--            #     param_shape = state_dict[key].shape
--            #     for dim, size in enumerate(tensor.shape):
--            #         if size < param_shape[dim]:
--            #             param_data = param_data.narrow(dim, 0, size)
--            #     if tensor.shape != param_shape:
--            #         logger.warning(
--            #             "loading tensor of shape %s into "
--            #             "parameter '%s' of shape %s", tensor.shape,
--            #             key, param_shape)
--            #     param_data.copy_(tensor)
--            #     state_dict.pop(key)
--            # if state_dict:
--            #     raise ValueError(
--            #         f"Missing keys {tuple(state_dict)} in loaded state!")
-         return model.eval()
- 
-     @staticmethod
-@@ -700,7 +677,7 @@ class ServerlessLLMLoader(BaseModelLoader):
-         # if pattern is None:
-         #     pattern = ShardedStateLoader.DEFAULT_PATTERN
-         rank = get_tensor_model_parallel_rank()
--        state_dict = ShardedStateLoader._filter_subtensors(model.state_dict())
-+        state_dict = ServerlessLLMLoader._filter_subtensors(model.state_dict())
-         
-         # move all tensors to CPU
-         for key, tensor in state_dict.items():
--- 
-2.25.1
-
-
-From 3bb7e61312ad1d9785414e5c8a18e9065c913c83 Mon Sep 17 00:00:00 2001
-From: Leyang Xue <leyang.xue@ed.ac.uk>
-Date: Mon, 8 Jul 2024 13:57:51 +0100
-Subject: [PATCH 5/8] update loader
-
----
- vllm/model_executor/model_loader/loader.py | 72 +++++++++++-----------
- 1 file changed, 35 insertions(+), 37 deletions(-)
-
-diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index ceee9ecb..684fd522 100644
---- a/vllm/model_executor/model_loader/loader.py
-+++ b/vllm/model_executor/model_loader/loader.py
-@@ -603,9 +603,9 @@ class ServerlessLLMLoader(BaseModelLoader):
-         print("Loading model")
-         from serverless_llm_store.client import SllmStoreClient
-         from serverless_llm_store._C import (
--            restore_tensors,
-             get_cuda_memory_handles,
-             get_device_uuid_map,
-+            get_device_ptrs_from_mem_handles,
-         )
-         
-         from vllm.distributed import get_tensor_model_parallel_rank
-@@ -613,14 +613,16 @@ class ServerlessLLMLoader(BaseModelLoader):
-         
-         assert os.path.isdir(model_config.model)
-         
-+        client = SllmStoreClient("localhost:8073")
-         rank = get_tensor_model_parallel_rank()
- 
-         local_model_path = model_config.model
-         local_model_path = os.path.join(local_model_path, f"rank_{rank}")
--        model_name = local_model_path.split("/")[-2:][0] + "/" + local_model_path.split("/")[-1]
-+        model_name = "/".join(local_model_path.split("/")[-2:])
-+        
-         ret = client.load_into_cpu(model_name)
-         if not ret or ret == False:
--            raise ValueError(f"Failed to load model {model_name} into CPU")
-+            raise ValueError(f"Failed to load model {model_name} into CPU")  
-         
-         tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
-         with open(tensor_index_path, "r") as f:
-@@ -629,7 +631,6 @@ class ServerlessLLMLoader(BaseModelLoader):
-         device_uuid_map = get_device_uuid_map()
-         device_uuid = device_uuid_map[rank]
-         replica_uuid = str(uuid.uuid4())
--        client = SllmStoreClient("localhost:8073")
-         
-         # sllm_state_dict = load_dict(os.path.join(local_model_path, f"rank_{rank}", device_config.device))
-         
-@@ -642,16 +643,38 @@ class ServerlessLLMLoader(BaseModelLoader):
-             
-             memory_ptrs = {rank: []}
-             tensor_copy_chunks = {rank: []}
-+            
-+            # idx = 0
-+            # for name, param in model.named_parameters(recurse=True):
-+            #     if not name in state_dict:
-+            #         continue
-+            #     data_ptr = param.data_ptr()
-+            #     memory_ptrs[rank].append(data_ptr)
-+                
-+            #     offset, size, _, _, _ = tensor_index[name]
-+            #     tensor_copy_chunks[rank].append((offset, size, 0, idx))
-+            #     idx += 1
-+            #     print(f"Loading tensor {name} with offset {offset} and size {size}, device {param.device}, {hex(data_ptr)}, {idx}")
-+
-             for idx, (name, param) in enumerate(state_dict.items()):
-                 data_ptr = param.untyped_storage().data_ptr()
-                 memory_ptrs[rank].append(data_ptr)
-                 offset, size, _, _, _ = tensor_index[name]
--                
-                 # every tensor has its own base address, so GPU offset is always 0
--                tensor_copy_chunks[rank].append(
--                    (offset, size, 0, idx)
--                )
--            cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)    
-+                tensor_copy_chunks[rank].append((offset, size, 0, idx))
-+                print(f"Loading tensor {name} with offset {offset} and size {size}, device {param.device}, {hex(data_ptr)}, {idx}")
-+            
-+            cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)
-+            # device_ptrs = get_device_ptrs_from_mem_handles(cuda_memory_handles)
-+            
-+            # for k, ptr in enumerate(device_ptrs[rank]):
-+            #     assert hex(ptr) == hex(memory_ptrs[rank][k]), f"Memory ptrs do not match: {hex(ptr)} != {hex(memory_ptrs[rank][k])}"
-+            # cuda_memory_handles = {
-+            #     rank: [
-+            #         get_cuda_memory_handles({rank: ptr})[rank]
-+            #         for ptr in memory_ptrs[rank]
-+            #     ]
-+            # }
-             
-             ret = client.load_into_gpu(
-                 model_name,
-@@ -672,41 +695,16 @@ class ServerlessLLMLoader(BaseModelLoader):
-         max_size: Optional[int] = None,
-     ) -> None:
-         from vllm.distributed import get_tensor_model_parallel_rank
--        from serverless_llm_store._C import save_tensors
-+        from serverless_llm_store import save_dict
-         
--        # if pattern is None:
--        #     pattern = ShardedStateLoader.DEFAULT_PATTERN
-         rank = get_tensor_model_parallel_rank()
-         state_dict = ServerlessLLMLoader._filter_subtensors(model.state_dict())
-         
-         # move all tensors to CPU
-         for key, tensor in state_dict.items():
-             state_dict[key] = tensor.cpu()
--        
--        tensor_names = list(state_dict.keys())
--        tensor_data_index = {}
--        for name, param in state_dict.items():
--            param_storage = param.untyped_storage()
--            data_ptr = param_storage.data_ptr()
--            size = param_storage.size()
--            tensor_data_index[name] = (data_ptr, size)
--        
--        print(tensor_data_index)
--        rank_path = path + f"rank_{rank}" 
--        if not os.path.exists(rank_path):
--            os.makedirs(rank_path)
--        # save tensors
--        tensor_offsets = save_tensors(tensor_names, tensor_data_index, rank_path)
--        
--        # create tensor index
--        tensor_index = {}
--        for name, param in state_dict.items():
--            # name: offset, size
--            tensor_index[name] = (tensor_offsets[name], tensor_data_index[name][1], tuple(param.shape), tuple(param.stride()), str(param.dtype))
--
--        # save tensor index
--        with open(os.path.join(rank_path, "tensor_index.json"), "w") as f:
--            json.dump(tensor_index, f)
-+            
-+        save_dict(state_dict, os.path.join(path, f"rank_{rank}"))
- 
- 
- class BitsAndBytesModelLoader(BaseModelLoader):
--- 
-2.25.1
-
-
-From 4040cee7774b21ab7d3d286316096d97c0c59429 Mon Sep 17 00:00:00 2001
-From: Leyang Xue <leyang.xue@ed.ac.uk>
-Date: Tue, 9 Jul 2024 15:40:04 +0100
-Subject: [PATCH 6/8] vllm loader new API
-
----
- vllm/model_executor/model_loader/loader.py | 166 ++++++++++++++-------
- 1 file changed, 114 insertions(+), 52 deletions(-)
-
-diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index 684fd522..5bcfbc08 100644
---- a/vllm/model_executor/model_loader/loader.py
-+++ b/vllm/model_executor/model_loader/loader.py
-@@ -602,90 +602,152 @@ class ServerlessLLMLoader(BaseModelLoader):
-                    cache_config: CacheConfig) -> nn.Module:
-         print("Loading model")
-         from serverless_llm_store.client import SllmStoreClient
-+        from serverless_llm_store import load_into_cpu_non_blocking, load_into_gpu_non_blocking, wait_dict_loaded
-         from serverless_llm_store._C import (
-             get_cuda_memory_handles,
-             get_device_uuid_map,
--            get_device_ptrs_from_mem_handles,
-+            allocate_cuda_memory,
-         )
-         
-         from vllm.distributed import get_tensor_model_parallel_rank
-+        from accelerate import dispatch_model, init_empty_weights
-         import uuid
-         
-         assert os.path.isdir(model_config.model)
-         
--        client = SllmStoreClient("localhost:8073")
-+        # client = SllmStoreClient("localhost:8073")
-         rank = get_tensor_model_parallel_rank()
- 
-         local_model_path = model_config.model
-         local_model_path = os.path.join(local_model_path, f"rank_{rank}")
--        model_name = "/".join(local_model_path.split("/")[-2:])
-         
--        ret = client.load_into_cpu(model_name)
--        if not ret or ret == False:
--            raise ValueError(f"Failed to load model {model_name} into CPU")  
-+        # model name is everything after models
-+        model_name = local_model_path.split("models/")[1]
-+        storage_path = local_model_path.split("models/")[0]
-+        if storage_path.endswith("/"):
-+            storage_path = os.path.join(storage_path, "models")
-+        else:
-+            storage_path = storage_path + "models"
-+        device_map = {"": rank}
-+        
-+        load_into_cpu_non_blocking(model_name, device_map, storage_path)
-+        replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
-         
--        tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
--        with open(tensor_index_path, "r") as f:
--            tensor_index = json.load(f)
-+        # tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
-+        # with open(tensor_index_path, "r") as f:
-+        #     tensor_index = json.load(f)
-         
--        device_uuid_map = get_device_uuid_map()
--        device_uuid = device_uuid_map[rank]
--        replica_uuid = str(uuid.uuid4())
-+        # device_uuid_map = get_device_uuid_map()
-+        # device_uuid = device_uuid_map[rank]
-+        # replica_uuid = str(uuid.uuid4())
-         
-         # sllm_state_dict = load_dict(os.path.join(local_model_path, f"rank_{rank}", device_config.device))
-         
-         with set_default_torch_dtype(model_config.dtype):
-             with torch.device(device_config.device):
-                 model = _initialize_model(model_config, self.load_config,
--                                          lora_config, vision_language_config,
--                                          cache_config)
-+                                        lora_config, vision_language_config,
-+                                        cache_config)
-+                model = model.eval()
-+                
-+            # set all parameters to meta device
-             state_dict = self._filter_subtensors(model.state_dict())
-+            key_list = list(state_dict.keys())
-             
--            memory_ptrs = {rank: []}
--            tensor_copy_chunks = {rank: []}
-+            for key, param in model.named_parameters(recurse=True):
-+                if key in key_list:
-+                    param.data = torch.empty(1, device=torch.device("cuda"))
-             
--            # idx = 0
--            # for name, param in model.named_parameters(recurse=True):
--            #     if not name in state_dict:
--            #         continue
--            #     data_ptr = param.data_ptr()
--            #     memory_ptrs[rank].append(data_ptr)
-+            # model = dispatch_model(model, {"": torch.device("meta")})
-+            torch.cuda.empty_cache()
-+            
-+            wait_dict_loaded(model_name, replica_uuid)
-+            
-+            for key, param in model.named_parameters(recurse=True):
-+                if key in key_list:
-+                    tensor = sllm_state_dict[key]
-+                    # param_data = param.data
-+                    # param_shape = param.shape
-+                    # print(f"{param_shape=}, {param.device=}")
-+                    # for dim, size in enumerate(tensor.shape):
-+                    #     if size < param_shape[dim]:
-+                    #         param_data = param_data.narrow(dim, 0, size)
-+                    # if tensor.shape != param_shape:
-+                    #     logger.warning(
-+                    #         "loading tensor of shape %s into "
-+                    #         "parameter '%s' of shape %s", tensor.shape, key, param_shape)
-+                    # param_data.copy_(tensor)
-+                    param.data = tensor
-+                    state_dict.pop(key)
-+            if state_dict:
-+                raise ValueError(
-+                    f"Missing keys {tuple(state_dict)} in loaded state!")
-+            
-+        
-+            
-+            # tensor_meta_index = {}
-+            # tensor_data_index = {}
-+            # for name, (offset, size, shape, stride, dtype) in tensor_index.items():
-+            #     tensor_meta_index[name] = (shape, stride, dtype)
-+            #     tensor_data_index[name] = (offset, size)
-+            
-+            # total_memory_size = 0
-+            # tensor_offsets = []
-+            # tensor_chunks = []
-+            # for name in state_dict.keys():
-+            #     cpu_offsets, memory_size = tensor_index[name]
-+            #     tensor_chunks.append((cpu_offsets, size, total_memory_size, 0))
-+            #     tensor_offsets.append(total_memory_size)
-+            #     total_memory_size += memory_size
-                 
-+            # cuda_memory_ptrs = allocate_cuda_memory(total_memory_size)
-+            # cuda_memory_handles = get_cuda_memory_handles(cuda_memory_ptrs)
-+            
-+            # memory_ptrs = {rank: []}
-+            # tensor_copy_chunks = {rank: []}
-+            
-+            # # idx = 0
-+            # # for name, param in model.named_parameters(recurse=True):
-+            # #     if not name in state_dict:
-+            # #         continue
-+            # #     data_ptr = param.data.untyped_storage().data_ptr()
-+            # #     memory_ptrs[rank].append(data_ptr)
-+                
-+            # #     offset, size, _, _, _ = tensor_index[name]
-+            # #     tensor_copy_chunks[rank].append((offset, size, 0, idx))
-+            # #     idx += 1
-+            # #     print(f"Loading tensor {name} with offset {offset} and size {size}, device {param.device}, {hex(data_ptr)}, {idx}")
-+
-+            # for idx, (name, param) in enumerate(state_dict.items()):
-+            #     # data_ptr = param.untyped_storage().data_ptr()
-+            #     data_ptr = param.view(-1)[-1].data_ptr()
-+            #     memory_ptrs[rank].append(data_ptr)
-             #     offset, size, _, _, _ = tensor_index[name]
-+            #     # every tensor has its own base address, so GPU offset is always 0
-             #     tensor_copy_chunks[rank].append((offset, size, 0, idx))
--            #     idx += 1
-             #     print(f"Loading tensor {name} with offset {offset} and size {size}, device {param.device}, {hex(data_ptr)}, {idx}")
--
--            for idx, (name, param) in enumerate(state_dict.items()):
--                data_ptr = param.untyped_storage().data_ptr()
--                memory_ptrs[rank].append(data_ptr)
--                offset, size, _, _, _ = tensor_index[name]
--                # every tensor has its own base address, so GPU offset is always 0
--                tensor_copy_chunks[rank].append((offset, size, 0, idx))
--                print(f"Loading tensor {name} with offset {offset} and size {size}, device {param.device}, {hex(data_ptr)}, {idx}")
-             
--            cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)
--            # device_ptrs = get_device_ptrs_from_mem_handles(cuda_memory_handles)
-+            # cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)
-             
--            # for k, ptr in enumerate(device_ptrs[rank]):
--            #     assert hex(ptr) == hex(memory_ptrs[rank][k]), f"Memory ptrs do not match: {hex(ptr)} != {hex(memory_ptrs[rank][k])}"
--            # cuda_memory_handles = {
--            #     rank: [
--            #         get_cuda_memory_handles({rank: ptr})[rank]
--            #         for ptr in memory_ptrs[rank]
--            #     ]
--            # }
-+            # # for k, ptr in enumerate(device_ptrs[rank]):
-+            # #     assert hex(ptr) == hex(memory_ptrs[rank][k]), f"Memory ptrs do not match: {hex(ptr)} != {hex(memory_ptrs[rank][k])}"
-+            # # cuda_memory_handles = {
-+            # #     rank: [
-+            # #         get_cuda_memory_handles({rank: ptr})[rank]
-+            # #         for ptr in memory_ptrs[rank]
-+            # #     ]
-+            # # }
-             
--            ret = client.load_into_gpu(
--                model_name,
--                replica_uuid,
--                {device_uuid: tensor_copy_chunks[rank]},
--                {device_uuid: cuda_memory_handles[rank]}
--            )
--            if not ret or ret == False:
--                raise ValueError(f"Failed to load model {model_name} into GPU")
--            client.confirm_model_loaded(model_name, replica_uuid)
--        return model.eval()
-+            # ret = client.load_into_gpu(
-+            #     model_name,
-+            #     replica_uuid,
-+            #     {device_uuid: tensor_copy_chunks[rank]},
-+            #     {device_uuid: cuda_memory_handles[rank]}
-+            # )
-+            # if not ret or ret == False:
-+            #     raise ValueError(f"Failed to load model {model_name} into GPU")
-+            # client.confirm_model_loaded(model_name, replica_uuid)
-+        return model
- 
-     @staticmethod
-     def save_model(
-@@ -702,7 +764,7 @@ class ServerlessLLMLoader(BaseModelLoader):
-         
-         # move all tensors to CPU
-         for key, tensor in state_dict.items():
--            state_dict[key] = tensor.cpu()
-+            state_dict[key] = tensor.cpu().contiguous()
-             
-         save_dict(state_dict, os.path.join(path, f"rank_{rank}"))
- 
--- 
-2.25.1
-
-
-From b3c74c6a75e204f532f5e077534be9913ac786a7 Mon Sep 17 00:00:00 2001
-From: Leyang Xue <leyang.xue@ed.ac.uk>
-Date: Wed, 10 Jul 2024 01:01:18 +0100
-Subject: [PATCH 7/8] set empty tensor
-
----
- examples/load_sllm_state.py                |  9 ++++++--
- examples/save_sllm_state.py                |  7 ++++++
- vllm/model_executor/model_loader/loader.py | 27 ++++++++++++++--------
- 3 files changed, 31 insertions(+), 12 deletions(-)
-
-diff --git a/examples/load_sllm_state.py b/examples/load_sllm_state.py
-index 5a172cf5..e3dbdb82 100644
---- a/examples/load_sllm_state.py
-+++ b/examples/load_sllm_state.py
-@@ -43,9 +43,14 @@ if __name__ == "__main__":
-     llm = LLM(
-         model=args.output,
-         load_format="serverless_llm",
--        tensor_parallel_size=2,
-+        # load_format="sharded_state",
-+        gpu_memory_utilization=0.9,
-+        distributed_executor_backend="mp",
-+        max_model_len = 512,
-+        tensor_parallel_size=args.tensor_parallel_size,
-+        # num_gpu_blocks_override=128,
-     )
-     
--    input_text = "Hello, world!"
-+    input_text = "Explain thread and process in python."
-     
-     print(llm.generate(input_text))
-diff --git a/examples/save_sllm_state.py b/examples/save_sllm_state.py
-index c74ff684..4070cb7d 100644
---- a/examples/save_sllm_state.py
-+++ b/examples/save_sllm_state.py
-@@ -46,12 +46,19 @@ parser.add_argument("--max-file-size",
- 
- def main(args):
-     engine_args = EngineArgs.from_cli_args(args)
-+    engine_args.distributed_executor_backend = "mp"
-+    engine_args.gpu_memory_utilization = 0.4
-+    engine_args.max_seq_len_to_capture = 512
-+    engine_args.max_model_len = 512
-+    engine_args.max_num_seqs = 1
-+    engine_args.num_gpu_blocks_override = 128
-     if engine_args.enable_lora:
-         raise ValueError("Saving with enable_lora=True is not supported!")
-     model_path = engine_args.model
-     if not Path(model_path).is_dir():
-         raise ValueError("model path must be a local directory")
-     # Create LLM instance from arguments
-+    print(dataclasses.asdict(engine_args))
-     llm = LLM(**dataclasses.asdict(engine_args))
-     # Prepare output directory
-     Path(args.output).mkdir(exist_ok=True)
-diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index 5bcfbc08..a2ca1618 100644
---- a/vllm/model_executor/model_loader/loader.py
-+++ b/vllm/model_executor/model_loader/loader.py
-@@ -14,6 +14,7 @@ import numpy as np
- import torch
- from huggingface_hub import HfApi, hf_hub_download
- from torch import nn
-+import gc
- 
- from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoadFormat,
-                          LoRAConfig, ModelConfig, ParallelConfig,
-@@ -592,6 +593,7 @@ class ServerlessLLMLoader(BaseModelLoader):
-                 else:
-                     result[k] = t
-         return result
-+        
- 
-     def load_model(self, *, model_config: ModelConfig,
-                    device_config: DeviceConfig,
-@@ -600,9 +602,9 @@ class ServerlessLLMLoader(BaseModelLoader):
-                    parallel_config: ParallelConfig,
-                    scheduler_config: SchedulerConfig,
-                    cache_config: CacheConfig) -> nn.Module:
--        print("Loading model")
-         from serverless_llm_store.client import SllmStoreClient
-         from serverless_llm_store import load_into_cpu_non_blocking, load_into_gpu_non_blocking, wait_dict_loaded
-+        from serverless_llm_store import load_dict
-         from serverless_llm_store._C import (
-             get_cuda_memory_handles,
-             get_device_uuid_map,
-@@ -630,9 +632,6 @@ class ServerlessLLMLoader(BaseModelLoader):
-             storage_path = storage_path + "models"
-         device_map = {"": rank}
-         
--        load_into_cpu_non_blocking(model_name, device_map, storage_path)
--        replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
--        
-         # tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
-         # with open(tensor_index_path, "r") as f:
-         #     tensor_index = json.load(f)
-@@ -642,26 +641,34 @@ class ServerlessLLMLoader(BaseModelLoader):
-         # replica_uuid = str(uuid.uuid4())
-         
-         # sllm_state_dict = load_dict(os.path.join(local_model_path, f"rank_{rank}", device_config.device))
--        
-         with set_default_torch_dtype(model_config.dtype):
--            with torch.device(device_config.device):
-+            # with torch.device(device_config.device):
-+            with torch.device("cpu"):
-                 model = _initialize_model(model_config, self.load_config,
-                                         lora_config, vision_language_config,
-                                         cache_config)
-                 model = model.eval()
--                
-             # set all parameters to meta device
-             state_dict = self._filter_subtensors(model.state_dict())
-             key_list = list(state_dict.keys())
-             
-             for key, param in model.named_parameters(recurse=True):
-                 if key in key_list:
--                    param.data = torch.empty(1, device=torch.device("cuda"))
--            
-+                    param.data = torch.empty(1, device="cuda")
-+                    # print(f"{param.shape=}, {param.device=}")
-+            gc.collect()
-+            # for key in state_dict:
-+            #     state_dict[key] = torch.empty(1, device="cuda")
-             # model = dispatch_model(model, {"": torch.device("meta")})
--            torch.cuda.empty_cache()
-+            
-+            
-+            # print cuda free memory
-+            # print("Memory reserved ", torch.cuda.memory_reserved() / 1024 / 1024 / 1024, "GB")
-+            load_into_cpu_non_blocking(model_name, device_map, storage_path)
-+            replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
-             
-             wait_dict_loaded(model_name, replica_uuid)
-+            # sllm_state_dict = load_dict(model_name, device_map, storage_path)
-             
-             for key, param in model.named_parameters(recurse=True):
-                 if key in key_list:
--- 
-2.25.1
-
-
-From 1da6d1d2bd2aceb7d850f6e2c779a06a9f43a9c6 Mon Sep 17 00:00:00 2001
-From: Leyang Xue <leyang.xue@ed.ac.uk>
-Date: Mon, 22 Jul 2024 14:11:35 +0100
-Subject: [PATCH 8/8] clean up loader
-
----
- vllm/model_executor/model_loader/loader.py | 111 +--------------------
- 1 file changed, 2 insertions(+), 109 deletions(-)
-
-diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
-index a2ca1618..0608bff9 100644
---- a/vllm/model_executor/model_loader/loader.py
-+++ b/vllm/model_executor/model_loader/loader.py
-@@ -602,22 +602,11 @@ class ServerlessLLMLoader(BaseModelLoader):
-                    parallel_config: ParallelConfig,
-                    scheduler_config: SchedulerConfig,
-                    cache_config: CacheConfig) -> nn.Module:
--        from serverless_llm_store.client import SllmStoreClient
--        from serverless_llm_store import load_into_cpu_non_blocking, load_into_gpu_non_blocking, wait_dict_loaded
--        from serverless_llm_store import load_dict
--        from serverless_llm_store._C import (
--            get_cuda_memory_handles,
--            get_device_uuid_map,
--            allocate_cuda_memory,
--        )
--        
-+        from serverless_llm_store import load_dict_single_device
-         from vllm.distributed import get_tensor_model_parallel_rank
--        from accelerate import dispatch_model, init_empty_weights
--        import uuid
-         
-         assert os.path.isdir(model_config.model)
-         
--        # client = SllmStoreClient("localhost:8073")
-         rank = get_tensor_model_parallel_rank()
- 
-         local_model_path = model_config.model
-@@ -630,17 +619,7 @@ class ServerlessLLMLoader(BaseModelLoader):
-             storage_path = os.path.join(storage_path, "models")
-         else:
-             storage_path = storage_path + "models"
--        device_map = {"": rank}
--        
--        # tensor_index_path = os.path.join(local_model_path, "tensor_index.json")
--        # with open(tensor_index_path, "r") as f:
--        #     tensor_index = json.load(f)
-         
--        # device_uuid_map = get_device_uuid_map()
--        # device_uuid = device_uuid_map[rank]
--        # replica_uuid = str(uuid.uuid4())
--        
--        # sllm_state_dict = load_dict(os.path.join(local_model_path, f"rank_{rank}", device_config.device))
-         with set_default_torch_dtype(model_config.dtype):
-             # with torch.device(device_config.device):
-             with torch.device("cpu"):
-@@ -655,105 +634,19 @@ class ServerlessLLMLoader(BaseModelLoader):
-             for key, param in model.named_parameters(recurse=True):
-                 if key in key_list:
-                     param.data = torch.empty(1, device="cuda")
--                    # print(f"{param.shape=}, {param.device=}")
-             gc.collect()
--            # for key in state_dict:
--            #     state_dict[key] = torch.empty(1, device="cuda")
--            # model = dispatch_model(model, {"": torch.device("meta")})
--            
-             
--            # print cuda free memory
--            # print("Memory reserved ", torch.cuda.memory_reserved() / 1024 / 1024 / 1024, "GB")
--            load_into_cpu_non_blocking(model_name, device_map, storage_path)
--            replica_uuid, sllm_state_dict, device_map = load_into_gpu_non_blocking(model_name, device_map, storage_path)
--            
--            wait_dict_loaded(model_name, replica_uuid)
--            # sllm_state_dict = load_dict(model_name, device_map, storage_path)
-+            sllm_state_dict = load_dict_single_device(model_name, storage_path)
-             
-             for key, param in model.named_parameters(recurse=True):
-                 if key in key_list:
-                     tensor = sllm_state_dict[key]
--                    # param_data = param.data
--                    # param_shape = param.shape
--                    # print(f"{param_shape=}, {param.device=}")
--                    # for dim, size in enumerate(tensor.shape):
--                    #     if size < param_shape[dim]:
--                    #         param_data = param_data.narrow(dim, 0, size)
--                    # if tensor.shape != param_shape:
--                    #     logger.warning(
--                    #         "loading tensor of shape %s into "
--                    #         "parameter '%s' of shape %s", tensor.shape, key, param_shape)
--                    # param_data.copy_(tensor)
-                     param.data = tensor
-                     state_dict.pop(key)
-             if state_dict:
-                 raise ValueError(
-                     f"Missing keys {tuple(state_dict)} in loaded state!")
-             
--        
--            
--            # tensor_meta_index = {}
--            # tensor_data_index = {}
--            # for name, (offset, size, shape, stride, dtype) in tensor_index.items():
--            #     tensor_meta_index[name] = (shape, stride, dtype)
--            #     tensor_data_index[name] = (offset, size)
--            
--            # total_memory_size = 0
--            # tensor_offsets = []
--            # tensor_chunks = []
--            # for name in state_dict.keys():
--            #     cpu_offsets, memory_size = tensor_index[name]
--            #     tensor_chunks.append((cpu_offsets, size, total_memory_size, 0))
--            #     tensor_offsets.append(total_memory_size)
--            #     total_memory_size += memory_size
--                
--            # cuda_memory_ptrs = allocate_cuda_memory(total_memory_size)
--            # cuda_memory_handles = get_cuda_memory_handles(cuda_memory_ptrs)
--            
--            # memory_ptrs = {rank: []}
--            # tensor_copy_chunks = {rank: []}
--            
--            # # idx = 0
--            # # for name, param in model.named_parameters(recurse=True):
--            # #     if not name in state_dict:
--            # #         continue
--            # #     data_ptr = param.data.untyped_storage().data_ptr()
--            # #     memory_ptrs[rank].append(data_ptr)
--                
--            # #     offset, size, _, _, _ = tensor_index[name]
--            # #     tensor_copy_chunks[rank].append((offset, size, 0, idx))
--            # #     idx += 1
--            # #     print(f"Loading tensor {name} with offset {offset} and size {size}, device {param.device}, {hex(data_ptr)}, {idx}")
--
--            # for idx, (name, param) in enumerate(state_dict.items()):
--            #     # data_ptr = param.untyped_storage().data_ptr()
--            #     data_ptr = param.view(-1)[-1].data_ptr()
--            #     memory_ptrs[rank].append(data_ptr)
--            #     offset, size, _, _, _ = tensor_index[name]
--            #     # every tensor has its own base address, so GPU offset is always 0
--            #     tensor_copy_chunks[rank].append((offset, size, 0, idx))
--            #     print(f"Loading tensor {name} with offset {offset} and size {size}, device {param.device}, {hex(data_ptr)}, {idx}")
--            
--            # cuda_memory_handles = get_cuda_memory_handles(memory_ptrs)
--            
--            # # for k, ptr in enumerate(device_ptrs[rank]):
--            # #     assert hex(ptr) == hex(memory_ptrs[rank][k]), f"Memory ptrs do not match: {hex(ptr)} != {hex(memory_ptrs[rank][k])}"
--            # # cuda_memory_handles = {
--            # #     rank: [
--            # #         get_cuda_memory_handles({rank: ptr})[rank]
--            # #         for ptr in memory_ptrs[rank]
--            # #     ]
--            # # }
--            
--            # ret = client.load_into_gpu(
--            #     model_name,
--            #     replica_uuid,
--            #     {device_uuid: tensor_copy_chunks[rank]},
--            #     {device_uuid: cuda_memory_handles[rank]}
--            # )
--            # if not ret or ret == False:
--            #     raise ValueError(f"Failed to load model {model_name} into GPU")
--            # client.confirm_model_loaded(model_name, replica_uuid)
-         return model
- 
-     @staticmethod
 -- 
 2.25.1
 
