@@ -35,7 +35,8 @@ jobs:
             - name: Install ServerlessLLM
               run: |
                   pip install .
-                  cd serverless_llm/store && pip install . && ./patch.sh
+                  cd serverless_llm/store && pip install .
+                  ./serverless_llm/store/vllm_patch/patch.sh
 
             - name: Run tests
               run: |
@@ -43,4 +44,5 @@ jobs:
 
             - name: Cleanup
               run: |
+                  ./serverless_llm/store/vllm_patch/remove_patch.sh
                   
