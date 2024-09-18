@@ -315,5 +315,5 @@ By following this workflow, we maintain a clean and organized main branch, makin
 
    ```bash
    # Create a virtual environment
-   pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless-llm-store==0.0.1dev23
+   pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless-llm-store==0.0.1dev4
    ```
