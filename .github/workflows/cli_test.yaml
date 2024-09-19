@@ -1,19 +1,10 @@
-name: Backend Tests
+name: CLI Tests
 
-on:
-    pull_request:
-        branches:
-            - main
-        paths:
-            - 'serverless_llm/serve/backends/**'
+on: [push, pull_request]
 
 jobs:
-    backend_tests:
-        runs-on: self-hosted
-        if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
-        container:
-          image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
-          options: --gpus all
+    cli_tests:
+        runs-on: ubuntu-22.04
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -22,20 +13,19 @@ jobs:
               uses: actions/setup-python@v5
               with:
                   python-version: '3.10'
-
+            
             - name: Install dependencies
               run: |
-                  apt-get update && apt-get install -y ca-certificates git
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt
                   pip install -r requirements-worker.txt
                   pip install -r requirements-test.txt
+                  pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev4
 
             - name: Install ServerlessLLM
               run: |
-                  pip install .
-                  cd serverless_llm/store && pip install .
+                    pip install -e .
 
             - name: Run tests
               run: |
-                  pytest tests/backend_test
+                  pytest tests/cli_test

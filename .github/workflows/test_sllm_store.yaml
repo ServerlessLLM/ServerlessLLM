@@ -1,0 +1,50 @@
+name: Test Sllm Store
+
+on:
+    pull_request:
+        branches:
+            - main
+        paths:
+            - 'serverless_llm/store/**'
+
+jobs:
+  sllm_store_tests:
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
+    container:
+      image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
+      options: --gpus all
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'  # Specify the Python version you want to use
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y ca-certificates git
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.txt
+
+      # Python Tests
+      - name: Install ServerlessLLM Store
+        run: |
+          export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
+          cd serverless_llm/store && pip install .
+
+      - name: Run Python tests
+        run: |
+          pytest serverless_llm/store/tests/python
+
+      # C++ Tests
+      - name: Build C++ project
+        run: |
+          export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
+          cd serverless_llm/store && pip install -r requirements-build.txt && bash cpp_build.sh
+
+      # - name: Run C++ tests
+      #   run: |
+      #     cd serverless_llm/store/build && ctest --output-on-failure

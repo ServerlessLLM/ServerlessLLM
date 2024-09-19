@@ -2,7 +2,7 @@
 
 Please find our documents in [ServerlessLLM](https://serverlessllm.github.io/docs/stable/getting_started/quickstart).
 
-## How to build ServelessLLM Docs
+## How to build ServerlessLLM Docs
 
 This website is built using Docusaurus, a modern static website generator.
 

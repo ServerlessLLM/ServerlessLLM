@@ -16,7 +16,7 @@ After setting up the ServerlessLLM cluster, you can use the commands listed belo
 ### Example Workflow
 
 1. **Deploy a Model**
-    > Deploy a model using the model name, which must be a huggingface pretrained model name. i.e. "facebook/opt-1.3b" instead of "opt-1.3b".
+    > Deploy a model using the model name, which must be a HuggingFace pretrained model name. i.e. "facebook/opt-1.3b" instead of "opt-1.3b".
     ```bash
     sllm-cli deploy --model facebook/opt-1.3b
     ```

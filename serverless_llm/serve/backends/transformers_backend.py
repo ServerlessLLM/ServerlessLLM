@@ -27,7 +27,7 @@ from typing import Any, Dict, Optional
 import ray
 import torch
 from serverless_llm_store import load_model
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 
 from serverless_llm.serve.backends.backend_utils import SllmBackend
 from serverless_llm.serve.logger import init_logger
@@ -53,7 +53,6 @@ class TransformersBackend(SllmBackend):
             json_obj = json.loads(json_str)
             return json_obj
         except json.JSONDecodeError as e:
-            # print(f"Failed to decode JSON string: {e}")
             logger.error(f"Failed to decode JSON string: {e}")
             return None
 

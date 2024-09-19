@@ -6,7 +6,7 @@ sidebar_position: 0
 
 ## Pre-requisites
 To enable storage aware model loading scheduling, a hardware configuration file is required.
-For example, the following is a sample configuration file for two serverls:
+For example, the following is a sample configuration file for two servers:
 ```bash
 echo '{
   "0": {
