@@ -172,10 +172,11 @@ class VllmModelDownloader:
                 enforce_eager=True,
                 max_model_len=1,
             )
+            model_path = os.path.join(storage_path, model_name)
             model_executer = llm_writer.llm_engine.model_executor
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
-                path=model_name, pattern=pattern, max_size=max_size
+                path=model_path, pattern=pattern, max_size=max_size
             )
             for file in os.listdir(input_dir):
                 # Copy the metadata files into the output directory
@@ -185,7 +186,7 @@ class VllmModelDownloader:
                     ".safetensors",
                 ):
                     src_path = os.path.join(input_dir, file)
-                    dest_path = os.path.join(storage_path, model_name, file)
+                    dest_path = os.path.join(model_path, file)
                     if os.path.isdir(src_path):
                         shutil.copytree(src_path, dest_path)
                     else:
@@ -199,7 +200,7 @@ class VllmModelDownloader:
 
         try:
             with TemporaryDirectory() as cache_dir:
-                # download model from huggingface
+                # download from huggingface
                 input_dir = snapshot_download(
                     model_name,
                     cache_dir=cache_dir,
@@ -209,9 +210,9 @@ class VllmModelDownloader:
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
-            shutil.rmtree(os.path.join(storage_path, model_name))
+            shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
             raise RuntimeError(
-                f"Failed to save model {model_name} for vllm backend: {e}"
+                f"Failed to save {model_name} for vllm backend: {e}"
             )
 
 downloader = VllmModelDownloader()
