@@ -1,4 +1,4 @@
-vllm==0.5.0
+vllm==0.5.0.post1
 accelerate==0.29.3
 grpcio==1.49.1
 grpcio-tools==1.49.1

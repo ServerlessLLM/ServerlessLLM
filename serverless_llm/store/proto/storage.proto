@@ -21,11 +21,11 @@ message GetServerConfigResponse {
 }
 
 message RegisterModelRequest {
-  string model_name = 1;
+  string model_path = 1;
 }
 
 message RegisterModelResponse {
-  string model_name = 1;
+  string model_path = 1;
   int64 model_size = 2;
 }
 
@@ -53,7 +53,7 @@ message MemCopyHandleList {
 
 // If the handles has one item, all chunks share the same handle, other each chunk should have one handle
 message LoadModelRequest {
-  string model_name = 1;
+  string model_path = 1;
   string replica_uuid = 2;
   map<string, MemCopyChunkList> chunks = 3;
   map<string, MemCopyHandleList> handles = 4;
@@ -65,24 +65,24 @@ message LoadModelResponse {
 }
 
 message ConfirmModelRequest {
-  string model_name = 1;
+  string model_path = 1;
   string replica_uuid = 2;
   DeviceType target_device_type = 3;
 }
 
 message ConfirmModelResponse {
-  string model_name = 1;
+  string model_path = 1;
   int32 code = 2;
 }
 
 message UnloadModelRequest {
-  string model_name = 1;
+  string model_path = 1;
   string replica_uuid = 2;
   DeviceType target_device_type = 3;
 }
 
 message UnloadModelResponse {
-  string model_name = 1;
+  string model_path = 1;
   int32 code = 2;
 }
 

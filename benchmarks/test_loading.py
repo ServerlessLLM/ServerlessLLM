@@ -28,7 +28,7 @@ from benchmark_utils import (
     benchmark_inference,
     measure,
 )
-from serverless_llm_store import load_model
+from serverless_llm_store.transformers import load_model
 from torch import nn
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer

@@ -43,24 +43,24 @@ class CheckpointStore {
                   int num_thread, size_t chunk_size);
   ~CheckpointStore();
 
-  int64_t RegisterModelInfo(const std::string& model_name);
-  int LoadModelFromDisk(const std::string& model_name);
-  int LoadModelFromDiskAsync(const std::string& model_name);
-  int LoadModelFromMem(const std::string& model_name,
+  int64_t RegisterModelInfo(const std::string& model_path);
+  int LoadModelFromDisk(const std::string& model_path);
+  int LoadModelFromDiskAsync(const std::string& model_path);
+  int LoadModelFromMem(const std::string& model_path,
                        const std::string& replica_uuid,
                        const MemCopyHandleListMap& gpu_memory_handles,
                        const MemCopyChunkListMap& mem_copy_chunks);
-  int LoadModelFromMemAsync(const std::string& model_name,
+  int LoadModelFromMemAsync(const std::string& model_path,
                             const std::string& replica_uuid,
                             const MemCopyHandleListMap& gpu_memory_handles,
                             const MemCopyChunkListMap& mem_copy_chunks);
-  int WaitModelInGpu(const std::string& model_name,
+  int WaitModelInGpu(const std::string& model_path,
                      const std::string& replica_uuid);
-  int UnloadModelFromHost(const std::string& model_name);
+  int UnloadModelFromHost(const std::string& model_path);
   int ClearMem();
-  void DeleteModelInfo(const std::string& model_name);
-  void ClearModelMem(const std::string& model_name);
-  void ClearModelGpuMem(const std::string& model_name,
+  void DeleteModelInfo(const std::string& model_path);
+  void ClearModelMem(const std::string& model_path);
+  void ClearModelGpuMem(const std::string& model_path,
                         const std::string& replica_uuid);
 
  public:
@@ -94,7 +94,7 @@ class CheckpointStore {
   std::queue<std::future<int>> async_tasks_;
 
   size_t GetNumChunkFromTensorSize(size_t tensor_size);
-  ModelPtr GetModelPtr(const std::string& model_name);
+  ModelPtr GetModelPtr(const std::string& model_path);
   GpuReplicaPtr NewGpuReplica(const std::shared_ptr<Model>& model,
                               const std::string& replica_uuid);
   int InitializeModel(const std::shared_ptr<Model>& model);
@@ -104,7 +104,7 @@ class CheckpointStore {
   int AllocateCudaMemory(
       const std::shared_ptr<GpuReplica>& gpu_replica,
       std::vector<std::pair<int, uint64_t>> gpu_memory_sizes);
-  ModelPtr GetModelByName(const std::string& model_name);
+  ModelPtr GetModelByName(const std::string& model_path);
   MemPtrListMap GetDevicePtrsFromMemHandles(
       const MemCopyHandleListMap& memory_handles);
 };
