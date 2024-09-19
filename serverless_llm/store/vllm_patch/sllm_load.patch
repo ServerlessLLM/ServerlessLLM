@@ -1,0 +1,286 @@
+From 16415cbb9511ccdeb6644aafe710f3c3bda4db06 Mon Sep 17 00:00:00 2001
+From: xly <leyang.xue@ed.ac.uk>
+Date: Sun, 30 Jun 2024 22:01:43 +0100
+Subject: [PATCH] add serverless-llm loader
+
+custom load api
+
+save load sllm
+
+early load cpu & single gpu save
+
+update loader
+
+vllm loader new API
+
+set empty tensor
+
+clean up loader
+
+fix: remove new files created
+---
+ vllm/config.py                             |   1 +
+ vllm/executor/distributed_gpu_executor.py  |  11 ++
+ vllm/executor/gpu_executor.py              |  10 ++
+ vllm/model_executor/model_loader/loader.py | 126 +++++++++++++++++++++
+ vllm/worker/model_runner.py                |  14 +++
+ vllm/worker/worker.py                      |  12 ++
+ 6 files changed, 174 insertions(+)
+
+diff --git a/vllm/config.py b/vllm/config.py
+index 50b0156b..7aeea079 100644
+--- a/vllm/config.py
++++ b/vllm/config.py
+@@ -497,6 +497,7 @@ class LoadFormat(str, enum.Enum):
+     TENSORIZER = "tensorizer"
+     SHARDED_STATE = "sharded_state"
+     BITSANDBYTES = "bitsandbytes"
++    SERVERLESS_LLM = "serverless_llm"
+ 
+ 
+ @dataclass
+diff --git a/vllm/executor/distributed_gpu_executor.py b/vllm/executor/distributed_gpu_executor.py
+index f7c608af..e9c09c6f 100644
+--- a/vllm/executor/distributed_gpu_executor.py
++++ b/vllm/executor/distributed_gpu_executor.py
+@@ -113,6 +113,17 @@ class DistributedGPUExecutor(GPUExecutor):
+                           path=path,
+                           pattern=pattern,
+                           max_size=max_size)
++        
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: Optional[str] = None,
++        max_size: Optional[int] = None,
++    ) -> None:
++        self._run_workers("save_serverless_llm_state",
++                          path=path,
++                          pattern=pattern,
++                          max_size=max_size)
+ 
+     @abstractmethod
+     def _driver_execute_model(
+diff --git a/vllm/executor/gpu_executor.py b/vllm/executor/gpu_executor.py
+index 3ad201f4..d71da2ba 100644
+--- a/vllm/executor/gpu_executor.py
++++ b/vllm/executor/gpu_executor.py
+@@ -106,6 +106,16 @@ class GPUExecutor(ExecutorBase):
+         # GPUExecutor will always be healthy as long as
+         # it's running.
+         return
++    
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: Optional[str] = None,
++        max_size: Optional[int] = None,
++    ) -> None:
++        self.driver_worker.save_serverless_llm_state(
++            path=path, pattern=pattern, max_size=max_size
++        )
+ 
+ 
+ class GPUExecutorAsync(GPUExecutor, ExecutorAsyncBase):
+diff --git a/vllm/model_executor/model_loader/loader.py b/vllm/model_executor/model_loader/loader.py
+index 9c2eaee2..0608bff9 100644
+--- a/vllm/model_executor/model_loader/loader.py
++++ b/vllm/model_executor/model_loader/loader.py
+@@ -14,6 +14,7 @@ import numpy as np
+ import torch
+ from huggingface_hub import HfApi, hf_hub_download
+ from torch import nn
++import gc
+ 
+ from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoadFormat,
+                          LoRAConfig, ModelConfig, ParallelConfig,
+@@ -545,6 +546,128 @@ class ShardedStateLoader(BaseModelLoader):
+                 os.path.join(path, filename),
+             )
+ 
++class ServerlessLLMLoader(BaseModelLoader):
++    # DEFAULT_PATTERN = "model-rank-{rank}-part-{part}.safetensors"
++
++    def __init__(self, load_config: LoadConfig):
++        super().__init__(load_config)
++        extra_config = ({} if load_config.model_loader_extra_config is None
++                        else load_config.model_loader_extra_config.copy())
++        # self.pattern = extra_config.pop("pattern", self.DEFAULT_PATTERN)
++        if extra_config:
++            raise ValueError(f"Unexpected extra config keys for load format "
++                             f"{load_config.load_format}: "
++                             f"{load_config.model_loader_extra_config.keys()}")
++
++    @staticmethod
++    def _filter_subtensors(
++            tensors: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
++        """
++        Filter out all tensors that share the same memory or a subset of the
++        memory of another tensor.
++        """
++        same_storage_groups = collections.defaultdict(list)
++        for key, tensor in tensors.items():
++            if tensor.numel():
++                ptr = tensor.untyped_storage().data_ptr()
++                same_storage_groups[tensor.device, ptr].append((key, tensor))
++
++        def get_end_ptr(tensor: torch.Tensor) -> int:
++            return tensor.view(-1)[-1].data_ptr() + tensor.element_size()
++
++        result = {}
++        for group in same_storage_groups.values():
++            for k, t in group:
++                a, b = t.data_ptr(), get_end_ptr(t)
++                for k2, t2 in group:
++                    if not t2.is_contiguous():
++                        continue
++                    a2, b2 = t2.data_ptr(), get_end_ptr(t2)
++                    if a < a2 or b2 < b:
++                        continue
++                    if a2 < a or b < b2 or not t.is_contiguous():
++                        break  # t2 covers strictly more memory than t.
++                    if k2 < k:
++                        # Same tensors, keep the one with the smaller key.
++                        break
++                else:
++                    result[k] = t
++        return result
++        
++
++    def load_model(self, *, model_config: ModelConfig,
++                   device_config: DeviceConfig,
++                   lora_config: Optional[LoRAConfig],
++                   vision_language_config: Optional[VisionLanguageConfig],
++                   parallel_config: ParallelConfig,
++                   scheduler_config: SchedulerConfig,
++                   cache_config: CacheConfig) -> nn.Module:
++        from serverless_llm_store import load_dict_single_device
++        from vllm.distributed import get_tensor_model_parallel_rank
++        
++        assert os.path.isdir(model_config.model)
++        
++        rank = get_tensor_model_parallel_rank()
++
++        local_model_path = model_config.model
++        local_model_path = os.path.join(local_model_path, f"rank_{rank}")
++        
++        # model name is everything after models
++        model_name = local_model_path.split("models/")[1]
++        storage_path = local_model_path.split("models/")[0]
++        if storage_path.endswith("/"):
++            storage_path = os.path.join(storage_path, "models")
++        else:
++            storage_path = storage_path + "models"
++        
++        with set_default_torch_dtype(model_config.dtype):
++            # with torch.device(device_config.device):
++            with torch.device("cpu"):
++                model = _initialize_model(model_config, self.load_config,
++                                        lora_config, vision_language_config,
++                                        cache_config)
++                model = model.eval()
++            # set all parameters to meta device
++            state_dict = self._filter_subtensors(model.state_dict())
++            key_list = list(state_dict.keys())
++            
++            for key, param in model.named_parameters(recurse=True):
++                if key in key_list:
++                    param.data = torch.empty(1, device="cuda")
++            gc.collect()
++            
++            sllm_state_dict = load_dict_single_device(model_name, storage_path)
++            
++            for key, param in model.named_parameters(recurse=True):
++                if key in key_list:
++                    tensor = sllm_state_dict[key]
++                    param.data = tensor
++                    state_dict.pop(key)
++            if state_dict:
++                raise ValueError(
++                    f"Missing keys {tuple(state_dict)} in loaded state!")
++            
++        return model
++
++    @staticmethod
++    def save_model(
++        model: torch.nn.Module,
++        path: str,
++        pattern: Optional[str] = None,
++        max_size: Optional[int] = None,
++    ) -> None:
++        from vllm.distributed import get_tensor_model_parallel_rank
++        from serverless_llm_store import save_dict
++        
++        rank = get_tensor_model_parallel_rank()
++        state_dict = ServerlessLLMLoader._filter_subtensors(model.state_dict())
++        
++        # move all tensors to CPU
++        for key, tensor in state_dict.items():
++            state_dict[key] = tensor.cpu().contiguous()
++            
++        save_dict(state_dict, os.path.join(path, f"rank_{rank}"))
++
+ 
+ class BitsAndBytesModelLoader(BaseModelLoader):
+     """Model loader to load model weights with BitAndBytes quantization."""
+@@ -795,6 +918,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
+ 
+     if load_config.load_format == LoadFormat.SHARDED_STATE:
+         return ShardedStateLoader(load_config)
++    
++    if load_config.load_format == LoadFormat.SERVERLESS_LLM:
++        return ServerlessLLMLoader(load_config)
+ 
+     if load_config.load_format == LoadFormat.BITSANDBYTES:
+         return BitsAndBytesModelLoader(load_config)
+diff --git a/vllm/worker/model_runner.py b/vllm/worker/model_runner.py
+index 99b12293..c5f60488 100644
+--- a/vllm/worker/model_runner.py
++++ b/vllm/worker/model_runner.py
+@@ -221,6 +221,20 @@ class ModelRunner:
+             pattern=pattern,
+             max_size=max_size,
+         )
++        
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: Optional[str] = None,
++        max_size: Optional[int] = None,
++    ) -> None:
++        from vllm.model_executor.model_loader.loader import ServerlessLLMLoader
++        ServerlessLLMLoader.save_model(
++            self.model,
++            path,
++            pattern=pattern,
++            max_size=max_size,
++        )
+ 
+     def get_max_block_per_batch(self) -> int:
+         block_size = self.block_size
+diff --git a/vllm/worker/worker.py b/vllm/worker/worker.py
+index 10411a2b..f143382f 100644
+--- a/vllm/worker/worker.py
++++ b/vllm/worker/worker.py
+@@ -131,6 +131,18 @@ class Worker(WorkerBase):
+             pattern=pattern,
+             max_size=max_size,
+         )
++        
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: Optional[str] = None,
++        max_size: Optional[int] = None,
++    ) -> None:
++        self.model_runner.save_serverless_llm_state(
++            path,
++            pattern=pattern,
++            max_size=max_size,
++        )
+ 
+     @torch.inference_mode()
+     def determine_num_available_blocks(self) -> Tuple[int, int]:
+-- 
+2.25.1
+

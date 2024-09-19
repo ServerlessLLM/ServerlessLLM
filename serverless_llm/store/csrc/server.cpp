@@ -328,15 +328,11 @@ int main(int argc, char** argv) {
     // Create the log directory if it does not exist
     if (!std::filesystem::exists(kLogDir)) {
       std::filesystem::create_directories(kLogDir);
-      // std::cout << "Log directory created successfully.\n";
       LOG(INFO) << "Log directory created successfully.";
     } else {
-      // std::cout << "Log directory already exists.\n";
       LOG(INFO) << "Log directory already exists.";
     }
   } catch (const std::filesystem::filesystem_error& e) {
-    // std::cerr << "Filesystem error while creating the log directory: " <<
-    // e.what() << '\n';
     LOG(ERROR) << "Filesystem error while creating the log directory: "
                << e.what();
     return -1;
