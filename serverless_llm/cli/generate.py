@@ -52,7 +52,7 @@ class GenerateCommand:
         self.threads = args.threads
         self.endpoint = "v1/chat/completions"  # TODO: as a argument
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://localhost:8343/")
+            os.getenv("LLM_SERVER_URL", "http://0.0.0.0:8343/")
             + self.endpoint
         )
 

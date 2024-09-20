@@ -76,7 +76,7 @@ class DeployCommand:
         self.min_instances = args.min_instances
         self.max_instances = args.max_instances
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://localhost:8343/") + "register"
+            os.getenv("LLM_SERVER_URL", "http://0.0.0.0:8343/") + "register"
         )
         self.default_config_path = os.path.join(
             os.path.dirname(__file__), "default_config.json"

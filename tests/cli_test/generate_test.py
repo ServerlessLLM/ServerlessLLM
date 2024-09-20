@@ -28,7 +28,7 @@ class TestGenerateCommand(unittest.TestCase):
 
         mock_read_config.assert_called_once_with("/path/to/input.json")
         mock_post.assert_called_once_with(
-            "http://localhost:8343/v1/chat/completions",
+            "http://0.0.0.0:8343/v1/chat/completions",
             headers={"Content-Type": "application/json"},
             json={
                 "model": "facebook/opt-1.3b",
