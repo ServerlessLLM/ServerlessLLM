@@ -83,6 +83,14 @@ class TransformersBackend(SllmBackend):
     
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
+    
+    async def encode(self, request_data: Optional[Dict[str, Any]]):
+        async with self.model_status_lock:
+            if not self.model_initialized:
+                return {"error": "Model not initialized"}
+        prompt = request_data.get("prompt", "")
+        inputs = self._tokenize(prompt)
+        return inputs
 
     async def generate(self, request_data: Optional[Dict[str, Any]]):
         async with self.model_status_lock:
