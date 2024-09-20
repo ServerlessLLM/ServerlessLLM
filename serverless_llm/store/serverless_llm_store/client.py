@@ -27,7 +27,7 @@ logger = init_logger(__name__)
 
 # This is a singleton class that manages the checkpoint
 class SllmStoreClient:
-    def __init__(self, server_address="0.0.0.0:8073"):
+    def __init__(self, server_address="127.0.0.1:8073"):
         self.server_address = server_address
         self.channel = grpc.insecure_channel(server_address)
         self.stub = storage_pb2_grpc.StorageStub(self.channel)
