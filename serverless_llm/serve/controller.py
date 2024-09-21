@@ -39,7 +39,7 @@ logger = init_logger(__name__)
 
 # @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class SllmController:
-    def __init__(self, config: Optional[Mapping] = None, debug = False):
+    def __init__(self, config: Optional[Mapping] = None):
         self.config = config
 
         self.running_lock = asyncio.Lock()
@@ -49,7 +49,6 @@ class SllmController:
         self.request_routers = {}
         # Register model info
         self.registered_models = {}
-        self.debug = debug
 
     async def start(self):
         async with self.running_lock:
@@ -65,34 +64,25 @@ class SllmController:
             hardware_config = self.config["hardware_config"]
         if hardware_config:
             enable_storage_aware = True
-        if not self.debug:
-            ray_manager_cls = ray.remote(StoreManager)
-            self.store_manager = ray_manager_cls.options(
-                name="store_manager"
-            ).remote(hardware_config)
-            await self.store_manager.initialize_cluster.remote()
-        else:
-            self.store_manager = StoreManager(hardware_config)
-            await self.store_manager.initialize_cluster()
+        ray_manager_cls = ray.remote(StoreManager)
+        self.store_manager = ray_manager_cls.options(
+            name="store_manager"
+        ).remote(hardware_config)
+        await self.store_manager.initialize_cluster.remote()
+        
 
         logger.info("Starting scheduler")
-        if not self.debug:
-            if enable_storage_aware:
-                ray_scheduler_cls = ray.remote(StorageAwareScheduler)
-            else:
-                ray_scheduler_cls = ray.remote(FcfsScheduler)
-
-            self.scheduler = ray_scheduler_cls.options(
-                name="model_loading_scheduler"
-            ).remote()
-
-            self.scheduler.start.remote()
+        if enable_storage_aware:
+            ray_scheduler_cls = ray.remote(StorageAwareScheduler)
         else:
-            if enable_storage_aware:
-                self.scheduler = StorageAwareScheduler()
-            else:
-                self.scheduler = FcfsScheduler()
-            self.scheduler.start()
+            ray_scheduler_cls = ray.remote(FcfsScheduler)
+
+        self.scheduler = ray_scheduler_cls.options(
+            name="model_loading_scheduler"
+        ).remote()
+
+        self.scheduler.start.remote()
+        
 
     async def register(self, model_config):
         if not self.running:
@@ -112,10 +102,7 @@ class SllmController:
 
         logger.info(f"Registering new model {model_name}")
         try:
-            if not self.debug:
-                await self.store_manager.register.remote(model_config)
-            else:
-                await self.store_manager.register(model_config)
+            await self.store_manager.register.remote(model_config) 
         except RuntimeError as e:
             error_message = e.args[0]
             raise RuntimeError(f"{error_message}")
@@ -124,23 +111,17 @@ class SllmController:
             "num_cpus": 1,
             "num_gpus": model_config.get("num_gpus", 0),
         }
-        if not self.debug:
-            request_router = RoundRobinRouter.options(  # type:ignore
-                name=model_name, namespace="models"
-            ).remote(model_name, resource_requirements, backend, backend_config)
-        else:
-            request_router = RoundRobinRouter(
-                model_name, resource_requirements, backend, backend_config
-            )
+        request_router = RoundRobinRouter.options(  # type:ignore
+            name=model_name, namespace="models"
+        ).remote(model_name, resource_requirements, backend, backend_config)
+        
         async with self.metadata_lock:
             if model_name in self.request_routers:
                 logger.error(f"Model {model_name} already registered")
                 return
 
-        if not self.debug:
-            request_router.start.remote(auto_scaling_config)
-        else:
-            request_router.start(auto_scaling_config)
+        request_router.start.remote(auto_scaling_config)
+        
         logger.info(f"Model {model_name} registered")
 
         # Mark model as registered only after model registered successfully
