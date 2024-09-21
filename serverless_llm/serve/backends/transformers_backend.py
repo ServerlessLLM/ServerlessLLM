@@ -88,9 +88,35 @@ class TransformersBackend(SllmBackend):
         async with self.model_status_lock:
             if not self.model_initialized:
                 return {"error": "Model not initialized"}
-        prompt = request_data.get("prompt", "")
-        inputs = self._tokenize(prompt)
-        return inputs
+        ## Jina setting
+        model_name = request_data.get("model", "dummy-model")
+        task_name = request_data.get("task", "")
+        truncate_dim = request_data.get("truncate_dim", None)
+        max_length = request_data.get("max_length", 8192)
+        query = request_data.get("query", [])
+        if not query:
+            return {"error": "Missing query in request data"}
+
+        with torch.no_grad():
+            embeddings = self.model.encode(
+                query, max_length=max_length, truncate_dim=truncate_dim, task=task_name
+            )
+        
+        query_tokens = len(self.tokenizer.tokenize(query))
+        response = {
+            "object": "list",
+            "data": [{"object": "embedding", 
+                      "index": i,
+                      "embedding": embeddings[i].tolist()
+                      } for i in range(len(embeddings))],
+            "model": model_name,
+            "usage": {
+                "query_tokens": query_tokens,
+                "total_tokens": query_tokens,
+            }
+        }
+    
+        return response
 
     async def generate(self, request_data: Optional[Dict[str, Any]]):
         async with self.model_status_lock:
