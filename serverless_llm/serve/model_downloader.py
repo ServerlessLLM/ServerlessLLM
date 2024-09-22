@@ -45,7 +45,7 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
         return True
 
     import torch
-    from transformers import AutoModelForCausalLM
+    from transformers import AutoModelForCausalLM, AutoModel
 
     torch_dtype = getattr(torch, torch_dtype)
     if torch_dtype is None:
@@ -53,9 +53,14 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
 
     logger.info(f"Downloading {model_path}")
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch_dtype
-    )
+    try:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name, torch_dtype=torch_dtype
+        )
+    except Exception as e:
+        model = AutoModel.from_pretrained(
+            model_name, torch_dtype=torch_dtype, trust_remote_code=True
+            )
 
     from serverless_llm_store.transformers import save_model
 

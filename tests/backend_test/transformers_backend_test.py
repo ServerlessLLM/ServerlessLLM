@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
 
 from serverless_llm.serve.backends.transformers_backend import (
     TransformersBackend,
@@ -83,6 +83,16 @@ def tokenizer():
     tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
     yield tokenizer("test_prompt", return_tensors="pt")
 
+@pytest.fixture
+def encoder():
+    encoder = AutoModel.from_pretrained("BAAI/bge-en-icl").to("cpu")
+    yield encoder
+
+@pytest.fixture
+def encoder_tokenizer():
+    encoder_tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-en-icl")
+    yield encoder_tokenizer(["test_prompt"], max_length=4096, padding=True, truncation=True, return_tensors="pt")
+
 
 @pytest.mark.asyncio
 async def test_generate(transformers_backend, model, tokenizer):
@@ -108,6 +118,27 @@ async def test_generate(transformers_backend, model, tokenizer):
         result = await transformers_backend.generate(input)
         assert "error" not in result
         assert "choices" in result and len(result["choices"]) == 1
+
+@pytest.mark.asyncio
+async def test_encode(transformers_backend, encoder, encoder_tokenizer):
+    with patch(
+        "serverless_llm.serve.backends.transformers_backend.load_model",
+        return_value=encoder,
+    ), patch(
+        "serverless_llm.serve.backends.transformers_backend.TransformersBackend._encoder_tokenize",
+        return_value=encoder_tokenizer,
+    ):
+        await transformers_backend.init_backend()
+        input = {
+                "model": "BAAI/bge-en-icl",
+                "task_instruct": "Given a question, retrieve passages that answer the question",
+                "query": [
+                "Hi, How are you?"
+                ]
+            }
+        result = await transformers_backend.encode(input)
+        assert "error" not in result
+        assert "data" in result and len(result["data"]) == 1
 
 
 @pytest.mark.asyncio

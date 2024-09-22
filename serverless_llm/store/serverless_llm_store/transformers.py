@@ -53,7 +53,7 @@ from serverless_llm_store.utils import (
 )
 from serverless_llm_store.torch import load_dict_non_blocking, save_dict
 from torch import nn
-from transformers import AutoConfig, AutoModelForCausalLM, GenerationConfig
+from transformers import AutoConfig, AutoModelForCausalLM, GenerationConfig, AutoModel
 
 logger = init_logger(__name__)
 
@@ -182,7 +182,7 @@ def fully_parallel_load(
 
         start = time.time()
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_path)}"
+            f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
@@ -190,9 +190,12 @@ def fully_parallel_load(
         logger.debug(f"load config takes {time.time() - start} seconds")
         start = time.time()
         with init_empty_weights():
-            model = AutoModelForCausalLM.from_config(config).to(
-                config.torch_dtype
-            )
+            try:
+                model = AutoModelForCausalLM.from_config(config).to(
+                    config.torch_dtype
+                )
+            except Exception as e:
+                model = AutoModel.from_config(config, trust_remote_code=True).to(config.torch_dtype)
 
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
@@ -234,7 +237,7 @@ def best_effort_load(
         storage_path = os.getenv("STORAGE_PATH", "./models")
     start = time.time()
     config = AutoConfig.from_pretrained(
-        f"{os.path.join(storage_path, model_path)}"
+        f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
     )
     if torch_dtype is not None:
         config.torch_dtype = torch_dtype
@@ -242,7 +245,10 @@ def best_effort_load(
     logger.debug(f"load config takes {time.time() - start} seconds")
     start = time.time()
     with init_empty_weights():
-        model = AutoModelForCausalLM.from_config(config).to(config.torch_dtype)
+        try:
+            model = AutoModelForCausalLM.from_config(config).to(config.torch_dtype)
+        except Exception as e:
+            model = AutoModel.from_config(config, trust_remote_code=True).to(config.torch_dtype)
 
     model.tie_weights()
     logger.debug(f"load model takes {time.time() - start} seconds")
@@ -255,7 +261,7 @@ def best_effort_load(
         logger.debug(f"device_map: {device_map}")
     # check if 'cpu' is in device_map values and raise an exception
     if "cpu" in device_map.values():
-        raise ValueError("CPU is not supported in device_map.")
+        raise ValueError("GPU unavailable")
     logger.debug(
         f"compute_device_placement takes {time.time() - start} seconds"
     )
