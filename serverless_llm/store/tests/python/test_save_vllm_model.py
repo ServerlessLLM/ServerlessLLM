@@ -15,9 +15,9 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import unittest
 import os
 import shutil
+import unittest
 from tempfile import TemporaryDirectory
 
 import torch

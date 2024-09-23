@@ -1,6 +1,6 @@
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from serverless_llm.cli.sllm_cli import main
 

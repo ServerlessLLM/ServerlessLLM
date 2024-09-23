@@ -32,9 +32,10 @@ jobs:
         run: |
           # Previously we would do pip install .[dev] but this is causing out of
           # space errors start with torch 2.1.0 release
-          grep -E "clang-format|pre-commit" requirements.txt | xargs pip install
+          pip install -r requirements-lint.txt
 
       - name: Formatting checks
         run: |
           pip show pre-commit clang-format
           pre-commit run --all-files
+          isort --check-only --diff .

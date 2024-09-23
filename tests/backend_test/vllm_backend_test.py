@@ -22,10 +22,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from vllm import CompletionOutput, RequestOutput
 
-from serverless_llm.serve.backends.vllm_backend import (
-    BackendStatus,
-    VllmBackend,
-)
+from serverless_llm.serve.backends.vllm_backend import (BackendStatus,
+                                                        VllmBackend)
 
 
 @pytest.fixture

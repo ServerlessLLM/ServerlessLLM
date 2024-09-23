@@ -14,20 +14,13 @@ ServerlessLLM is currently maintained by the following contributors:
  - [Xinyuan Tong](https://github.com/JustinTong0323)
  - [Luo Mai](https://github.com/luomai)
 
-## Check Code Format
+## Code Format
 
 ```bash
-pip install ruff
-pip install isort
+pip install -r requirements-lint.txt
 
-# Format Python import packages
-isort .
-
-# Check code format
-ruff check
-
-# Run code format
-ruff format
+# linting and formatting
+bash format.sh
 ```
 
 ## Commit Message Guidelines

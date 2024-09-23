@@ -30,10 +30,8 @@ import torch
 from vllm import AsyncEngineArgs, AsyncLLMEngine, RequestOutput, SamplingParams
 from vllm.inputs import TokensPrompt
 
-from serverless_llm.serve.backends.backend_utils import (
-    BackendStatus,
-    SllmBackend,
-)
+from serverless_llm.serve.backends.backend_utils import (BackendStatus,
+                                                         SllmBackend)
 
 logger = logging.getLogger("ray")
 
