@@ -259,7 +259,7 @@ def best_effort_load(
         logger.debug(f"device_map: {device_map}")
     # check if 'cpu' is in device_map values and raise an exception
     if "cpu" in device_map.values():
-        raise ValueError("GPU unavailable or not enough GPU memory.")
+        raise ValueError("The GPU is either unavailable or lacks sufficient memory.")
     
     logger.debug(
         f"compute_device_placement takes {time.time() - start} seconds"
