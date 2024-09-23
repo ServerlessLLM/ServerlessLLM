@@ -55,6 +55,10 @@ class SllmRouter(ABC):
     async def generate(self, request_data: dict):
         pass
 
+    @abstractmethod
+    async def encode(self, request_data: dict):
+        pass
+
 
 @dataclass
 class InstanceHandle:
