@@ -98,7 +98,7 @@ class TestSaveModelIntegration(unittest.TestCase):
                 self.assertFalse(
                     os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))
                 )
-        
+
         for filename in unexpected_files:
             self.assertFalse(
                 os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))

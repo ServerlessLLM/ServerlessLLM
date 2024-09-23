@@ -20,6 +20,7 @@ repos:
         args: [--fix=lf]
     -   id: requirements-txt-fixer
     -   id: trailing-whitespace
+        exclude: ^.*\.patch$ # exclude patch files
 
 # -   repo: https://github.com/google/yapf
 #     rev: v0.40.2

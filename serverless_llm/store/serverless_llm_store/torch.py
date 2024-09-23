@@ -69,7 +69,7 @@ def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.Pat
         data_ptr = param_storage.data_ptr()
         size = param_storage.size()
         tensor_data_index[name] = (data_ptr, size)
-    
+
     if not os.path.exists(model_path):
         os.makedirs(model_path, exist_ok=True)
 
