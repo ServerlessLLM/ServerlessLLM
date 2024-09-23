@@ -2,7 +2,7 @@
 Please follow the [quickstart instructions](https://serverlessllm.github.io/docs/stable/getting_started/quickstart) to start a Ray cluster, a Serverless LLM store and a Serverless LLM Serve.
 ## Calling Embedding API
 This example shows deploying and calling [e5-mistral-7b-instruct](https://huggingface.co/intfloat/e5-mistral-7b-instruct) using Serverless LLM. \
-First, deploy this model with huggingface transformers backend:
+First, deploy this model with the transformers backend:
 ```bash
 conda activate sllm
 sllm-cli deploy --model intfloat/e5-mistral-7b-instruct --backend transformers
