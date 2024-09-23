@@ -22,10 +22,11 @@ repos:
     -   id: trailing-whitespace
         exclude: ^.*\.patch$ # exclude patch files
 
-# -   repo: https://github.com/google/yapf
-#     rev: v0.40.2
-#     hooks:
-#     -   id: yapf
+-   repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (python)
 
 -   repo: https://gitlab.com/daverona/pre-commit/cpp
     rev: 0.8.0
