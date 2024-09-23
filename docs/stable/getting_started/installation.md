@@ -38,5 +38,6 @@ To use vLLM with ServerlessLLM, we need to apply our patch `serverless_llm/store
 
 You may do that by running our script:
 ```bash
+conda activate sllm-worker
 ./serverless_llm/store/vllm_patch/patch.sh
 ```

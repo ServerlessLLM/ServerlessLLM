@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 
 import asyncio
+import ray
 import os
 import time
 from typing import List, Mapping, Optional
@@ -61,14 +62,22 @@ class SllmLocalStore:
 
         self.lock = asyncio.Lock()
 
-    async def register_model(self, model_name: str, model_path: str):
+    async def register_model(self, model_name: str, backend: str, backend_config):
         async with self.lock:
             if model_name in self.disk_models:
-                logger.error(f"Model {model_name} already registered")
+                logger.error(f"{model_name} already registered")
                 return
-            model_size = self.client.register_model(model_path)
+            model_path = os.path.join(backend, model_name)
+            if backend == "transformers":
+                model_size = self.client.register_model(model_path)
+            elif backend == "vllm":
+                tensor_parallel_size = backend_config.get("tensor_parallel_size", 1)
+                model_size = 0
+                for rank in range(tensor_parallel_size):
+                    model_rank_path = os.path.join(model_path, f"rank_{rank}")
+                    model_size += self.client.register_model(model_rank_path)
             self.disk_models[model_name] = model_size
-            logger.info(f"Model {model_name} registered, {self.disk_models}")
+            logger.info(f"{model_name} registered, {self.disk_models}")
 
         return model_size
 
@@ -85,17 +94,17 @@ class SllmLocalStore:
         async with self.lock:
             if model_name not in self.disk_models:
                 logger.error(
-                    f"Model {model_name} not found on node {self.node_id}"
+                    f"{model_name} not found on node {self.node_id}"
                 )
                 return False
             if model_name in self.pinned_memory_pool:
                 logger.info(
-                    f"Model {model_name} already loaded to node {self.node_id}"
+                    f"{model_name} already loaded to node {self.node_id}"
                 )
                 return True
             elif model_name in self.queued_models:
                 logger.info(
-                    f"Model {model_name} is being loaded to node {self.node_id}"
+                    f"{model_name} is being loaded to node {self.node_id}"
                 )
                 return True
 
@@ -112,7 +121,7 @@ class SllmLocalStore:
             )
             self.queued_models[model_name] = True
             logger.info(
-                f"Model {model_name} is being loaded to node {self.node_id}, "
+                f"{model_name} is being loaded to node {self.node_id}, "
                 f"estimated time: {self.io_queue[-1]['estimated_time']}"
             )
             return True
@@ -129,17 +138,17 @@ class SllmLocalStore:
             can_load = await self.lru_eviction(model_name)
             if not can_load:
                 logger.warning(
-                    f"Model {model_name} cannot be loaded to node {self.node_id}"
+                    f"{model_name} cannot be loaded to node {self.node_id}"
                 )
                 await asyncio.sleep(1)
                 continue
             ret = self.client.load_into_cpu(model_name)
             self.io_queue.pop(0)
             if not ret:
-                logger.error(f"Failed to load model {model_name}")
+                logger.error(f"Failed to load {model_name}")
                 continue
             self.pinned_memory_pool[model_name] = time.time()
-            logger.info(f"Model {model_name} loaded to host")
+            logger.info(f"{model_name} loaded to host")
 
     async def lru_eviction(self, model_name):
         # evict the least recently used models until the model can be loaded
@@ -153,7 +162,7 @@ class SllmLocalStore:
             ) // self.pinned_memory_pool_chunks
             logger.info(
                 f"Pinned memory pool usage: {self.pinned_memory_pool_usage} / {self.pinned_memory_pool_chunks}"
-                f" model {model_name} requires {required_chunks} chunks"
+                f" {model_name} requires {required_chunks} chunks"
             )
             while (
                 self.pinned_memory_pool_usage + required_chunks
@@ -171,7 +180,7 @@ class SllmLocalStore:
                     ) // self.pinned_memory_pool_chunks
                     self.pinned_memory_pool_usage -= unloaded_chunks
                     logger.info(
-                        f"Model {model_name} evicted {unloaded_chunks} chunks"
+                        f"{model_name} evicted {unloaded_chunks} chunks"
                     )
             return (
                 self.pinned_memory_pool_usage + required_chunks
@@ -250,7 +259,7 @@ class StoreManager:
         return self.hardware_info
 
     async def get_model_info(self, model_name: Optional[str] = None):
-        logger.info(f"Getting model info for {model_name}")
+        logger.info(f"Getting info for {model_name}")
         async with self.metadata_lock:
             if model_name is not None:
                 return self.model_info.get(model_name, {})
@@ -278,21 +287,21 @@ class StoreManager:
                 logger.error(f"Node {node_id} not found")
                 return False
             local_server = self.local_servers[node_id]
-        logger.info(f"Loading model {model_name} to node {node_id}")
+        logger.info(f"Loading {model_name} to node {node_id}")
         return await local_server.load_to_host(model_name)
 
     async def register(self, model_config):
         model_name = model_config.get("model")
         backend = model_config.get("backend", None)
         if backend is None:
-            logger.error(f"Backend not specified for model {model_name}")
+            logger.error(f"Backend not specified for {model_name}")
             return
         backend_config = model_config.get("backend_config", {})
         placement_config = model_config.get("placement_config", {})
 
         if model_name not in self.model_info:
             self.model_storage_info[model_name] = {}
-            logger.info(f"Registering new model {model_name}")
+            logger.info(f"Registering new {model_name}")
 
             backend = model_config.get("backend", None)
             pretrained_model_name = backend_config.get(
@@ -334,10 +343,6 @@ class StoreManager:
             )
             for node_id in target_nodes:
                 if backend == "transformers":
-                    # TODO: remove after fix model path problems
-                    logger.warning(
-                        f"Due to format different issue, please check model path for transformer backend is different compared with using vLLM backend"
-                    )
                     await self.download_transformers_model(
                         pretrained_model_name, node_id
                     )
@@ -352,18 +357,14 @@ class StoreManager:
                     logger.error(f"Backend {backend} not supported")
                     break
                 local_server = self.local_servers[node_id]
-                # backend name + model name
-                model_path = os.path.join(
-                    "/models", backend, pretrained_model_name
-                )
                 model_size = await local_server.register_model(
-                    model_name, model_path
+                    model_name, backend, backend_config
                 )
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
-                logger.info(f"Model {model_name} downloaded to node {node_id}")
+                logger.info(f"{model_name} downloaded to node {node_id}")
             self.model_info[model_name] = model_size
-            logger.info(f"Model {model_name} registered")
+            logger.info(f"{model_name} registered")
         else:
             # TODO: apply new placement config, if given
             pass
@@ -372,7 +373,7 @@ class StoreManager:
         self, pretrained_model_name, node_id
     ) -> int:
         logger.info(
-            f"Downloading model {pretrained_model_name} to node {node_id}"
+            f"Downloading {pretrained_model_name} to node {node_id}"
         )
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
@@ -382,9 +383,9 @@ class StoreManager:
         self, pretrained_model_name, node_id, num_gpus, tensor_parallel_size
     ):
         logger.info(
-            f"Downloading model {pretrained_model_name} to node {node_id}"
+            f"Downloading {pretrained_model_name} to node {node_id}"
         )
-        vllm_backend_downloader = VllmModelDownloader.options(
+        vllm_backend_downloader = ray.remote(VllmModelDownloader).options(
             num_gpus=num_gpus,
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1},
         ).remote()

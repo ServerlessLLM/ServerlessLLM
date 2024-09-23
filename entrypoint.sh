@@ -53,8 +53,8 @@ initialize_worker_node() {
   # Start checkpoint store
   STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
   # TODO: Temporary remove the registration required flag, as registration is not working for vLLM backend
-  # CMD="sllm-store-server -storage_path=$STORAGE_PATH -registration_required=true &"
-  CMD="sllm-store-server -storage_path=$STORAGE_PATH &"
+  CMD="sllm-store-server -storage_path=$STORAGE_PATH -registration_required=true &"
+  # CMD="sllm-store-server -storage_path=$STORAGE_PATH &"
   echo "Executing: $CMD"
   eval "$CMD"
 
