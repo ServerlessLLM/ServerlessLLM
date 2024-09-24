@@ -11,5 +11,4 @@ tomli==2.0.1
 types-PyYAML
 types-requests
 types-setuptools
-# formatting
-yapf==0.32.0
+

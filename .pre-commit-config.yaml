@@ -28,6 +28,13 @@ repos:
       - id: isort
         name: isort (python)
 
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
+    hooks:
+    -   id: codespell
+        additional_dependencies:
+            - tomli
+
 -   repo: https://gitlab.com/daverona/pre-commit/cpp
     rev: 0.8.0
     hooks:

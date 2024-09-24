@@ -13,5 +13,3 @@ if [ ! -f .git/hooks/pre-commit ]; then
 fi
 
 pre-commit run --all-files
-
-isort .
