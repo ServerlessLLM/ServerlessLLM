@@ -260,7 +260,7 @@ def best_effort_load(
     # check if 'cpu' is in device_map values and raise an exception
     if "cpu" in device_map.values():
         raise ValueError('''The GPUs are either unavailable or do not have enough memory,
-                         which may be due to external tasks using them, particularly the first GPU in your cluster.
+                         which may be due to external tasks using them.
                          Please ensure they are available and ready for use.''')
     
     logger.debug(
