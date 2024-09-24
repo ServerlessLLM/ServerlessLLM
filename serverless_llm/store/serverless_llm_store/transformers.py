@@ -208,7 +208,7 @@ def fully_parallel_load(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
 
-    client = SllmStoreClient("localhost:8073")
+    client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
     model.hf_device_map = device_map
@@ -221,8 +221,8 @@ def best_effort_load(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
-):  
-    client = SllmStoreClient("localhost:8073")
+):
+    client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_path} into CPU")

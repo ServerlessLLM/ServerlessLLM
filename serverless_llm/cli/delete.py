@@ -40,7 +40,7 @@ class DeleteCommand:
     def __init__(self, args: Namespace) -> None:
         self.models = args.models
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://localhost:8343/") + "delete/"
+            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "delete/"
         )
 
     def run(self) -> None:

@@ -28,7 +28,7 @@ class TestUpdateCommand(unittest.TestCase):
         mock_read_config.assert_called_once_with("/path/to/config.json")
         mock_validate.assert_called_once()
         mock_post.assert_called_once_with(
-            "http://localhost:8343/update",
+            "http://127.0.0.1:8343/update",
             headers={"Content-Type": "application/json"},
             json={
                 "model": "facebook/opt-1.3b",
@@ -54,7 +54,7 @@ class TestUpdateCommand(unittest.TestCase):
 
         mock_read_config.assert_called_once()
         mock_post.assert_called_once_with(
-            "http://localhost:8343/update",
+            "http://127.0.0.1:8343/update",
             headers={"Content-Type": "application/json"},
             json={
                 "model": "facebook/opt-1.3b",
