@@ -9,7 +9,7 @@ sllm-cli deploy --model intfloat/e5-mistral-7b-instruct --backend transformers
 ```
 Then post a request.
 ```bash
-curl http://localhost:8343/v1/embeddings \
+curl http://127.0.0.1:8343/v1/embeddings \
 -H "Content-Type: application/json" \
 -d '{
         "model": "intfloat/e5-mistral-7b-instruct",
