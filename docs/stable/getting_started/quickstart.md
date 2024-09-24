@@ -19,7 +19,7 @@ ray start --head --port=6379 --num-cpus=4 --num-gpus=0 \
 In a new terminal, start the worker node:
 ```bash
 conda activate sllm-worker
-ray start --address=localhost:6379 --num-cpus=4 --num-gpus=2 \
+ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=2 \
 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
 ```
 
@@ -67,7 +67,7 @@ sllm-cli deploy --model facebook/opt-1.3b
 
 Now, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```bash
-curl http://localhost:8343/v1/chat/completions \
+curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",

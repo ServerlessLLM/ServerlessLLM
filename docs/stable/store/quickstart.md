@@ -26,7 +26,7 @@ conda activate sllm-store
 
 ### Install with pip
 ```bash
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev4
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
 ```
 
 ### Install from source
@@ -69,7 +69,7 @@ save_model(model, './models/facebook/opt-1.3b')
 2. Launch the checkpoint store server in a separate process:
 ```bash
 # 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.
-sllm-store-server --storage_path $PWD/models --mem_pool_size 32
+sllm-store-server --storage_path $PWD/models --mem_pool_size 4
 ```
 
 <!-- Running the server using a container:
@@ -224,7 +224,7 @@ After downloading the model, you can launch the checkpoint store server and load
 2. Launch the checkpoint store server in a separate process:
 ```bash
 # 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.
-sllm-store-server --storage_path $PWD/models --mem_pool_size 32
+sllm-store-server --storage_path $PWD/models --mem_pool_size 4
 ```
 
 3. Load the model in vLLM:
