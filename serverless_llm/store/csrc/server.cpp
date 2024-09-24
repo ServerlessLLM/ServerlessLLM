@@ -56,7 +56,7 @@ DEFINE_int32(server_port, 8073, "Server port");
 // system parameter
 DEFINE_int32(num_thread, 4, "Number of I/O threads");
 DEFINE_int32(chunk_size, 32, "Chunk size in MB");
-DEFINE_int64(mem_pool_size, 32, "Memory pool size in GB");
+DEFINE_int64(mem_pool_size, 4, "Memory pool size in GB");
 DEFINE_int64(disk_size, 128, "Disk size in GB");
 
 DEFINE_bool(registration_required, false,
