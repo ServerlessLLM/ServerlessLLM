@@ -1,6 +1,12 @@
 name: CLI Tests
 
-on: [push, pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+    branches:
+      - main
+    paths:
+      - 'serverless_llm/cli/**'
 
 jobs:
     cli_tests:
