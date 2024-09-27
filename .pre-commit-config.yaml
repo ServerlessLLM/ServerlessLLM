@@ -40,3 +40,11 @@ repos:
     hooks:
     -   id: clang-format  # formatter of C/C++ code based on a style guide: LLVM, Google, Chromium, Mozilla, and WebKit available
         args: [--style=file]
+
+
+-   repo: local
+    hooks:
+    -   id: run_formatting
+        name: Run formatting checks
+        entry: bash format.sh
+        language: system

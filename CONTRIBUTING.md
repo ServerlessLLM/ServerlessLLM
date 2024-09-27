@@ -19,8 +19,8 @@ ServerlessLLM is currently maintained by the following contributors:
 ```bash
 pip install -r requirements-lint.txt
 
-# linting and formatting
-bash format.sh
+# add lint hooks to git commit
+pre-commit install --install-hooks
 ```
 
 ## Commit Message Guidelines
