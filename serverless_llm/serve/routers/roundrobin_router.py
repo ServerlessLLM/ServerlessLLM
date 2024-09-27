@@ -106,7 +106,7 @@ class RoundRobinRouter(SllmRouter):
         pattern = "{model_name}_{id}"
         return pattern.format(model_name=self.model_name, id=uuid.uuid4())
 
-    async def generate(self, request_data: dict):
+    async def inference(self, request_data: dict):
         async with self.running_lock:
             if not self.running:
                 return {"error": "Instance stopped"}
@@ -128,46 +128,22 @@ class RoundRobinRouter(SllmRouter):
         # NOTE: `.remote(request_data)` does not work, don't know why.
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
-        result = await instance.backend_instance.generate.remote(
-            request_data=request_data
-        )
+        action = request_data.get("action")
+        if action == "generate":
+            result = await instance.backend_instance.generate.remote(
+                request_data=request_data
+            )
+        elif action == "encode":
+            result = await instance.backend_instance.encode.remote(
+                request_data=request_data
+            )
+        else:
+            result = {"error": "Invalid action"}
         logger.info(f"Finished processing request")
         await instance.add_requests(-1)
         async with self.request_count_lock:
             self.request_count -= 1
         return result
-
-    async def encode(self, request_data: dict):
-        async with self.running_lock:
-            if not self.running:
-                return {"error": "Instance stopped"}
-
-        async with self.request_count_lock:
-            self.request_count += 1
-
-        instance_allocation = self.loop.create_future()
-        await self.request_queue.put(instance_allocation)
-        logger.info(f"Enqueued request for model {self.model_name}")
-
-        instance_id = await instance_allocation
-        logger.info(f"{request_data}, type: {type(request_data)}")
-        async with self.instance_management_lock:
-            if instance_id not in self.ready_instances:
-                logger.error(f"Instance {instance_id} not found")
-                return {"error": "Instance not found"}
-            instance = self.ready_instances[instance_id]
-        # NOTE: `.remote(request_data)` does not work, don't know why.
-        # Looks like a known issue:
-        # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
-        result = await instance.backend_instance.encode.remote(
-            request_data=request_data
-        )
-        logger.info(f"Finished processing request")
-        await instance.add_requests(-1)
-        async with self.request_count_lock:
-            self.request_count -= 1
-        return result
-
 
     async def shutdown(self):
         async with self.running_lock:

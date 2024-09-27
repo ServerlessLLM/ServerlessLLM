@@ -99,37 +99,29 @@ def create_app() -> FastAPI:
         await controller.delete.remote(model_name)
 
         return {"status": f"deleted model {model_name}"}
+    
+    async def inference_handler(request: Request, action: str):
+        body = await request.json()
+        model_name = body.get("model")
+        logger.info(f"Received request for model {model_name}")
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model_name in request body"
+            )
+
+        body["action"] = action
+        request_router = ray.get_actor(model_name, namespace="models")
+        logger.info(f"Got request router for {model_name}")
+
+        result = request_router.inference.remote(body)
+        return await result
 
     @app.post("/v1/chat/completions")
     async def generate_handler(request: Request):
-        body = await request.json()
-        model_name = body.get("model")
-        logger.info(f"Received request for model {model_name}")
-        if not model_name:
-            raise HTTPException(
-                status_code=400, detail="Missing model_name in request body"
-            )
-
-        request_router = ray.get_actor(model_name, namespace="models")
-        logger.info(f"Got request router for {model_name}")
-
-        result = request_router.generate.remote(body)
-        return await result
+        return await inference_handler(request, "generate")
 
     @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
-        body = await request.json()
-        model_name = body.get("model")
-        logger.info(f"Received request for model {model_name}")
-        if not model_name:
-            raise HTTPException(
-                status_code=400, detail="Missing model_name in request body"
-            )
-
-        request_router = ray.get_actor(model_name, namespace="models")
-        logger.info(f"Got request router for {model_name}")
-
-        result = request_router.encode.remote(body)
-        return await result
-
+        return await inference_handler(request, "encode")
+    
     return app
