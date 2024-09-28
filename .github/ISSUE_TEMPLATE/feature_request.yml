@@ -51,3 +51,12 @@ body:
         - Critical
     validations:
       required: true
+
+  - type: textarea
+    id: statistics
+    attributes:
+      label: Usage Statistics (Optional)
+      description: |
+        We'd love to know how you're using ServerlessLLM! If you're comfortable, please share details like your affiliation and use case to help us improve the project.
+    validations:
+      required: false
