@@ -1,0 +1,23 @@
+name: "Mark and Close Stale Issues"
+on:
+  schedule:
+    - cron: "0 0 * * *"  # Runs daily at midnight UTC
+  workflow_dispatch:     # Allows manual triggering of the workflow
+
+jobs:
+  stale:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/stale@v9.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: "This issue has been marked as stale due to 90 days of inactivity. Comment to keep it open."
+          stale-pr-message: "This pull request has been marked as stale due to 90 days of inactivity. Comment to keep it open."
+          days-before-stale: 90
+          days-before-close: 7
+          stale-issue-label: "stale"
+          exempt-issue-labels: "pinned, security"
+          close-issue-message: "Closed due to inactivity."
+          close-pr-message: "Closed due to inactivity."
