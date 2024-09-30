@@ -198,7 +198,7 @@ def fully_parallel_load(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
 
-    client = SllmStoreClient("localhost:8073")
+    client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
     model.hf_device_map = device_map
@@ -212,13 +212,17 @@ def best_effort_load(
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
 ):
-    client = SllmStoreClient("localhost:8073")
+    client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
-    replica_uuid = _get_uuid()
+    replica_uuid = _get_uuid()   
     device_map = _transform_device_map_to_dict(device_map)
+
+    if isinstance(device_map, dict):
+        if torch.device("cpu") in device_map.values() or "cpu" in device_map.values():
+            raise ValueError("CPU is not supported in device_map.")
 
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
@@ -245,7 +249,9 @@ def best_effort_load(
         logger.debug(f"device_map: {device_map}")
     # check if 'cpu' is in device_map values and raise an exception
     if "cpu" in device_map.values():
-        raise ValueError("CPU is not supported in device_map.")
+        raise ValueError('''The GPUs are either unavailable or do not have enough memory. 
+                         Please ensure they are available and ready for use.''')
+    
     logger.debug(
         f"compute_device_placement takes {time.time() - start} seconds"
     )
