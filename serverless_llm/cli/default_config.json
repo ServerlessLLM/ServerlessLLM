@@ -11,6 +11,7 @@
     "backend_config": {
         "pretrained_model_name_or_path": "",
         "device_map": "auto",
-        "torch_dtype": "float16"
+        "torch_dtype": "float16",
+        "hf_model_type": "auto-causal"
     }
 }

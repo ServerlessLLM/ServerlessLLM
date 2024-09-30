@@ -36,7 +36,7 @@ logger = logging.getLogger("ray")
 
 
 @ray.remote(num_cpus=1)
-def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
+def download_transformers_model(model_name: str, torch_dtype: str, hf_model_type: str) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
 
@@ -53,14 +53,16 @@ def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
 
     logger.info(f"Downloading {model_path}")
 
-    try:
+    if hf_model_type == "auto-causal":
         model = AutoModelForCausalLM.from_pretrained(
             model_name, torch_dtype=torch_dtype
         )
-    except Exception as e:
+    elif hf_model_type == "auto-model":
         model = AutoModel.from_pretrained(
             model_name, torch_dtype=torch_dtype, trust_remote_code=True
             )
+    else:
+        raise ValueError(f"Unsupported hf_model_type: {hf_model_type}. Current supported types: 'auto-causal' and 'auto-model'")
 
     from serverless_llm_store.transformers import save_model
 
