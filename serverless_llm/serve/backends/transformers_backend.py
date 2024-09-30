@@ -28,7 +28,7 @@ import ray
 import torch
 import torch.nn.functional as F
 from serverless_llm_store.transformers import load_model
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 
 from serverless_llm.serve.backends.backend_utils import SllmBackend
 from serverless_llm.serve.logger import init_logger
@@ -64,7 +64,7 @@ class TransformersBackend(SllmBackend):
             device_map = self.backend_config.get("device_map", "auto")
             torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
             torch_dtype = getattr(torch, torch_dtype)
-            hf_model_type = self.backend_config.get("hf_model_type", None)
+            hf_model_class = self.backend_config.get("hf_model_class", None)
             if torch_dtype is None:
                 logger.warning(
                     f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
@@ -79,7 +79,7 @@ class TransformersBackend(SllmBackend):
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 storage_path=storage_path,
-                hf_model_type=hf_model_type
+                hf_model_class=hf_model_class
             )
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model_initialized = True

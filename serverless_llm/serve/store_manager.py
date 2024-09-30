@@ -343,12 +343,12 @@ class StoreManager:
             )
             for node_id in target_nodes:
                 if backend == "transformers":
-                    hf_model_type = backend_config.get("hf_model_type", None)
-                    if hf_model_type is None:
-                        logger.error("hf_model_type not specified in backend_config. You should set it to either auto-causal or auto-model.")
+                    hf_model_class = backend_config.get("hf_model_class", None)
+                    if hf_model_class is None:
+                        logger.error("hf_model_type not specified in backend_config.")
                         break
                     await self.download_transformers_model(
-                        pretrained_model_name, node_id, hf_model_type
+                        pretrained_model_name, node_id, hf_model_class
                     )
                 elif backend == "vllm":
                     await self.download_vllm_model(
@@ -374,14 +374,14 @@ class StoreManager:
             pass
 
     async def download_transformers_model(
-        self, pretrained_model_name, node_id, hf_model_type
+        self, pretrained_model_name, node_id, hf_model_class
     ) -> int:
         logger.info(
             f"Downloading {pretrained_model_name} to node {node_id}"
         )
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
-        ).remote(pretrained_model_name, "float16", hf_model_type)
+        ).remote(pretrained_model_name, "float16", hf_model_class)
 
     async def download_vllm_model(
         self, pretrained_model_name, node_id, num_gpus, tensor_parallel_size

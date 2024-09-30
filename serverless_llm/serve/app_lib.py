@@ -109,11 +109,10 @@ def create_app() -> FastAPI:
                 status_code=400, detail="Missing model_name in request body"
             )
 
-        body["action"] = action
         request_router = ray.get_actor(model_name, namespace="models")
         logger.info(f"Got request router for {model_name}")
 
-        result = request_router.inference.remote(body)
+        result = request_router.inference.remote(body, action)
         return await result
 
     @app.post("/v1/chat/completions")
