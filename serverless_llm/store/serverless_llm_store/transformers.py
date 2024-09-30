@@ -217,7 +217,7 @@ def best_effort_load(
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
-    replica_uuid = _get_uuid()   
+    replica_uuid = _get_uuid()
     device_map = _transform_device_map_to_dict(device_map)
 
     if isinstance(device_map, dict):
@@ -249,9 +249,9 @@ def best_effort_load(
         logger.debug(f"device_map: {device_map}")
     # check if 'cpu' is in device_map values and raise an exception
     if "cpu" in device_map.values():
-        raise ValueError('''The GPUs are either unavailable or do not have enough memory. 
+        raise ValueError('''The GPUs are either unavailable or do not have enough memory.
                          Please ensure they are available and ready for use.''')
-    
+
     logger.debug(
         f"compute_device_placement takes {time.time() - start} seconds"
     )

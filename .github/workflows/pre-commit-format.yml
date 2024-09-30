@@ -38,4 +38,3 @@ jobs:
         run: |
           pip show pre-commit clang-format
           pre-commit run --all-files
-          isort --check-only --diff .

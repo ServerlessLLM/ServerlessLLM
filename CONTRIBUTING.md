@@ -298,7 +298,7 @@ setup(
 ```
 git tag v<x.x.x>
 git push origin v<x.x.x>
-``` 
+```
 
 ### Release Manually
 1. Build the package in an NVIDIA container.
