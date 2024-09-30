@@ -15,7 +15,7 @@ conda activate sllm-worker
 ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=2 \
 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
 ```
-Secondly, in a new terminal, launch the ServerlessLLM store server. It's important to note that the model `e5-mistral-7b-instruct` is approximately 14GB in size (fp16), so you'll need to configure the store server with a memory pool of at least 14GB to avoid encountering an OOM (Out of Memory) error. We recommend setting the memory pool size as large as possible.
+Secondly, in a new terminal, launch the ServerlessLLM store server. It's important to note that the model `e5-mistral-7b-instruct` is approximately 14GB in size (float16), so you'll need to configure the store server with a memory pool of at least 14GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible.
 ```bash
 conda activate sllm-worker
 sllm-store-server --mem_pool_size 14
