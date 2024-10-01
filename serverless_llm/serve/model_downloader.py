@@ -99,6 +99,10 @@ class VllmModelDownloader:
         storage_path = os.getenv("STORAGE_PATH", "./models")
 
         def _run_writer(input_dir, model_name):
+            model_path = os.path.join(storage_path, "vllm", model_name)
+            if os.path.exists(model_path):
+                logger.info(f"{model_path} already exists")
+                return
             # load models from the input directory
             llm_writer = LLM(
                 model=input_dir,
@@ -109,7 +113,6 @@ class VllmModelDownloader:
                 enforce_eager=True,
                 max_model_len=1,
             )
-            model_path = os.path.join(storage_path, "vllm", model_name)
             model_executer = llm_writer.llm_engine.model_executor
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
