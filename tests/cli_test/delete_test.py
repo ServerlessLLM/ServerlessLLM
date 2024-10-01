@@ -18,7 +18,7 @@ class TestDeleteCommand(unittest.TestCase):
         command.run()
 
         mock_post.assert_called_once_with(
-            "http://localhost:8343/delete/",
+            "http://127.0.0.1:8343/delete/",
             headers={"Content-Type": "application/json"},
             json={"model": "facebook/opt-1.3b"},
         )
@@ -39,12 +39,12 @@ class TestDeleteCommand(unittest.TestCase):
 
         expected_calls = [
             (
-                "http://localhost:8343/delete/",
+                "http://127.0.0.1:8343/delete/",
                 {"Content-Type": "application/json"},
                 {"model": "facebook/opt-1.3b"},
             ),
             (
-                "http://localhost:8343/delete/",
+                "http://127.0.0.1:8343/delete/",
                 {"Content-Type": "application/json"},
                 {"model": "facebook/opt-2.7b"},
             ),
@@ -67,7 +67,7 @@ class TestDeleteCommand(unittest.TestCase):
         command.run()
 
         mock_post.assert_called_once_with(
-            "http://localhost:8343/delete/",
+            "http://127.0.0.1:8343/delete/",
             headers={"Content-Type": "application/json"},
             json={"model": "facebook/opt-1.3b"},
         )

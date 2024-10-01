@@ -291,7 +291,23 @@ After your pull request is merged:
 By following this workflow, we maintain a clean and organized main branch, making it easier for all contributors to understand the project's history and collaborate effectively. The detailed development process remains available in the pull request history, providing the best of both worlds: a clean main branch and preserved development details.
 
 ## Release
+### Release with Github Workflow
+1. Bump the version number in `ServerlessLLM/setup.py` and `ServerlessLLM/serverless_llm/setup.py`
+```
+setup(
+    name=...,
+    version="<version-number>",
+    ext_modules=...
+    ...
+)
+```
+2. Tag the current commit and push:
+```
+git tag v<x.x.x>
+git push origin v<x.x.x>
+``` 
 
+### Release Manually
 1. Build the package in an NVIDIA container.
 
    ```bash

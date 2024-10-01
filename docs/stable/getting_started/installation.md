@@ -24,13 +24,13 @@ cd ServerlessLLM
 conda create -n sllm python=3.10 -y
 conda activate sllm
 pip install -e .
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev4
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
 
 # worker node
 conda create -n sllm-worker python=3.10 -y
 conda activate sllm-worker
 pip install -e ".[worker]"
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev4
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
 ```
 
 # vLLM Patch
@@ -38,5 +38,6 @@ To use vLLM with ServerlessLLM, we need to apply our patch `serverless_llm/store
 
 You may do that by running our script:
 ```bash
+conda activate sllm-worker
 ./serverless_llm/store/vllm_patch/patch.sh
 ```
