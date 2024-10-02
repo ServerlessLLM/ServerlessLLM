@@ -668,3 +668,5 @@ downloader
 vllm
 SamplingParams
 getenv
+ROCm
+PyTorch
