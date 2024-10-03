@@ -95,10 +95,11 @@ void printBinaryArrayInHex(const unsigned char* data, size_t size) {
 // Mapping from string to at::ScalarType
 at::ScalarType stringToScalarType(const std::string& dtype_str) {
   static const std::unordered_map<std::string, at::ScalarType> dtype_map = {
-      {"torch.float16", torch::kFloat16}, {"torch.float32", torch::kFloat32},
-      {"torch.float64", torch::kFloat64}, {"torch.int16", torch::kInt16},
-      {"torch.int32", torch::kInt32},     {"torch.int64", torch::kInt64},
-      {"torch.uint8", torch::kUInt8},     {"torch.int8", torch::kInt8}};
+      {"torch.float16", torch::kFloat16},  {"torch.float32", torch::kFloat32},
+      {"torch.float64", torch::kFloat64},  {"torch.int16", torch::kInt16},
+      {"torch.int32", torch::kInt32},      {"torch.int64", torch::kInt64},
+      {"torch.uint8", torch::kUInt8},      {"torch.int8", torch::kInt8},
+      {"torch.bfloat16", torch::kBFloat16}};
 
   auto it = dtype_map.find(dtype_str);
   if (it != dtype_map.end()) {
