@@ -87,12 +87,12 @@ def tokenizer():
 
 @pytest.fixture
 def encoder():
-    encoder = AutoModel.from_pretrained("BAAI/bge-en-icl").to("cpu")
+    encoder = AutoModel.from_pretrained("facebook/opt-125m").to("cpu")
     yield encoder
 
 @pytest.fixture
 def encoder_tokenizer():
-    encoder_tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-en-icl")
+    encoder_tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
     yield encoder_tokenizer(["test_prompt"], max_length=4096, padding=True, truncation=True, return_tensors="pt")
 
 
