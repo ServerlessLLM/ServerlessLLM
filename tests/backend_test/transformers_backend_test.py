@@ -132,7 +132,7 @@ async def test_encode(transformers_backend, encoder, encoder_tokenizer):
     ):
         await transformers_backend.init_backend()
         input = {
-                "model": "BAAI/bge-en-icl",
+                "model": "facebook/opt-125m",
                 "task_instruct": "Given a question, retrieve passages that answer the question",
                 "query": [
                 "Hi, How are you?"
