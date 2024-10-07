@@ -33,6 +33,7 @@ def backend_config():
     return {
         "pretrained_model_name_or_path": "facebook/opt-125m",
         "torch_dtype": "float16",
+        "hf_model_class": "AutoModelForCausalLM"
     }
 
 
