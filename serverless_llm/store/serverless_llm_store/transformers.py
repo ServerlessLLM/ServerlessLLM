@@ -53,7 +53,8 @@ from serverless_llm_store.utils import (
 )
 from serverless_llm_store.torch import load_dict_non_blocking, save_dict
 from torch import nn
-from transformers import AutoConfig, AutoModelForCausalLM, GenerationConfig
+from transformers import AutoConfig, GenerationConfig
+import importlib
 
 logger = init_logger(__name__)
 
@@ -124,6 +125,7 @@ def load_model(
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
+    hf_model_class: Optional[str] = None,
 ):
     if fully_parallel:
         return fully_parallel_load(
@@ -131,6 +133,7 @@ def load_model(
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
+            hf_model_class=hf_model_class
         )
     # if fully_parallel is disabled, we still try to parallelize the model
     # initialization and data loading in the best effort
@@ -139,6 +142,7 @@ def load_model(
         device_map=device_map,
         torch_dtype=torch_dtype,
         storage_path=storage_path,
+        hf_model_class=hf_model_class
     )
 
 
@@ -147,6 +151,7 @@ def fully_parallel_load(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
+    hf_model_class: Optional[str] = None,
 ):
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
@@ -182,7 +187,7 @@ def fully_parallel_load(
 
         start = time.time()
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_path)}"
+            f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
@@ -190,9 +195,9 @@ def fully_parallel_load(
         logger.debug(f"load config takes {time.time() - start} seconds")
         start = time.time()
         with init_empty_weights():
-            model = AutoModelForCausalLM.from_config(config).to(
-                config.torch_dtype
-            )
+            module = importlib.import_module("transformers")
+            _class = getattr(module, hf_model_class)
+            model = _class.from_config(config, trust_remote_code=True).to(config.torch_dtype)
 
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
@@ -221,6 +226,7 @@ def best_effort_load(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
+    hf_model_class: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)
@@ -238,7 +244,7 @@ def best_effort_load(
         storage_path = os.getenv("STORAGE_PATH", "./models")
     start = time.time()
     config = AutoConfig.from_pretrained(
-        f"{os.path.join(storage_path, model_path)}"
+        f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
     )
     if torch_dtype is not None:
         config.torch_dtype = torch_dtype
@@ -246,7 +252,9 @@ def best_effort_load(
     logger.debug(f"load config takes {time.time() - start} seconds")
     start = time.time()
     with init_empty_weights():
-        model = AutoModelForCausalLM.from_config(config).to(config.torch_dtype)
+        module = importlib.import_module("transformers")
+        _class = getattr(module, hf_model_class)
+        model = _class.from_config(config, trust_remote_code=True).to(config.torch_dtype)
 
     model.tie_weights()
     logger.debug(f"load model takes {time.time() - start} seconds")

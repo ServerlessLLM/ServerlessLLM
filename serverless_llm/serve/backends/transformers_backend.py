@@ -26,8 +26,9 @@ from typing import Any, Dict, Optional
 
 import ray
 import torch
+import torch.nn.functional as F
 from serverless_llm_store.transformers import load_model
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 
 from serverless_llm.serve.backends.backend_utils import SllmBackend
 from serverless_llm.serve.logger import init_logger
@@ -63,6 +64,7 @@ class TransformersBackend(SllmBackend):
             device_map = self.backend_config.get("device_map", "auto")
             torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
             torch_dtype = getattr(torch, torch_dtype)
+            hf_model_class = self.backend_config.get("hf_model_class", None)
             if torch_dtype is None:
                 logger.warning(
                     f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
@@ -77,12 +79,67 @@ class TransformersBackend(SllmBackend):
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 storage_path=storage_path,
+                hf_model_class=hf_model_class
             )
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model_initialized = True
     
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
+    
+    def _encoder_tokenize(self, query: str, max_length: int):
+        return self.tokenizer(query, max_length=max_length, padding=True, truncation=True, return_tensors='pt').to("cuda:0")
+    
+    async def encode(self, request_data: Optional[Dict[str, Any]]):
+        async with self.model_status_lock:
+            if not self.model_initialized:
+                return {"error": "Model not initialized"}
+
+        def last_token_pool(last_hidden_states: torch.Tensor,
+            attention_mask: torch.Tensor) -> torch.Tensor:
+            left_padding = (attention_mask[:, -1].sum() == attention_mask.shape[0])
+            if left_padding:
+                return last_hidden_states[:, -1]
+            else:
+                sequence_lengths = attention_mask.sum(dim=1) - 1
+                batch_size = last_hidden_states.shape[0]
+                return last_hidden_states[torch.arange(batch_size, device=last_hidden_states.device), sequence_lengths]
+        
+        def get_detailed_instruct(task_description: str, query: str) -> str:
+            return f'Instruct: {task_description}\nQuery: {query}'
+
+        model_name = request_data.get("model", "dummy-model")
+        task_instruct = request_data.get("task_instruct", "")
+        max_length = request_data.get("max_length", 4096)
+        query = request_data.get("query", [])
+
+        if not query:
+            return {"error": "Missing query in request data"}
+        
+        query = [get_detailed_instruct(task_instruct, q) for q in query]
+
+        batch_dict = self._encoder_tokenize(query, max_length)
+        with torch.no_grad():
+            output = self.model(**batch_dict, output_hidden_states=True)
+        embeddings = last_token_pool(output.hidden_states[-1], batch_dict['attention_mask'])
+
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+        
+        query_tokens = sum([len(self.tokenizer.tokenize(q)) for q in query])
+        response = {
+            "object": "list",
+            "data": [{"object": "embedding", 
+                      "index": i,
+                      "embedding": embeddings[i].tolist()
+                      } for i in range(len(embeddings))],
+            "model": model_name,
+            "usage": {
+                "query_tokens": query_tokens,
+                "total_tokens": query_tokens,
+            }
+        }
+    
+        return response
 
     async def generate(self, request_data: Optional[Dict[str, Any]]):
         async with self.model_status_lock:
