@@ -35,3 +35,7 @@ ignore = []
 [tool.isort]
 use_parentheses = true
 skip_gitignore = true
+
+[tool.codespell]
+skip = 'build,*.egg-info,images'
+quiet-level = 1

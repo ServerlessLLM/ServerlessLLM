@@ -35,7 +35,7 @@ pip install seaborn matplotlib pandas sentencepiece
 ```
 
 Additionally, you will need to log in to the Hugging Face CLI to enable loading models such as meta-llama/Meta-Llama-3-8B:
-  
+
 ```bash
 huggingface-cli login
 ```

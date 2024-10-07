@@ -47,8 +47,8 @@ int Model::Initialize(const std::filesystem::path storage_path) {
   partition_paths_.clear();
   // Attempt to read from 0 until the file is not found
   for (int partition_id = 0;; ++partition_id) {
-    auto tensor_path = storage_path / 
-        model_path_ / ("tensor.data_" + std::to_string(partition_id));
+    auto tensor_path = storage_path / model_path_ /
+                       ("tensor.data_" + std::to_string(partition_id));
     if (access(tensor_path.c_str(), F_OK) == -1) {
       LOG(INFO) << "Tensor file " << tensor_path << " does not exist";
       break;

@@ -32,7 +32,7 @@ def fetch_requirements(path):
 
 def remove_prefix(text, prefix):
     if text.startswith(prefix):
-        return text[len(prefix) :]
+        return text[len(prefix):]
     return text
 
 
@@ -56,9 +56,7 @@ extras = {}
 extras["test"] = install_requires_worker + ["pytest", "pytest-asyncio"]
 extras["worker"] = install_requires_worker
 
-
 sys.path.append(Path.cwd().as_posix())
-
 
 setup(
     name="serverless-llm",

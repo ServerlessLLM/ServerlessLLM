@@ -20,38 +20,28 @@ import json
 import os
 import time
 import uuid
-from typing import Optional, Union, Dict
+from typing import Dict, Optional, Union
 
 import torch
 from accelerate import dispatch_model, init_empty_weights
-
 # from accelerate.hooks import add_hook_to_module
 from accelerate.utils import set_module_tensor_to_device
-from serverless_llm_store._C import (
-    allocate_cuda_memory,
-    get_cuda_memory_handles,
-    get_device_uuid_map,
-    restore_tensors,
-    save_tensors,
-)
+from serverless_llm_store._C import (allocate_cuda_memory,
+                                     get_cuda_memory_handles,
+                                     get_device_uuid_map, restore_tensors,
+                                     save_tensors)
 from serverless_llm_store.client import SllmStoreClient
 from serverless_llm_store.device_map_utils import (
-    DeviceMapType,
-    _compute_device_placement_from_map,
-    _compute_device_placement_from_map_fast,
-    _expand_tensor_name,
-    _transform_device_map_to_dict,
-)
+    DeviceMapType, _compute_device_placement_from_map,
+    _compute_device_placement_from_map_fast, _expand_tensor_name,
+    _transform_device_map_to_dict)
 from serverless_llm_store.logger import init_logger
-from serverless_llm_store.utils import (
-    calculate_device_memory,
-    calculate_tensor_device_offsets,
-    dtype_byte_size,
-    get_no_split_modules,
-    get_tied_no_split_modules,
-    send_module_buffers_to_device,
-)
 from serverless_llm_store.torch import load_dict_non_blocking, save_dict
+from serverless_llm_store.utils import (calculate_device_memory,
+                                        calculate_tensor_device_offsets,
+                                        dtype_byte_size, get_no_split_modules,
+                                        get_tied_no_split_modules,
+                                        send_module_buffers_to_device)
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
 import importlib
@@ -233,7 +223,7 @@ def best_effort_load(
     if not ret or ret == False:
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
-    replica_uuid = _get_uuid()   
+    replica_uuid = _get_uuid()
     device_map = _transform_device_map_to_dict(device_map)
 
     if isinstance(device_map, dict):
@@ -267,9 +257,9 @@ def best_effort_load(
         logger.debug(f"device_map: {device_map}")
     # check if 'cpu' is in device_map values and raise an exception
     if "cpu" in device_map.values():
-        raise ValueError('''The GPUs are either unavailable or do not have enough memory. 
+        raise ValueError('''The GPUs are either unavailable or do not have enough memory.
                          Please ensure they are available and ready for use.''')
-    
+
     logger.debug(
         f"compute_device_placement takes {time.time() - start} seconds"
     )

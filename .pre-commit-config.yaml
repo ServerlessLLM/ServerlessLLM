@@ -1,0 +1,50 @@
+repos:
+-   repo: meta
+    hooks:
+    -   id: check-hooks-apply
+    -   id: check-useless-excludes
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+    -   id: check-case-conflict
+    -   id: check-json
+    -   id: check-symlinks
+    -   id: check-yaml
+    -   id: destroyed-symlinks
+    # -   id: end-of-file-fixer
+    -   id: fix-byte-order-marker
+    -   id: fix-encoding-pragma
+        args: [--remove]
+    -   id: mixed-line-ending
+        args: [--fix=lf]
+    -   id: requirements-txt-fixer
+    -   id: trailing-whitespace
+        exclude: ^.*\.patch$ # exclude patch files
+
+# -   repo: https://github.com/pycqa/isort
+#     rev: 5.13.2
+#     hooks:
+#       - id: isort
+#         name: isort (python)
+
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
+    hooks:
+    -   id: codespell
+        additional_dependencies:
+            - tomli
+
+-   repo: https://gitlab.com/daverona/pre-commit/cpp
+    rev: 0.8.0
+    hooks:
+    -   id: clang-format  # formatter of C/C++ code based on a style guide: LLVM, Google, Chromium, Mozilla, and WebKit available
+        args: [--style=file]
+
+
+-   repo: local
+    hooks:
+    -   id: run_formatting
+        name: Run formatting checks
+        entry: bash format.sh
+        language: system

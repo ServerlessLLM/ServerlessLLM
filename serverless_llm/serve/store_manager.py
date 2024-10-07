@@ -17,18 +17,16 @@
 # ---------------------------------------------------------------------------- #
 
 import asyncio
-import ray
 import os
 import time
 from typing import List, Mapping, Optional
 
+import ray
 from serverless_llm_store.client import SllmStoreClient
 
 from serverless_llm.serve.logger import init_logger
-from serverless_llm.serve.model_downloader import (
-    VllmModelDownloader,
-    download_transformers_model,
-)
+from serverless_llm.serve.model_downloader import (VllmModelDownloader,
+                                                   download_transformers_model)
 from serverless_llm.serve.utils import get_worker_nodes
 
 logger = init_logger(__name__)
@@ -370,7 +368,7 @@ class StoreManager:
             self.model_info[model_name] = model_size
             logger.info(f"{model_name} registered")
         else:
-            # TOOD: apply new placement config, if given
+            # TODO: apply new placement config, if given
             pass
 
     async def download_transformers_model(
