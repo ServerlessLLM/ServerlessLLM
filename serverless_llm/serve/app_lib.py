@@ -50,7 +50,10 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=500, detail="Controller not initialized"
             )
-        await controller.register.remote(body)
+        try:
+            await controller.register.remote(body)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Cannot register model, please contact the administrator")
 
         return {"status": "ok"}
 
