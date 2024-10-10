@@ -202,7 +202,7 @@ def fully_parallel_load(
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
 
-        replica_uuid, state_dict, device_map = future.result()
+        replica_uuid, state_dict = future.result()
 
     with torch.no_grad():
         for name, param in state_dict.items():
