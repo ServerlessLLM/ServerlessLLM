@@ -25,13 +25,14 @@ import uuid
 from dataclasses import fields
 from typing import Any, Dict, List, Optional, Union
 
-import ray
 import torch
 from vllm import AsyncEngineArgs, AsyncLLMEngine, RequestOutput, SamplingParams
 from vllm.inputs import TokensPrompt
 
-from serverless_llm.serve.backends.backend_utils import (BackendStatus,
-                                                         SllmBackend)
+from serverless_llm.serve.backends.backend_utils import (
+    BackendStatus,
+    SllmBackend,
+)
 
 logger = logging.getLogger("ray")
 

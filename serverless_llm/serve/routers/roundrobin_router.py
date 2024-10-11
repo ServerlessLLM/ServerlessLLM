@@ -131,7 +131,7 @@ class RoundRobinRouter(SllmRouter):
         result = await instance.backend_instance.generate.remote(
             request_data=request_data
         )
-        logger.info(f"Finished processing request")
+        logger.info("Finished processing request")
         await instance.add_requests(-1)
         async with self.request_count_lock:
             self.request_count -= 1

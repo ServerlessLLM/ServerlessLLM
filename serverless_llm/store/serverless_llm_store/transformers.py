@@ -20,28 +20,36 @@ import json
 import os
 import time
 import uuid
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 import torch
 from accelerate import dispatch_model, init_empty_weights
+
 # from accelerate.hooks import add_hook_to_module
 from accelerate.utils import set_module_tensor_to_device
-from serverless_llm_store._C import (allocate_cuda_memory,
-                                     get_cuda_memory_handles,
-                                     get_device_uuid_map, restore_tensors,
-                                     save_tensors)
+from serverless_llm_store._C import (
+    allocate_cuda_memory,
+    get_cuda_memory_handles,
+    get_device_uuid_map,
+    restore_tensors,
+)
 from serverless_llm_store.client import SllmStoreClient
 from serverless_llm_store.device_map_utils import (
-    DeviceMapType, _compute_device_placement_from_map,
-    _compute_device_placement_from_map_fast, _expand_tensor_name,
-    _transform_device_map_to_dict)
+    DeviceMapType,
+    _compute_device_placement_from_map,
+    _compute_device_placement_from_map_fast,
+    _expand_tensor_name,
+    _transform_device_map_to_dict,
+)
 from serverless_llm_store.logger import init_logger
 from serverless_llm_store.torch import load_dict_non_blocking, save_dict
-from serverless_llm_store.utils import (calculate_device_memory,
-                                        calculate_tensor_device_offsets,
-                                        dtype_byte_size, get_no_split_modules,
-                                        get_tied_no_split_modules,
-                                        send_module_buffers_to_device)
+from serverless_llm_store.utils import (
+    calculate_device_memory,
+    calculate_tensor_device_offsets,
+    get_no_split_modules,
+    get_tied_no_split_modules,
+    send_module_buffers_to_device,
+)
 from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM, GenerationConfig
 
@@ -68,14 +76,14 @@ def save_model(model: nn.Module, model_path: str):
 
     save_dict(model_state_dict, model_path)
 
-    # This section of code was adopted from the Hugging Face Transformers project under Apache-2.0 License.
+    # This section of code was adopted from the Hugging Face Transformers project under Apache-2.0 License. # noqa: E501
     # Source: https://github.com/huggingface/transformers/blob/9fe3f585bb4ea29f209dc705d269fbe292e1128f/src/transformers/modeling_utils.py#L2425-L2447
     # Modifications made: Removed the support for '_hf_peft_config_loaded'
     #
     # Save the config
     model.config.save_pretrained(model_path)
     if model.can_generate():
-        # generation config built from the model config + the model config holds generation kwargs -> generate
+        # generation config built from the model config + the model config holds generation kwargs -> generate # noqa: E501
         # may revert to legacy behavior if the two don't match
         if (
             model.generation_config._from_model_config
@@ -86,13 +94,13 @@ def save_model(model: nn.Module, model_path: str):
             )
             if new_generation_config != model.generation_config:
                 logger.warning(
-                    "Your generation config was originally created from the model config, but the model "
-                    "config has changed since then. Unless you pass the `generation_config` argument to this "
-                    "model's `generate` calls, they will revert to the legacy behavior where the base "
-                    "`generate` parameterization is loaded from the model config instead. "
-                    "To avoid this behavior and this warning, we recommend you to overwrite the generation "
-                    "config model attribute before calling the model's `save_pretrained`, preferably also "
-                    "removing any generation kwargs from the model config. This warning will be raised to an "
+                    "Your generation config was originally created from the model config, but the model "  # noqa: E501
+                    "config has changed since then. Unless you pass the `generation_config` argument to this "  # noqa: E501
+                    "model's `generate` calls, they will revert to the legacy behavior where the base "  # noqa: E501
+                    "`generate` parameterization is loaded from the model config instead. "  # noqa: E501
+                    "To avoid this behavior and this warning, we recommend you to overwrite the generation "  # noqa: E501
+                    "config model attribute before calling the model's `save_pretrained`, preferably also "  # noqa: E501
+                    "removing any generation kwargs from the model config. This warning will be raised to an "  # noqa: E501
                     "exception in v4.41."
                 )
         model.generation_config.save_pretrained(model_path)
@@ -143,18 +151,14 @@ def fully_parallel_load(
     start = time.time()
     device_map = _transform_device_map_to_dict(device_map)
     with open(
-        os.path.join(
-            storage_path, model_path, "tied_no_split_modules.json"
-        ),
+        os.path.join(storage_path, model_path, "tied_no_split_modules.json"),
         "r",
     ) as f:
         tied_no_split_modules = json.load(f)
 
     if isinstance(device_map, str):
         with open(
-            os.path.join(
-                storage_path, model_path, "no_split_modules.json"
-            ),
+            os.path.join(storage_path, model_path, "no_split_modules.json"),
             "r",
         ) as f:
             no_split_modules = json.load(f)
@@ -214,15 +218,17 @@ def best_effort_load(
 ):
     client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)
-    if not ret or ret == False:
+    if not ret:
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
     replica_uuid = _get_uuid()
     device_map = _transform_device_map_to_dict(device_map)
 
-    if isinstance(device_map, dict):
-        if torch.device("cpu") in device_map.values() or "cpu" in device_map.values():
-            raise ValueError("CPU is not supported in device_map.")
+    if isinstance(device_map, dict) and (
+        torch.device("cpu") in device_map.values()
+        or "cpu" in device_map.values()
+    ):
+        raise ValueError("CPU is not supported in device_map.")
 
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
@@ -249,8 +255,9 @@ def best_effort_load(
         logger.debug(f"device_map: {device_map}")
     # check if 'cpu' is in device_map values and raise an exception
     if "cpu" in device_map.values():
-        raise ValueError('''The GPUs are either unavailable or do not have enough memory.
-                         Please ensure they are available and ready for use.''')
+        raise ValueError(
+            "The GPUs are either unavailable or do not have enough memory. Please ensure they are available and ready for use."  # noqa: E501
+        )
 
     logger.debug(
         f"compute_device_placement takes {time.time() - start} seconds"
@@ -297,7 +304,7 @@ def best_effort_load(
             for device_id, v in cuda_memory_handles.items()
         },
     )
-    if not ret or ret == False:
+    if not ret:
         raise ValueError(f"Failed to load model {model_path} into GPU")
 
     # load model state_dict

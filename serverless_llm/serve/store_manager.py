@@ -25,8 +25,10 @@ import ray
 from serverless_llm_store.client import SllmStoreClient
 
 from serverless_llm.serve.logger import init_logger
-from serverless_llm.serve.model_downloader import (VllmModelDownloader,
-                                                   download_transformers_model)
+from serverless_llm.serve.model_downloader import (
+    VllmModelDownloader,
+    download_transformers_model,
+)
 from serverless_llm.serve.utils import get_worker_nodes
 
 logger = init_logger(__name__)
@@ -60,7 +62,9 @@ class SllmLocalStore:
 
         self.lock = asyncio.Lock()
 
-    async def register_model(self, model_name: str, backend: str, backend_config):
+    async def register_model(
+        self, model_name: str, backend: str, backend_config
+    ):
         async with self.lock:
             if model_name in self.disk_models:
                 logger.error(f"{model_name} already registered")
@@ -69,7 +73,9 @@ class SllmLocalStore:
             if backend == "transformers":
                 model_size = self.client.register_model(model_path)
             elif backend == "vllm":
-                tensor_parallel_size = backend_config.get("tensor_parallel_size", 1)
+                tensor_parallel_size = backend_config.get(
+                    "tensor_parallel_size", 1
+                )
                 model_size = 0
                 for rank in range(tensor_parallel_size):
                     model_rank_path = os.path.join(model_path, f"rank_{rank}")
@@ -91,9 +97,7 @@ class SllmLocalStore:
     async def load_to_host(self, model_name: str) -> bool:
         async with self.lock:
             if model_name not in self.disk_models:
-                logger.error(
-                    f"{model_name} not found on node {self.node_id}"
-                )
+                logger.error(f"{model_name} not found on node {self.node_id}")
                 return False
             if model_name in self.pinned_memory_pool:
                 logger.info(
@@ -227,12 +231,12 @@ class StoreManager:
                     else:
                         if not local_server_config:
                             logger.warning(
-                                f"Failed to get server config for node {node_id}"
+                                f"Failed to get server config for node {node_id}"  # noqa: E501
                             )
                             continue
                         if "chunk_size" not in local_server_config:
                             logger.error(
-                                f"Chunk size not found in server config for node {node_id}"
+                                f"Chunk size not found in server config for node {node_id}"  # noqa: E501
                             )
                         chunk_size = local_server_config["chunk_size"]
                         self.local_servers[node_id] = SllmLocalStore(
@@ -243,11 +247,11 @@ class StoreManager:
                         ].hardware_info = self.hardware_info[node_id]
                         uninitialized_nodes.remove(node_id)
                         logger.info(
-                            f"Node {node_id} initialized, chunk size: {chunk_size}"
+                            f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
                         )
                         break
             logger.info(
-                f"Waiting for nodes {uninitialized_nodes} to be initialized"
+                f"Waiting for nodes {uninitialized_nodes} to be initialized"  # noqa: E501
             )
             await asyncio.sleep(1)
 
@@ -325,7 +329,7 @@ class StoreManager:
                     [node_id in worker_node_info for node_id in target_nodes]
                 ):
                     logger.error(
-                        f"Invalid target nodes {target_nodes}, worker nodes: {worker_node_info}"
+                        f"Invalid target nodes {target_nodes}, worker nodes: {worker_node_info}"  # noqa: E501
                     )
                     return
             else:
@@ -337,7 +341,7 @@ class StoreManager:
                 target_nodes = [node_id]
 
             logger.info(
-                f"Downloading model {pretrained_model_name} to nodes {target_nodes}"
+                f"Downloading model {pretrained_model_name} to nodes {target_nodes}"  # noqa: E501
             )
             for node_id in target_nodes:
                 if backend == "transformers":
@@ -370,9 +374,7 @@ class StoreManager:
     async def download_transformers_model(
         self, pretrained_model_name, node_id
     ) -> int:
-        logger.info(
-            f"Downloading {pretrained_model_name} to node {node_id}"
-        )
+        logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
         ).remote(pretrained_model_name, "float16")
@@ -380,13 +382,15 @@ class StoreManager:
     async def download_vllm_model(
         self, pretrained_model_name, node_id, num_gpus, tensor_parallel_size
     ):
-        logger.info(
-            f"Downloading {pretrained_model_name} to node {node_id}"
+        logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
+        vllm_backend_downloader = (
+            ray.remote(VllmModelDownloader)
+            .options(
+                num_gpus=num_gpus,
+                resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1},
+            )
+            .remote()
         )
-        vllm_backend_downloader = ray.remote(VllmModelDownloader).options(
-            num_gpus=num_gpus,
-            resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1},
-        ).remote()
         return await vllm_backend_downloader.download_vllm_model.remote(
             pretrained_model_name,
             "float16",  # FIXME: use backend_config

@@ -42,9 +42,11 @@ repos:
         args: [--style=file]
 
 
--   repo: local
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.6.9
     hooks:
-    -   id: run_formatting
-        name: Run formatting checks
-        entry: bash format.sh
-        language: system
+    -   id: ruff
+        args: [--fix]
+    -   id: ruff-format
+        # args: [--check]

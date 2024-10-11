@@ -88,7 +88,6 @@ class VllmModelDownloader:
         max_size: Optional[int] = None,
     ):
         import gc
-        import shutil
         from tempfile import TemporaryDirectory
 
         import torch
@@ -143,7 +142,12 @@ class VllmModelDownloader:
                 input_dir = snapshot_download(
                     model_name,
                     cache_dir=cache_dir,
-                    allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
+                    allow_patterns=[
+                        "*.safetensors",
+                        "*.bin",
+                        "*.json",
+                        "*.txt",
+                    ],
                 )
                 logger.info(input_dir)
                 _run_writer(input_dir, model_name)

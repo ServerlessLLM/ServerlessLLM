@@ -32,7 +32,7 @@ DeviceMapType = Union[
 def _transform_device_map_to_dict(
     device_map: DeviceMapType,
 ) -> Dict[str, Union[int, torch.device]]:
-    """Transforms the device_map to a dictionary if it is not already a dictionary."""
+    """Transforms the device_map to a dictionary if it is not already a dictionary."""  # noqa: E501
 
     if isinstance(device_map, torch.device):
         device_map = {"": device_map}
@@ -46,13 +46,13 @@ def _transform_device_map_to_dict(
             device_map = {"": torch.device(device_map)}
         except RuntimeError:
             raise ValueError(
-                "When passing device_map as a string, the value needs to be a device name (e.g. cpu, cuda:0) or "
-                f"'auto', 'balanced', 'balanced_low_0', 'sequential' but found {device_map}."
-            )
+                "When passing device_map as a string, the value needs to be a device name (e.g. cpu, cuda:0) or "  # noqa: E501
+                f"'auto', 'balanced', 'balanced_low_0', 'sequential' but found {device_map}."  # noqa: E501
+            ) from None
     elif isinstance(device_map, int):
         if device_map < 0:
             raise ValueError(
-                "You can't pass device_map as a negative int. If you want to put the model on the cpu, pass device_map = 'cpu' "
+                "You can't pass device_map as a negative int. If you want to put the model on the cpu, pass device_map = 'cpu' "  # noqa: E501
             )
         else:
             device_map = {"": device_map}
@@ -64,7 +64,7 @@ def _expand_tensor_name(
 ) -> Dict[str, Union[int, torch.device]]:
     if "" in device_map and len(device_map) != 1:
         raise RuntimeError(
-            f"Device map {device_map} is invalid. If you want to specify the default device, use key ''."
+            f"Device map {device_map} is invalid. If you want to specify the default device, use key ''."  # noqa: E501
         )
 
     expanded_device_map = {}
@@ -99,7 +99,7 @@ def _compute_device_placement_from_map(
             "sequential",
         ]:
             raise ValueError(
-                "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "
+                "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "  # noqa: E501
                 "'sequential'."
             )
 
@@ -143,7 +143,7 @@ def _compute_device_placement_from_map_fast(
             "sequential",
         ]:
             raise ValueError(
-                "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "
+                "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "  # noqa: E501
                 "'sequential'."
             )
 
@@ -169,14 +169,14 @@ def _compute_device_placement_from_map_fast(
         ):
             device_id, memory = max_memory.popitem()
             logger.warning(
-                f"Device {device_id} has insufficient memory {memory} for the first module."
+                f"Device {device_id} has insufficient memory {memory} for the first module."  # noqa: E501
             )
 
         total_size = sum(no_split_modules.values())
 
         if total_size > sum(max_memory.values()):
             raise RuntimeError(
-                "The total size of the model is greater than the maximum memory available."
+                "The total size of the model is greater than the maximum memory available."  # noqa: E501
             )
 
         placement = None
@@ -185,7 +185,7 @@ def _compute_device_placement_from_map_fast(
             placement = _get_balanced_placement(no_split_modules, max_memory)
         elif device_map == "balanced_low_0":
             # 2.1 decide minimum modules on device 0
-            # 2.2 use dynamic programming to find the best balanced placement for the rest on other devices
+            # 2.2 use dynamic programming to find the best balanced placement for the rest on other devices # noqa: E501
             raise NotImplementedError
         else:
             # 3. use greedy algorithm to find the best sequential placement
@@ -197,7 +197,7 @@ def _compute_device_placement_from_map_fast(
             )
 
         # reassign tied modules to the same device
-        for tied_groups, shared_size in tied_modules:
+        for tied_groups, shared_size in tied_modules:  # noqa: B007
             modules = list(placement.keys())
             for module in modules:
                 if module in tied_groups:
@@ -216,7 +216,7 @@ def _get_balanced_placement(
 ) -> Dict[str, Union[int, torch.device]]:
     """
     Computes the balanced placement for no split modules based on the given device_memory.
-    """
+    """  # noqa: E501
 
     module_names = list(module_size.keys())
     assert len(module_names) > 0 and len(module_names) >= len(device_memory)
@@ -227,7 +227,7 @@ def _get_balanced_placement(
         logger.error("No device memory or no modules to place.")
         return None
 
-    # "balanced" means that the gap between the sums of the partitions is minimized
+    # "balanced" means that the gap between the sums of the partitions is minimized # noqa: E501
     # Initialize DP table
     dp = [
         [[float("inf"), float("inf"), 0, []] for _ in range(n + 1)]
@@ -250,7 +250,7 @@ def _get_balanced_placement(
                 )
                 # check if this partition can fit in the device memory
                 if current_size > device_memory[k - 1]:
-                    # print(f"Partition {current_partition} is too large for device {k-1}, memory {device_memory[k-1]}")
+                    # print(f"Partition {current_partition} is too large for device {k-1}, memory {device_memory[k-1]}") # noqa: E501
                     continue
                 if dp[j][k - 1][0] < float("inf"):
                     if dp[j][k - 1][1] == float("inf"):
@@ -284,7 +284,7 @@ def _get_sequential_placement(
 ) -> Dict[str, Union[int, torch.device]]:
     """
     Computes the sequential placement for no split modules based on the given device_memory.
-    """
+    """  # noqa: E501
 
     module_names = list(module_size.keys())
     assert len(module_names) > 0 and len(module_names) >= len(device_memory)
@@ -303,7 +303,7 @@ def _get_sequential_placement(
             result_device_map[module] = current_device
         else:
             raise RuntimeError(
-                f"Module {module} is too large for device {current_device}, memory {device_memory[current_device]}"
+                f"Module {module} is too large for device {current_device}, memory {device_memory[current_device]}"  # noqa: E501
             )
 
     return result_device_map

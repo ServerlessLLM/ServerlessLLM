@@ -16,15 +16,15 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
-from typing import List, Mapping, Optional
+from typing import Mapping, Optional
 
 import ray
 
 from serverless_llm.serve.logger import init_logger
+
 # from serverless_llm.serve.utils import AllocationPlan, MigrationPlan
 from serverless_llm.serve.routers import RoundRobinRouter
-from serverless_llm.serve.schedulers import (FcfsScheduler,
-                                             StorageAwareScheduler)
+from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from serverless_llm.serve.store_manager import StoreManager
 
 logger = init_logger(__name__)
@@ -77,7 +77,7 @@ class SllmController:
 
     async def register(self, model_config):
         if not self.running:
-            logger.error(f"Controller not running")
+            logger.error("Controller not running")
             return
         model_name = model_config.get("model")
         backend = model_config.get("backend", None)
@@ -146,8 +146,8 @@ class SllmController:
             router = self.request_routers.pop(model_name)
             self.registered_models.pop(model_name)
 
-        if router is not None:
-            deleted_instance_id = await router.shutdown.remote()
+        # if router is not None:
+        #     deleted_instance_id = await router.shutdown.remote()
         del router
 
     async def get_models(self):

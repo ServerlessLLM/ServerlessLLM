@@ -16,18 +16,11 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 import argparse
-import gc
 import json
 import os
-import time
 
 import torch
-from benchmark_utils import (_warmup_cuda, _warmup_inference,
-                             benchmark_inference, measure)
-from serverless_llm_store.transformers import load_model
-from torch import nn
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from benchmark_utils import _warmup_cuda, _warmup_inference, measure
 
 
 def get_args():

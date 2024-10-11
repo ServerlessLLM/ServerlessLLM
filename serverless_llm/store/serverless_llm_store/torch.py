@@ -15,7 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-import concurrent.futures
 import json
 import os
 import time
@@ -23,26 +22,22 @@ import uuid
 from typing import Dict, Optional, Union
 
 import torch
-from accelerate import dispatch_model, init_empty_weights
+
 # from accelerate.hooks import add_hook_to_module
-from accelerate.utils import set_module_tensor_to_device
-from serverless_llm_store._C import (allocate_cuda_memory,
-                                     get_cuda_memory_handles,
-                                     get_device_uuid_map, restore_tensors,
-                                     save_tensors)
+from serverless_llm_store._C import (
+    allocate_cuda_memory,
+    get_cuda_memory_handles,
+    get_device_uuid_map,
+    restore_tensors,
+    save_tensors,
+)
 from serverless_llm_store.client import SllmStoreClient
-from serverless_llm_store.device_map_utils import (
-    DeviceMapType, _compute_device_placement_from_map,
-    _compute_device_placement_from_map_fast, _expand_tensor_name,
-    _transform_device_map_to_dict)
+from serverless_llm_store.device_map_utils import _expand_tensor_name
 from serverless_llm_store.logger import init_logger
-from serverless_llm_store.utils import (calculate_device_memory,
-                                        calculate_tensor_device_offsets,
-                                        dtype_byte_size, get_no_split_modules,
-                                        get_tied_no_split_modules,
-                                        send_module_buffers_to_device)
-from torch import nn
-from transformers import AutoConfig, AutoModelForCausalLM, GenerationConfig
+from serverless_llm_store.utils import (
+    calculate_device_memory,
+    calculate_tensor_device_offsets,
+)
 
 logger = init_logger(__name__)
 
@@ -51,7 +46,9 @@ def _get_uuid():
     return str(uuid.uuid4())
 
 
-def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.PathLike]):
+def save_dict(
+    state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.PathLike]
+):
     tensor_names = list(state_dict.keys())
     tensor_data_index = {}
     for name, param in state_dict.items():
@@ -70,7 +67,13 @@ def save_dict(state_dict: Dict[str, torch.Tensor], model_path: Union[str, os.Pat
     tensor_index = {}
     for name, param in state_dict.items():
         # name: offset, size
-        tensor_index[name] = (tensor_offsets[name], tensor_data_index[name][1], tuple(param.shape), tuple(param.stride()), str(param.dtype))
+        tensor_index[name] = (
+            tensor_offsets[name],
+            tensor_data_index[name][1],
+            tuple(param.shape),
+            tuple(param.stride()),
+            str(param.dtype),
+        )
 
     # save tensor index
     with open(os.path.join(model_path, "tensor_index.json"), "w") as f:
@@ -99,7 +102,7 @@ def load_dict_non_blocking(
 ):
     client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)
-    if not ret or ret == False:
+    if not ret:
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
     if not storage_path:
@@ -146,7 +149,7 @@ def load_dict_non_blocking(
             for device_id, v in cuda_memory_handles.items()
         },
     )
-    if not ret or ret == False:
+    if not ret:
         raise ValueError(f"Failed to load model {model_path} into GPU")
 
     # load model state_dict

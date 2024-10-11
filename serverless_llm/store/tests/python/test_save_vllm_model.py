@@ -18,7 +18,6 @@
 import os
 import shutil
 import unittest
-from tempfile import TemporaryDirectory
 
 import torch
 from huggingface_hub import snapshot_download
@@ -35,9 +34,11 @@ class TestSaveModelIntegration(unittest.TestCase):
         self.model_path = os.path.join(self.save_dir, self.model_name)
 
         # Check if at least 2 GPUs are available
-        if not torch.cuda.is_available() or torch.cuda.device_count() < self.tensor_parallel_size:
+        if (
+            not torch.cuda.is_available()
+            or torch.cuda.device_count() < self.tensor_parallel_size
+        ):
             raise unittest.SkipTest("Not enough GPUs available for this test")
-
 
         # Ensure the save directory is clean before the test
         if os.path.exists(self.save_dir):
@@ -71,9 +72,7 @@ class TestSaveModelIntegration(unittest.TestCase):
             max_model_len=1,
         ).llm_engine.model_executor
         # save the models in the ServerlessLLM format
-        model_executer.save_serverless_llm_state(
-            path=self.model_path
-        )
+        model_executer.save_serverless_llm_state(path=self.model_path)
 
         # Check if the model directory was created
         self.assertTrue(os.path.exists(self.model_path))
@@ -81,7 +80,11 @@ class TestSaveModelIntegration(unittest.TestCase):
         # Check if each partition directory was created
         for i in range(self.tensor_parallel_size):
             self.assertTrue(os.path.exists(f"{self.model_path}/rank_{i}"))
-        self.assertFalse(os.path.exists(f"{self.model_path}/rank_{self.tensor_parallel_size}"))
+        self.assertFalse(
+            os.path.exists(
+                f"{self.model_path}/rank_{self.tensor_parallel_size}"
+            )
+        )
 
         # Check if certain files exist to verify that the model was saved
         expected_files = [
@@ -92,14 +95,20 @@ class TestSaveModelIntegration(unittest.TestCase):
         for i in range(self.tensor_parallel_size):
             for filename in expected_files:
                 self.assertTrue(
-                    os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))
+                    os.path.isfile(
+                        os.path.join(self.model_path, f"rank_{i}", filename)
+                    )
                 )
             for filename in unexpected_files:
                 self.assertFalse(
-                    os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))
+                    os.path.isfile(
+                        os.path.join(self.model_path, f"rank_{i}", filename)
+                    )
                 )
 
         for filename in unexpected_files:
             self.assertFalse(
-                os.path.isfile(os.path.join(self.model_path, f"rank_{i}", filename))
+                os.path.isfile(
+                    os.path.join(self.model_path, f"rank_{i}", filename)
+                )
             )

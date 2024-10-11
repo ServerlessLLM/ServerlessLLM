@@ -15,21 +15,28 @@ line-length = 80
 exclude = []
 
 [tool.ruff.lint]
-select = [
-    # pycodestyle
-    "E",
-    # Pyflakes
-    "F",
-    # pyupgrade
-    # "UP",
-    # flake8-bugbear
-    "B",
-    # flake8-simplify
-    "SIM",
-    # isort
-    # "I",
+fixable = ["ALL"]
+unfixable = [
+    # star imports
+    "F405",
+    "F403",
+    # lambda expression assignment
+    "E731",
+    # Loop control variable not used within loop body
+    "B007",
+    # raise distinguish errors
+    "B904",
+    # f-string format
+    "UP032",
 ]
-ignore = []
+select = [
+    # isort
+    "I",
+]
+ignore = [
+    # Loop control variable not used within loop body
+    "B007"
+]
 
 
 [tool.isort]
@@ -39,3 +46,4 @@ skip_gitignore = true
 [tool.codespell]
 skip = 'build,*.egg-info,images'
 quiet-level = 1
+

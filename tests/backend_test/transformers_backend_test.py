@@ -24,7 +24,8 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from serverless_llm.serve.backends.transformers_backend import (
-    TransformersBackend)
+    TransformersBackend,
+)
 
 
 @pytest.fixture
