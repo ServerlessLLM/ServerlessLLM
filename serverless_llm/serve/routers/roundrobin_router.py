@@ -106,7 +106,7 @@ class RoundRobinRouter(SllmRouter):
         pattern = "{model_name}_{id}"
         return pattern.format(model_name=self.model_name, id=uuid.uuid4())
 
-    async def generate(self, request_data: dict):
+    async def inference(self, request_data: dict, action: str):
         async with self.running_lock:
             if not self.running:
                 return {"error": "Instance stopped"}
@@ -128,10 +128,17 @@ class RoundRobinRouter(SllmRouter):
         # NOTE: `.remote(request_data)` does not work, don't know why.
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
-        result = await instance.backend_instance.generate.remote(
-            request_data=request_data
-        )
-        logger.info("Finished processing request")
+        if action == "generate":
+            result = await instance.backend_instance.generate.remote(
+                request_data=request_data
+            )
+        elif action == "encode":
+            result = await instance.backend_instance.encode.remote(
+                request_data=request_data
+            )
+        else:
+            result = {"error": "Invalid action"}
+        logger.info(f"Finished processing request")
         await instance.add_requests(-1)
         async with self.request_count_lock:
             self.request_count -= 1

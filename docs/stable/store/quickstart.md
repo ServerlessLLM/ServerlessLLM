@@ -55,7 +55,7 @@ ln -s /mnt/nvme/models ./models
 
 1. Convert a model to ServerlessLLM format and save it to a local path:
 ```python
-from serverless_llm_store import save_model
+from serverless_llm_store.transformers import save_model
 
 # Load a model from HuggingFace model hub.
 import torch
@@ -84,7 +84,7 @@ docker run -it --rm -v $PWD/models:/app/models checkpoint_store_server
 ```python
 import time
 import torch
-from serverless_llm_store import load_model
+from serverless_llm_store.transformers import load_model
 
 # warm up the GPU
 num_gpus = torch.cuda.device_count()

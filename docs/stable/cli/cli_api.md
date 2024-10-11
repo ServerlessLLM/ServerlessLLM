@@ -169,6 +169,38 @@ sllm-cli generate --threads 4 /path/to/request.json
 }
 ```
 
+### sllm-cli encode (embedding)
+Get the embedding using the deployed model.
+
+##### Usage
+```bash
+sllm-cli encode [OPTIONS] <input_path>
+```
+
+##### Options
+- `-t`, `--threads <num_threads>`
+  - Number of parallel encoding processes. Default is 1.
+
+##### Arguments
+- `input_path`
+  - Path to the JSON input file.
+
+##### Example
+```bash
+sllm-cli encode --threads 4 /path/to/request.json
+```
+
+##### Example Request File (`request.json`)
+```json
+{
+    "model": "intfloat/e5-mistral-7b-instruct",
+    "task_instruct": "Given a question, retrieve passages that answer the question",
+    "query": [
+      "Hi, How are you?"
+    ]
+}
+```
+
 ### sllm-cli replay
 Replay requests based on workload and dataset.
 
