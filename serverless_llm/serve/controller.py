@@ -27,10 +27,17 @@ from serverless_llm.serve.routers import RoundRobinRouter
 from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from serverless_llm.serve.store_manager import StoreManager
 
+class SllmControllerException(Exception):
+    def __init__(self, message, method):
+        real_message = f"[{method}]: {message}"
+        super().__init__(real_message)
+        
+
+
 logger = init_logger(__name__)
 
 
-@ray.remote(num_cpus=1, resources={"control_node": 0.1})
+# @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class SllmController:
     def __init__(self, config: Optional[Mapping] = None):
         self.config = config
@@ -62,6 +69,7 @@ class SllmController:
             name="store_manager"
         ).remote(hardware_config)
         await self.store_manager.initialize_cluster.remote()
+        
 
         logger.info("Starting scheduler")
         if enable_storage_aware:
@@ -74,6 +82,7 @@ class SllmController:
         ).remote()
 
         self.scheduler.start.remote()
+        
 
     async def register(self, model_config):
         if not self.running:
@@ -90,10 +99,13 @@ class SllmController:
             if model_name in self.registered_models:
                 logger.error(f"Model {model_name} already registered")
                 return
-            self.registered_models[model_name] = model_config
 
         logger.info(f"Registering new model {model_name}")
-        await self.store_manager.register.remote(model_config)
+        try:
+            await self.store_manager.register.remote(model_config) 
+        except RuntimeError as e:
+            error_message = e.args[0]
+            raise RuntimeError(f"{error_message}")
         # TODO: put resource requirements in model_config
         resource_requirements = {
             "num_cpus": 1,
@@ -102,13 +114,20 @@ class SllmController:
         request_router = RoundRobinRouter.options(  # type:ignore
             name=model_name, namespace="models"
         ).remote(model_name, resource_requirements, backend, backend_config)
+        
         async with self.metadata_lock:
             if model_name in self.request_routers:
                 logger.error(f"Model {model_name} already registered")
                 return
-            self.request_routers[model_name] = request_router
+
         request_router.start.remote(auto_scaling_config)
+        
         logger.info(f"Model {model_name} registered")
+
+        # Mark model as registered only after model registered successfully
+        async with self.metadata_lock:
+            self.registered_models[model_name] = model_config
+            self.request_routers[model_name] = request_router
 
     async def update(self, model_name: str, model_config: Mapping):
         async with self.metadata_lock:
