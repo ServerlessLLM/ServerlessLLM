@@ -15,7 +15,6 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import logging
 import os
 from argparse import Namespace, _SubParsersAction
 

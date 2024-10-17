@@ -1,6 +1,6 @@
 import unittest
 from argparse import Namespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from serverless_llm.cli.generate import GenerateCommand
 

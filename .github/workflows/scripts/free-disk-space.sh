@@ -20,7 +20,7 @@
 # Total space: 85GB
 # Allocated: 67 GB
 # Free: 17 GB
-# This script frees up 28 GB of disk space by deleting unneeded packages and 
+# This script frees up 28 GB of disk space by deleting unneeded packages and
 # large directories.
 # The Flink end to end tests download and generate more than 17 GB of files,
 # causing unpredictable behavior and build failures.

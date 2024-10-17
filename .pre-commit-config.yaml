@@ -1,0 +1,46 @@
+repos:
+-   repo: meta
+    hooks:
+    -   id: check-hooks-apply
+    -   id: check-useless-excludes
+
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+    -   id: check-case-conflict
+    -   id: check-json
+    -   id: check-symlinks
+    -   id: check-yaml
+    -   id: destroyed-symlinks
+    # -   id: end-of-file-fixer
+    -   id: fix-byte-order-marker
+    -   id: fix-encoding-pragma
+        args: [--remove]
+    -   id: mixed-line-ending
+        args: [--fix=lf]
+    -   id: requirements-txt-fixer
+    -   id: trailing-whitespace
+        exclude: ^.*\.patch$ # exclude patch files
+
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
+    hooks:
+    -   id: codespell
+        additional_dependencies:
+            - tomli
+
+-   repo: https://gitlab.com/daverona/pre-commit/cpp
+    rev: 0.8.0
+    hooks:
+    -   id: clang-format  # formatter of C/C++ code based on a style guide: LLVM, Google, Chromium, Mozilla, and WebKit available
+        args: [--style=file]
+
+
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.6.9
+    hooks:
+    -   id: ruff
+        args: [--fix]
+    -   id: ruff-format
+        # args: [--check]

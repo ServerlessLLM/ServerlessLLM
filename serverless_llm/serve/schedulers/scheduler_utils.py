@@ -15,14 +15,10 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import asyncio
-import copy
-import time
 from abc import ABC, abstractmethod
 from typing import Mapping, Optional
 
 from serverless_llm.serve.logger import init_logger
-from serverless_llm.serve.utils import get_worker_nodes
 
 logger = init_logger(__name__)
 

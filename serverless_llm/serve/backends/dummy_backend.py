@@ -20,8 +20,6 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-import ray
-
 from serverless_llm.serve.backends.backend_utils import SllmBackend
 from serverless_llm.serve.logger import init_logger
 
@@ -45,7 +43,7 @@ class DummyBackend(SllmBackend):
     async def generate(self, request_data):
         model_name = request_data.get("model", "dummy-model")
         messages = request_data.get("messages", [])
-        temperature = request_data.get("temperature", 0.7)
+        # temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
         token_latency = request_data.get("token_latency", 0.1)
 

@@ -46,7 +46,7 @@ def send_module_buffers_to_device(
 ):
     if "" in device_map and len(device_map) != 1:
         raise RuntimeError(
-            f"Device map {device_map} is invalid. If you want to specify the default device, use key ''."
+            f"Device map {device_map} is invalid. If you want to specify the default device, use key ''."  # noqa: E501
         )
 
     buffer_names = [name for name, _ in module.named_buffers()]
@@ -132,7 +132,7 @@ def get_no_split_modules(model, no_split_modules_list, parent_name=""):
     for name, submodule in model.named_children():
         full_name = f"{parent_name}.{name}" if parent_name else name
         module_class_name = submodule.__class__.__name__
-        # If the module is a leaf module or in the no_split_modules_list, we don't split it
+        # If the module is a leaf module or in the no_split_modules_list, we don't split it # noqa: E501
         if (
             not list(submodule.children())
             or module_class_name in no_split_modules_list
@@ -159,7 +159,7 @@ def get_tied_no_split_modules(model, no_split_modules):
             else:
                 assert (
                     shared_size == param_size
-                ), f"Parameter {tied_param} does not have the same size as the other parameters in the group"
+                ), f"Parameter {tied_param} does not have the same size as the other parameters in the group"  # noqa: E501
             tied_module = None
             while "." in tied_param:
                 tied_param = tied_param.rsplit(".", 1)[0]
@@ -168,7 +168,7 @@ def get_tied_no_split_modules(model, no_split_modules):
                     break
             if tied_module is None:
                 raise ValueError(
-                    f"Parameter {tied_param} is not in the no_split_modules list"
+                    f"Parameter {tied_param} is not in the no_split_modules list"  # noqa: E501
                 )
             tied_module_group.append(tied_module)
         tied_modules.append((tied_module_group, shared_size))

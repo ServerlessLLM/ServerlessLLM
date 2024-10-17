@@ -1,7 +1,7 @@
 # ServerlessLLM Example Scripts
 Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/getting_started/installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
-This example shows deploying and calling [e5-mistral-7b-instruct](https://huggingface.co/intfloat/e5-mistral-7b-instruct) using ServerlessLLM. 
+This example shows deploying and calling [e5-mistral-7b-instruct](https://huggingface.co/intfloat/e5-mistral-7b-instruct) using ServerlessLLM.
 
 First and foremost, start a local ray cluster with 1 head node and 1 worker node:
 ```bash

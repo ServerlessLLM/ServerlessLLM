@@ -15,12 +15,13 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import unittest
 import os
 import shutil
+import unittest
+
 import torch
-from transformers import AutoModelForCausalLM
 from serverless_llm_store.transformers import save_model
+from transformers import AutoModelForCausalLM
 
 
 class TestSaveModelIntegration(unittest.TestCase):

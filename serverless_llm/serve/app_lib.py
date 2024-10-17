@@ -53,7 +53,10 @@ def create_app() -> FastAPI:
         try:
             await controller.register.remote(body)
         except Exception as e:
-            raise HTTPException(status_code=500, detail="Cannot register model, please contact the administrator")
+            raise HTTPException(
+                status_code=500,
+                detail="Cannot register model, please contact the administrator",
+            )
 
         return {"status": "ok"}
 
@@ -102,7 +105,7 @@ def create_app() -> FastAPI:
         await controller.delete.remote(model_name)
 
         return {"status": f"deleted model {model_name}"}
-    
+
     async def inference_handler(request: Request, action: str):
         body = await request.json()
         model_name = body.get("model")
@@ -125,5 +128,5 @@ def create_app() -> FastAPI:
     @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
-    
+
     return app

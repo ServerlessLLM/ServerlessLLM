@@ -113,7 +113,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8343 (Press CTRL+C to quit)
 #### Configure the Environment
 **On any machine, open a new terminal, activate the `sllm` environment, and set the `LLM_SERVER_URL` environment variable:**
 
-> Replace `<HEAD_NODE_IP>` with the actual IP address of the head node. 
+> Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
 
 ```bash
 conda activate sllm
@@ -156,7 +156,7 @@ sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
 
 **Make sure the model is successfully deployed before querying.**
 
-> Replace `<HEAD_NODE_IP>` with the actual IP address of the head node. 
+> Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
 
 ```bash
 curl http://<HEAD_NODE_IP>:8343/v1/chat/completions \

@@ -20,8 +20,8 @@ import asyncio
 
 from serverless_llm.cli.delete import DeleteCommand
 from serverless_llm.cli.deploy import DeployCommand
-from serverless_llm.cli.generate import GenerateCommand
 from serverless_llm.cli.encode import EncodeCommand
+from serverless_llm.cli.generate import GenerateCommand
 from serverless_llm.cli.replay import ReplayCommand
 from serverless_llm.cli.update import UpdateCommand
 from serverless_llm.serve.logger import init_logger

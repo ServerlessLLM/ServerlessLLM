@@ -43,7 +43,7 @@ After setting up the ServerlessLLM cluster, you can use the commands listed belo
     ```
 
 ### sllm-cli deploy
-Deploy a model using a configuration file or model name, with options to overwrite default configurations. The configuration file requires minimal specifications, as sensible defaults are provided for advanced configuration options. 
+Deploy a model using a configuration file or model name, with options to overwrite default configurations. The configuration file requires minimal specifications, as sensible defaults are provided for advanced configuration options.
 
 For more details on the advanced configuration options and their default values, please refer to the [Example Configuration File](#example-configuration-file-configjson) section.
 

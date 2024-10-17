@@ -56,9 +56,7 @@ extras = {}
 extras["test"] = install_requires_worker + ["pytest", "pytest-asyncio"]
 extras["worker"] = install_requires_worker
 
-
 sys.path.append(Path.cwd().as_posix())
-
 
 setup(
     name="serverless-llm",
