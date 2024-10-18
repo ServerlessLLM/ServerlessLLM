@@ -60,6 +60,7 @@ pip install -r requirements-lint.txt
 
 # add lint hooks to git commit
 pre-commit install --install-hooks
+```
 
 - (Recommended) Sign off your commits:
 ```bash
@@ -77,7 +78,7 @@ Each commit message should consist of a **header** and a **body**:
 ```
 <type>: <summary>
 <BLANK LINE>
-<body>(option)
+<body>(optional)
 <BLANK LINE>
 ```
 - **Type**: Choose from `build`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `test`, `chore`.
@@ -98,4 +99,4 @@ Vision mode: xxx
 Implemented xxx in `xxxx.py`
 ```
 
-For more details, read the [Angular Commit Format](https://github.com/angular/angular/blob/main/CONTRIBUTIN G.md#-commit-message-format).
+For more details, read the [Angular Commit Format](https://github.com/angular/angular/blob/main/CONTRIBUTING.md#-commit-message-format).
