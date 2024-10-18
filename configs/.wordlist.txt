@@ -670,3 +670,5 @@ SamplingParams
 getenv
 www
 faq
+sexualized
+socio
