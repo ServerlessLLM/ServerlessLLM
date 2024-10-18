@@ -74,7 +74,9 @@ class EncodeCommand:
                 if not all(results):
                     logger.error("Some encoding processes failed.")
                 else:
-                    logger.info(f"All encoding processes done. Results: {results}")
+                    logger.info(
+                        f"All encoding processes done. Results: {results}"
+                    )
         else:
             result = self.encode(input_data)
             logger.info(f"Embedding result: {result}")

@@ -33,10 +33,10 @@ initialize_head_node() {
   RAY_PORT="${RAY_PORT:-$DEFAULT_RAY_PORT}"
   RAY_RESOURCES="${RAY_RESOURCES:-$DEFAULT_RAY_RESOURCES_HEAD}"
   RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
-  
+
   # Construct the command
   CMD="ray start --head --port=$RAY_PORT --resources='$RAY_RESOURCES' --num-cpus=$RAY_NUM_CPUS --block"
-  
+
   # Display and execute the command
   echo "Executing: $CMD"
   eval "$CMD"
@@ -67,10 +67,10 @@ initialize_worker_node() {
   fi
 
   RAY_RESOURCES='{"worker_node": 1, "worker_id_'$WORKER_ID'": 1}'
-  
+
   # Construct the command
   CMD="ray start --address=$RAY_HEAD_ADDRESS --resources='$RAY_RESOURCES' --block"
-  
+
   # Display and execute the command
   echo "Executing: $CMD"
   eval "$CMD"

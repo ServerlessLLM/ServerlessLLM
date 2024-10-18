@@ -16,7 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
-from typing import List, Mapping, Optional
+from typing import Mapping, Optional
 
 import ray
 
@@ -27,11 +27,11 @@ from serverless_llm.serve.routers import RoundRobinRouter
 from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from serverless_llm.serve.store_manager import StoreManager
 
+
 class SllmControllerException(Exception):
     def __init__(self, message, method):
         real_message = f"[{method}]: {message}"
         super().__init__(real_message)
-        
 
 
 logger = init_logger(__name__)
@@ -69,7 +69,6 @@ class SllmController:
             name="store_manager"
         ).remote(hardware_config)
         await self.store_manager.initialize_cluster.remote()
-        
 
         logger.info("Starting scheduler")
         if enable_storage_aware:
@@ -82,11 +81,10 @@ class SllmController:
         ).remote()
 
         self.scheduler.start.remote()
-        
 
     async def register(self, model_config):
         if not self.running:
-            logger.error(f"Controller not running")
+            logger.error("Controller not running")
             return
         model_name = model_config.get("model")
         backend = model_config.get("backend", None)
@@ -102,7 +100,7 @@ class SllmController:
 
         logger.info(f"Registering new model {model_name}")
         try:
-            await self.store_manager.register.remote(model_config) 
+            await self.store_manager.register.remote(model_config)
         except RuntimeError as e:
             error_message = e.args[0]
             raise RuntimeError(f"{error_message}")
@@ -114,14 +112,14 @@ class SllmController:
         request_router = RoundRobinRouter.options(  # type:ignore
             name=model_name, namespace="models"
         ).remote(model_name, resource_requirements, backend, backend_config)
-        
+
         async with self.metadata_lock:
             if model_name in self.request_routers:
                 logger.error(f"Model {model_name} already registered")
                 return
 
         request_router.start.remote(auto_scaling_config)
-        
+
         logger.info(f"Model {model_name} registered")
 
         # Mark model as registered only after model registered successfully
@@ -165,8 +163,8 @@ class SllmController:
             router = self.request_routers.pop(model_name)
             self.registered_models.pop(model_name)
 
-        if router is not None:
-            deleted_instance_id = await router.shutdown.remote()
+        # if router is not None:
+        #     deleted_instance_id = await router.shutdown.remote()
         del router
 
     async def get_models(self):

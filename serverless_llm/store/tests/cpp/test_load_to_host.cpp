@@ -18,26 +18,28 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <thread>
 #include <unordered_map>
-#include <filesystem>
-#include <fstream>
 #include <vector>
 
 #include "checkpoint_store.h"
 
-bool WriteBytesToFile(const std::string& file_path, const std::vector<uint8_t>& data) {
-    // Ensure the directory exists
-    std::filesystem::create_directories(std::filesystem::path(file_path).parent_path());
+bool WriteBytesToFile(const std::string& file_path,
+                      const std::vector<uint8_t>& data) {
+  // Ensure the directory exists
+  std::filesystem::create_directories(
+      std::filesystem::path(file_path).parent_path());
 
-    std::ofstream file(file_path, std::ios::binary);
-    if (!file) {
-        return false; // Failed to open file
-    }
-    file.write(reinterpret_cast<const char*>(data.data()), data.size());
-    return file.good(); // Return true if the write was successful
+  std::ofstream file(file_path, std::ios::binary);
+  if (!file) {
+    return false;  // Failed to open file
+  }
+  file.write(reinterpret_cast<const char*>(data.data()), data.size());
+  return file.good();  // Return true if the write was successful
 }
 
 class CheckpointStoreTest : public ::testing::Test {
@@ -73,7 +75,7 @@ TEST_F(CheckpointStoreTest, LoadModelFromDisk) {
 
   std::vector<uint8_t> model_data(model_size, 0xFF);
   std::string data_path = storage_path + "/" + model_path + "/tensor.data_0";
-  
+
   bool write_success = WriteBytesToFile(data_path, model_data);
   ASSERT_TRUE(write_success) << "Failed to write test data to file";
 
