@@ -26,9 +26,6 @@ RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git
 # Set the working directory
 WORKDIR /app
 
-# # Install checkpoint store
-# RUN pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ checkpoint-store==0.0.1dev23
-
 RUN conda install python=3.10
 RUN pip install -U pip
 

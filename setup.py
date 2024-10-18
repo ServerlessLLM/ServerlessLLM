@@ -62,7 +62,7 @@ sys.path.append(Path.cwd().as_posix())
 
 setup(
     name="serverless-llm",
-    version="0.0.1.dev1",
+    version="0.4.0",
     install_requires=install_requires,
     long_description=read_readme(),
     long_description_content_type="text/markdown",
