@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModel
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 from serverless_llm.serve.backends.transformers_backend import (
     TransformersBackend,
@@ -33,20 +33,23 @@ def backend_config():
     return {
         "pretrained_model_name_or_path": "facebook/opt-125m",
         "torch_dtype": "float16",
-        "hf_model_class": "AutoModelForCausalLM"
+        "hf_model_class": "AutoModelForCausalLM",
     }
+
 
 @pytest.fixture
 def encoder_config():
     return {
         "pretrained_model_name_or_path": "BAAI/bge-small-en-v1.5",
         "torch_dtype": "float16",
-        "hf_model_class": "AutoModel"
+        "hf_model_class": "AutoModel",
     }
+
 
 @pytest.fixture
 def transformers_backend(backend_config):
     yield TransformersBackend(backend_config)
+
 
 @pytest.fixture
 def encoder_backend(encoder_config):
@@ -57,9 +60,11 @@ def test_init(transformers_backend, backend_config):
     assert transformers_backend.backend_config == backend_config
     assert not transformers_backend.model_initialized
 
+
 def test_init_encoder(encoder_backend, encoder_config):
     assert encoder_backend.backend_config == encoder_config
     assert not encoder_backend.model_initialized
+
 
 @pytest.mark.asyncio
 async def test_init_backend(transformers_backend, backend_config):
@@ -85,8 +90,9 @@ async def test_init_backend(transformers_backend, backend_config):
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
-            hf_model_class=hf_model_class
+            hf_model_class=hf_model_class,
         )
+
 
 @pytest.mark.asyncio
 async def test_init_encoder_backend(encoder_backend, encoder_config):
@@ -112,8 +118,9 @@ async def test_init_encoder_backend(encoder_backend, encoder_config):
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
-            hf_model_class=hf_model_class
+            hf_model_class=hf_model_class,
         )
+
 
 @pytest.fixture
 def model():
@@ -126,15 +133,23 @@ def tokenizer():
     tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
     yield tokenizer("test_prompt", return_tensors="pt")
 
+
 @pytest.fixture
 def encoder():
     encoder = AutoModel.from_pretrained("BAAI/bge-small-en-v1.5").to("cpu")
     yield encoder
 
+
 @pytest.fixture
 def encoder_tokenizer():
     encoder_tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5")
-    yield encoder_tokenizer(["test_prompt"], max_length=4096, padding=True, truncation=True, return_tensors="pt")
+    yield encoder_tokenizer(
+        ["test_prompt"],
+        max_length=4096,
+        padding=True,
+        truncation=True,
+        return_tensors="pt",
+    )
 
 
 @pytest.mark.asyncio
@@ -162,6 +177,7 @@ async def test_generate(transformers_backend, model, tokenizer):
         assert "error" not in result
         assert "choices" in result and len(result["choices"]) == 1
 
+
 @pytest.mark.asyncio
 async def test_encode(encoder_backend, encoder, encoder_tokenizer):
     with patch(
@@ -173,12 +189,10 @@ async def test_encode(encoder_backend, encoder, encoder_tokenizer):
     ):
         await encoder_backend.init_backend()
         input = {
-                "model": "BAAI/bge-small-en-v1.5",
-                "task_instruct": "Given a question, retrieve passages that answer the question",
-                "query": [
-                "Hi, How are you?"
-                ]
-            }
+            "model": "BAAI/bge-small-en-v1.5",
+            "task_instruct": "Given a question, retrieve passages that answer the question",
+            "query": ["Hi, How are you?"],
+        }
         result = await encoder_backend.encode(input)
         assert "error" not in result
         assert "data" in result and len(result["data"]) == 1

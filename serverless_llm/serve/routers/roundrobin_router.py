@@ -99,7 +99,7 @@ class RoundRobinRouter(SllmRouter):
         async with self.auto_scaling_lock:
             self.auto_scaling_config = auto_scaling_config
         logger.info(
-            f"Model {self.model_name}'s auto scaling config updatd to {auto_scaling_config}"
+            f"Model {self.model_name}'s auto scaling config updated to {auto_scaling_config}"
         )
 
     def _new_instance_id(self):

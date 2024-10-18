@@ -35,7 +35,7 @@ In another terminal:
     pip install .
     pip install datasets
     ```
-    <!-- I want to add datasets to requirements.txt but it would cause unwanted errors(Segmentaion fault). So, I will leave it as a manual step for now. -->
+    <!-- I want to add datasets to requirements.txt but it would cause unwanted errors(Segmentation fault). So, I will leave it as a manual step for now. -->
 
 2. Run the test:
 

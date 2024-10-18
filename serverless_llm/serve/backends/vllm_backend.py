@@ -25,7 +25,6 @@ import uuid
 from dataclasses import fields
 from typing import Any, Dict, List, Optional, Union
 
-import ray
 import torch
 from vllm import AsyncEngineArgs, AsyncLLMEngine, RequestOutput, SamplingParams
 from vllm.inputs import TokensPrompt
@@ -280,7 +279,7 @@ class VllmBackend(SllmBackend):
         ]
         tasks = [self.generate(inputs) for inputs in constructed_inputs]
         await asyncio.gather(*tasks)
-    
+
     async def encode(self, request_data: Dict[str, Any]):
         # TODO: Implement this method on vLLM
         pass

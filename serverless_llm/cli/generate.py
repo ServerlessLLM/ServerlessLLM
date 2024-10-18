@@ -16,8 +16,6 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import concurrent.futures
-import json
-import logging
 import os
 from argparse import Namespace, _SubParsersAction
 

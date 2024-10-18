@@ -107,7 +107,7 @@ def plot_results(df, output_filename):
     plt.figure(figsize=(12, 8))
     # box_plot = sns.boxplot(x='Model', y='Loading Time', hue='System', data=df, showmeans=True, meanprops={"marker":"o", "markerfacecolor":"black", "markeredgecolor":"black"})
     # use bar plot instead of box plot
-    bar_plot = sns.barplot(x="Model", y="Loading Time", hue="System", data=df)
+    sns.barplot(x="Model", y="Loading Time", hue="System", data=df)
 
     # Customize the plot
     plt.title("Model Loading Latency", fontsize=16, weight="bold")

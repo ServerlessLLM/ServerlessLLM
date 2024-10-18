@@ -16,10 +16,9 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import ray
 
