@@ -1,7 +1,7 @@
 # Contributing to ServerlessLLM
 
-Thank you for considering contributing to ServerlessLLM!  
-We welcome contributions of all kinds from the community.  
+Thank you for considering contributing to ServerlessLLM!
+We welcome contributions of all kinds from the community.
 Whether you're introducing new features, enhancing the infrastructure, fixing bugs, or writing documentation, we appreciate your enthusiasm and value your efforts.
 
 To help make your contributions as smooth as possible, we've put together this guide with helpful tips and best practices for contributing to the project.
@@ -36,18 +36,18 @@ We expect all contributors to follow our [Code of Conduct](https://github.com/Se
 Before your pull request can be merged, it must pass the formatting, linting, and testing checks (see [Development Environment](#development-environment)).
 
 If you fix a bug:
-- Add a relevant unit test when possible. These can be found in the `test` directory.  
+- Add a relevant unit test when possible. These can be found in the `test` directory.
 If you make an improvement:
-- Update any affected example console scripts in the `examples` directory and documentation in the `docs` directory.  
-- Update unit tests when relevant.  
+- Update any affected example console scripts in the `examples` directory and documentation in the `docs` directory.
+- Update unit tests when relevant.
 If you add a feature:
-- Include unit tests in the `test` directory.  
+- Include unit tests in the `test` directory.
 - Add a demo script in the `examples` directory.
 
 ### Roadmap and Tasks
 
-You can find available tasks (i.e., `status=Ready 🟢`) and contribute to planned features by checking our [public development board](https://github.com/orgs/ServerlessLLM/projects/2).  
-For beginners, we recommend starting with issues labeled `good first issue` or `help wanted`.  
+You can find available tasks (i.e., `status=Ready 🟢`) and contribute to planned features by checking our [public development board](https://github.com/orgs/ServerlessLLM/projects/2).
+For beginners, we recommend starting with issues labeled `good first issue` or `help wanted`.
 Feel free to discuss any ideas before getting started!
 
 ### Development Environment
@@ -96,7 +96,7 @@ feat: add logging in sllm worker
 docs: add new example for serving vision model
 
 Vision mode: xxx
-Implemented xxx in `xxxx.py`
+Implemented xxx in `xxx.py`
 ```
 
 For more details, read the [Angular Commit Format](https://github.com/angular/angular/blob/main/CONTRIBUTING.md#-commit-message-format).
