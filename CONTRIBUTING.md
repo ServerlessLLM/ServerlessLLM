@@ -62,6 +62,12 @@ pip install -r requirements-lint.txt
 pre-commit install --install-hooks
 ```
 
+This will automatically format your code before committing. However, you can also run the following commands manually:
+```bash
+# format code
+pre-commit run -a
+```
+
 - (Recommended) Sign off your commits:
 ```bash
 git commit -s -m "feat: add new feature"
