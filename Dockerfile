@@ -30,11 +30,6 @@ RUN conda install python=3.10
 RUN pip install -U pip
 
 # Install checkpoint store
-# Option 1: Install from test.pypi.org
-# RUN pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ sllm_store==0.0.1.dev5
-# Option 2: Install from local wheel. Please make sure to build the wheel first.
-# COPY sllm_store/dist/sllm_store-0.0.1.dev5-cp310-cp310-linux_x86_64.whl /app/
-# RUN pip install sllm_store-0.0.1.dev5-cp310-cp310-linux_x86_64.whl
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
 COPY sllm_store/cmake /app/sllm_store/cmake
 COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
