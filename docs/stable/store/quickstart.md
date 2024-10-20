@@ -239,7 +239,7 @@ model_path = os.path.join(storage_path, model_name)
 
 llm = LLM(
     model=model_path,
-    load_format="sllm",
+    load_format="serverless_llm",
     dtype="float16"
 )
 

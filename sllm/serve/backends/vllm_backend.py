@@ -140,7 +140,7 @@ class VllmBackend(SllmBackend):
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = os.path.join(storage_path, "vllm", model)
             filtered_engine_config["model"] = model_path
-            filtered_engine_config["load_format"] = "sllm"
+            filtered_engine_config["load_format"] = "serverless_llm"
 
         # NOTE: Automatic enable prefix cachinging
         filtered_engine_config["enable_prefix_caching"] = True
