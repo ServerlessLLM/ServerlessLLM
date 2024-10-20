@@ -10,7 +10,7 @@ import re
 import platform
 import pynvml
 import json
-from typing import Dict
+from typing import Dict, Set
 from tqdm import tqdm
 
 @ray.remote
@@ -174,7 +174,7 @@ class HardwareInfoCollectorMethods:
         upload_results = []
         download_results = []
         try:
-            for _ in range(num_iterations):
+            for _ in tqdm(range(num_iterations), desc="Testing network bandwidth"):
                 st = speedtest.Speedtest()
                 st.get_best_server()
                 download_speed_mbps = st.download() / 1_000_000  # Convert to Mbps
@@ -222,9 +222,87 @@ class HardwareInfoCollectorMethods:
         return gpus_info
     
     
+def get_worker_nodes() -> Dict[str, dict]:
+    """
+    Retrieves a dictionary of worker nodes with their custom resource labels.
+    
+    Returns:
+        Dict[str, dict]: A dictionary mapping custom resource labels to node information.
+    """
+    nodes = ray.nodes()
+    worker_nodes = {}
+    for node in nodes:
+        if node['Alive'] and node['Resources'].get('CPU') and node['NodeManagerAddress'] != ray.get_runtime_context().get_node_id():
+            # Extract custom resource labels (e.g., 'worker_id_1')
+            custom_resources = [res for res in node['Resources'] if res.startswith('worker_id')]
+            if custom_resources:
+                resource_label = custom_resources[0]
+                worker_nodes[resource_label] = node
+    return worker_nodes
+
+def store_results(benchmark_results: Dict[str, dict], filename: str = "benchmark_results.json"):
+    """
+    Stores the benchmark results in a JSON file.
+    
+    Args:
+        benchmark_results (Dict[str, dict]): The benchmark results mapped by node IP.
+        filename (str): The filename for the JSON output.
+    """
+    with open(filename, 'w') as f:
+        json.dump(benchmark_results, f, indent=4)
+    print(f"Benchmark results stored in {filename}")
+
+def main():
+    processed_nodes: Set[str] = set()
+    benchmark_results: Dict[str, dict] = {}
+    
+    print("Starting Ray cluster monitoring for benchmark execution with custom resources...")
+    
+    try:
+        while True:
+            worker_nodes = get_worker_nodes()
+            new_nodes = set(worker_nodes.keys()) - processed_nodes
+            
+            if new_nodes:
+                print(f"Detected new nodes with resources: {new_nodes}")
+                collectors = []
+                
+                for resource_label in new_nodes:
+                    # Dispatch the benchmark task to the specific node using its custom resource
+                    collector = HardwareInfoCollector.options(resources={resource_label: 1}).remote()
+                    collectors.append((resource_label, collector))
+                
+                # Collect results as they complete
+                for resource_label, collector in collectors:
+                    try:
+                        result = ray.get(collector.collect_all_info.remote(), timeout=60)  # Adjust timeout as needed
+                        benchmark_results[resource_label] = result
+                        processed_nodes.add(resource_label)
+                        print(f"Stored benchmark result for node {resource_label}")
+                    except ray.exceptions.GetTimeoutError:
+                        print(f"Benchmark task on resource {resource_label} timed out.")
+            
+            else:
+                print("No new nodes detected.")
+                
+            store_results(benchmark_results)
+            # Wait before the next check
+            time.sleep(10)  # Adjust the polling interval as needed
+    
+    except KeyboardInterrupt:
+        print("Monitoring interrupted by user.")
+    
+    finally:
+        # Store the benchmark results
+        print("Final Benchmark Results:")
+        for resource_label, result in benchmark_results.items():
+            print(f"Node {resource_label}: {result}")
+
+# def main():
+#     # test get network bandwidth
+#     collector = HardwareInfoCollectorMethods()
+#     print(collector.get_network_bandwidth())
+    
 if __name__ == "__main__":
     ray.init()
-    collector = HardwareInfoCollector.remote()
-    hardware_info = ray.get(collector.collect_all_info.remote())
-    print(json.dumps(hardware_info, indent=4))
-    ray.shutdown()
+    main()
