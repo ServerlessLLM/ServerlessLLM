@@ -60,7 +60,7 @@ sys.path.append(Path.cwd().as_posix())
 
 setup(
     name="sllm",
-    version="0.4.0",
+    version="0.0.1-alpha",
     install_requires=install_requires,
     long_description=read_readme(),
     long_description_content_type="text/markdown",
