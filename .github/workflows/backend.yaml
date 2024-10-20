@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - 'serverless_llm/serve/backends/**'
+      - 'sllm/serve/backends/**'
 
 jobs:
     backend_tests:

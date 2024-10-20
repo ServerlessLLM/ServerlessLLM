@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - 'serverless_llm/cli/**'
+      - 'sllm/cli/**'
 
 jobs:
     cli_tests:

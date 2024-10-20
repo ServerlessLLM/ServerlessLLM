@@ -18,7 +18,7 @@
 import json
 import sys
 
-from serverless_llm.serve.logger import init_logger
+from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 

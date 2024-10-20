@@ -20,8 +20,8 @@ from argparse import Namespace, _SubParsersAction
 
 import requests
 
-from serverless_llm.cli._cli_utils import read_config
-from serverless_llm.serve.logger import init_logger
+from sllm.cli._cli_utils import read_config
+from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 

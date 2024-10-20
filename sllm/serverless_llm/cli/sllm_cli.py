@@ -15,66 +15,48 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import argparse
 import asyncio
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Dict, Optional
 
-import ray
-
-from serverless_llm.serve.logger import init_logger
+from sllm.cli.delete import DeleteCommand
+from sllm.cli.deploy import DeployCommand
+from sllm.cli.encode import EncodeCommand
+from sllm.cli.generate import GenerateCommand
+from sllm.cli.replay import ReplayCommand
+from sllm.cli.update import UpdateCommand
+from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-class SllmRouter(ABC):
-    @abstractmethod
-    def __init__(
-        self,
-        model_name: str,
-        resource_requirements: Dict[str, int],
-        backend: str,
-        backend_config: Dict,
-    ) -> None:
-        pass
+def main():
+    parser = argparse.ArgumentParser(
+        "sllm-cli", usage="sllm-cli <command> [<args>]"
+    )
+    commands_parser = parser.add_subparsers(help="sllm-cli command helpers")
 
-    @abstractmethod
-    async def start(self, auto_scaling_config: Dict[str, int]):
-        pass
+    # Register commands
+    DeployCommand.register_subcommand(commands_parser)
+    GenerateCommand.register_subcommand(commands_parser)
+    EncodeCommand.register_subcommand(commands_parser)
+    ReplayCommand.register_subcommand(commands_parser)
+    DeleteCommand.register_subcommand(commands_parser)
+    UpdateCommand.register_subcommand(commands_parser)
 
-    @abstractmethod
-    async def shutdown(self):
-        pass
+    # Let's go
+    args = parser.parse_args()
 
-    @abstractmethod
-    async def update(self, auto_scaling_config: Dict[str, int]):
-        pass
+    if not hasattr(args, "func"):
+        parser.print_help()
+        exit(1)
 
-    @abstractmethod
-    async def inference(self, request_data: dict):
-        pass
+    # Run
+    service = args.func(args)
+    if asyncio.iscoroutinefunction(service.run):
+        asyncio.run(service.run())
+    else:
+        service.run()
 
 
-@dataclass
-class InstanceHandle:
-    instance_id: str
-    max_queue_length: int
-
-    node_id: Optional[str] = None
-    backend_instance: Optional[ray.actor.ActorHandle] = None
-    ready: bool = False
-    queue_length: int = 0
-
-    lock: asyncio.Lock = asyncio.Lock()
-
-    async def add_requests(self, num_requests: int = 1):
-        async with self.lock:
-            if not self.ready:
-                return False
-            if (
-                self.queue_length + num_requests > self.max_queue_length
-                or self.queue_length + num_requests < 0
-            ):
-                return False
-            self.queue_length += num_requests
-            return True
+if __name__ == "__main__":
+    main()

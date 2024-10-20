@@ -28,8 +28,8 @@ import torch.nn.functional as F
 from serverless_llm_store.transformers import load_model
 from transformers import AutoTokenizer
 
-from serverless_llm.serve.backends.backend_utils import SllmBackend
-from serverless_llm.serve.logger import init_logger
+from sllm.serve.backends.backend_utils import SllmBackend
+from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 

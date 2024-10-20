@@ -54,8 +54,8 @@ COPY requirements-worker.txt /app/
 RUN pip install -r requirements.txt
 
 COPY pyproject.toml setup.py setup.cfg py.typed /app/
-COPY serverless_llm/serve /app/serverless_llm/serve
-COPY serverless_llm/cli /app/serverless_llm/cli
+COPY sllm/serve /app/sllm/serve
+COPY sllm/cli /app/sllm/cli
 COPY examples examples
 COPY README.md /app/
 

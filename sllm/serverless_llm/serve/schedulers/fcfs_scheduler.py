@@ -20,8 +20,8 @@ import copy
 import time
 from typing import Mapping, Optional
 
-from serverless_llm.serve.logger import init_logger
-from serverless_llm.serve.utils import get_worker_nodes
+from sllm.serve.logger import init_logger
+from sllm.serve.utils import get_worker_nodes
 
 from .scheduler_utils import SllmScheduler
 

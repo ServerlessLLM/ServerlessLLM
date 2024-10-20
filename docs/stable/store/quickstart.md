@@ -219,7 +219,7 @@ downloader = VllmModelDownloader()
 downloader.download_vllm_model("facebook/opt-1.3b", "float16", 1)
 ```
 
-After downloading the model, you can launch the checkpoint store server and load the model in vLLM through `serverless_llm` load format.
+After downloading the model, you can launch the checkpoint store server and load the model in vLLM through `sllm` load format.
 
 2. Launch the checkpoint store server in a separate process:
 ```bash
@@ -239,7 +239,7 @@ model_path = os.path.join(storage_path, model_name)
 
 llm = LLM(
     model=model_path,
-    load_format="serverless_llm",
+    load_format="sllm",
     dtype="float16"
 )
 

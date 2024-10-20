@@ -20,12 +20,12 @@ from typing import Mapping, Optional
 
 import ray
 
-from serverless_llm.serve.logger import init_logger
+from sllm.serve.logger import init_logger
 
-# from serverless_llm.serve.utils import AllocationPlan, MigrationPlan
-from serverless_llm.serve.routers import RoundRobinRouter
-from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
-from serverless_llm.serve.store_manager import StoreManager
+# from sllm.serve.utils import AllocationPlan, MigrationPlan
+from sllm.serve.routers import RoundRobinRouter
+from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
+from sllm.serve.store_manager import StoreManager
 
 
 class SllmControllerException(Exception):

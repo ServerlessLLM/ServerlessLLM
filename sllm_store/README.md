@@ -1,4 +1,4 @@
-# serverless_llm-store
+# sllm-store
 
 ## About
 

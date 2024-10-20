@@ -2,11 +2,11 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from serverless_llm.cli.sllm_cli import main
+from sllm.cli.sllm_cli import main
 
 
 class TestSllmCLI(unittest.TestCase):
-    @patch("serverless_llm.cli.deploy.DeployCommand")
+    @patch("sllm.cli.deploy.DeployCommand")
     def test_deploy_command(self, mock_deploy_command):
         # Simulate command-line input
         test_args = ["sllm-cli", "deploy", "--model", "facebook/opt-1.3b"]
@@ -19,7 +19,7 @@ class TestSllmCLI(unittest.TestCase):
             mock_deploy_command.call_args[0][0].model, "facebook/opt-1.3b"
         )
 
-    @patch("serverless_llm.cli.generate.GenerateCommand")
+    @patch("sllm.cli.generate.GenerateCommand")
     def test_generate_command(self, mock_generate_command):
         # Simulate command-line input
         test_args = ["sllm-cli", "generate", "input.json"]
@@ -32,7 +32,7 @@ class TestSllmCLI(unittest.TestCase):
             mock_generate_command.call_args[0][0].input_path, "input.json"
         )
 
-    @patch("serverless_llm.cli.replay.ReplayCommand")
+    @patch("sllm.cli.replay.ReplayCommand")
     def test_replay_command(self, mock_replay_command):
         # Simulate command-line input
         test_args = [
@@ -55,7 +55,7 @@ class TestSllmCLI(unittest.TestCase):
             mock_replay_command.call_args[0][0].dataset, "dataset.json"
         )
 
-    @patch("serverless_llm.cli.delete.DeleteCommand")
+    @patch("sllm.cli.delete.DeleteCommand")
     def test_delete_command(self, mock_delete_command):
         # Simulate command-line input
         test_args = [
@@ -74,7 +74,7 @@ class TestSllmCLI(unittest.TestCase):
             ["facebook/opt-1.3b", "facebook/opt-2.7b"],
         )
 
-    @patch("serverless_llm.cli.update.UpdateCommand")
+    @patch("sllm.cli.update.UpdateCommand")
     def test_update_command(self, mock_update_command):
         # Simulate command-line input
         test_args = ["sllm-cli", "update", "--model", "facebook/opt-1.3b"]

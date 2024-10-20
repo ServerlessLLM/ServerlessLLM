@@ -15,33 +15,66 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import asyncio
 from abc import ABC, abstractmethod
-from typing import Mapping, Optional
+from dataclasses import dataclass
+from typing import Dict, Optional
 
-from serverless_llm.serve.logger import init_logger
+import ray
+
+from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-class SllmScheduler(ABC):
+class SllmRouter(ABC):
     @abstractmethod
-    def __init__(self, scheduler_config: Optional[Mapping] = None):
-        super().__init__()
-
-    @abstractmethod
-    async def start(self) -> None:
+    def __init__(
+        self,
+        model_name: str,
+        resource_requirements: Dict[str, int],
+        backend: str,
+        backend_config: Dict,
+    ) -> None:
         pass
 
     @abstractmethod
-    async def shutdown(self) -> None:
+    async def start(self, auto_scaling_config: Dict[str, int]):
         pass
 
     @abstractmethod
-    async def allocate_resource(
-        self, model_name: str, resource_requirements: Mapping
-    ):
+    async def shutdown(self):
         pass
 
     @abstractmethod
-    async def deallocate_resource(self, node_id: int, resources: Mapping):
+    async def update(self, auto_scaling_config: Dict[str, int]):
         pass
+
+    @abstractmethod
+    async def inference(self, request_data: dict):
+        pass
+
+
+@dataclass
+class InstanceHandle:
+    instance_id: str
+    max_queue_length: int
+
+    node_id: Optional[str] = None
+    backend_instance: Optional[ray.actor.ActorHandle] = None
+    ready: bool = False
+    queue_length: int = 0
+
+    lock: asyncio.Lock = asyncio.Lock()
+
+    async def add_requests(self, num_requests: int = 1):
+        async with self.lock:
+            if not self.ready:
+                return False
+            if (
+                self.queue_length + num_requests > self.max_queue_length
+                or self.queue_length + num_requests < 0
+            ):
+                return False
+            self.queue_length += num_requests
+            return True

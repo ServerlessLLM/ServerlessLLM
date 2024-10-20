@@ -15,33 +15,33 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+from abc import ABC, abstractmethod
+from typing import Mapping, Optional
 
-import ray
-
-from serverless_llm.serve.logger import init_logger
+from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-@ray.remote
-def start_instance(instance_id, backend, backend_config, startup_config):
-    logger.info(f"Starting instance {instance_id} with backend {backend}")
-    if backend == "vllm":
-        from serverless_llm.serve.backends import VllmBackend
+class SllmScheduler(ABC):
+    @abstractmethod
+    def __init__(self, scheduler_config: Optional[Mapping] = None):
+        super().__init__()
 
-        model_backend_cls = ray.remote(VllmBackend)
-    elif backend == "dummy":
-        from serverless_llm.serve.backends import DummyBackend
+    @abstractmethod
+    async def start(self) -> None:
+        pass
 
-        model_backend_cls = ray.remote(DummyBackend)
-    elif backend == "transformers":
-        from serverless_llm.serve.backends import TransformersBackend
+    @abstractmethod
+    async def shutdown(self) -> None:
+        pass
 
-        model_backend_cls = ray.remote(TransformersBackend)
-    else:
-        logger.error(f"Unknown backend: {backend}")
-        raise ValueError(f"Unknown backend: {backend}")
+    @abstractmethod
+    async def allocate_resource(
+        self, model_name: str, resource_requirements: Mapping
+    ):
+        pass
 
-    return model_backend_cls.options(name=instance_id, **startup_config).remote(
-        backend_config
-    )
+    @abstractmethod
+    async def deallocate_resource(self, node_id: int, resources: Mapping):
+        pass

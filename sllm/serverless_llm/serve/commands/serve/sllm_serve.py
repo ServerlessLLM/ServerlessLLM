@@ -23,9 +23,9 @@ import sys
 import ray
 import uvicorn
 
-from serverless_llm.serve.app_lib import create_app
-from serverless_llm.serve.controller import SllmController
-from serverless_llm.serve.logger import init_logger
+from sllm.serve.app_lib import create_app
+from sllm.serve.controller import SllmController
+from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 

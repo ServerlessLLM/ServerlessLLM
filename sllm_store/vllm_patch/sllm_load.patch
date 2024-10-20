@@ -6,7 +6,7 @@ index d9e4a619..9d257858 100644
      TENSORIZER = "tensorizer"
      SHARDED_STATE = "sharded_state"
      BITSANDBYTES = "bitsandbytes"
-+    SERVERLESS_LLM = "serverless_llm"
++    SERVERLESS_LLM = "sllm"
  
  
  @dataclass
