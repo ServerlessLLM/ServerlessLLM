@@ -22,7 +22,6 @@ import time
 from typing import List, Mapping, Optional
 
 import ray
-from serverless_llm_store.client import SllmStoreClient
 
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
@@ -30,6 +29,7 @@ from sllm.serve.model_downloader import (
     download_transformers_model,
 )
 from sllm.serve.utils import get_worker_nodes
+from sllm_store.client import SllmStoreClient
 
 logger = init_logger(__name__)
 

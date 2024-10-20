@@ -61,7 +61,7 @@ def download_transformers_model(
         model_name, torch_dtype=torch_dtype, trust_remote_code=True
     )
 
-    from serverless_llm_store.transformers import save_model
+    from sllm_store.transformers import save_model
 
     logger.info(f"Saving {model_path}")
     try:

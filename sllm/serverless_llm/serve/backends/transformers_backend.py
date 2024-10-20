@@ -25,11 +25,11 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.nn.functional as F
-from serverless_llm_store.transformers import load_model
 from transformers import AutoTokenizer
 
 from sllm.serve.backends.backend_utils import SllmBackend
 from sllm.serve.logger import init_logger
+from sllm_store.transformers import load_model
 
 logger = init_logger(__name__)
 

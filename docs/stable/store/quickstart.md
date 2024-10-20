@@ -26,7 +26,7 @@ conda activate sllm-store
 
 ### Install with pip
 ```bash
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ sllm_store==0.0.1.dev5
 ```
 
 ### Install from source
@@ -55,7 +55,7 @@ ln -s /mnt/nvme/models ./models
 
 1. Convert a model to ServerlessLLM format and save it to a local path:
 ```python
-from serverless_llm_store.transformers import save_model
+from sllm_store.transformers import save_model
 
 # Load a model from HuggingFace model hub.
 import torch
@@ -84,7 +84,7 @@ docker run -it --rm -v $PWD/models:/app/models checkpoint_store_server
 ```python
 import time
 import torch
-from serverless_llm_store.transformers import load_model
+from sllm_store.transformers import load_model
 
 # warm up the GPU
 num_gpus = torch.cuda.device_count()

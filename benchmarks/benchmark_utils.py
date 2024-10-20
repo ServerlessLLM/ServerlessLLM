@@ -20,10 +20,11 @@ import os
 import time
 
 import torch
-from serverless_llm_store.transformers import load_model
 from torch import nn
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from sllm_store.transformers import load_model
 
 
 def _warmup_cuda():
