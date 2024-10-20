@@ -26,7 +26,7 @@ conda activate sllm-store
 
 ### Install with pip
 ```bash
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ sllm_store==0.0.1.dev5
+pip install serverless-llm-store
 ```
 
 ### Install from source
@@ -40,6 +40,7 @@ cd ServerlessLLM/sllm_store
 2. Install the package from source
 
 ```bash
+rm -rf build
 pip install .
 ```
 
