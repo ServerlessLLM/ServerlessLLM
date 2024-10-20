@@ -22,24 +22,23 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-from setuptools import Command, Extension, find_packages, setup
+from setuptools import Command, Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.install import install
 from setuptools.command.sdist import sdist
 from wheel.bdist_wheel import bdist_wheel
 
 try:
-    import torch
-
     torch_available = True
-    # The assert is not needed since Github CI does not use GPU server, install cuda library is sufficient
+    # The assert is not needed since Github CI does not use GPU server,
+    # install cuda library is sufficient
     # assert torch.cuda.is_available() == True
     from torch.utils.cpp_extension import CUDA_HOME
 except Exception:
     torch_available = False
     print(
         "[WARNING] Unable to import torch, pre-compiling ops will be disabled. "
-        "Please visit https://pytorch.org/ to see how to properly install torch on your system."
+        "Please visit https://pytorch.org/ to see how to properly install torch on your system."  # noqa: E501
     )
 
 
@@ -55,8 +54,8 @@ def check_nvcc_installed(cuda_home: str) -> None:
     except Exception:
         raise RuntimeError(
             "nvcc is not installed or not found in your PATH. "
-            "Please ensure that the CUDA toolkit is installed and nvcc is available in your PATH."
-        )
+            "Please ensure that the CUDA toolkit is installed and nvcc is available in your PATH."  # noqa: E501
+        ) from None
 
 
 assert CUDA_HOME is not None, "CUDA_HOME is not set"
@@ -103,7 +102,8 @@ def is_ninja_available() -> bool:
 
 
 class CustomInstall(install):
-    """Custom installation to ensure proto files are compiled and extensions are built before installation."""
+    """Custom installation to ensure proto files are compiled
+    and extensions are built before installation."""
 
     def run(self):
         self.run_command("build_ext")
@@ -219,7 +219,7 @@ class cmake_build_ext(build_ext):
             self.configure(ext)
 
             ext_target_name = remove_prefix(ext.name, "serverless_llm_store.")
-            num_jobs = 32
+            # num_jobs = 32
 
             build_args = [
                 "--build",

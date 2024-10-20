@@ -16,7 +16,6 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import json
-import logging
 import sys
 
 from serverless_llm.serve.logger import init_logger

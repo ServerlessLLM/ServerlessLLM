@@ -43,7 +43,7 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
   LOG(INFO) << "I/O threads: " << num_thread
             << ", chunk size: " << chunk_size / MB << "MB";
   LOG(INFO) << "Storage path: " << storage_path_;
-  
+
   for (size_t i = 0; i < num_gpus_; ++i) {
     cudaSetDevice(i);
 
@@ -95,7 +95,7 @@ int64_t CheckpointStore::RegisterModelInfo(const std::string& model_path) {
 
   auto model = std::make_shared<Model>(model_path);
 
-  int ret = model->Initialize(storage_path_); 
+  int ret = model->Initialize(storage_path_);
   if (ret != 0) {
     LOG(ERROR) << "Failed to initialize model " << model_path;
     return ret;

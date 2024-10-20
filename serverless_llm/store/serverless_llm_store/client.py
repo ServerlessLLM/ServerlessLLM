@@ -15,7 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-import threading
 
 import grpc
 import serverless_llm_store.proto.storage_pb2 as storage_pb2
@@ -122,8 +121,8 @@ class SllmStoreClient:
             target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_GPU,
         )
         try:
-            response = self.stub.ConfirmModel(request)
-            logger.info(f"Model loaded")
+            _ = self.stub.ConfirmModel(request)
+            logger.info("Model loaded")
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.CANCELLED:
                 logger.error("Model not loaded")
@@ -141,7 +140,7 @@ class SllmStoreClient:
             logger.error(f"Error: {e}")
             return -1
         else:
-            logger.info(f"Model registered")
+            logger.info("Model registered")
             return response.model_size
 
     def get_server_config(self):

@@ -153,20 +153,28 @@ class TestDeployCommand(unittest.TestCase):
 
         # Test with min_instances < 0
         invalid_config_min_instances = valid_config.copy()
-        invalid_config_min_instances["auto_scaling_config"]["min_instances"] = -1
+        invalid_config_min_instances["auto_scaling_config"][
+            "min_instances"
+        ] = -1
         with self.assertRaises(ValueError):
             command.validate_config(invalid_config_min_instances)
 
         # Test with max_instances < 0
         invalid_config_max_instances = valid_config.copy()
-        invalid_config_max_instances["auto_scaling_config"]["max_instances"] = -1
+        invalid_config_max_instances["auto_scaling_config"][
+            "max_instances"
+        ] = -1
         with self.assertRaises(ValueError):
             command.validate_config(invalid_config_max_instances)
 
         # Test with min_instances > max_instances
         invalid_config_min_greater_than_max = valid_config.copy()
-        invalid_config_min_greater_than_max["auto_scaling_config"]["min_instances"] = 6
-        invalid_config_min_greater_than_max["auto_scaling_config"]["max_instances"] = 5
+        invalid_config_min_greater_than_max["auto_scaling_config"][
+            "min_instances"
+        ] = 6
+        invalid_config_min_greater_than_max["auto_scaling_config"][
+            "max_instances"
+        ] = 5
         with self.assertRaises(ValueError):
             command.validate_config(invalid_config_min_greater_than_max)
 
