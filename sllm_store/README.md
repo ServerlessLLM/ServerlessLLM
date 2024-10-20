@@ -15,7 +15,7 @@ pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/
 
 ``` bash
 git clone git@github.com:ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/serverless_llm/store
+cd ServerlessLLM/sllm_store
 ```
 
 2. Install the package from source
@@ -32,7 +32,7 @@ To build `sllm-store` from source, we suggest you using the docker and build it 
 
 ```bash
 git clone git@github.com:ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/serverless_llm/store
+cd ServerlessLLM/sllm_store
 ```
 
 2. Build the Docker image from `Dockerfile.builder`

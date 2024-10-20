@@ -34,10 +34,10 @@ pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/
 ```
 
 # vLLM Patch
-To use vLLM with ServerlessLLM, we need to apply our patch `serverless_llm/store/vllm_patch/sllm_load.patch` to the vLLM repository. Currently, the patch is only tested with vLLM version `0.5.0`.
+To use vLLM with ServerlessLLM, we need to apply our patch `sllm_store/vllm_patch/sllm_load.patch` to the vLLM repository. Currently, the patch is only tested with vLLM version `0.5.0`.
 
 You may do that by running our script:
 ```bash
 conda activate sllm-worker
-./serverless_llm/store/vllm_patch/patch.sh
+./sllm_store/vllm_patch/patch.sh
 ```

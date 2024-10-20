@@ -34,7 +34,7 @@ pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/
 
 ``` bash
 git clone git@github.com:ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/serverless_llm/store
+cd ServerlessLLM/sllm_store
 ```
 
 2. Install the package from source
@@ -110,19 +110,19 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ## Usage with vLLM
 
 :::tip
-To use ServerlessLLM as the load format for vLLM, you need to apply our patch `serverless_llm/store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please ensure you have applied our `vLLM Patch` as instructed in [installation guide](../getting_started/installation.md).
+To use ServerlessLLM as the load format for vLLM, you need to apply our patch `sllm_store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please ensure you have applied our `vLLM Patch` as instructed in [installation guide](../getting_started/installation.md).
 
 You may check the patch status by running the following command:
 ``` bash
-./serverless_llm/store/vllm_patch/check_patch.sh
+./sllm_store/vllm_patch/check_patch.sh
 ```
 If the patch is not applied, you can apply it by running the following command:
 ```bash
-./serverless_llm/store/vllm_patch/patch.sh
+./sllm_store/vllm_patch/patch.sh
 ```
 To remove the applied patch, you can run the following command:
 ```bash
-./serverless_llm/store/vllm_patch/remove_patch.sh
+./sllm_store/vllm_patch/remove_patch.sh
 ```
 :::
 
