@@ -17,9 +17,9 @@
 # ---------------------------------------------------------------------------- #
 
 import grpc
-import serverless_llm_store.proto.storage_pb2 as storage_pb2
-import serverless_llm_store.proto.storage_pb2_grpc as storage_pb2_grpc
-from serverless_llm_store.logger import init_logger
+import sllm_store.proto.storage_pb2 as storage_pb2
+import sllm_store.proto.storage_pb2_grpc as storage_pb2_grpc
+from sllm_store.logger import init_logger
 
 logger = init_logger(__name__)
 

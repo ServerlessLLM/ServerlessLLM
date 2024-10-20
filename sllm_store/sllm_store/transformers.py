@@ -27,23 +27,23 @@ from accelerate import dispatch_model, init_empty_weights
 
 # from accelerate.hooks import add_hook_to_module
 from accelerate.utils import set_module_tensor_to_device
-from serverless_llm_store._C import (
+from sllm_store._C import (
     allocate_cuda_memory,
     get_cuda_memory_handles,
     get_device_uuid_map,
     restore_tensors,
 )
-from serverless_llm_store.client import SllmStoreClient
-from serverless_llm_store.device_map_utils import (
+from sllm_store.client import SllmStoreClient
+from sllm_store.device_map_utils import (
     DeviceMapType,
     _compute_device_placement_from_map,
     _compute_device_placement_from_map_fast,
     _expand_tensor_name,
     _transform_device_map_to_dict,
 )
-from serverless_llm_store.logger import init_logger
-from serverless_llm_store.torch import load_dict_non_blocking, save_dict
-from serverless_llm_store.utils import (
+from sllm_store.logger import init_logger
+from sllm_store.torch import load_dict_non_blocking, save_dict
+from sllm_store.utils import (
     calculate_device_memory,
     calculate_tensor_device_offsets,
     get_no_split_modules,

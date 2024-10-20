@@ -88,9 +88,7 @@ class BuildPackageProtos(Command):
             raise RuntimeError("error: {} failed".format(command))
 
     def run(self):
-        self._build_package_proto(
-            ".", "serverless_llm_store/proto/storage.proto"
-        )
+        self._build_package_proto(".", "sllm_store/proto/storage.proto")
 
 
 def is_ninja_available() -> bool:
@@ -218,7 +216,7 @@ class cmake_build_ext(build_ext):
         for ext in self.extensions:
             self.configure(ext)
 
-            ext_target_name = remove_prefix(ext.name, "serverless_llm_store.")
+            ext_target_name = remove_prefix(ext.name, "sllm_store.")
             # num_jobs = 32
 
             build_args = [
@@ -259,28 +257,26 @@ cmdclass = {
 }
 
 setup(
-    name="serverless-llm-store",
-    version="0.4.0",
+    name="sllm-store",
+    version="0.0.1",
     ext_modules=[
-        CMakeExtension(name="serverless_llm_store._C"),
-        CMakeExtension(name="serverless_llm_store.sllm_store_server"),
+        CMakeExtension(name="sllm_store._C"),
+        CMakeExtension(name="sllm_store.sllm_store_server"),
     ],
     install_requires=install_requires,
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     extras_require=extras,
     entry_points={
-        "console_scripts": [
-            "sllm-store-server=serverless_llm_store.server.server:main"
-        ],
+        "console_scripts": ["sllm-store-server=sllm_store.server.server:main"],
     },
     package_data={
-        "serverless_llm_store": ["py.typed", "*.so", "sllm_store_server"],
+        "sllm_store": ["py.typed", "*.so", "sllm_store_server"],
     },
     packages=[
-        "serverless_llm_store",
-        "serverless_llm_store.proto",
-        "serverless_llm_store.server",
+        "sllm_store",
+        "sllm_store.proto",
+        "sllm_store.server",
     ],
     cmdclass=cmdclass,
 )

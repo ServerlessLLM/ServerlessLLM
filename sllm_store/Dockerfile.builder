@@ -58,7 +58,7 @@ WORKDIR /app
 COPY cmake ./cmake
 COPY CMakeLists.txt .
 COPY csrc ./csrc
-COPY serverless_llm_store ./serverless_llm_store
+COPY sllm_store ./sllm_store
 COPY setup.py .
 COPY pyproject.toml .
 COPY MANIFEST.in .

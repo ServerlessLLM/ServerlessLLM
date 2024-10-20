@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 
-import serverless_llm_store
+import sllm_store
 
 
 def main():
@@ -10,7 +10,7 @@ def main():
 
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = (
-        os.path.join(serverless_llm_store.__path__[0])
+        os.path.join(sllm_store.__path__[0])
         + ":"
         + env.get("LD_LIBRARY_PATH", "")
     )
@@ -18,9 +18,7 @@ def main():
     sys.exit(
         subprocess.call(
             [
-                os.path.join(
-                    serverless_llm_store.__path__[0], "sllm_store_server"
-                ),
+                os.path.join(sllm_store.__path__[0], "sllm_store_server"),
                 *sys.argv[1:],
             ],
             env=env,

@@ -17,7 +17,7 @@
 # ---------------------------------------------------------------------------- #
 
 # Adapted from https://github.com/vllm-project/vllm/blob/0ce0539d4750f9ebcd9b19d7085ca3b934b9ec67/vllm/logger.py
-"""Logging configuration for serverless_llm_store."""
+"""Logging configuration for sllm_store."""
 
 import logging
 import os
@@ -41,7 +41,7 @@ class NewLineFormatter(logging.Formatter):
         return msg
 
 
-_root_logger = logging.getLogger("serverless_llm_store")
+_root_logger = logging.getLogger("sllm_store")
 _default_handler = None
 
 

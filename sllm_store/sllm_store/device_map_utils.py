@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import torch
 from accelerate import infer_auto_device_map
 from accelerate.utils import get_balanced_memory, get_max_memory
-from serverless_llm_store.logger import init_logger
+from sllm_store.logger import init_logger
 
 logger = init_logger(__name__)
 

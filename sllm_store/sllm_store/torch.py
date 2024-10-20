@@ -24,17 +24,17 @@ from typing import Dict, Optional, Union
 import torch
 
 # from accelerate.hooks import add_hook_to_module
-from serverless_llm_store._C import (
+from sllm_store._C import (
     allocate_cuda_memory,
     get_cuda_memory_handles,
     get_device_uuid_map,
     restore_tensors,
     save_tensors,
 )
-from serverless_llm_store.client import SllmStoreClient
-from serverless_llm_store.device_map_utils import _expand_tensor_name
-from serverless_llm_store.logger import init_logger
-from serverless_llm_store.utils import (
+from sllm_store.client import SllmStoreClient
+from sllm_store.device_map_utils import _expand_tensor_name
+from sllm_store.logger import init_logger
+from sllm_store.utils import (
     calculate_device_memory,
     calculate_tensor_device_offsets,
 )
