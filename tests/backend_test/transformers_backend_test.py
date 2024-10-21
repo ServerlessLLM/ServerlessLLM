@@ -23,7 +23,7 @@ import pytest
 import torch
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
-from serverless_llm.serve.backends.transformers_backend import (
+from sllm.serve.backends.transformers_backend import (
     TransformersBackend,
 )
 
@@ -69,7 +69,7 @@ def test_init_encoder(encoder_backend, encoder_config):
 @pytest.mark.asyncio
 async def test_init_backend(transformers_backend, backend_config):
     with patch(
-        "serverless_llm.serve.backends.transformers_backend.load_model"
+        "sllm.serve.backends.transformers_backend.load_model"
     ) as mock_load_model:
         await transformers_backend.init_backend()
         mock_load_model.assert_called_once()
@@ -97,7 +97,7 @@ async def test_init_backend(transformers_backend, backend_config):
 @pytest.mark.asyncio
 async def test_init_encoder_backend(encoder_backend, encoder_config):
     with patch(
-        "serverless_llm.serve.backends.transformers_backend.load_model"
+        "sllm.serve.backends.transformers_backend.load_model"
     ) as mock_load_model:
         await encoder_backend.init_backend()
         mock_load_model.assert_called_once()
@@ -155,10 +155,10 @@ def encoder_tokenizer():
 @pytest.mark.asyncio
 async def test_generate(transformers_backend, model, tokenizer):
     with patch(
-        "serverless_llm.serve.backends.transformers_backend.load_model",
+        "sllm.serve.backends.transformers_backend.load_model",
         return_value=model,
     ), patch(
-        "serverless_llm.serve.backends.transformers_backend.TransformersBackend._tokenize",
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize",
         return_value=tokenizer,
     ):
         await transformers_backend.init_backend()
@@ -181,10 +181,10 @@ async def test_generate(transformers_backend, model, tokenizer):
 @pytest.mark.asyncio
 async def test_encode(encoder_backend, encoder, encoder_tokenizer):
     with patch(
-        "serverless_llm.serve.backends.transformers_backend.load_model",
+        "sllm.serve.backends.transformers_backend.load_model",
         return_value=encoder,
     ), patch(
-        "serverless_llm.serve.backends.transformers_backend.TransformersBackend._encoder_tokenize",
+        "sllm.serve.backends.transformers_backend.TransformersBackend._encoder_tokenize",
         return_value=encoder_tokenizer,
     ):
         await encoder_backend.init_backend()
@@ -201,7 +201,7 @@ async def test_encode(encoder_backend, encoder, encoder_tokenizer):
 @pytest.mark.asyncio
 async def test_generate_without_init(transformers_backend):
     with patch(
-        "serverless_llm.serve.backends.transformers_backend.load_model",
+        "sllm.serve.backends.transformers_backend.load_model",
         return_value=model,
     ):
         request_data = {

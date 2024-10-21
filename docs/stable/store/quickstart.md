@@ -26,7 +26,7 @@ conda activate sllm-store
 
 ### Install with pip
 ```bash
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
+pip install serverless-llm-store
 ```
 
 ### Install from source
@@ -34,12 +34,13 @@ pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/
 
 ``` bash
 git clone git@github.com:ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/serverless_llm/store
+cd ServerlessLLM/sllm_store
 ```
 
 2. Install the package from source
 
 ```bash
+rm -rf build
 pip install .
 ```
 
@@ -55,7 +56,7 @@ ln -s /mnt/nvme/models ./models
 
 1. Convert a model to ServerlessLLM format and save it to a local path:
 ```python
-from serverless_llm_store.transformers import save_model
+from sllm_store.transformers import save_model
 
 # Load a model from HuggingFace model hub.
 import torch
@@ -84,7 +85,7 @@ docker run -it --rm -v $PWD/models:/app/models checkpoint_store_server
 ```python
 import time
 import torch
-from serverless_llm_store.transformers import load_model
+from sllm_store.transformers import load_model
 
 # warm up the GPU
 num_gpus = torch.cuda.device_count()
@@ -110,19 +111,19 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ## Usage with vLLM
 
 :::tip
-To use ServerlessLLM as the load format for vLLM, you need to apply our patch `serverless_llm/store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please ensure you have applied our `vLLM Patch` as instructed in [installation guide](../getting_started/installation.md).
+To use ServerlessLLM as the load format for vLLM, you need to apply our patch `sllm_store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please ensure you have applied our `vLLM Patch` as instructed in [installation guide](../getting_started/installation.md).
 
 You may check the patch status by running the following command:
 ``` bash
-./serverless_llm/store/vllm_patch/check_patch.sh
+./sllm_store/vllm_patch/check_patch.sh
 ```
 If the patch is not applied, you can apply it by running the following command:
 ```bash
-./serverless_llm/store/vllm_patch/patch.sh
+./sllm_store/vllm_patch/patch.sh
 ```
 To remove the applied patch, you can run the following command:
 ```bash
-./serverless_llm/store/vllm_patch/remove_patch.sh
+./sllm_store/vllm_patch/remove_patch.sh
 ```
 :::
 
@@ -219,7 +220,7 @@ downloader = VllmModelDownloader()
 downloader.download_vllm_model("facebook/opt-1.3b", "float16", 1)
 ```
 
-After downloading the model, you can launch the checkpoint store server and load the model in vLLM through `serverless_llm` load format.
+After downloading the model, you can launch the checkpoint store server and load the model in vLLM through `sllm` load format.
 
 2. Launch the checkpoint store server in a separate process:
 ```bash

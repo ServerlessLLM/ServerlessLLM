@@ -2,13 +2,13 @@ import unittest
 from argparse import Namespace
 from unittest.mock import patch
 
-from serverless_llm.cli.update import UpdateCommand
+from sllm.cli.update import UpdateCommand
 
 
 class TestUpdateCommand(unittest.TestCase):
-    @patch("serverless_llm.cli.update.requests.post")
-    @patch("serverless_llm.cli.update.read_config")
-    @patch("serverless_llm.cli.update.validate_config")
+    @patch("sllm.cli.update.requests.post")
+    @patch("sllm.cli.update.read_config")
+    @patch("sllm.cli.update.validate_config")
     def test_update_with_config_file(
         self, mock_validate, mock_read_config, mock_post
     ):
@@ -38,8 +38,8 @@ class TestUpdateCommand(unittest.TestCase):
             },
         )
 
-    @patch("serverless_llm.cli.update.requests.post")
-    @patch("serverless_llm.cli.update.read_config")
+    @patch("sllm.cli.update.requests.post")
+    @patch("sllm.cli.update.read_config")
     def test_update_with_model_name(self, mock_read_config, mock_post):
         # Mock the default configuration reading
         mock_read_config.return_value = {
@@ -64,8 +64,8 @@ class TestUpdateCommand(unittest.TestCase):
             },
         )
 
-    @patch("serverless_llm.cli.update.requests.post")
-    @patch("serverless_llm.cli.update.read_config")
+    @patch("sllm.cli.update.requests.post")
+    @patch("sllm.cli.update.read_config")
     def test_update_model_failure(self, mock_read_config, mock_post):
         # Mock the default configuration reading
         mock_read_config.return_value = {

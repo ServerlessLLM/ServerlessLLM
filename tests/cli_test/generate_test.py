@@ -2,12 +2,12 @@ import unittest
 from argparse import Namespace
 from unittest.mock import patch
 
-from serverless_llm.cli.generate import GenerateCommand
+from sllm.cli.generate import GenerateCommand
 
 
 class TestGenerateCommand(unittest.TestCase):
-    @patch("serverless_llm.cli.generate.requests.post")
-    @patch("serverless_llm.cli.generate.read_config")
+    @patch("sllm.cli.generate.requests.post")
+    @patch("sllm.cli.generate.read_config")
     def test_generate_single_thread_success(self, mock_read_config, mock_post):
         # Mock the configuration reading and the POST request
         mock_read_config.return_value = {
@@ -38,8 +38,8 @@ class TestGenerateCommand(unittest.TestCase):
             },
         )
 
-    @patch("serverless_llm.cli.generate.requests.post")
-    @patch("serverless_llm.cli.generate.read_config")
+    @patch("sllm.cli.generate.requests.post")
+    @patch("sllm.cli.generate.read_config")
     def test_generate_single_thread_failure(self, mock_read_config, mock_post):
         # Mock the configuration reading and the POST request with failure
         mock_read_config.return_value = {
@@ -59,8 +59,8 @@ class TestGenerateCommand(unittest.TestCase):
         mock_post.assert_called_once()
         self.assertEqual(mock_post.return_value.status_code, 500)
 
-    @patch("serverless_llm.cli.generate.requests.post")
-    @patch("serverless_llm.cli.generate.read_config")
+    @patch("sllm.cli.generate.requests.post")
+    @patch("sllm.cli.generate.read_config")
     def test_generate_multi_thread_success(self, mock_read_config, mock_post):
         # Mock the configuration reading and the POST request
         mock_read_config.return_value = {
@@ -81,8 +81,8 @@ class TestGenerateCommand(unittest.TestCase):
         mock_read_config.assert_called_once_with("/path/to/input.json")
         self.assertEqual(mock_post.call_count, 2)
 
-    @patch("serverless_llm.cli.generate.requests.post")
-    @patch("serverless_llm.cli.generate.read_config")
+    @patch("sllm.cli.generate.requests.post")
+    @patch("sllm.cli.generate.read_config")
     def test_generate_multi_thread_failure(self, mock_read_config, mock_post):
         # Mock the configuration reading and the POST request with failure
         mock_read_config.return_value = {

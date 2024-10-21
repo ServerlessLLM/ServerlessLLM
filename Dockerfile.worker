@@ -26,45 +26,37 @@ RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git
 # Set the working directory
 WORKDIR /app
 
-# # Install checkpoint store
-# RUN pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ checkpoint-store==0.0.1dev23
-
 RUN conda install python=3.10
 RUN pip install -U pip
 
 # Install checkpoint store
-# Option 1: Install from test.pypi.org
-# RUN pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
-# Option 2: Install from local wheel. Please make sure to build the wheel first.
-# COPY serverless_llm/store/dist/serverless_llm_store-0.0.1.dev5-cp310-cp310-linux_x86_64.whl /app/
-# RUN pip install serverless_llm_store-0.0.1.dev5-cp310-cp310-linux_x86_64.whl
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-COPY serverless_llm/store/cmake /app/serverless_llm/store/cmake
-COPY serverless_llm/store/CMakeLists.txt /app/serverless_llm/store/CMakeLists.txt
-COPY serverless_llm/store/csrc /app/serverless_llm/store/csrc
-COPY serverless_llm/store/serverless_llm_store /app/serverless_llm/store/serverless_llm_store
-COPY serverless_llm/store/setup.py /app/serverless_llm/store/setup.py
-COPY serverless_llm/store/pyproject.toml /app/serverless_llm/store/pyproject.toml
-COPY serverless_llm/store/MANIFEST.in /app/serverless_llm/store/MANIFEST.in
-COPY serverless_llm/store/setup.cfg /app/serverless_llm/store/setup.cfg
-COPY serverless_llm/store/requirements.txt /app/serverless_llm/store/requirements.txt
-COPY serverless_llm/store/README.md /app/serverless_llm/store/README.md
-COPY serverless_llm/store/proto /app/serverless_llm/store/proto
-RUN cd serverless_llm/store && pip install .
+COPY sllm_store/cmake /app/sllm_store/cmake
+COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
+COPY sllm_store/csrc /app/sllm_store/csrc
+COPY sllm_store/sllm_store /app/sllm_store/sllm_store
+COPY sllm_store/setup.py /app/sllm_store/setup.py
+COPY sllm_store/pyproject.toml /app/sllm_store/pyproject.toml
+COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
+COPY sllm_store/setup.cfg /app/sllm_store/setup.cfg
+COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
+COPY sllm_store/README.md /app/sllm_store/README.md
+COPY sllm_store/proto /app/sllm_store/proto
+RUN cd sllm_store && pip install .
 
 COPY requirements.txt /app/
 COPY requirements-worker.txt /app/
 RUN pip install -r requirements.txt
 
 COPY pyproject.toml setup.py setup.cfg py.typed /app/
-COPY serverless_llm/serve /app/serverless_llm/serve
-COPY serverless_llm/cli /app/serverless_llm/cli
+COPY sllm/serve /app/sllm/serve
+COPY sllm/cli /app/sllm/cli
 COPY examples examples
 COPY README.md /app/
 
 RUN pip install .[worker]
 
-COPY serverless_llm/store/vllm_patch/sllm_load.patch /app/serverless_llm/store/vllm_patch/sllm_load.patch
+COPY sllm_store/vllm_patch/sllm_load.patch /app/sllm_store/vllm_patch/sllm_load.patch
 
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh

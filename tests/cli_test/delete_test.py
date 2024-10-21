@@ -2,11 +2,11 @@ import unittest
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
-from serverless_llm.cli.delete import DeleteCommand
+from sllm.cli.delete import DeleteCommand
 
 
 class TestDeleteCommand(unittest.TestCase):
-    @patch("serverless_llm.cli.delete.requests.post")
+    @patch("sllm.cli.delete.requests.post")
     def test_delete_single_model_success(self, mock_post):
         # Mock the response of the requests.post
         mock_response = MagicMock()
@@ -24,7 +24,7 @@ class TestDeleteCommand(unittest.TestCase):
         )
         self.assertEqual(mock_post.return_value.status_code, 200)
 
-    @patch("serverless_llm.cli.delete.requests.post")
+    @patch("sllm.cli.delete.requests.post")
     def test_delete_multiple_models_success(self, mock_post):
         # Mock the response of the requests.post
         mock_response = MagicMock()
@@ -55,7 +55,7 @@ class TestDeleteCommand(unittest.TestCase):
             self.assertEqual(kwargs["headers"], expected[1])
             self.assertEqual(kwargs["json"], expected[2])
 
-    @patch("serverless_llm.cli.delete.requests.post")
+    @patch("sllm.cli.delete.requests.post")
     def test_delete_model_failure(self, mock_post):
         # Mock the response of the requests.post
         mock_response = MagicMock()

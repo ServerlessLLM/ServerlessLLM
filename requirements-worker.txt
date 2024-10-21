@@ -1,5 +1,4 @@
 accelerate==0.29.3
-accelerate>0.27.2
 grpcio==1.49.1
 grpcio-tools==1.49.1
 # ServerlessLLM does not directly depend on outlines.
