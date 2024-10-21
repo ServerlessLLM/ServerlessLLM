@@ -34,7 +34,7 @@ jobs:
       - name: Install ServerlessLLM
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          pip uninstall -y vllm && pip install -y vllm
+          pip uninstall -y vllm && pip install vllm==0.5.0.post1
           cd sllm_store && pip install . && ./vllm_patch/patch.sh
 
       - name: Run Python tests
