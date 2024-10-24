@@ -67,8 +67,8 @@ def check_hipcc_installed() -> None:
     except Exception:
         raise RuntimeError(
             "hipcc is not installed or not found in your PATH. "
-            "Please ensure that the HIP toolkit is installed and hipcc is available in your PATH."
-        )
+            "Please ensure that the HIP toolkit is installed and hipcc is available in your PATH." # noqa: E501
+        ) from None
 
 
 if CUDA_HOME is not None:

@@ -109,7 +109,7 @@ if (CUDAToolkit_FOUND)
   target_link_libraries(sllm_store_server PRIVATE sllm_store grpc++ grpc++_reflection libprotobuf gflags::gflags glog::glog)
   target_include_directories(sllm_store_server PRIVATE "csrc/sllm_store")
 elseif (HIP_FOUND)
-# Excute customized hipify script to convert CUDA code to HIP code
+# Execute customized hipify script to convert CUDA code to HIP code
   execute_process(
     COMMAND ${CMAKE_SOURCE_DIR}/cmake/hipify.py -p ${CMAKE_SOURCE_DIR}/csrc/sllm_store -o ${CMAKE_SOURCE_DIR}/csrc/hip -s)
   file(GLOB SOURCES "csrc/hip/*.cpp")
