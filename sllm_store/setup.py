@@ -70,6 +70,7 @@ def check_hipcc_installed() -> None:
             "Please ensure that the HIP toolkit is installed and hipcc is available in your PATH."
         )
 
+
 if CUDA_HOME is not None:
     check_nvcc_installed(CUDA_HOME)
 else:
