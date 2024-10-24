@@ -58,8 +58,22 @@ def check_nvcc_installed(cuda_home: str) -> None:
         ) from None
 
 
-assert CUDA_HOME is not None, "CUDA_HOME is not set"
-check_nvcc_installed(CUDA_HOME)
+def check_hipcc_installed() -> None:
+    """Check if hipcc (AMD HIP compiler) is installed."""
+    try:
+        _ = subprocess.check_output(
+            ["hipcc", "--version"], universal_newlines=True
+        )
+    except Exception:
+        raise RuntimeError(
+            "hipcc is not installed or not found in your PATH. "
+            "Please ensure that the HIP toolkit is installed and hipcc is available in your PATH."
+        )
+
+if CUDA_HOME is not None:
+    check_nvcc_installed(CUDA_HOME)
+else:
+    check_hipcc_installed()
 
 
 class BuildPackageProtos(Command):

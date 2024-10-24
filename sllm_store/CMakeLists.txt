@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 # Set the project name
-project(storage LANGUAGES CXX CUDA)
+project(storage LANGUAGES CXX)
 
 # Set c++ 17
 set(CMAKE_CXX_STANDARD 17)
@@ -77,19 +77,53 @@ add_custom_command(
 # Include generated *.pb.h files
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
-find_package(CUDAToolkit REQUIRED)
+find_package(CUDAToolkit QUIET)
+find_package(HIP QUIET)
+
+# set CUDA or HIP
+if (CUDAToolkit_FOUND)
+  message(STATUS "CUDA found")
+  set(CUDA_SUPPORTED_ARCHS "7.0;7.5;8.0;8.6;8.9;9.0")
+  set(SLLM_STORE_GPU_LANG "CUDA")
+  enable_language(CUDA)
+elseif (HIP_FOUND)
+  message(STATUS "HIP found")
+  set(HIP_SUPPORTED_ARCHS "gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100")
+  set(SLLM_STORE_GPU_LANG "HIP")
+  enable_language(HIP)
+else()
+  message(FATAL_ERROR "Neither CUDA nor HIP found")
+endif()
+
 
 # pthread
 find_package(Threads REQUIRED)
 
-file(GLOB SOURCES "csrc/sllm_store/*.cpp")
-add_library(sllm_store SHARED ${SOURCES})
-target_link_libraries(sllm_store PUBLIC CUDA::cudart Threads::Threads glog::glog)
-target_include_directories(sllm_store PUBLIC "csrc/sllm_store" ${CUDA_INCLUDE_DIRS})
-
-add_executable(sllm_store_server "csrc/server.cpp" ${hw_proto_srcs} ${hw_grpc_srcs})
-target_link_libraries(sllm_store_server PRIVATE sllm_store grpc++ grpc++_reflection libprotobuf gflags::gflags glog::glog)
-target_include_directories(sllm_store_server PRIVATE "csrc/sllm_store")
+if (CUDAToolkit_FOUND)
+  file(GLOB SOURCES "csrc/sllm_store/*.cpp")
+  add_library(sllm_store SHARED ${SOURCES})
+  set_target_properties(sllm_store PROPERTIES CUDA_ARCHITECTURES "{$CUDA_SUPPORTED_ARCHS}")
+  target_link_libraries(sllm_store PUBLIC CUDA::cudart Threads::Threads glog::glog)
+  target_include_directories(sllm_store PUBLIC "csrc/sllm_store" ${CUDA_INCLUDE_DIRS})
+  add_executable(sllm_store_server "csrc/server.cpp" ${hw_proto_srcs} ${hw_grpc_srcs})
+  target_link_libraries(sllm_store_server PRIVATE sllm_store grpc++ grpc++_reflection libprotobuf gflags::gflags glog::glog)
+  target_include_directories(sllm_store_server PRIVATE "csrc/sllm_store")
+elseif (HIP_FOUND)
+# Excute customized hipify script to convert CUDA code to HIP code
+  execute_process(
+    COMMAND ${CMAKE_SOURCE_DIR}/cmake/hipify.py -p ${CMAKE_SOURCE_DIR}/csrc/sllm_store -o ${CMAKE_SOURCE_DIR}/csrc/hip -s)
+  file(GLOB SOURCES "csrc/hip/*.cpp")
+  add_library(sllm_store SHARED ${SOURCES})
+  set_target_properties(sllm_store PROPERTIES HIP_ARCHITECTURES "${HIP_SUPPORTED_ARCHS}")
+  target_link_libraries(sllm_store PUBLIC hip::host Threads::Threads glog::glog)
+  target_include_directories(sllm_store PUBLIC "csrc/hip" ${HIP_INCLUDE_DIRS})
+  add_executable(sllm_store_server "csrc/server.cpp" ${hw_proto_srcs} ${hw_grpc_srcs})
+  target_compile_definitions(sllm_store_server PRIVATE USE_HIP)
+  target_link_libraries(sllm_store_server PRIVATE sllm_store grpc++ grpc++_reflection libprotobuf gflags::gflags glog::glog)
+  target_include_directories(sllm_store_server PRIVATE "csrc/hip")
+else()
+  message(FATAL_ERROR "Neither CUDA nor HIP found")
+endif()
 
 # Adapted from https://github.com/vllm-project/vllm/blob/a1242324c99ff8b1e29981006dfb504da198c7c3/CMakeLists.txt
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/utils.cmake)
@@ -99,9 +133,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/utils.cmake)
 # first match will be selected.  These should be kept in sync with setup.py.
 #
 set(PYTHON_SUPPORTED_VERSIONS "3.8" "3.9" "3.10" "3.11")
-
-# Supported NVIDIA architectures.
-set(CUDA_SUPPORTED_ARCHS "7.0;7.5;8.0;8.6;8.9;9.0")
 
 #
 # Try to find python package with an executable that exactly matches
@@ -168,7 +199,7 @@ get_torch_gpu_compiler_flags(SLLM_STORE_GPU_FLAGS ${SLLM_STORE_GPU_LANG})
 
 set(SLLM_STORE_EXT_SRC
   "csrc/checkpoint/aligned_buffer.cpp"
-  "csrc/checkpoint/checkpoint.cpp"
+  "csrc/checkpoint/checkpoint.cu"
   "csrc/checkpoint/checkpoint_py.cpp"
   "csrc/checkpoint/tensor_writer.cpp"
 )
