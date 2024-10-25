@@ -172,7 +172,6 @@ find_package(Torch REQUIRED)
 find_library(torch_python_LIBRARY torch_python PATHS
   "${TORCH_INSTALL_PREFIX}/lib")
 
-set(SLLM_STORE_GPU_LANG "cuda")
 #
 # Override the GPU architectures detected by cmake/torch and filter them by
 # the supported versions for the current language.
