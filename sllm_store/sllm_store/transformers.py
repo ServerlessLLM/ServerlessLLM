@@ -123,7 +123,7 @@ def load_model(
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
-    hf_model_class: Optional[str] = None,
+    hf_model_class: Optional[str] = "AutoModelForCausalLM",
 ):
     if fully_parallel:
         return fully_parallel_load(
