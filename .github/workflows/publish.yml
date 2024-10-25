@@ -103,6 +103,8 @@ jobs:
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1.8
         with:
+          repository-url: https://pypi.org/legacy/
+          password: ${{ secrets.SLLM_PYPI }}
           skip-existing: true
 
   sllm-store:
@@ -178,4 +180,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1.8
         with:
           packages-dir: ./sllm_store/dist/
+          repository-url: https://pypi.org/legacy/
+          password: ${{ secrets.SLLM_STORE_PYPI }}
           skip-existing: true
