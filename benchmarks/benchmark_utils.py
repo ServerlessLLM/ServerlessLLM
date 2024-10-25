@@ -15,14 +15,12 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-import argparse
 import gc
-import json
 import os
 import time
 
 import torch
-from serverless_llm_store import load_model
+from serverless_llm_store.transformers import load_model
 from torch import nn
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer

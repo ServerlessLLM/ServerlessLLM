@@ -17,10 +17,9 @@
 # ---------------------------------------------------------------------------- #
 import argparse
 import os
-import shutil
 
 import torch
-from serverless_llm_store import save_model
+from serverless_llm_store.transformers import save_model
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 

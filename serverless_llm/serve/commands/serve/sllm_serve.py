@@ -17,7 +17,6 @@
 # ---------------------------------------------------------------------------- #
 import argparse
 import json
-import logging
 import re
 import sys
 
@@ -110,9 +109,10 @@ def main():
                 with open(hardware_config_path, "r") as f:
                     hardware_config = json.load(f)
                 hardware_config = process_hardware_config(hardware_config)
-            controller = SllmController.options(name="controller").remote(
-                {"hardware_config": hardware_config}
-            )
+            controller_cls = ray.remote(SllmController)
+            controller = controller_cls.options(
+                name="controller", num_cpus=1, resources={"control_node": 0.1}
+            ).remote({"hardware_config": hardware_config})
             ray.get(controller.start.remote())
 
             uvicorn.run(app, host=args.host, port=args.port)

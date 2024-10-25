@@ -15,6 +15,7 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import importlib
 import logging
 import os
 import shutil
@@ -36,50 +37,48 @@ logger = logging.getLogger("ray")
 
 
 @ray.remote(num_cpus=1)
-def download_transformers_model(model_name: str, torch_dtype: str) -> bool:
+def download_transformers_model(
+    model_name: str, torch_dtype: str, hf_model_class: str
+) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
-    model_dir = os.path.join(storage_path, "transformers", model_name)
-    if os.path.exists(model_dir):
-        logger.info(f"Model {model_name} already exists in {model_dir}")
-        return
+    model_path = os.path.join(storage_path, "transformers", model_name)
 
-    if os.path.exists(model_dir):
-        # model_size = get_directory_size(model_dir)
-        logger.info(f"Model {model_name} already exists")
+    if os.path.exists(model_path):
+        logger.info(f"{model_path} already exists")
         return True
 
     import torch
-    from transformers import AutoModelForCausalLM
 
     torch_dtype = getattr(torch, torch_dtype)
     if torch_dtype is None:
         raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
 
-    logger.info(f"Downloading model {model_name}")
+    logger.info(f"Downloading {model_path}")
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch_dtype
+    module = importlib.import_module("transformers")
+    hf_model_cls = getattr(module, hf_model_class)
+    model = hf_model_cls.from_pretrained(
+        model_name, torch_dtype=torch_dtype, trust_remote_code=True
     )
 
-    from serverless_llm_store import save_model
+    from serverless_llm_store.transformers import save_model
 
-    logger.info(f"Saving model {model_name} to {model_dir}")
+    logger.info(f"Saving {model_path}")
     try:
-        save_model(model, model_dir)
+        save_model(model, model_path)
     except Exception as e:
-        logger.error(f"Failed to save model {model_name}: {e}")
-        shutil.rmtree(model_dir)
+        logger.error(f"Failed to save {model_path}: {e}")
+        # shutil.rmtree(model_path)  # TODO: deal with error in save_model
         raise RuntimeError(
-            f"Failed to save model {model_name} for transformer backend: {e}"
+            f"Failed to save {model_name} for transformer backend: {e}"
         )
 
-    # model_size = get_directory_size(model_dir)
-    # logger.info(f"Model {model_name} (size: {model_size}) downloaded")
+    # model_size = get_directory_size(model_path)
+    # logger.info(f"{model_name} (size: {model_size}) downloaded")
 
     return True
 
 
-@ray.remote
 class VllmModelDownloader:
     def __init__(self):
         pass
@@ -93,65 +92,73 @@ class VllmModelDownloader:
         max_size: Optional[int] = None,
     ):
         import gc
-        import shutil
         from tempfile import TemporaryDirectory
 
         import torch
         from huggingface_hub import snapshot_download
         from vllm import LLM
 
-        def _run_writer(input_dir, output_dir):
-            llm_writer = LLM(
-                model=input_dir,
-                download_dir=input_dir,
-                dtype=torch_dtype,
-                tensor_parallel_size=tensor_parallel_size,
-                distributed_executor_backend="mp",
-                num_gpu_blocks_override=1,
-                enforce_eager=True,
-                max_model_len=1,
-            )
-            model_executer = llm_writer.llm_engine.model_executor
-            # TODO: change the `save_sharded_state` to `save_serverless_llm_state`
-            model_executer.save_sharded_state(
-                path=output_dir, pattern=pattern, max_size=max_size
-            )
-            for file in os.listdir(input_dir):
-                if os.path.splitext(file)[1] not in (
-                    ".bin",
-                    ".pt",
-                    ".safetensors",
-                ):
-                    src_path = os.path.join(input_dir, file)
-                    dest_path = os.path.join(output_dir, file)
-                    if os.path.isdir(src_path):
-                        shutil.copytree(src_path, dest_path)
-                    else:
-                        shutil.copy(src_path, output_dir)
-            del model_executer
-            del llm_writer
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-
+        # set the storage path
         storage_path = os.getenv("STORAGE_PATH", "./models")
-        model_dir = os.path.join(storage_path, "vllm", model_name)
-
-        # create the output directory
-        if os.path.exists(model_dir):
-            logger.info(f"Model {model_name} already exists in {model_dir}")
+        model_path = os.path.join(storage_path, "vllm", model_name)
+        if os.path.exists(model_path):
+            logger.info(f"{model_path} already exists")
             return
-        os.makedirs(model_dir, exist_ok=True)
 
         try:
             with TemporaryDirectory() as cache_dir:
-                input_dir = snapshot_download(model_name, cache_dir=cache_dir)
-                _run_writer(input_dir, model_dir)
+                # download from huggingface
+                input_dir = snapshot_download(
+                    model_name,
+                    cache_dir=cache_dir,
+                    allow_patterns=[
+                        "*.safetensors",
+                        "*.bin",
+                        "*.json",
+                        "*.txt",
+                    ],
+                )
+                logger.info(input_dir)
+                # load models from the input directory
+                llm_writer = LLM(
+                    model=input_dir,
+                    download_dir=input_dir,
+                    dtype=torch_dtype,
+                    tensor_parallel_size=tensor_parallel_size,
+                    num_gpu_blocks_override=1,
+                    enforce_eager=True,
+                    max_model_len=1,
+                )
+                model_executer = llm_writer.llm_engine.model_executor
+                # save the models in the ServerlessLLM format
+                model_executer.save_serverless_llm_state(
+                    path=model_path, pattern=pattern, max_size=max_size
+                )
+                for file in os.listdir(input_dir):
+                    # Copy the metadata files into the output directory
+                    if os.path.splitext(file)[1] not in (
+                        ".bin",
+                        ".pt",
+                        ".safetensors",
+                    ):
+                        src_path = os.path.join(input_dir, file)
+                        dest_path = os.path.join(model_path, file)
+                        logger.info(src_path)
+                        logger.info(dest_path)
+                        if os.path.isdir(src_path):
+                            shutil.copytree(src_path, dest_path)
+                        else:
+                            shutil.copy(src_path, dest_path)
+                del model_executer
+                del llm_writer
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
-            shutil.rmtree(model_dir)
+            shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
             raise RuntimeError(
-                f"Failed to save model {model_name} for vllm backend: {e}"
+                f"Failed to save {model_name} for vllm backend: {e}"
             )

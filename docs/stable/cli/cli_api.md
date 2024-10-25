@@ -43,7 +43,7 @@ After setting up the ServerlessLLM cluster, you can use the commands listed belo
     ```
 
 ### sllm-cli deploy
-Deploy a model using a configuration file or model name, with options to overwrite default configurations. The configuration file requires minimal specifications, as sensible defaults are provided for advanced configuration options. 
+Deploy a model using a configuration file or model name, with options to overwrite default configurations. The configuration file requires minimal specifications, as sensible defaults are provided for advanced configuration options.
 
 For more details on the advanced configuration options and their default values, please refer to the [Example Configuration File](#example-configuration-file-configjson) section.
 
@@ -166,6 +166,38 @@ sllm-cli generate --threads 4 /path/to/request.json
     ],
     "temperature": 0.3,
     "max_tokens": 50
+}
+```
+
+### sllm-cli encode (embedding)
+Get the embedding using the deployed model.
+
+##### Usage
+```bash
+sllm-cli encode [OPTIONS] <input_path>
+```
+
+##### Options
+- `-t`, `--threads <num_threads>`
+  - Number of parallel encoding processes. Default is 1.
+
+##### Arguments
+- `input_path`
+  - Path to the JSON input file.
+
+##### Example
+```bash
+sllm-cli encode --threads 4 /path/to/request.json
+```
+
+##### Example Request File (`request.json`)
+```json
+{
+    "model": "intfloat/e5-mistral-7b-instruct",
+    "task_instruct": "Given a question, retrieve passages that answer the question",
+    "query": [
+      "Hi, How are you?"
+    ]
 }
 ```
 

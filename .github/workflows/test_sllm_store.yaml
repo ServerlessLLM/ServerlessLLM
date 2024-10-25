@@ -1,16 +1,20 @@
 name: Test Sllm Store
 
 on:
-    push:
-        paths:
-            - 'serverless_llm/store/**'
-    pull_request:
-        paths:
-            - 'serverless_llm/store/**'
+  pull_request:
+    types: [opened, synchronize, labeled]
+    branches:
+      - main
+    paths:
+      - 'serverless_llm/store/**'
 
 jobs:
-  test:
-    runs-on: ubuntu-22.04
+  sllm_store_tests:
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
+    container:
+      image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
+      options: --gpus all
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,27 +24,17 @@ jobs:
         with:
           python-version: '3.10'  # Specify the Python version you want to use
 
-      - name: Free disk space
-        run: |
-          df -h
-          sudo rm -rf /usr/local/cuda-* /opt/cuda
-          sudo rm -rf /usr/local/cuda
-          bash -x .github/workflows/scripts/free-disk-space.sh
-
       - name: Install dependencies
         run: |
+          apt-get update && apt-get install -y ca-certificates git
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
 
-      - name: Install CUDA 12.1
-        run: |
-          bash -x .github/workflows/scripts/cuda-install.sh 12.1 ubuntu-22.04
-
       # Python Tests
-      - name: Install ServerlessLLM Store
+      - name: Install ServerlessLLM
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          cd serverless_llm/store && pip install .
+          cd serverless_llm/store && pip install . && ./vllm_patch/patch.sh
 
       - name: Run Python tests
         run: |
@@ -52,6 +46,6 @@ jobs:
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
           cd serverless_llm/store && pip install -r requirements-build.txt && bash cpp_build.sh
 
-      # - name: Run C++ tests
-      #   run: |
-      #     cd serverless_llm/store/build && ctest --output-on-failure
+      - name: Run C++ tests
+        run: |
+          cd serverless_llm/store/build && ctest --output-on-failure

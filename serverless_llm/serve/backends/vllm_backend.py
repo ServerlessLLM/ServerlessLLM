@@ -25,7 +25,6 @@ import uuid
 from dataclasses import fields
 from typing import Any, Dict, List, Optional, Union
 
-import ray
 import torch
 from vllm import AsyncEngineArgs, AsyncLLMEngine, RequestOutput, SamplingParams
 from vllm.inputs import TokensPrompt
@@ -141,9 +140,7 @@ class VllmBackend(SllmBackend):
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = os.path.join(storage_path, "vllm", model)
             filtered_engine_config["model"] = model_path
-            # TODO: fix the load format into serverless_llm
-            filtered_engine_config["load_format"] = "sharded_state"
-            filtered_engine_config["distributed_executor_backend"] = "mp"
+            filtered_engine_config["load_format"] = "serverless_llm"
 
         # NOTE: Automatic enable prefix cachinging
         filtered_engine_config["enable_prefix_caching"] = True
@@ -282,3 +279,7 @@ class VllmBackend(SllmBackend):
         ]
         tasks = [self.generate(inputs) for inputs in constructed_inputs]
         await asyncio.gather(*tasks)
+
+    async def encode(self, request_data: Dict[str, Any]):
+        # TODO: Implement this method on vLLM
+        pass

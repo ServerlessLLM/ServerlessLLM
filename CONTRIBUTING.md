@@ -14,20 +14,13 @@ ServerlessLLM is currently maintained by the following contributors:
  - [Xinyuan Tong](https://github.com/JustinTong0323)
  - [Luo Mai](https://github.com/luomai)
 
-## Check Code Format
+## Code Format
 
 ```bash
-pip install ruff
-pip install isort
+pip install -r requirements-lint.txt
 
-# Format Python import packages
-isort .
-
-# Check code format
-ruff check
-
-# Run code format
-ruff format
+# add lint hooks to git commit
+pre-commit install --install-hooks
 ```
 
 ## Commit Message Guidelines
@@ -246,7 +239,7 @@ Let's walk through an example of adding a new checkpoint format:
    - Basic structure for the new format
    - Serialization method with correct endianness
    - Deserialization method
-   
+
    The new format improves storage efficiency and load times.
 
    Squashed commit of the following:
@@ -291,7 +284,23 @@ After your pull request is merged:
 By following this workflow, we maintain a clean and organized main branch, making it easier for all contributors to understand the project's history and collaborate effectively. The detailed development process remains available in the pull request history, providing the best of both worlds: a clean main branch and preserved development details.
 
 ## Release
+### Release with Github Workflow
+1. Bump the version number in `ServerlessLLM/setup.py` and `ServerlessLLM/serverless_llm/setup.py`
+```
+setup(
+    name=...,
+    version="<version-number>",
+    ext_modules=...
+    ...
+)
+```
+2. Tag the current commit and push:
+```
+git tag v<x.x.x>
+git push origin v<x.x.x>
+```
 
+### Release Manually
 1. Build the package in an NVIDIA container.
 
    ```bash
@@ -315,5 +324,5 @@ By following this workflow, we maintain a clean and organized main branch, makin
 
    ```bash
    # Create a virtual environment
-   pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless-llm-store==0.0.1dev23
+   pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless-llm-store==0.0.1dev4
    ```

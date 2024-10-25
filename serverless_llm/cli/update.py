@@ -15,8 +15,6 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import json
-import logging
 import os
 from argparse import Namespace, _SubParsersAction
 
@@ -48,7 +46,7 @@ class UpdateCommand:
         self.model = args.model
         self.config_path = args.config
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://localhost:8343/") + "update"
+            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "update"
         )
         self.default_config_path = os.path.join(
             os.path.dirname(__file__), "default_config.json"

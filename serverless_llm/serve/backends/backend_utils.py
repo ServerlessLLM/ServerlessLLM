@@ -37,6 +37,10 @@ class SllmBackend(ABC):
         pass
 
     @abstractmethod
+    async def encode(self, request_data: Dict[str, Any]):
+        pass
+
+    @abstractmethod
     async def generate(self, request_data: Dict[str, Any]):
         pass
 

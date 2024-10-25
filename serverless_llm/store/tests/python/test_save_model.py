@@ -15,12 +15,13 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import unittest
 import os
 import shutil
+import unittest
+
 import torch
+from serverless_llm_store.transformers import save_model
 from transformers import AutoModelForCausalLM
-from serverless_llm_store import save_model
 
 
 class TestSaveModelIntegration(unittest.TestCase):
@@ -28,12 +29,14 @@ class TestSaveModelIntegration(unittest.TestCase):
         # Set up a temporary directory for the test
         self.model_name = "facebook/opt-1.3b"
         self.save_dir = "./test_models"
-        self.model_dir = os.path.join(self.save_dir, self.model_name)
+        self.model_path = os.path.join(self.save_dir, self.model_name)
 
         # Ensure the save directory is clean before the test
         if os.path.exists(self.save_dir):
             shutil.rmtree(self.save_dir)
         os.makedirs(self.save_dir)
+
+        os.environ["STORAGE_PATH"] = self.save_dir
 
     def tearDown(self):
         # Clean up by deleting the directory after the test
@@ -47,10 +50,10 @@ class TestSaveModelIntegration(unittest.TestCase):
         )
 
         # Save the model
-        save_model(model, self.model_dir)
+        save_model(model, self.model_path)
 
         # Check if the model directory was created
-        self.assertTrue(os.path.exists(self.model_dir))
+        self.assertTrue(os.path.exists(self.model_path))
 
         # Check if certain files exist to verify that the model was saved
         expected_files = [
@@ -63,11 +66,11 @@ class TestSaveModelIntegration(unittest.TestCase):
         ]
         for filename in expected_files:
             self.assertTrue(
-                os.path.isfile(os.path.join(self.model_dir, filename))
+                os.path.isfile(os.path.join(self.model_path, filename))
             )
 
         unexpected_files = ["tensor.data_1", "*.bin", "*.safetensors"]
         for filename in unexpected_files:
             self.assertFalse(
-                os.path.isfile(os.path.join(self.model_dir, filename))
+                os.path.isfile(os.path.join(self.model_path, filename))
             )

@@ -1,7 +1,11 @@
-vllm==0.5.0
 accelerate==0.29.3
+accelerate>0.27.2
 grpcio==1.49.1
 grpcio-tools==1.49.1
+# ServerlessLLM does not directly depend on outlines.
+# This is to fix issue: https://github.com/dottxt-ai/outlines/issues/1198
+outlines==0.0.43
 torch==2.3.0
-accelerate>0.27.2
 transformers==4.42.0
+vllm==0.5.0.post1
+vllm==0.5.0.post1

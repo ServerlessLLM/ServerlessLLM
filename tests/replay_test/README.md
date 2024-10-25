@@ -26,7 +26,7 @@ In another terminal:
     Set the `LLM_SERVER_URL` environment variable to specify the server URL:
 
     ```sh
-    export LLM_SERVER_URL=http://localhost:8343/
+    export LLM_SERVER_URL=http://127.0.0.1:8343/
     ```
 
     Install the package:
@@ -35,7 +35,7 @@ In another terminal:
     pip install .
     pip install datasets
     ```
-    <!-- I want to add datasets to requirements.txt but it would cause unwanted errors(Segmentaion fault). So, I will leave it as a manual step for now. -->
+    <!-- I want to add datasets to requirements.txt but it would cause unwanted errors(Segmentation fault). So, I will leave it as a manual step for now. -->
 
 2. Run the test:
 

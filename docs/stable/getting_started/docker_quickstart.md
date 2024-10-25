@@ -15,7 +15,7 @@ Ensure you have the following pre-requisites:
 
 ## Run ServerlessLLM using Docker
 
-First, let's start a local Docker-based ray cluster to run ServerlessLLM. 
+First, let's start a local Docker-based ray cluster to run ServerlessLLM.
 
 ### Step 1: Build Docker Images
 
@@ -95,7 +95,7 @@ Open a new terminal, activate the `sllm` environment, and set the `LLM_SERVER_UR
 
 ```bash
 conda activate sllm
-export LLM_SERVER_URL=http://localhost:8343/
+export LLM_SERVER_URL=http://127.0.0.1:8343/
 ```
 
 Deploy a model to the ServerlessLLM server using the `sllm-cli`:
@@ -117,7 +117,7 @@ INFO 08-01 07:39:00 deploy.py:49] Model registered successfully.
 
 Now, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```bash
-curl http://localhost:8343/v1/chat/completions \
+curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",

@@ -6,7 +6,7 @@ import serverless_llm_store
 
 
 def main():
-    print("TODO Run server...")
+    print("Run server...")
 
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = (

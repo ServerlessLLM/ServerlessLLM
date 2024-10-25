@@ -50,7 +50,13 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=500, detail="Controller not initialized"
             )
-        await controller.register.remote(body)
+        try:
+            await controller.register.remote(body)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail="Cannot register model, please contact the administrator",
+            )
 
         return {"status": "ok"}
 
@@ -100,8 +106,7 @@ def create_app() -> FastAPI:
 
         return {"status": f"deleted model {model_name}"}
 
-    @app.post("/v1/chat/completions")
-    async def generate_handler(request: Request):
+    async def inference_handler(request: Request, action: str):
         body = await request.json()
         model_name = body.get("model")
         logger.info(f"Received request for model {model_name}")
@@ -113,7 +118,15 @@ def create_app() -> FastAPI:
         request_router = ray.get_actor(model_name, namespace="models")
         logger.info(f"Got request router for {model_name}")
 
-        result = request_router.generate.remote(body)
+        result = request_router.inference.remote(body, action)
         return await result
+
+    @app.post("/v1/chat/completions")
+    async def generate_handler(request: Request):
+        return await inference_handler(request, "generate")
+
+    @app.post("/v1/embeddings")
+    async def embeddings_handler(request: Request):
+        return await inference_handler(request, "encode")
 
     return app

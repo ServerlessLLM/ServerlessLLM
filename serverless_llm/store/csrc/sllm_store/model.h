@@ -50,8 +50,8 @@ using GpuReplicaPtr = std::shared_ptr<GpuReplica>;
 
 class Model {
  public:
-  Model(const std::string& model_name) : model_name_(model_name) {}
-  int Initialize(const std::filesystem::path& model_path);
+  Model(const std::filesystem::path& model_path) : model_path_(model_path) {}
+  int Initialize(const std::filesystem::path storage_path);
   int AllocatePinnedMemory(std::shared_ptr<PinnedMemoryPool> pool);
   int ToHost(int num_threads);
   int ToGpu(const std::string& replica_uuid, const MemPtrListMap& device_ptrs,
@@ -69,13 +69,13 @@ class Model {
   std::condition_variable cv_;
   MemoryState state_ = MemoryState::UNINITIALIZED;
 
-  // Model name
-  const std::string model_name_;
+  // Model path
+  const std::string model_path_;
 
   // Model info needs to be initialized
   size_t model_size_;
-  std::filesystem::path model_path_;
   std::vector<size_t> partition_sizes_;
+  std::vector<std::filesystem::path> partition_paths_;
   std::shared_ptr<PinnedMemory> pinned_mem_;
 
   std::unordered_map<std::string, GpuReplicaPtr> gpu_replicas_;

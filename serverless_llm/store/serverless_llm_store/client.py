@@ -15,7 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-import threading
 
 import grpc
 import serverless_llm_store.proto.storage_pb2 as storage_pb2
@@ -27,7 +26,7 @@ logger = init_logger(__name__)
 
 # This is a singleton class that manages the checkpoint
 class SllmStoreClient:
-    def __init__(self, server_address="localhost:8073"):
+    def __init__(self, server_address="127.0.0.1:8073"):
         self.server_address = server_address
         self.channel = grpc.insecure_channel(server_address)
         self.stub = storage_pb2_grpc.StorageStub(self.channel)
@@ -37,9 +36,9 @@ class SllmStoreClient:
         # TODO: cleanup
         pass
 
-    def load_into_cpu(self, model_name):
+    def load_into_cpu(self, model_path):
         request = storage_pb2.LoadModelRequest(
-            model_name=model_name,
+            model_path=model_path,
             target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_CPU,
         )
         try:
@@ -54,9 +53,9 @@ class SllmStoreClient:
         else:
             return response
 
-    def unload_from_cpu(self, model_name):
+    def unload_from_cpu(self, model_path):
         request = storage_pb2.UnloadModelRequest(
-            model_name=model_name,
+            model_path=model_path,
             target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_CPU,
         )
         try:
@@ -68,9 +67,9 @@ class SllmStoreClient:
             return response
 
     def load_into_gpu(
-        self, model_name, replica_uuid, tensor_copy_chunks, cuda_memory_handles
+        self, model_path, replica_uuid, tensor_copy_chunks, cuda_memory_handles
     ):
-        logger.debug(f"load_into_gpu: {model_name}, {replica_uuid}")
+        logger.debug(f"load_into_gpu: {model_path}, {replica_uuid}")
 
         gpu_chunk_map = {}
         for device_uuid, chunks in tensor_copy_chunks.items():
@@ -96,7 +95,7 @@ class SllmStoreClient:
                 ]
             )
         request = storage_pb2.LoadModelRequest(
-            model_name=model_name,
+            model_path=model_path,
             replica_uuid=replica_uuid,
             chunks=gpu_chunk_map,
             handles=cuda_handle_map,
@@ -111,19 +110,19 @@ class SllmStoreClient:
                 logger.error(f"Error: {e}")
             return False
         else:
-            logger.info(f"Model loaded: {model_name}, {replica_uuid}")
+            logger.info(f"Model loaded: {model_path}, {replica_uuid}")
             return response
 
-    def confirm_model_loaded(self, model_name, replica_uuid):
-        logger.info(f"confirm_model_loaded: {model_name}, {replica_uuid}")
+    def confirm_model_loaded(self, model_path, replica_uuid):
+        logger.info(f"confirm_model_loaded: {model_path}, {replica_uuid}")
         request = storage_pb2.ConfirmModelRequest(
-            model_name=model_name,
+            model_path=model_path,
             replica_uuid=replica_uuid,
             target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_GPU,
         )
         try:
-            response = self.stub.ConfirmModel(request)
-            logger.info(f"Model loaded")
+            _ = self.stub.ConfirmModel(request)
+            logger.info("Model loaded")
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.CANCELLED:
                 logger.error("Model not loaded")
@@ -132,16 +131,16 @@ class SllmStoreClient:
                 logger.error(f"Error: {e}")
                 return False
 
-    def register_model(self, model_name) -> int:
-        logger.info(f"register_model: {model_name}")
-        request = storage_pb2.RegisterModelRequest(model_name=model_name)
+    def register_model(self, model_path) -> int:
+        logger.info(f"register_model: {model_path}")
+        request = storage_pb2.RegisterModelRequest(model_path=model_path)
         try:
             response = self.stub.RegisterModel(request)
         except grpc.RpcError as e:
             logger.error(f"Error: {e}")
             return -1
         else:
-            logger.info(f"Model registered")
+            logger.info("Model registered")
             return response.model_size
 
     def get_server_config(self):
