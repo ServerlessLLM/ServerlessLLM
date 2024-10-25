@@ -60,28 +60,28 @@ sys.path.append(Path.cwd().as_posix())
 
 setup(
     name="serverless-llm",
-    version="0.0.1.dev1",
+    version="0.5.0",
     install_requires=install_requires,
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     extras_require=extras,
     entry_points={
         "console_scripts": [
-            "sllm-cli=serverless_llm.cli.sllm_cli:main",
-            "sllm-serve=serverless_llm.serve.commands.serve.sllm_serve:main",
+            "sllm-cli=sllm.cli.sllm_cli:main",
+            "sllm-serve=sllm.serve.commands.serve.sllm_serve:main",
         ],
     },
     include_package_data=True,
     package_data={
-        "serverless_llm.serve": ["py.typed", "serverless_llm.sllm_serve"],
-        "serverless_llm.cli": ["default_config.json"],
+        "sllm.serve": ["py.typed", "sllm.sllm_serve"],
+        "sllm.cli": ["default_config.json"],
     },
     packages=[
-        "serverless_llm.serve",
-        "serverless_llm.cli",
-        "serverless_llm.serve.commands.serve",
-        "serverless_llm.serve.backends",
-        "serverless_llm.serve.routers",
-        "serverless_llm.serve.schedulers",
+        "sllm.serve",
+        "sllm.cli",
+        "sllm.serve.commands.serve",
+        "sllm.serve.backends",
+        "sllm.serve.routers",
+        "sllm.serve.schedulers",
     ],
 )

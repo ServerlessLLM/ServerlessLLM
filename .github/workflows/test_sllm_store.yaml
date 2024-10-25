@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - 'serverless_llm/store/**'
+      - 'sllm_store/**'
 
 jobs:
   sllm_store_tests:
@@ -34,18 +34,19 @@ jobs:
       - name: Install ServerlessLLM
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          cd serverless_llm/store && pip install . && ./vllm_patch/patch.sh
+          pip uninstall -y vllm && pip install vllm==0.5.0.post1
+          cd sllm_store && pip install . && ./vllm_patch/patch.sh
 
       - name: Run Python tests
         run: |
-          pytest serverless_llm/store/tests/python
+          pytest sllm_store/tests/python
 
       # C++ Tests
       - name: Build C++ project
         run: |
           export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          cd serverless_llm/store && pip install -r requirements-build.txt && bash cpp_build.sh
+          cd sllm_store && pip install -r requirements-build.txt && bash cpp_build.sh
 
       - name: Run C++ tests
         run: |
-          cd serverless_llm/store/build && ctest --output-on-failure
+          cd sllm_store/build && ctest --output-on-failure

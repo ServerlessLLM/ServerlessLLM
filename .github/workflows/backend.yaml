@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - 'serverless_llm/serve/backends/**'
+      - 'sllm/serve/backends/**'
 
 jobs:
     backend_tests:
@@ -35,7 +35,7 @@ jobs:
             - name: Install ServerlessLLM
               run: |
                   pip install .
-                  cd serverless_llm/store && pip install . && ./vllm_patch/patch.sh
+                  cd sllm_store && pip install . && ./vllm_patch/patch.sh
 
             - name: Run tests
               run: |

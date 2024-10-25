@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from vllm import CompletionOutput, RequestOutput
 
-from serverless_llm.serve.backends.vllm_backend import (
+from sllm.serve.backends.vllm_backend import (
     BackendStatus,
     VllmBackend,
 )
@@ -75,7 +75,7 @@ async def generate(
 @pytest.fixture
 def async_llm_engine():
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine"
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine"
     ) as MockAsyncLLMEngine:
         async_llm_engine_obj = MockAsyncLLMEngine.return_value
         async_llm_engine_obj.from_engine_args.return_value = (
@@ -99,7 +99,7 @@ def test_init(vllm_backend, backend_config):
 @pytest.mark.asyncio
 async def test_init_backend(vllm_backend, async_llm_engine):
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
         return_value=async_llm_engine,
     ):
         await vllm_backend.init_backend()
@@ -114,7 +114,7 @@ async def test_generate_without_init(vllm_backend):
         "request_id": "test-request-id",
     }
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
         return_value=AsyncMock(),
     ):
         response = await vllm_backend.generate(request_data)
@@ -129,7 +129,7 @@ async def test_generate(vllm_backend, async_llm_engine):
         "request_id": "test-request-id",
     }
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
         return_value=async_llm_engine,
     ):
         await vllm_backend.init_backend()
@@ -150,7 +150,7 @@ async def test_shutdown(backend_config, async_llm_engine):
         "request_id": "test-request-id",
     }
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
         return_value=async_llm_engine,
     ):
         await vllm_backend.init_backend()
@@ -169,13 +169,13 @@ async def test_stop(vllm_backend, async_llm_engine):
         "request_id": "test-request-id",
     }
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
         return_value=async_llm_engine,
     ):
         await vllm_backend.init_backend()
     await vllm_backend.generate(request_data)
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.VllmBackend.shutdown",
+        "sllm.serve.backends.vllm_backend.VllmBackend.shutdown",
         new_callable=AsyncMock,
     ) as mock_shutdown:
         await vllm_backend.stop()
@@ -200,7 +200,7 @@ async def test_get_current_tokens(backend_config, async_llm_engine):
         for i in range(3)
     ]
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
         return_value=async_llm_engine,
     ):
         await vllm_backend.init_backend()
@@ -213,7 +213,7 @@ async def test_get_current_tokens(backend_config, async_llm_engine):
 @pytest.mark.asyncio
 async def test_resume_kv_cache(vllm_backend):
     with patch(
-        "serverless_llm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
         return_value=async_llm_engine,
     ):
         await vllm_backend.init_backend()

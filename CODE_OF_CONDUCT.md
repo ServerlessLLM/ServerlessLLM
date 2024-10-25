@@ -5,7 +5,7 @@
 We as members, contributors, and leaders pledge to make participation in our
 community a harassment-free experience for everyone, regardless of age, body
 size, visible or invisible disability, ethnicity, sex characteristics, gender
-identity and expression, level of experience, education, socio-economic status,
+identity and expression, level of experience, education, socioeconomic status,
 nationality, personal appearance, race, caste, color, religion, or sexual
 identity and orientation.
 
@@ -59,7 +59,7 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement in the 
+reported to the community leaders responsible for enforcement in the
 #code-of-conduct channel in the [ServerlessLLM Discord](https://discord.gg/J9vcbNWYCB).
 All complaints will be reviewed and investigated promptly and fairly.
 

@@ -9,35 +9,57 @@ sidebar_position: 0
 - Python: 3.10
 - GPU: compute capability 7.0 or higher
 
-## Install with pip
-TODO
+## Installing with pip
+```bash
+# On the head node
+conda create -n sllm python=3.10 -y
+conda activate sllm
+pip install serverless-llm
+pip install serverless-llm-store
 
-## Install from source
-Install the package from source by running the following commands:
+# On a worker node
+conda create -n sllm-worker python=3.10 -y
+conda activate sllm-worker
+pip install serverless-llm[worker]
+pip install serverless-llm-store
+```
+
+:::note
+If you plan to use vLLM with ServerlessLLM, you need to apply our patch to the vLLM repository. Refer to the [vLLM Patch](#vllm-patch) section for more details.
+:::
+
+
+## Installing from source
+To install the package from source, follow these steps:
 ```bash
 git clone https://github.com/ServerlessLLM/ServerlessLLM
 cd ServerlessLLM
 ```
 
 ```
-# head node
+# On the head node
 conda create -n sllm python=3.10 -y
 conda activate sllm
 pip install -e .
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
+cd sllm_store && rm -rf build
+# Installing `sllm_store` from source can be slow. We recommend using pip install.
+pip install .
 
-# worker node
+# On a worker node
 conda create -n sllm-worker python=3.10 -y
 conda activate sllm-worker
 pip install -e ".[worker]"
-pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ serverless_llm_store==0.0.1.dev5
+cd sllm_store && rm -rf build
+# Installing `sllm_store` from source can be slow. We recommend using pip install.
+pip install .
 ```
 
 # vLLM Patch
-To use vLLM with ServerlessLLM, we need to apply our patch `serverless_llm/store/vllm_patch/sllm_load.patch` to the vLLM repository. Currently, the patch is only tested with vLLM version `0.5.0`.
+To use vLLM with ServerlessLLM, you need to apply our patch located at `sllm_store/vllm_patch/sllm_load.patch` to the vLLM repository. to the vLLM repository.
+The patch has been tested with vLLM version `0.5.0.post1`.
 
-You may do that by running our script:
+You can apply the patch by running the following script:
 ```bash
 conda activate sllm-worker
-./serverless_llm/store/vllm_patch/patch.sh
+./sllm_store/vllm_patch/patch.sh
 ```
