@@ -68,6 +68,14 @@ class TransformersBackend(SllmBackend):
                     f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
                 )
                 torch_dtype = torch.float16
+            if hf_model_class is None:
+                logger.error(
+                    f"hf_model_class cannot be None. Please provide a valid model class"
+                )
+                raise ValueError(
+                    "hf_model_class cannot be None. Please provide a valid model class"
+                )
+
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = Path(
                 os.path.join(storage_path, "transformers", self.model_name)

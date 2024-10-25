@@ -123,33 +123,33 @@ def load_model(
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
-    hf_model_class: Optional[str] = "AutoModelForCausalLM",
+    hf_model_class: str = "AutoModelForCausalLM",
 ):
     if fully_parallel:
         return fully_parallel_load(
             model_path=model_path,
+            hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
-            hf_model_class=hf_model_class,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
     # initialization and data loading in the best effort
     return best_effort_load(
         model_path=model_path,
+        hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
         storage_path=storage_path,
-        hf_model_class=hf_model_class,
     )
 
 
 def fully_parallel_load(
     model_path: Optional[Union[str, os.PathLike]],
+    hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
-    hf_model_class: Optional[str] = None,
 ):
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
@@ -219,10 +219,10 @@ def fully_parallel_load(
 
 def best_effort_load(
     model_path: Optional[Union[str, os.PathLike]],
+    hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     storage_path: Optional[str] = None,
-    hf_model_class: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)
