@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> |
+| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> | <a href="./docs/images/wechat.jpg"><b>WeChat</b></a> |
 
 </p>
 
