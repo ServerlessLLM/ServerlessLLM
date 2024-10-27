@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> |
+| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> | <a href="./docs/images/wechat.jpg"><b>WeChat</b></a> |
 
 </p>
 
@@ -16,6 +16,11 @@ ServerlessLLM (`sllm`, pronounced as "slim") is a fast, affordable and easy libr
 ## News
 
 - [07/24] We are working towards to the first release and making  documentation ready. Stay tuned!
+
+## Community
+ServerlessLLM is an open-source community dedicated to making custom LLM deployment easy, fast, and affordable. As models grow in size and complexity, deploying them on distributed GPUs has become increasingly costly and technically challenging, limiting the benefits of custom LLM deployment to only a select few. ServerlessLLM tackles these challenges by a full-stack, LLM-centric serverless system design, integrating multiple LLM-optimized layers—from checkpoint formats and inference runtimes to the storage layer and cluster scheduler.
+
+We welcome you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.jpg) to share your ideas, ask questions, and contribute to the project.
 
 ## About
 
