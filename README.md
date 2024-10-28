@@ -41,6 +41,14 @@ ServerlessLLM is designed to support multiple LLMs in efficiently sharing limite
 - Supports seamless deployment of [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) and custom LLM models.
 - Easily integrates with the [OpenAI Query API](https://platform.openai.com/docs/overview).
 
+## Getting Started
+
+1. Install ServerlessLLM by following the [Installation Guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
+
+2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started/quickstart/).
+
+3. Want to try fast checkpoint loading in your own code? Check out the [ServerlessLLM Store Guide](https://serverlessllm.github.io/docs/stable/store/quickstart).
+
 ## Documentation
 
 To install ServerlessLLM, please follow the steps outlined in our [documentation](https://serverlessllm.github.io). ServerlessLLM also offers Python APIs for loading and unloading checkpoints, as well as CLI tools to launch an LLM cluster. Both the CLI tools and APIs are demonstrated in the documentation.
