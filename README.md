@@ -43,7 +43,19 @@ ServerlessLLM is designed to support multiple LLMs in efficiently sharing limite
 
 ## Getting Started
 
-1. Install ServerlessLLM by following the [Installation Guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
+1. Install ServerlessLLM with pip or [from source](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
+
+```bash
+# On the head node
+conda create -n sllm python=3.10 -y
+conda activate sllm
+pip install serverless-llm
+
+# On a worker node
+conda create -n sllm-worker python=3.10 -y
+conda activate sllm-worker
+pip install serverless-llm[worker]
+```
 
 2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started/quickstart/).
 

@@ -8,3 +8,4 @@ ray==2.9.0
 requests==2.32.2
 types-requests==2.31.0.20240125
 uvicorn[standard]==0.23.1
+serverless-llm-store==0.5.0
