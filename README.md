@@ -20,7 +20,7 @@ ServerlessLLM (`sllm`, pronounced "slim") is an open-source serverless framework
 - **[10/24]** We made the first public release of ServerlessLLM. Check out the details of the release [here](https://github.com/ServerlessLLM/ServerlessLLM/releases/tag/v0.5.0).
 - **[09/24]** ServerlessLLM now supports embedding-based RAG + LLM deployment. We’re preparing a blog and demo—stay tuned!
 - **[08/24]** ServerlessLLM added support for vLLM.
-- **[07/24]** We presented ServerlessLLM at Nvidia’s headquarters.
+- **[07/24]** We presented ServerlessLLM at Nvidia's headquarters.
 - **[06/24]** ServerlessLLM officially went public.
 
 ## Goals
