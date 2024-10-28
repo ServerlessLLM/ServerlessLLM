@@ -11,51 +11,47 @@
 
 # ServerlessLLM
 
-ServerlessLLM (`sllm`, pronounced as "slim") is a fast, affordable and easy library designed for multi-LLM serving, also known as [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoint](https://huggingface.co/inference-endpoints/dedicated), or [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). This library is ideal for environments with limited GPU resources (GPU poor), as it allows efficient dynamic loading of models onto GPUs. By supporting high levels of GPU multiplexing, it maximizes GPU utilization without the need to dedicate GPUs to individual models.
+ServerlessLLM (`sllm`, pronounced "slim") is an open-source serverless framework designed to make custom and elastic LLM deployment easy, fast, and affordable. As LLMs grow in size and complexity, deploying them on AI hardware has become increasingly costly and technically challenging, limiting custom LLM deployment to only a select few. ServerlessLLM solves these challenges with a full-stack, LLM-centric serverless system design, optimizing everything from checkpoint formats and inference runtimes to the storage layer and cluster scheduler.
 
 ## News
 
-- [07/24] We are working towards to the first release and making  documentation ready. Stay tuned!
+- **[10/24]** ServerlessLLM was invited to present at a global AI tech vision forum in Singapore.
+- **[10/24]** We hosted the first ServerlessLLM developer meetup in Edinburgh, attracting over 50 attendees both offline and online. Together, we brainstormed many exciting new features to develop. If you have great ideas, we’d love for you to join us!
+- **[10/24]** We made the first public release of ServerlessLLM. Check out the details of the release [here](https://github.com/ServerlessLLM/ServerlessLLM/releases/tag/v0.5.0).
+- **[09/24]** ServerlessLLM now supports embedding-based RAG + LLM deployment. We’re preparing a blog and demo—stay tuned!
+- **[08/24]** ServerlessLLM added support for vLLM.
+- **[07/24]** We presented ServerlessLLM at Nvidia’s headquarters.
+- **[06/24]** ServerlessLLM officially went public.
+
+## Goals
+
+ServerlessLLM is designed to support multiple LLMs in efficiently sharing limited AI hardware and dynamically switching between them on demand, which can increase hardware utilization and reduce the cost of LLM services. This multi-LLM scenario, commonly referred to as Serverless, is highly sought after by AI practitioners, as seen in solutions like [Serverless Inference](https://docs.aws.amazon.com/sagemaker/latest/dg/serverless-endpoints.html), [Inference Endpoints](https://huggingface.co/inference-endpoints/dedicated), and [Model Endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints?view=azureml-api-2). However, these existing offerings often face performance overhead and scalability challenges, which ServerlessLLM effectively addresses through three key capabilities:
+
+**ServerlessLLM is Fast**:
+- Supports leading LLM inference libraries like [vLLM](https://github.com/vllm-project/vllm) and [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index). Through vLLM, ServerlessLLM can support various types of AI hardware (summarized by vLLM at [here](https://docs.vllm.ai/en/stable/getting_started/installation.html))
+- Achieves 5-10X faster loading speeds compared to [Safetensors](https://github.com/huggingface/safetensors) and the PyTorch Checkpoint Loader.
+- Features an optimized model loading scheduler, offering 5-100X lower start-up latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
+
+**ServerlessLLM is Cost-Efficient**:
+- Allows multiple LLM models to share GPUs with minimal model switching overhead and supports seamless inference live migration.
+- Maximizes the use of local storage on multi-GPU servers, reducing the need for expensive storage servers and excessive network bandwidth.
+
+**ServerlessLLM is Easy-to-Use**:
+- Simplifies deployment through [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) via [KubeRay](https://github.com/ray-project/kuberay).
+- Supports seamless deployment of [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) and custom LLM models.
+- Easily integrates with the [OpenAI Query API](https://platform.openai.com/docs/overview).
+
+## Documentation
+
+To install ServerlessLLM, please follow the steps outlined in our [documentation](https://serverlessllm.github.io). ServerlessLLM also offers Python APIs for loading and unloading checkpoints, as well as CLI tools to launch an LLM cluster. Both the CLI tools and APIs are demonstrated in the documentation.
+
+## Benchmark
+
+Benchmark results for ServerlessLLM can be found [here](./benchmarks/README.md).
 
 ## Community
-ServerlessLLM is an open-source community dedicated to making custom LLM deployment easy, fast, and affordable. As models grow in size and complexity, deploying them on distributed GPUs has become increasingly costly and technically challenging, limiting the benefits of custom LLM deployment to only a select few. ServerlessLLM tackles these challenges by a full-stack, LLM-centric serverless system design, integrating multiple LLM-optimized layers—from checkpoint formats and inference runtimes to the storage layer and cluster scheduler.
 
-We welcome you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.jpg) to share your ideas, ask questions, and contribute to the project.
-
-## About
-
-ServerlessLLM is Fast:
-
-- Supports various leading LLM inference libraries including [vLLM](https://github.com/vllm-project/vllm) and [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index).
-- Achieves 5-10X faster loading speed than [Safetensors](https://github.com/huggingface/safetensors) and PyTorch Checkpoint Loader.
-- Supports start-time-optimized model loading scheduler, achieving 5-100X better LLM start-up latency than [Ray Serve](https://docs.ray.io/en/latest/serve/index.html) and [KServe](https://github.com/kserve/kserve).
-
-ServerlessLLM is Affordable:
-
-- Supports many LLM models to share a few GPUs with low model switching overhead and seamless inference live migration.
-- Fully utilizes local storage resources available on multi-GPU servers, reducing the need for employing costly storage servers and network bandwidth.
-
-ServerlessLLM is Easy:
-
-- Facilitates easy deployment via [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) (coming soon).
-- Seamlessly deploys [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) models and your custom LLM models.
-- Integrates seamlessly with the [OpenAI Query API](https://platform.openai.com/docs/overview).
-
-## Getting Started
-
-1. Install ServerlessLLM following [Installation Guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/).
-
-2. Start a local ServerlessLLM cluster following [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started/quickstart/).
-
-3. Just want to try out fast checkpoint loading in your own code? Check out the [ServerlessLLM Store Guide](https://serverlessllm.github.io/docs/stable/store/quickstart).
-
-## Performance
-
-A detailed analysis of the performance of ServerlessLLM is [here](./benchmarks/README.md).
-
-## Contributing
-
-ServerlessLLM is actively maintained and developed by those [Contributors](./CONTRIBUTING.md). We welcome new contributors to join us in making ServerlessLLM faster, better and more easier to use. Please check [Contributing Guide](./CONTRIBUTING.md) for details.
+ServerlessLLM is maintained by a global team of over 10 developers, and this number is growing. If you're interested in learning more or getting involved, we invite you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.jpg). Share your ideas, ask questions, and contribute to the development of ServerlessLLM. For becoming a contributor, please refer to our [Contributor Guide](./CONTRIBUTING.md).
 
 ## Citation
 
