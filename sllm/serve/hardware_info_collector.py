@@ -30,10 +30,11 @@ class HardwareInfoCollector:
         Collect all hardware information and return as a dictionary.
         """
         hardware_info = {}
-        hardware_info["host_memory"] = self.collector.get_memory_info()
+        hardware_info["host_size"] = self.collector.get_memory_info()
         hardware_info["host_bandwidth"] = self.collector.benchmark_memory_bandwidth()
         hardware_info["disk_size"] = self.collector.get_disk_info()
         write_bw, read_bw = self.collector.benchmark_disk_bandwidth()
+        hardware_info["disk_bandwidth"] = (write_bw + read_bw) / 2 # Average of write and read bandwidth
         hardware_info["disk_write_bandwidth"] = write_bw
         hardware_info["disk_read_bandwidth"] = read_bw
         upload_bw, download_bw = self.collector.get_network_bandwidth()
@@ -156,7 +157,7 @@ class HardwareInfoCollectorMethods:
             logger.error(f"Disk bandwidth benchmark failed: {e}")
             return "N/A", "N/A"
 
-    def get_network_bandwidth(self, num_iterations=3):
+    def get_network_bandwidth(self, num_iterations=1):
         """
         Measures network upload and download bandwidth by performing speed tests multiple times.
         Args:
