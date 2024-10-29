@@ -15,9 +15,10 @@ To help make your contributions as smooth as possible, we've put together this g
    - [Development Environment](#development-environment)
    - [Commit Message Guidelines](#commit-message-guidelines)
 
-## Join the Community
+## Community
+ServerlessLLM is an open-source community dedicated to making custom LLM deployment easy, fast, and affordable. As models grow in size and complexity, deploying them on distributed GPUs has become increasingly costly and technically challenging, limiting the benefits of custom LLM deployment to only a select few. ServerlessLLM tackles these challenges by a full-stack, LLM-centric serverless system design, integrating multiple LLM-optimized layers—from checkpoint formats and inference runtimes to the storage layer and cluster scheduler.
 
-- Discord: [ServerlessLLM Discord](https://discord.gg/AEF8Gduvm8)
+We welcome you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.jpg) to share your ideas, ask questions, and contribute to the project.
 
 ## Code of Conduct
 
