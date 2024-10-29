@@ -9,3 +9,5 @@ requests==2.32.2
 serverless-llm-store
 types-requests==2.31.0.20240125
 uvicorn[standard]==0.23.1
+GPUtil==1.4.0
+speedtest-cli==2.1.3

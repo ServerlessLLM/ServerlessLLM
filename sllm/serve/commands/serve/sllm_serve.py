@@ -104,11 +104,11 @@ def main():
         if args.command == "start":
             app = create_app()
             hardware_config_path = args.hardware_config
-            hardware_config = None
-            if hardware_config_path is not None:
-                with open(hardware_config_path, "r") as f:
-                    hardware_config = json.load(f)
-                hardware_config = process_hardware_config(hardware_config)
+            hardware_config = {}
+            # if hardware_config_path is not None:
+            #     with open(hardware_config_path, "r") as f:
+            #         hardware_config = json.load(f)
+            #     hardware_config = process_hardware_config(hardware_config)
             controller_cls = ray.remote(SllmController)
             controller = controller_cls.options(
                 name="controller", num_cpus=1, resources={"control_node": 0.1}

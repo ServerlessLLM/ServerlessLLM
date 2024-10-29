@@ -5,13 +5,13 @@ import speedtest
 import time
 import os
 import tempfile
-import subprocess
-import re
-import platform
-import pynvml
 import json
 from typing import Dict, Set
 from tqdm import tqdm
+from sllm.serve.logger import init_logger
+
+
+logger = init_logger(__name__)
 
 @ray.remote
 class HardwareInfoCollector:
@@ -51,14 +51,13 @@ class HardwareInfoCollectorMethods:
         """
         Retrieves total system memory.
         Returns:
-            str: Total memory in GB (e.g., "32GB").
+            str: Total memory in B
         """
         try:
             mem = psutil.virtual_memory()
-            total_memory_gb = mem.total / (1024 ** 3)
-            return f"{total_memory_gb:.2f}GB"
+            return mem.total
         except Exception as e:
-            print(f"Failed to retrieve memory info: {e}")
+            logger.error(f"Failed to retrieve memory info: {e}")
             return "N/A"
 
     def benchmark_memory_bandwidth(self, num_iterations=5):
@@ -67,7 +66,7 @@ class HardwareInfoCollectorMethods:
         Args:
             num_iterations (int): Number of iterations to run.
         Returns:
-            str: Average memory bandwidth in GB/s (e.g., "24GB/s").
+            str: Average memory bandwidth in B/s
         """
         bandwidth_results = []
         try:
@@ -80,23 +79,21 @@ class HardwareInfoCollectorMethods:
                     data = bytearray(data)
                 end_time = time.time()
                 elapsed = end_time - start_time
-                # Calculate bandwidth in MB/s
-                bandwidth_mb_s = (size * 10) / elapsed / (1024 ** 2)
-                # Convert to GB/s
-                bandwidth_gb_s = bandwidth_mb_s / 1024
-                bandwidth_results.append(bandwidth_gb_s)
+                # Calculate bandwidth in B/s
+                bandwidth_b_s = size * 10 / elapsed
+                bandwidth_results.append(bandwidth_b_s)
             # Calculate average bandwidth
             average_bandwidth = sum(bandwidth_results) / len(bandwidth_results)
-            return f"{average_bandwidth:.2f}GB/s"
+            return average_bandwidth
         except Exception as e:
-            print(f"Memory bandwidth benchmark failed: {e}")
+            logger.error(f"Memory bandwidth benchmark failed: {e}")
             return "N/A"
 
     def get_disk_info(self):
         """
         Retrieves total size of the primary disk partition.
         Returns:
-            str: Disk size in GB (e.g., "128GB").
+            str: Disk size in B
         """
         try:
             partitions = psutil.disk_partitions()
@@ -104,16 +101,14 @@ class HardwareInfoCollectorMethods:
             for partition in partitions:
                 if partition.mountpoint == '/':
                     usage = psutil.disk_usage(partition.mountpoint)
-                    total_size_gb = usage.total / (1024 ** 3)
-                    return f"{total_size_gb:.2f}GB"
+                    return usage.total
             # If '/' not found, return the first partition's size
             if partitions:
                 usage = psutil.disk_usage(partitions[0].mountpoint)
-                total_size_gb = usage.total / (1024 ** 3)
-                return f"{total_size_gb:.2f}GB"
+                return usage.total
             return "N/A"
         except Exception as e:
-            print(f"Failed to retrieve disk info: {e}")
+            logger.error(f"Failed to retrieve disk info: {e}")
             return "N/A"
 
     def benchmark_disk_bandwidth(self, num_iterations=5):
@@ -122,7 +117,7 @@ class HardwareInfoCollectorMethods:
         Args:
             num_iterations (int): Number of iterations to run.
         Returns:
-            tuple: Average write bandwidth (str) and average read bandwidth (str) in GB/s.
+            tuple: Average write bandwidth (str) and average read bandwidth (str) in B/s
         """
         write_results = []
         read_results = []
@@ -138,9 +133,8 @@ class HardwareInfoCollectorMethods:
                     f.write(os.urandom(size))
                 end_time = time.time()
                 write_time = end_time - start_time
-                write_bandwidth_mb_s = size / write_time / (1024 ** 2)
-                write_bandwidth_gb_s = write_bandwidth_mb_s / 1024
-                write_results.append(write_bandwidth_gb_s)
+                write_bandwidth_b_s = size / write_time
+                write_results.append(write_bandwidth_b_s)
 
                 # Read Test
                 start_time = time.time()
@@ -148,9 +142,8 @@ class HardwareInfoCollectorMethods:
                     _ = f.read()
                 end_time = time.time()
                 read_time = end_time - start_time
-                read_bandwidth_mb_s = size / read_time / (1024 ** 2)
-                read_bandwidth_gb_s = read_bandwidth_mb_s / 1024
-                read_results.append(read_bandwidth_gb_s)
+                read_bandwidth_b_s = size / read_time
+                read_results.append(read_bandwidth_b_s)
 
             # Clean up
             os.remove(temp_file)
@@ -158,9 +151,9 @@ class HardwareInfoCollectorMethods:
             # Calculate averages
             average_write = sum(write_results) / len(write_results)
             average_read = sum(read_results) / len(read_results)
-            return f"{average_write:.2f}GB/s", f"{average_read:.2f}GB/s"
+            return average_write, average_read
         except Exception as e:
-            print(f"Disk bandwidth benchmark failed: {e}")
+            logger.error(f"Disk bandwidth benchmark failed: {e}")
             return "N/A", "N/A"
 
     def get_network_bandwidth(self, num_iterations=3):
@@ -169,7 +162,7 @@ class HardwareInfoCollectorMethods:
         Args:
             num_iterations (int): Number of iterations to run.
         Returns:
-            tuple: Average upload bandwidth (str) and average download bandwidth (str) in Gbps.
+            tuple: Average upload bandwidth (str) and average download bandwidth (str) in bps
         """
         upload_results = []
         download_results = []
@@ -177,21 +170,22 @@ class HardwareInfoCollectorMethods:
             for _ in tqdm(range(num_iterations), desc="Testing network bandwidth"):
                 st = speedtest.Speedtest()
                 st.get_best_server()
-                download_speed_mbps = st.download() / 1_000_000  # Convert to Mbps
-                upload_speed_mbps = st.upload(pre_allocate=False) / 1_000_000  # Convert to Mbps
-                # Convert to Gbps
-                download_speed_gbps = download_speed_mbps / 1000
-                upload_speed_gbps = upload_speed_mbps / 1000
-                upload_results.append(upload_speed_gbps)
-                download_results.append(download_speed_gbps)
+                download_speed_mbps = st.download()
+                upload_speed_mbps = st.upload(pre_allocate=False)
+
+                # Convert to bps
+                download_results.append(download_speed_mbps * (1024**2) / 8)
+                upload_results.append(upload_speed_mbps * (1024**2) / 8)
+
                 # Wait to avoid server overload
                 time.sleep(5)
             # Calculate averages
             average_upload = sum(upload_results) / len(upload_results)
             average_download = sum(download_results) / len(download_results)
-            return f"{average_upload:.2f}Gbps", f"{average_download:.2f}Gbps"
+            return average_upload, average_download
+        
         except Exception as e:
-            print(f"Network bandwidth test failed: {e}")
+            logger.error(f"Network bandwidth test failed: {e}")
             return "N/A", "N/A"
 
     def get_gpu_info(self):
@@ -217,7 +211,7 @@ class HardwareInfoCollectorMethods:
                         "Total_Memory": f"{gpu.memoryTotal}MB"
                     }
         except Exception as e:
-            print(f"Failed to retrieve GPU information: {e}")
+            logger.error(f"Failed to retrieve GPU information: {e}")
             gpus_info = "N/A"
         return gpus_info
     
@@ -250,13 +244,13 @@ def store_results(benchmark_results: Dict[str, dict], filename: str = "benchmark
     """
     with open(filename, 'w') as f:
         json.dump(benchmark_results, f, indent=4)
-    print(f"Benchmark results stored in {filename}")
+    logger.info(f"Benchmark results stored in {filename}")
 
 def main():
     processed_nodes: Set[str] = set()
     benchmark_results: Dict[str, dict] = {}
     
-    print("Starting Ray cluster monitoring for benchmark execution with custom resources...")
+    logger.info("Starting Ray cluster monitoring for benchmark execution with custom resources...")
     
     try:
         while True:
@@ -264,7 +258,7 @@ def main():
             new_nodes = set(worker_nodes.keys()) - processed_nodes
             
             if new_nodes:
-                print(f"Detected new nodes with resources: {new_nodes}")
+                logger.info(f"Detected new nodes with resources: {new_nodes}")
                 collectors = []
                 
                 for resource_label in new_nodes:
@@ -278,30 +272,25 @@ def main():
                         result = ray.get(collector.collect_all_info.remote(), timeout=60)  # Adjust timeout as needed
                         benchmark_results[resource_label] = result
                         processed_nodes.add(resource_label)
-                        print(f"Stored benchmark result for node {resource_label}")
+                        logger.info(f"Stored benchmark result for node {resource_label}")
                     except ray.exceptions.GetTimeoutError:
-                        print(f"Benchmark task on resource {resource_label} timed out.")
+                        logger.error(f"Benchmark task on resource {resource_label} timed out.")
             
             else:
-                print("No new nodes detected.")
+                logger.info("No new nodes detected.")
                 
             store_results(benchmark_results)
             # Wait before the next check
             time.sleep(10)  # Adjust the polling interval as needed
     
     except KeyboardInterrupt:
-        print("Monitoring interrupted by user.")
+        logger.info("Monitoring interrupted by user.")
     
     finally:
         # Store the benchmark results
-        print("Final Benchmark Results:")
+        logger.info("Final Benchmark Results:")
         for resource_label, result in benchmark_results.items():
-            print(f"Node {resource_label}: {result}")
-
-# def main():
-#     # test get network bandwidth
-#     collector = HardwareInfoCollectorMethods()
-#     print(collector.get_network_bandwidth())
+            logger.info(f"Node {resource_label}: {result}")
     
 if __name__ == "__main__":
     ray.init()

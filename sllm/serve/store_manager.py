@@ -19,7 +19,16 @@
 import asyncio
 import os
 import time
-from typing import List, Mapping, Optional
+from typing import List, Mapping, Optional, Dict, Set
+
+import psutil
+import GPUtil
+import speedtest
+import time
+import os
+import tempfile
+from tqdm import tqdm
+
 
 import ray
 
@@ -192,9 +201,9 @@ class SllmLocalStore:
 
 # @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class StoreManager:
-    def __init__(self, hardware_info: Optional[Mapping] = None):
+    def __init__(self):
         logger.info("Initializing store manager")
-        self.hardware_info = hardware_info
+        self.hardware_info = {}
 
         self.metadata_lock = asyncio.Lock()
         # Storage info
@@ -204,15 +213,50 @@ class StoreManager:
         self.model_storage_info = {}
 
     async def initialize_cluster(self) -> bool:
-        if not self.hardware_info:
-            logger.warning(
-                "Hardware info not provided. Storage-aware scheduling might not work properly"
-            )
-            return False
+        logger.info("Initializing cluster and collecting hardware info")
 
+        # Get worker nodes
+        worker_node_info = get_worker_nodes()
+        if not worker_node_info:
+            logger.error("No worker nodes found")
+            return False
+        
+        # Initialize hardware_info dictionary
+        self.hardware_info = {}
+
+        # Collect hardware info from each node
+        collectors = {}
+        for node_id in worker_node_info:
+            # Create HardwareInfoCollector actor on the specific node
+            resource_label = f"worker_id_{node_id}"
+            try:
+                collectors[node_id] = HardwareInfoCollector.options(
+                    resources={resource_label: 0.01}  # Small fraction to avoid resource conflicts
+                ).remote()
+                logger.info(f"HardwareInfoCollector actor created on node {node_id}")
+            except Exception as e:
+                logger.error(f"Failed to create HardwareInfoCollector on node {node_id}: {e}")
+                continue
+
+        # Collect hardware info asynchronously
+        hardware_info_futures = {
+            node_id: collector.collect_all_info.remote()
+            for node_id, collector in collectors.items()
+        }
+
+        # Gather hardware info
+        for node_id, future in hardware_info_futures.items():
+            try:
+                hardware_info = await future
+                self.hardware_info[node_id] = hardware_info
+                logger.info(f"Hardware info collected for node {node_id}")
+            except Exception as e:
+                logger.error(f"Failed to collect hardware info from node {node_id}: {e}")
+                continue
+        
         uninitialized_nodes = list(self.hardware_info.keys())
+        
         while len(uninitialized_nodes) > 0:
-            worker_node_info = get_worker_nodes()
             for node_id in uninitialized_nodes:
                 if node_id in worker_node_info:
                     node_address = worker_node_info[node_id]["address"]
@@ -402,3 +446,205 @@ class StoreManager:
             "float16",  # FIXME: use backend_config
             tensor_parallel_size,
         )
+
+@ray.remote
+class HardwareInfoCollector:
+    """
+    A Ray actor class responsible for collecting hardware information.
+    """
+
+    def __init__(self):
+        """
+        Initialize the HardwareInfoCollector actor.
+        """
+        self.collector = HardwareInfoCollectorMethods()
+
+    def collect_all_info(self):
+        """
+        Collect all hardware information and return as a dictionary.
+        """
+        hardware_info = {}
+        hardware_info["host_memory"] = self.collector.get_memory_info()
+        hardware_info["host_bandwidth"] = self.collector.benchmark_memory_bandwidth()
+        hardware_info["disk_size"] = self.collector.get_disk_info()
+        write_bw, read_bw = self.collector.benchmark_disk_bandwidth()
+        hardware_info["disk_write_bandwidth"] = write_bw
+        hardware_info["disk_read_bandwidth"] = read_bw
+        # upload_bw, download_bw = self.collector.get_network_bandwidth()
+        # hardware_info["network_upload_bandwidth"] = upload_bw
+        # hardware_info["network_download_bandwidth"] = download_bw
+        hardware_info["GPUs_info"] = self.collector.get_gpu_info()
+        return hardware_info
+
+class HardwareInfoCollectorMethods:
+    """
+    A class encapsulating methods to collect various hardware metrics.
+    """
+
+    def get_memory_info(self):
+        """
+        Retrieves total system memory.
+        Returns:
+            str: Total memory in B
+        """
+        try:
+            mem = psutil.virtual_memory()
+            return mem.total
+        except Exception as e:
+            logger.error(f"Failed to retrieve memory info: {e}")
+            return "N/A"
+
+    def benchmark_memory_bandwidth(self, num_iterations=5):
+        """
+        Estimates memory bandwidth by performing memory operations multiple times.
+        Args:
+            num_iterations (int): Number of iterations to run.
+        Returns:
+            str: Average memory bandwidth in B/s
+        """
+        bandwidth_results = []
+        try:
+            size = 100 * 1024 * 1024  # 100 MB
+            for _ in range(num_iterations):
+                data = bytearray(os.urandom(size))
+                start_time = time.time()
+                # Simulate memory operations
+                for _ in range(10):
+                    data = bytearray(data)
+                end_time = time.time()
+                elapsed = end_time - start_time
+                # Calculate bandwidth in B/s
+                bandwidth_b_s = size * 10 / elapsed
+                bandwidth_results.append(bandwidth_b_s)
+            # Calculate average bandwidth
+            average_bandwidth = sum(bandwidth_results) / len(bandwidth_results)
+            return average_bandwidth
+        except Exception as e:
+            logger.error(f"Memory bandwidth benchmark failed: {e}")
+            return "N/A"
+
+    def get_disk_info(self):
+        """
+        Retrieves total size of the primary disk partition.
+        Returns:
+            str: Disk size in B
+        """
+        try:
+            partitions = psutil.disk_partitions()
+            # Assume primary partition is mounted at '/'
+            for partition in partitions:
+                if partition.mountpoint == '/':
+                    usage = psutil.disk_usage(partition.mountpoint)
+                    return usage.total
+            # If '/' not found, return the first partition's size
+            if partitions:
+                usage = psutil.disk_usage(partitions[0].mountpoint)
+                return usage.total
+            return "N/A"
+        except Exception as e:
+            logger.error(f"Failed to retrieve disk info: {e}")
+            return "N/A"
+
+    def benchmark_disk_bandwidth(self, num_iterations=5):
+        """
+        Measures disk read and write bandwidth by writing and reading a temporary file multiple times.
+        Args:
+            num_iterations (int): Number of iterations to run.
+        Returns:
+            tuple: Average write bandwidth (str) and average read bandwidth (str) in B/s
+        """
+        write_results = []
+        read_results = []
+        try:
+            temp_dir = tempfile.gettempdir()
+            temp_file = os.path.join(temp_dir, "disk_bandwidth_test.tmp")
+            size = 100 * 1024 * 1024  # 100 MB
+
+            for _ in range(num_iterations):
+                # Write Test
+                start_time = time.time()
+                with open(temp_file, 'wb') as f:
+                    f.write(os.urandom(size))
+                end_time = time.time()
+                write_time = end_time - start_time
+                write_bandwidth_b_s = size / write_time
+                write_results.append(write_bandwidth_b_s)
+
+                # Read Test
+                start_time = time.time()
+                with open(temp_file, 'rb') as f:
+                    _ = f.read()
+                end_time = time.time()
+                read_time = end_time - start_time
+                read_bandwidth_b_s = size / read_time
+                read_results.append(read_bandwidth_b_s)
+
+            # Clean up
+            os.remove(temp_file)
+
+            # Calculate averages
+            average_write = sum(write_results) / len(write_results)
+            average_read = sum(read_results) / len(read_results)
+            return average_write, average_read
+        except Exception as e:
+            logger.error(f"Disk bandwidth benchmark failed: {e}")
+            return "N/A", "N/A"
+
+    def get_network_bandwidth(self, num_iterations=3):
+        """
+        Measures network upload and download bandwidth by performing speed tests multiple times.
+        Args:
+            num_iterations (int): Number of iterations to run.
+        Returns:
+            tuple: Average upload bandwidth (str) and average download bandwidth (str) in bps
+        """
+        upload_results = []
+        download_results = []
+        try:
+            for _ in tqdm(range(num_iterations), desc="Testing network bandwidth"):
+                st = speedtest.Speedtest()
+                st.get_best_server()
+                download_speed_mbps = st.download()
+                upload_speed_mbps = st.upload(pre_allocate=False)
+
+                # Convert to bps
+                download_results.append(download_speed_mbps * (1024**2) / 8)
+                upload_results.append(upload_speed_mbps * (1024**2) / 8)
+
+                # Wait to avoid server overload
+                time.sleep(5)
+            # Calculate averages
+            average_upload = sum(upload_results) / len(upload_results)
+            average_download = sum(download_results) / len(download_results)
+            return average_upload, average_download
+        
+        except Exception as e:
+            logger.error(f"Network bandwidth test failed: {e}")
+            return "N/A", "N/A"
+
+    def get_gpu_info(self):
+        """
+        Retrieves information about each NVIDIA GPU.
+        Returns:
+            dict: Dictionary containing GPU information.
+        """
+        gpus_info = {}
+        try:
+            gpus = GPUtil.getGPUs()
+            if not gpus:
+                gpus_info = "No GPUs found."
+            else:
+                for gpu in gpus:
+                    gpu_id = gpu.id + 1  # To start GPU numbering from 1
+                    gpus_info[gpu_id] = {
+                        # "info": gpu.__dict__,
+                        "Name": gpu.name,
+                        "Load": f"{gpu.load * 100:.1f}%",
+                        "Free_Memory": f"{gpu.memoryFree}MB",
+                        "Used_Memory": f"{gpu.memoryUsed}MB",
+                        "Total_Memory": f"{gpu.memoryTotal}MB"
+                    }
+        except Exception as e:
+            logger.error(f"Failed to retrieve GPU information: {e}")
+            gpus_info = "N/A"
+        return gpus_info
