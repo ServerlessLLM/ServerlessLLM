@@ -58,13 +58,7 @@ class SllmController:
             self.running = True
 
         logger.info("Starting store manager")
-        enable_storage_aware = False
-        hardware_config = None
-        if self.config is not None and "hardware_config" in self.config:
-            hardware_config = self.config["hardware_config"]
-            enable_storage_aware = True
-        # if hardware_config:
-        #     enable_storage_aware = True
+        enable_storage_aware = self.config.get("enable_storage_aware", False)
         ray_manager_cls = ray.remote(StoreManager)
         self.store_manager = ray_manager_cls.options(
             name="store_manager"
