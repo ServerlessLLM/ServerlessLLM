@@ -29,6 +29,7 @@ from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="ServerlessLLM CLI for model management."

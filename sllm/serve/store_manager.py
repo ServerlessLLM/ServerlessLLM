@@ -23,6 +23,7 @@ from typing import List, Mapping, Optional
 
 import ray
 
+from sllm.serve.hardware_info_collector import HardwareInfoCollector
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
     VllmModelDownloader,
@@ -30,7 +31,6 @@ from sllm.serve.model_downloader import (
 )
 from sllm.serve.utils import get_worker_nodes
 from sllm_store.client import SllmStoreClient
-from sllm.serve.hardware_info_collector import HardwareInfoCollector
 
 logger = init_logger(__name__)
 
@@ -212,7 +212,7 @@ class StoreManager:
         if not worker_node_info:
             logger.error("No worker nodes found")
             return False
-        
+
         # Initialize hardware_info dictionary
         self.hardware_info = {}
 
@@ -223,11 +223,17 @@ class StoreManager:
             resource_label = f"worker_id_{node_id}"
             try:
                 collectors[node_id] = HardwareInfoCollector.options(
-                    resources={resource_label: 0.01}  # Small fraction to avoid resource conflicts
+                    resources={
+                        resource_label: 0.01
+                    }  # Small fraction to avoid resource conflicts
                 ).remote()
-                logger.info(f"HardwareInfoCollector actor created on node {node_id}")
+                logger.info(
+                    f"HardwareInfoCollector actor created on node {node_id}"
+                )
             except Exception as e:
-                logger.error(f"Failed to create HardwareInfoCollector on node {node_id}: {e}")
+                logger.error(
+                    f"Failed to create HardwareInfoCollector on node {node_id}: {e}"
+                )
                 continue
 
         # Collect hardware info asynchronously
@@ -243,11 +249,13 @@ class StoreManager:
                 self.hardware_info[node_id] = hardware_info
                 logger.info(f"Hardware info collected for node {node_id}")
             except Exception as e:
-                logger.error(f"Failed to collect hardware info from node {node_id}: {e}")
+                logger.error(
+                    f"Failed to collect hardware info from node {node_id}: {e}"
+                )
                 continue
-        
+
         uninitialized_nodes = list(self.hardware_info.keys())
-        
+
         while len(uninitialized_nodes) > 0:
             for node_id in uninitialized_nodes:
                 if node_id in worker_node_info:
@@ -438,4 +446,3 @@ class StoreManager:
             "float16",  # FIXME: use backend_config
             tensor_parallel_size,
         )
-        

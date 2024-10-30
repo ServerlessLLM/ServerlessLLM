@@ -1,17 +1,19 @@
-import ray
-import psutil
-import GPUtil
-import speedtest
-import time
+import json
 import os
 import tempfile
-import json
+import time
 from typing import Dict, Set
+
+import GPUtil
+import psutil
+import ray
+import speedtest
 from tqdm import tqdm
+
 from sllm.serve.logger import init_logger
 
-
 logger = init_logger(__name__)
+
 
 @ray.remote
 class HardwareInfoCollector:
@@ -31,10 +33,14 @@ class HardwareInfoCollector:
         """
         hardware_info = {}
         hardware_info["host_size"] = self.collector.get_memory_info()
-        hardware_info["host_bandwidth"] = self.collector.benchmark_memory_bandwidth()
+        hardware_info["host_bandwidth"] = (
+            self.collector.benchmark_memory_bandwidth()
+        )
         hardware_info["disk_size"] = self.collector.get_disk_info()
         write_bw, read_bw = self.collector.benchmark_disk_bandwidth()
-        hardware_info["disk_bandwidth"] = (write_bw + read_bw) / 2 # Average of write and read bandwidth
+        hardware_info["disk_bandwidth"] = (
+            write_bw + read_bw
+        ) / 2  # Average of write and read bandwidth
         hardware_info["disk_write_bandwidth"] = write_bw
         hardware_info["disk_read_bandwidth"] = read_bw
         upload_bw, download_bw = self.collector.get_network_bandwidth()
@@ -42,6 +48,7 @@ class HardwareInfoCollector:
         hardware_info["network_download_bandwidth"] = download_bw
         hardware_info["GPUs_info"] = self.collector.get_gpu_info()
         return hardware_info
+
 
 class HardwareInfoCollectorMethods:
     """
@@ -100,7 +107,7 @@ class HardwareInfoCollectorMethods:
             partitions = psutil.disk_partitions()
             # Assume primary partition is mounted at '/'
             for partition in partitions:
-                if partition.mountpoint == '/':
+                if partition.mountpoint == "/":
                     usage = psutil.disk_usage(partition.mountpoint)
                     return usage.total
             # If '/' not found, return the first partition's size
@@ -130,7 +137,7 @@ class HardwareInfoCollectorMethods:
             for _ in range(num_iterations):
                 # Write Test
                 start_time = time.time()
-                with open(temp_file, 'wb') as f:
+                with open(temp_file, "wb") as f:
                     f.write(os.urandom(size))
                 end_time = time.time()
                 write_time = end_time - start_time
@@ -139,7 +146,7 @@ class HardwareInfoCollectorMethods:
 
                 # Read Test
                 start_time = time.time()
-                with open(temp_file, 'rb') as f:
+                with open(temp_file, "rb") as f:
                     _ = f.read()
                 end_time = time.time()
                 read_time = end_time - start_time
@@ -168,7 +175,9 @@ class HardwareInfoCollectorMethods:
         upload_results = []
         download_results = []
         try:
-            for _ in tqdm(range(num_iterations), desc="Testing network bandwidth"):
+            for _ in tqdm(
+                range(num_iterations), desc="Testing network bandwidth"
+            ):
                 st = speedtest.Speedtest()
                 st.get_best_server()
                 download_speed_mbps = st.download()
@@ -184,7 +193,7 @@ class HardwareInfoCollectorMethods:
             average_upload = sum(upload_results) / len(upload_results)
             average_download = sum(download_results) / len(download_results)
             return average_upload, average_download
-        
+
         except Exception as e:
             logger.error(f"Network bandwidth test failed: {e}")
             return "N/A", "N/A"
@@ -209,90 +218,112 @@ class HardwareInfoCollectorMethods:
                         "Load": f"{gpu.load * 100:.1f}%",
                         "Free_Memory": f"{gpu.memoryFree}MB",
                         "Used_Memory": f"{gpu.memoryUsed}MB",
-                        "Total_Memory": f"{gpu.memoryTotal}MB"
+                        "Total_Memory": f"{gpu.memoryTotal}MB",
                     }
         except Exception as e:
             logger.error(f"Failed to retrieve GPU information: {e}")
             gpus_info = "N/A"
         return gpus_info
-    
-    
+
+
 def get_worker_nodes() -> Dict[str, dict]:
     """
     Retrieves a dictionary of worker nodes with their custom resource labels.
-    
+
     Returns:
         Dict[str, dict]: A dictionary mapping custom resource labels to node information.
     """
     nodes = ray.nodes()
     worker_nodes = {}
     for node in nodes:
-        if node['Alive'] and node['Resources'].get('CPU') and node['NodeManagerAddress'] != ray.get_runtime_context().get_node_id():
+        if (
+            node["Alive"]
+            and node["Resources"].get("CPU")
+            and node["NodeManagerAddress"]
+            != ray.get_runtime_context().get_node_id()
+        ):
             # Extract custom resource labels (e.g., 'worker_id_1')
-            custom_resources = [res for res in node['Resources'] if res.startswith('worker_id')]
+            custom_resources = [
+                res for res in node["Resources"] if res.startswith("worker_id")
+            ]
             if custom_resources:
                 resource_label = custom_resources[0]
                 worker_nodes[resource_label] = node
     return worker_nodes
 
-def store_results(benchmark_results: Dict[str, dict], filename: str = "benchmark_results.json"):
+
+def store_results(
+    benchmark_results: Dict[str, dict], filename: str = "benchmark_results.json"
+):
     """
     Stores the benchmark results in a JSON file.
-    
+
     Args:
         benchmark_results (Dict[str, dict]): The benchmark results mapped by node IP.
         filename (str): The filename for the JSON output.
     """
-    with open(filename, 'w') as f:
+    with open(filename, "w") as f:
         json.dump(benchmark_results, f, indent=4)
     logger.info(f"Benchmark results stored in {filename}")
+
 
 def main():
     processed_nodes: Set[str] = set()
     benchmark_results: Dict[str, dict] = {}
-    
-    logger.info("Starting Ray cluster monitoring for benchmark execution with custom resources...")
-    
+
+    logger.info(
+        "Starting Ray cluster monitoring for benchmark execution with custom resources..."
+    )
+
     try:
         while True:
             worker_nodes = get_worker_nodes()
             new_nodes = set(worker_nodes.keys()) - processed_nodes
-            
+
             if new_nodes:
                 logger.info(f"Detected new nodes with resources: {new_nodes}")
                 collectors = []
-                
+
                 for resource_label in new_nodes:
                     # Dispatch the benchmark task to the specific node using its custom resource
-                    collector = HardwareInfoCollector.options(resources={resource_label: 1}).remote()
+                    collector = HardwareInfoCollector.options(
+                        resources={resource_label: 1}
+                    ).remote()
                     collectors.append((resource_label, collector))
-                
+
                 # Collect results as they complete
                 for resource_label, collector in collectors:
                     try:
-                        result = ray.get(collector.collect_all_info.remote(), timeout=60)  # Adjust timeout as needed
+                        result = ray.get(
+                            collector.collect_all_info.remote(), timeout=60
+                        )  # Adjust timeout as needed
                         benchmark_results[resource_label] = result
                         processed_nodes.add(resource_label)
-                        logger.info(f"Stored benchmark result for node {resource_label}")
+                        logger.info(
+                            f"Stored benchmark result for node {resource_label}"
+                        )
                     except ray.exceptions.GetTimeoutError:
-                        logger.error(f"Benchmark task on resource {resource_label} timed out.")
-            
+                        logger.error(
+                            f"Benchmark task on resource {resource_label} timed out."
+                        )
+
             else:
                 logger.info("No new nodes detected.")
-                
+
             store_results(benchmark_results)
             # Wait before the next check
             time.sleep(10)  # Adjust the polling interval as needed
-    
+
     except KeyboardInterrupt:
         logger.info("Monitoring interrupted by user.")
-    
+
     finally:
         # Store the benchmark results
         logger.info("Final Benchmark Results:")
         for resource_label, result in benchmark_results.items():
             logger.info(f"Node {resource_label}: {result}")
-    
+
+
 if __name__ == "__main__":
     ray.init()
     main()
