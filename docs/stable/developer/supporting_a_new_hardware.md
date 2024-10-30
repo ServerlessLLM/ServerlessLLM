@@ -20,4 +20,6 @@ Hardware is considered supported by ServerlessLLM if:
 ## Verifying Hardware Support in ServerlessLLM Store
 The hardware support is verified if it successfully completes the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started/quickstart/) examples, showcasing checkpoint loading and inference functionality without errors.
 
+If the hardware is not publicly available (i.e., can't be tested by the ServerlessLLM team), a screenshot or output log of the successful execution of the Quick Start Guide examples is required to verify hardware support.
+
 If you encounter any issues or have questions, please reach out to the ServerlessLLM team by raising an issue on the [GitHub repository](https://github.com/ServerlessLLM/ServerlessLLM/issues).
