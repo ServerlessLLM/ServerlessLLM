@@ -174,4 +174,6 @@ ctest --output-on-failure
 
 This issue is due to an internal bug in ROCm. After the inference instance is completed, the GPU memory is still occupied and not related. For more information, please refer to [issue](https://github.com/ROCm/HIP/issues/3580).
 
-2. vLLM v0.5.0.post1 can not be built with ROCm 6.2.0
+2. vLLM v0.5.0.post1 can not be built in ROCm 6.2.0
+
+If you face such issue, a temporary solution is to build a wheel inside ROCm 6.1 docker environment and install the wheel in ROCm 6.2.0. We are currently working on update the supported pytorch and vLLM version to fix this issue.
