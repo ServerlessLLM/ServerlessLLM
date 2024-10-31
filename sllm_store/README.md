@@ -56,9 +56,9 @@ pip install dist/*.whl
 
 5. Following the [quick start guide](https://serverlessllm.github.io/docs/stable/store/quickstart) to use the library.
 
-## Build the wheel from source (ROCm)
+## Build the wheel from source (ROCm) (Experimental)
 
-Due to an internal bug in ROCm, serverless-llm-store is only compatible with ROCm version 6.2.0 or higher. Using earlier versions may result in a memory leak, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
+Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
 
 To build `sllm-store` from source, we suggest you using the docker and build it in ROCm container.
 
@@ -69,17 +69,16 @@ git clone git@github.com:ServerlessLLM/ServerlessLLM.git
 cd ServerlessLLM/sllm_store
 ```
 
-2. Build the Docker image from `Dockerfile.rocm`
+2. Build the Docker image from `Dockerfile.rocm`. The `Dockerfile.rocm` is build on top of `rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0` image.
 
 ``` bash
-docker build -t sllm_store_rocm -f Dockerfile.rocm.
+docker build -t sllm_store_rocm -f Dockerfile.rocm .
 ```
 
 3. Build the package inside the ROCm docker container
 ``` bash
-docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_builder /bin/bash
-export PYTHON_VERSION=310
-conda activate py${PYTHON_VERSION} && python setup.py sdist bdist_wheel
+docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_rocm /bin/bash
+python setup.py sdist bdist_wheel
 ```
 
 4. Install pytorch and package in local environment
