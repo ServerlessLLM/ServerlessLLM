@@ -678,3 +678,4 @@ scalability
 KubeRay
 APIs
 Nvidia's
+ROCm
