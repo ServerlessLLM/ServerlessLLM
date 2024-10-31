@@ -1,7 +1,6 @@
 import json
 import os
 import pickle
-from concurrent.futures import ThreadPoolExecutor
 
 from datasets import load_dataset
 from openai import OpenAI
