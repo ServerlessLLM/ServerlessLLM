@@ -161,8 +161,11 @@ cd ServerlessLLM/sllm_store/build
 ctest --output-on-failure
 ```
 
-
-
+## Tested Hardware
++ OS: Ubuntu 22.04
++ ROCm: 6.2
++ PyTorch: 2.3.0
++ GPU: MI100s (gfx908), MI200s (gfx90a)
 
 
 ## Known issues
