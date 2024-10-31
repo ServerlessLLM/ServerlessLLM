@@ -273,7 +273,7 @@ cmdclass = {
 
 setup(
     name="serverless-llm-store",
-    version="0.5.0",
+    version="0.5.1",
     ext_modules=[
         CMakeExtension(name="sllm_store._C"),
         CMakeExtension(name="sllm_store.sllm_store_server"),
