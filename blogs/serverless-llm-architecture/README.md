@@ -53,7 +53,7 @@ To illustrate, let’s walk through two steps: 1) saving a *Transformers* pre-tr
 
 The model saving function (`save_model`) takes a pre-trained model (i.e., `transformers.PreTrainedModel`) and an output path as inputs. It first saves model metadata (such as model configuration) using *Transformers*’ built-in API, then calls the PyTorch API (`sllm_store.torch.save_dict`) to save the model’s `state_dict` (i.e., tensors) to disk.
 
-The `save_dict` function invokes the checkpoint parser, which saves each tensor’s data in a binary file while recording its offset and metadata in an index file. This setup enables efficient retrieval during model loading.
+The `save_dict` function invokes the checkpoint parser, which saves each tensor's data in a binary file while recording its offset and metadata in an index file. This setup enables efficient retrieval during model loading.
 
 **Step 2: Load a Model**
 
