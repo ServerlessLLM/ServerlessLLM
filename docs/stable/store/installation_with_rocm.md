@@ -27,6 +27,7 @@ docker build -t sllm_store_rocm -f Dockerfile.rocm .
 3. Build the package inside the ROCm docker container
 ``` bash
 docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_rocm /bin/bash
+rm -rf /app/dist/* # remove the existing built files
 python setup.py sdist bdist_wheel
 ```
 
