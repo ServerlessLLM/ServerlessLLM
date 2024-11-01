@@ -33,10 +33,6 @@ Once configured, the controller creates a router for the model and registers the
 
 When a model inference request is received, the API gateway routes it to the corresponding model router. The router selects one of the existing backend instances and forwards the request. Each backend instance operates on one or more dedicated GPUs within a shared server, processing the inference request with an inference engine (such as *Transformers* or *vLLM*) and returning the result to the client.
 
-**Step 3: Cold start**
-
-When traffic exceeds current capacity, the router scales up by creating new backend instances. During a cold start, the router must allocate resources—deciding which server should start the new instance. The storage-aware scheduler makes this decision, based on factors like hardware specifications (e.g., PCIe bandwidth) and storage location to minimize cold start latency.
-
 **Step 3: Query the Model with Cold Start**
 
 When traffic exceeds current capacity, the router scales up by creating additional backend instances. In a cold start scenario, the router sends a resource allocation request to the storage-aware scheduler, which selects suitable server based on model information (e.g., model size), hardware specs (e.g., PCIe and disk bandwidth), and storage status (e.g., whether the model is stored on the server’s local disks or host memory).
