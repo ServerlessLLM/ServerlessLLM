@@ -681,3 +681,4 @@ Nvidia's
 ROCm
 pytorch
 gfx
+vLLM's
