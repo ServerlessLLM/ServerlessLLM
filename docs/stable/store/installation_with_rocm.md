@@ -172,7 +172,7 @@ ctest --output-on-failure
 
 1. GPU memory leak in ROCm before version 6.2.0.
 
-This issue is due to an internal bug in ROCm. After the inference instance is completed, the GPU memory is still occupied and not related. For more information, please refer to [issue](https://github.com/ROCm/HIP/issues/3580).
+This issue is due to an internal bug in ROCm. After the inference instance is completed, the GPU memory is still occupied and not released. For more information, please refer to [issue](https://github.com/ROCm/HIP/issues/3580).
 
 2. vLLM v0.5.0.post1 can not be built in ROCm 6.2.0
 
