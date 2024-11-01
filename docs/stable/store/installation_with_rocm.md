@@ -80,7 +80,7 @@ Hello, my dog is cute and I want to give him a good home. I have a
 
 #### vLLM model Loading and Inference
 :::tip
-Directly installing vLLM v0.5.0.post1 may not work with ROCm 6.2.0. This issue is due to an ambiguation of the function call in ROCm 6.2.0. You may change the vLLM's source code as in this [commit](https://github.com/vllm-project/vllm/commit/9984605412de1171a72d955cfcb954725edd4d6f).
+Directly installing vLLM v0.5.0.post1 may not work with ROCm 6.2.0. This issue is due to the ambiguity of a function call in ROCm 6.2.0. You may change the vLLM's source code as in this [commit](https://github.com/vllm-project/vllm/commit/9984605412de1171a72d955cfcb954725edd4d6f).
 
 Similar as in CUDA, you need to apply our patch `sllm_store/vllm_patch/sllm_load.patch` to the installed vLLM library.
 ```bash
@@ -176,4 +176,4 @@ This issue is due to an internal bug in ROCm. After the inference instance is co
 
 2. vLLM v0.5.0.post1 can not be built in ROCm 6.2.0
 
-This issue is due to an ambiguation of the function call in ROCm 6.2.0. You may change the vLLM's source code as in this [commit](https://github.com/vllm-project/vllm/commit/9984605412de1171a72d955cfcb954725edd4d6f).
+This issue is due to the ambiguity of a function call in ROCm 6.2.0. You may change the vLLM's source code as in this [commit](https://github.com/vllm-project/vllm/commit/9984605412de1171a72d955cfcb954725edd4d6f).
