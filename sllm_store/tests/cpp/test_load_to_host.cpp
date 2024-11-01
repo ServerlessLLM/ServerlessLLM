@@ -26,7 +26,11 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef USE_HIP
+#include "checkpoint_store_hip.h"
+#else
 #include "checkpoint_store.h"
+#endif
 
 bool WriteBytesToFile(const std::string& file_path,
                       const std::vector<uint8_t>& data) {
