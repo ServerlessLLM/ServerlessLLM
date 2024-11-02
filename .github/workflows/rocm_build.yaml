@@ -32,10 +32,3 @@ jobs:
         run: |
             pip install -r requirements-build-rocm.txt
             python setup.py sdist bdist_wheel
-
-
-
-
-
-
-
