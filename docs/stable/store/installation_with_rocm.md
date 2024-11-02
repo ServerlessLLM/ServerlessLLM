@@ -89,7 +89,7 @@ Similar as in CUDA, you need to apply our patch `sllm_store/vllm_patch/sllm_load
 ```
 :::
 
-1. Save the `faceboo/opt-1.3b` model in `./models` directory
+1. Save the `facebook/opt-1.3b` model in `./models` directory
 
 ``` bash
 python3 examples/sllm_store/save_vllm_model.py --model_name facebook/opt-1.3b --storage_path ./models
