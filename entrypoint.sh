@@ -40,6 +40,9 @@ initialize_head_node() {
   # Display and execute the command
   echo "Executing: $CMD"
   eval "$CMD"
+
+  # Start sllm
+  exec /opt/conda/bin/sllm-serve start
 }
 
 # Function to initialize the worker node
@@ -68,7 +71,7 @@ initialize_worker_node() {
   RAY_RESOURCES='{"worker_node": 1, "worker_id_'$WORKER_ID'": 1}'
 
   # Construct the command
-  CMD="ray start --address=$RAY_HEAD_ADDRESS --resources='$RAY_RESOURCES'"
+  CMD="ray start --address=$RAY_HEAD_ADDRESS --resources='$RAY_RESOURCES' --block"
 
   # Display and execute the command
   echo "Executing: $CMD"

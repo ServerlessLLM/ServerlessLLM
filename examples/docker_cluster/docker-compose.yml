@@ -13,8 +13,6 @@ services:
       - "8343:8343"    # ServerlessLLM port
     networks:
       - sllm_network
-    command: >
-      sh -c "/opt/conda/bin/sllm-serve start"
 
   # Ray Worker Node 0
   ray_worker_0:
@@ -37,8 +35,6 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: >
-      sh -c "ray start --address='ray_head:6379' --num-gpus=1"
 
   # Ray Worker Node 1
   ray_worker_1:
@@ -61,8 +57,6 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: >
-      sh -c "ray start --address='ray_head:6379' --num-gpus=1"
 
 networks:
   sllm_network:
