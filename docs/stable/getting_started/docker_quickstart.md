@@ -4,26 +4,28 @@ sidebar_position: 2
 
 # Docker Quickstart Guide
 
-This guide will help you get started with the basics of using ServerlessLLM with Docker. Please make sure you have Docker installed on your system and have installed ServerlessLLM CLI following the [installation guide](./installation.md).
+This guide will help you get started with the basics of using ServerlessLLM with Docker using docker-compose. Please ensure you have Docker and ServerlessLLM CLI installed on your system as per the [installation guide](./installation.md).
 
 ## Pre-requisites
 
-Ensure you have the following pre-requisites:
+Before you begin, make sure you have the following:
 
-1. **GPUs**: Ensure you have at least 2 GPUs available. If more GPUs are provided, you can adjust the number of workers and the number of devices assigned to each worker.
-2. **NVIDIA Docker Toolkit**: This allows Docker to use NVIDIA GPUs. You can find the installation guide [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+1. **Docker**: Installed on your system. You can download it from [here](https://docs.docker.com/get-docker/).
+2. **ServerlessLLM CLI**: Installed on your system. You can install it using `pip install serverless-llm`.
+1. **GPUs**: At least 2 NVIDIA GPUs are recommended. If you have more GPUs, you can adjust the docker-compose.yml file accordingly.
+2. **NVIDIA Docker Toolkit**: This allows Docker to use NVIDIA GPUs. Follow the installation guide [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-## Run ServerlessLLM using Docker
+## Run ServerlessLLM using Docker Compose
 
-First, let's start a local Docker-based ray cluster to run ServerlessLLM.
+We will use docker-compose to simplify the setup of ServerlessLLM. The docker-compose.yml file is located in the examples/docker_compose/ directory of the ServerlessLLM repository.
 
-### Step 1: Build Docker Images
+### Step 1: Clone the ServerlessLLM Repository
 
-Run the following commands to build the Docker images:
+If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
-docker build . -t serverlessllm/sllm-serve
-docker build -f Dockerfile.worker . -t serverlessllm/sllm-serve-worker
+git clone https://github.com/serverless-llm/serverlessllm.git
+cd serverlessllm/examples/docker_compose/
 ```
 
 ### Step 2: Configuration
