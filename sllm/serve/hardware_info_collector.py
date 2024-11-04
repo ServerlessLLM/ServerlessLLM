@@ -36,6 +36,7 @@ class HardwareInfoCollector:
         hardware_info["host_bandwidth"] = (
             self.collector.benchmark_memory_bandwidth()
         )
+        hardware_info["pcie_bandwidth"] = "N/A"  # TODO: Not implemented
         hardware_info["disk_size"] = self.collector.get_disk_info()
         write_bw, read_bw = self.collector.benchmark_disk_bandwidth()
         hardware_info["disk_bandwidth"] = (
@@ -43,9 +44,10 @@ class HardwareInfoCollector:
         ) / 2  # Average of write and read bandwidth
         hardware_info["disk_write_bandwidth"] = write_bw
         hardware_info["disk_read_bandwidth"] = read_bw
-        upload_bw, download_bw = self.collector.get_network_bandwidth()
-        hardware_info["network_upload_bandwidth"] = upload_bw
-        hardware_info["network_download_bandwidth"] = download_bw
+        # Temporarily disabled due to network issues
+        # upload_bw, download_bw = self.collector.get_network_bandwidth()
+        # hardware_info["network_upload_bandwidth"] = upload_bw
+        # hardware_info["network_download_bandwidth"] = download_bw
         hardware_info["GPUs_info"] = self.collector.get_gpu_info()
         return hardware_info
 
