@@ -5,27 +5,6 @@ sidebar_position: 0
 # Storage Aware Scheduling
 
 ## Pre-requisites
-To enable storage aware model loading scheduling, a hardware configuration file is required.
-For example, the following is a sample configuration file for two servers:
-```bash
-echo '{
-  "0": {
-    "host_size": "32GB",
-    "host_bandwidth": "24GB/s",
-    "disk_size": "128GB",
-    "disk_bandwidth": "5GB/s",
-    "network_bandwidth": "10Gbps"
-  },
-  "1": {
-    "host_size": "32GB",
-    "host_bandwidth": "24GB/s",
-    "disk_size": "128GB",
-    "disk_bandwidth": "5GB/s",
-    "network_bandwidth": "10Gbps"
-  }
-}' > hardware_config.json
-```
-
 We will use Docker to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md) before proceeding.
 
 ## Usage
@@ -73,16 +52,10 @@ docker run -d --name ray_worker_1 \
 
 ### Step 2: Start ServerlessLLM Serve with Storage Aware Scheduler
 
-1. Copy the hardware configuration file to the Ray head node.
+Use the --enable_storage_aware flag to activate the storage-aware scheduling feature.
 
 ```bash
-docker cp hardware_config.json ray_head:/app/hardware_config.json
-```
-
-2. Start the ServerlessLLM serve with the storage aware scheduler.
-
-```bash
-docker exec ray_head sh -c "/opt/conda/bin/sllm-serve start --hardware-config /app/hardware_config.json"
+docker exec ray_head sh -c "/opt/conda/bin/sllm-serve start --enable_storage_aware"
 ```
 
 ### Step 3: Deploy Models with Placement Spec
