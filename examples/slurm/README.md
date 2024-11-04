@@ -1,7 +1,8 @@
 # SLURM-based HPC Cluster Setup Guide
 This guide will help you deploy ServerlessLLM on a SLURM-based HPC (High Performance Computing) cluster. Please make sure you have installed the ServerlessLLM following the [installation guide](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) on all machines.
 ## Some Tips about Installation
-Firstly, **all installation work should be done on the login node**. We recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) if there is no CUDA driver on login node.
+- **Both installation and build require an internet connection**. If you want to do installation or build tasks on a job node, it is better to make sure the port 443 is accessible.
+- We recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) if there is no CUDA driver on login node.
 If you want to [install from source](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-from-source), please make sure CUDA driver available on the login node.
 Here are some commands to check it.
 ```shell
@@ -26,7 +27,7 @@ However, we **strongly recommend that you read the documentation for the HPC you
     #SBATCH --error=sllm_head.err
     #SBATCH --nodes=1
     #SBATCH --ntasks=1
-    #SBATCH --cpus-per-task=4
+    #SBATCH --cpus-per-task=12
     #SBATCH --gpus-per-task=0
 
     cd /path/to/ServerlessLLM
@@ -64,16 +65,17 @@ However, we **strongly recommend that you read the documentation for the HPC you
    ```
    Remember the IP address, denoted ```<HEAD_NODE_IP>```, you will need it in following steps.
 
-## Step 2: Start the Worker Node
+## Step 2: Start the Worker Node & Store
+We will start the worker node and store in the same script. Because the server loads the model weights onto the GPU and uses shared GPU memory to pass the pointer to the client. If you submit another script with ```#SBATCH --gpres=gpu:1```, it will be possibly set to use a different GPU, as specified by different ```CUDA_VISIBLE_DEVICES``` settings. Thus, they cannot pass the model weights.
 1. **Activate the ```sllm-worker``` environment and start the worker node.**
 
-   Here is the example script, named```start_worker_node.sh```.
+   Here is the example script, named```start_worker_node_store.sh```.
    ```shell
    #!/bin/sh
    #SBATCH --partition=your_partition
-   #SBATCH --job-name=sllm-worker
-   #SBATCH --output=sllm_worker.out
-   #SBATCH --error=sllm_worker.err
+   #SBATCH --job-name=sllm-worker-store
+   #SBATCH --output=sllm_worker_store.out
+   #SBATCH --error=sllm_worker_store.err
    #SBATCH --gres=gpu:2                   # Request 2 GPUs
    #SBATCH --cpus-per-task=4              # Request 4 CPU cores
    #SBATCH --mem=16G                      # Request 16GB of RAM
@@ -84,71 +86,51 @@ However, we **strongly recommend that you read the documentation for the HPC you
 
    HEAD_NODE_IP=<HEAD_NODE_IP>
 
-   ray start --address=$HEAD_NODE_IP:6379 --num-cpus=4 --num-gpus=2 \
-   --resources='{"worker_node": 1, "worker_id_0": 1}' --block
-   ```
-   - Read the HPC's documentation to find out which partition you can use. Replace ```your_partition``` in the script with that partition name.
-   - Replace ```/path/to/ServerlessLLM``` with the path to the ServerlessLLM installation directory.
-   - Replace ```<HEAD_NODE_IP>``` with the IP address of the head node.
-2. **Submit the script on the other node**
-
-    Use ```sbatch --nodelist=idle02 start_worker_node.sh``` to submit the script to certain idle node (here we assume it is ```idle02```). In addition, We recommend that you place the head and worker on different nodes so that the Store and Serve can start smoothly later, rather than queuing up for resource allocation.
-3. **Expected output**
-
-   In ```sllm_worker.out```, you will see the following output:
-   ```shell
-   Local node IP: xxx.xxx.xx.xx
-   --------------------
-   Ray runtime started.
-   --------------------
-   ```
-
-## Step 3: Start the Store on the Worker Node
-1. **Activate the ```sllm-worker``` environment and start the store.**
-
-   Here is the example script, named```start_store.sh```.
-   ```shell
-   #!/bin/sh
-   #SBATCH --partition=your_partition
-   #SBATCH --gres=gpu:1                   # Request 1 GPU
-   #SBATCH --cpus-per-task=4              # Request 4 CPU cores
-   #SBATCH --mem=16G                      # Request 16GB of RAM
-   #SBATCH --time=01:00:00                # Run time (hh:mm:ss)
-   #SBATCH --output=store.log             # Standard output and error log
-
-   cd /path/to/ServerlessLLM
-
-   conda activate sllm-worker
-
    export CUDA_HOME=/opt/cuda-12.5.0 # replace with your CUDA path
    export PATH=$CUDA_HOME/bin:$PATH
    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 
-   sllm-store-server
+   ray start --address=$HEAD_NODE_IP:6379 --num-cpus=4 --num-gpus=2 \
+   --resources='{"worker_node": 1, "worker_id_0": 1}' --block &
+
+   sllm-store-server &
+
+   wait
    ```
    - Read the HPC's documentation to find out which partition you can use. Replace ```your_partition``` in the script with that partition name.
    - Replace ```/path/to/ServerlessLLM``` with the path to the ServerlessLLM installation directory.
+   - Replace ```<HEAD_NODE_IP>``` with the IP address of the head node.
    - Replace ```/opt/cuda-12.5.0``` with the path to your CUDA path.
 2. **Find the CUDA path**
    - Some slurm-based HPCs have a module system, you can use ```module avail cuda``` to find the CUDA module.
    - If it does not work, read the HPC's documentation carefully to find the CUDA path. For example, my doc said CUDA is in ```\opt```. Then you can use ```srun``` command to start an interactive session on the node, such as ```srun --pty -t 00:30:00 -p your_partition --gres=gpu:1 /bin/bash```. A pseudo-terminal will be started for you to find the path.
    - Find it and replace ```/opt/cuda-12.5.0``` with the path to your CUDA path.
-3. **Submit the script on the worker node**
+3. **Submit the script on the other node**
 
-    Use ```sbatch --nodelist=idle02 start_store.sh``` to submit the script to the worker node (```idle02```).
+    Use ```sbatch --nodelist=idle02 start_worker_node.sh``` to submit the script to certain idle node (here we assume it is ```idle02```). In addition, We recommend that you place the head and worker on different nodes so that the Serve can start smoothly later, rather than queuing up for resource allocation.
 4. **Expected output**
 
-   In ```store.log```, you will see the following output:
-   ```shell
-   I20241030 11:52:54.719007 1321560 checkpoint_store.cpp:41] Number of GPUs: 1
-   I20241030 11:52:54.773468 1321560 checkpoint_store.cpp:43] I/O threads: 4, chunk size: 32MB
-   I20241030 11:52:54.773548 1321560 checkpoint_store.cpp:45] Storage path: "./models/"
-   I20241030 11:52:55.060559 1321560 checkpoint_store.cpp:71] GPU 0 UUID: 52b01995-4fa9-c8c3-a2f2-a1fda7e46cb2
-   I20241030 11:52:55.060798 1321560 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
-   I20241030 11:52:57.258795 1321560 checkpoint_store.cpp:83] Memory pool created with 4GB
-   I20241030 11:52:57.262835 1321560 server.cpp:306] Server listening on 0.0.0.0:8073
-   ```
-## Step 4: Start the Serve on the Head Node
+   In ```sllm_worker_store.out```, you will see the following output:
+
+   - The worker node expected output:
+      ```shell
+       Local node IP: xxx.xxx.xx.xx
+       --------------------
+       Ray runtime started.
+       --------------------
+      ```
+   - The store expected output:
+      ```shell
+      I20241030 11:52:54.719007 1321560 checkpoint_store.cpp:41] Number of GPUs: 1
+      I20241030 11:52:54.773468 1321560 checkpoint_store.cpp:43] I/O threads: 4, chunk size: 32MB
+      I20241030 11:52:54.773548 1321560 checkpoint_store.cpp:45] Storage path: "./models/"
+      I20241030 11:52:55.060559 1321560 checkpoint_store.cpp:71] GPU 0 UUID: 52b01995-4fa9-c8c3-a2f2-a1fda7e46cb2
+      I20241030 11:52:55.060798 1321560 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
+      I20241030 11:52:57.258795 1321560 checkpoint_store.cpp:83] Memory pool created with 4GB
+      I20241030 11:52:57.262835 1321560 server.cpp:306] Server listening on 0.0.0.0:8073
+      ```
+
+## Step 3: Start the Serve on the Head Node
 1. **Check if port 8343 can be accessed**
 
    - Some HPCs have a firewall that blocks port 8343. You can use ```nc -zv <HEAD_NODE_IP> 8343``` to check if the port is accessible.
@@ -158,8 +140,7 @@ However, we **strongly recommend that you read the documentation for the HPC you
    Here is the example script, named```start_serve.sh```.
    ```shell
    #!/bin/sh
-   #SBATCH --partition=Teach-Standard
-   #SBATCH --gres=gpu:1                   # Request 1 GPU
+   #SBATCH --partition=your_partition
    #SBATCH --cpus-per-task=4              # Request 4 CPU cores
    #SBATCH --mem=16G                      # Request 16GB of RAM
    #SBATCH --output=serve.log
@@ -186,7 +167,7 @@ However, we **strongly recommend that you read the documentation for the HPC you
    INFO:     Application startup complete.
    INFO:     Uvicorn running on http://xxx.xxx.xx.xx:8343 (Press CTRL+C to quit)
    ```
-## Step 5: Use ```sllm-cli``` to manage models
+## Step 4: Use ```sllm-cli``` to manage models
 1. **You can do this step on login node, and set the ```LLM_SERVER_URL``` environment variable:**
    ```shell
    $ conda activate sllm
@@ -198,7 +179,7 @@ However, we **strongly recommend that you read the documentation for the HPC you
    ```shell
    (sllm)$ sllm-cli deploy --model facebook/opt-1.3b
    ```
-## Step 6: Query the Model Using OpenAI API Client
+## Step 5: Query the Model Using OpenAI API Client
    **You can use the following command to query the model:**
    ```shell
    curl http://<HEAD_NODE_IP>:8343/v1/chat/completions \
