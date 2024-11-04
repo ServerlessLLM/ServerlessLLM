@@ -15,6 +15,14 @@ which nvcc # if you can see the CUDA compiler's path, it means CUDA is available
 ```
 However, we **strongly recommend that you read the documentation for the HPC you are using** to find out how to check if the CUDA driver is available.
 
+## Job Nodes Assignment for Head, Worker, Store and Serve
+Let's start a head on the main job node (```JobNode01```) and add the worker on other job node (```JobNode02```). The head and the worker should be on different job nodes to avoid resource contention. The ```sllm-store-server``` should be started on the job node that runs worker (```JobNode02```), for passing the model weights, and the ```sllm-serve``` should be started on the main job node (```JobNode01```), finally you can use ```sllm-cli``` to manage the models on the login node.
+- **Head**: JobNode01
+- **Worker**: JobNode02
+- **sllm-store-server**: JobNode02
+- **sllm-serve**: JobNode01
+- **sllm-cli**: Login Node
+
 ## Step 1: Start the Head Node
 1. **Activate the ``sllm`` environment and start the head node.**
 
@@ -52,7 +60,7 @@ However, we **strongly recommend that you read the documentation for the HPC you
     ```
 3. **Submit the script**
 
-    Use ```sbatch --nodelist=idle01 start_head_node.sh``` to submit the script to certain idle node (here we assume it is ```idle01```).
+    Use ```sbatch --nodelist=JobNode01 start_head_node.sh``` to submit the script to certain idle node (here we assume it is ```JobNode01```).
 
 4. **Expected output**
 
@@ -107,7 +115,7 @@ We will start the worker node and store in the same script. Because the server l
    - Find it and replace ```/opt/cuda-12.5.0``` with the path to your CUDA path.
 3. **Submit the script on the other node**
 
-    Use ```sbatch --nodelist=idle02 start_worker_node.sh``` to submit the script to certain idle node (here we assume it is ```idle02```). In addition, We recommend that you place the head and worker on different nodes so that the Serve can start smoothly later, rather than queuing up for resource allocation.
+    Use ```sbatch --nodelist=JobNode02 start_worker_node.sh``` to submit the script to certain idle node (here we assume it is ```JobNode02```). In addition, We recommend that you place the head and worker on different nodes so that the Serve can start smoothly later, rather than queuing up for resource allocation.
 4. **Expected output**
 
    In ```sllm_worker_store.out```, you will see the following output:
@@ -156,7 +164,7 @@ We will start the worker node and store in the same script. Because the server l
    - Replace ```/path/to/ServerlessLLM``` as before.
 3. **Submit the script on the head node**
 
-    Use ```sbatch --nodelist=idle01 start_serve.sh``` to submit the script to the head node (```idle01```).
+    Use ```sbatch --nodelist=JobNode01 start_serve.sh``` to submit the script to the head node (```JobNode01```).
 
 4. **Expected output**
    ```shell
@@ -194,3 +202,17 @@ We will start the worker node and store in the same script. Because the server l
    ```
    - Replace ```<HEAD_NODE_IP>``` with the actual IP address of the head node.
    - Replace ```8343``` with the actual port number if you have changed it.
+
+## Step 6: Stop Jobs
+On the SLURM cluster, we usually use the ```scancel``` command to stop the job. Firstly, list all jobs you have submitted (replace ```your_username``` with your username):
+```shell
+$ squeue -u your_username
+JOBID    PARTITION     NAME                USER       ST  TIME  NODES NODELIST(REASON)
+  1234    compute   sllm-head         your_username  R   0:01      1    JobNode01
+  1235    compute   sllm-worker-store your_username  R   0:01      1    JobNode02
+  1236    compute   sllm-serve        your_username  R   0:01      1    JobNode01
+```
+Then, use ```scancel``` to stop the job (```1234```, ```1235``` and ```1236``` are JOBIDs):
+```shell
+$ scancel 1234 1235 1236
+```
