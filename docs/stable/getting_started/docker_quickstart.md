@@ -17,7 +17,7 @@ Before you begin, make sure you have the following:
 
 ## Run ServerlessLLM using Docker Compose
 
-We will use docker-compose to simplify the setup of ServerlessLLM. The `docker-compose.yml` file is located in the `examples/docker_compose/` directory of the ServerlessLLM repository.
+We will use docker-compose to simplify the setup of ServerlessLLM. The `docker-compose.yml` file is located in the `examples/docker/` directory of the ServerlessLLM repository.
 
 ### Step 1: Clone the ServerlessLLM Repository
 
@@ -25,7 +25,7 @@ If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
 git clone https://github.com/serverless-llm/serverlessllm.git
-cd serverlessllm/examples/docker_compose/
+cd serverlessllm/examples/docker/
 ```
 
 ### Step 2:  Configuration
