@@ -683,3 +683,7 @@ GenAI
 lifecycle
 huggingface
 tensor's
+ROCm
+pytorch
+gfx
+vLLM's
