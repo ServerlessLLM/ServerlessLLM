@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> | <a href="./docs/images/wechat.jpg"><b>WeChat</b></a> |
+| <a href="https://serverlessllm.github.io"><b>Documentation</b></a> | <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>Paper</b></a> | <a href="https://discord.gg/AEF8Gduvm8"><b>Discord</b></a> | <a href="./docs/images/wechat.png"><b>WeChat</b></a> |
 
 </p>
 
@@ -71,7 +71,7 @@ Benchmark results for ServerlessLLM can be found [here](./benchmarks/README.md).
 
 ## Community
 
-ServerlessLLM is maintained by a global team of over 10 developers, and this number is growing. If you're interested in learning more or getting involved, we invite you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.jpg). Share your ideas, ask questions, and contribute to the development of ServerlessLLM. For becoming a contributor, please refer to our [Contributor Guide](./CONTRIBUTING.md).
+ServerlessLLM is maintained by a global team of over 10 developers, and this number is growing. If you're interested in learning more or getting involved, we invite you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.png). Share your ideas, ask questions, and contribute to the development of ServerlessLLM. For becoming a contributor, please refer to our [Contributor Guide](./CONTRIBUTING.md).
 
 ## Citation
 
