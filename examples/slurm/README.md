@@ -1,9 +1,9 @@
 # SLURM-based HPC Cluster Setup Guide
 This guide will help you deploy ServerlessLLM on a SLURM-based HPC (High Performance Computing) cluster. Please make sure you have installed the ServerlessLLM following the [installation guide](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) on all machines.
 ## Some Tips about Installation
-- **Both installation and build require an internet connection**. If you want to do installation or build tasks on a job node, it is better to make sure the port 443 is accessible.
-- We recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) if there is no CUDA driver on login node.
-If you want to [install from source](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-from-source), please make sure CUDA driver available on the login node.
+- **Both installation and build require an internet connection**. please make sure the port 443 on the node you want to install is accessible.
+- We recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) if there is no CUDA driver on the node you want to install.
+If you want to [install from source](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-from-source), please make sure CUDA driver available on the node you want to install.
 Here are some commands to check it.
 ```shell
 module avail cuda # if you can see some CUDA options, it means CUDA is available, then load the cuda module
@@ -17,6 +17,8 @@ However, we **strongly recommend that you read the documentation for the HPC you
 
 ## Job Nodes Assignment for Head, Worker, Store and Serve
 Let's start a head on the main job node (```JobNode01```) and add the worker on other job node (```JobNode02```). The head and the worker should be on different job nodes to avoid resource contention. The ```sllm-store-server``` should be started on the job node that runs worker (```JobNode02```), for passing the model weights, and the ```sllm-serve``` should be started on the main job node (```JobNode01```), finally you can use ```sllm-cli``` to manage the models on the login node.
+
+Note: ```JobNode02``` requires GPU, but ```JobNode01``` does not.
 - **Head**: JobNode01
 - **Worker**: JobNode02
 - **sllm-store-server**: JobNode02
