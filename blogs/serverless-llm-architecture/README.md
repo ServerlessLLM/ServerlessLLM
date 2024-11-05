@@ -39,7 +39,7 @@ Once configured, the controller creates a router for the model and registers its
 
 ![arch_step2.jpg](./images/arch_step2.jpg)
 
-In the data plane, when a model inference request is received, the API gateway routes it to the corresponding model router. The router selects one of the available backend instances and forwards the request. Each backend instance operates on one or more dedicated GPUs within a shared server, processing the inference request with an inference engine (such as *Transformers* or *vLLM*) and returning the result to the client. 
+In the data plane, when a model inference request is received, the API gateway routes it to the corresponding model router. The router selects one of the available backend instances and forwards the request. Each backend instance operates on one or more dedicated GPUs within a shared server, processing the inference request with an inference engine (such as *Transformers* or *vLLM*) and returning the result to the client.
 
 **Step 3: Query the Model with Cold Start**
 
@@ -55,12 +55,12 @@ In summary, these steps illustrate how ServerlessLLM efficiently deploys, serves
 
 ![sllm-store.jpg](./images/sllm-store.jpg)
 
-ServerlessLLM Store enables fast checkpoint loading with two core modules: 
+ServerlessLLM Store enables fast checkpoint loading with two core modules:
 
 - A checkpoint parser that saves and restores model checkpoints in a cold-start optimized format.
 - A dedicated checkpoint manager on each GPU server that loads checkpoints into GPUs efficiently and caches frequently used ones in host memory.
 
-Built on these core modules, ServerlessLLM Store offers a two-level Python API: 
+Built on these core modules, ServerlessLLM Store offers a two-level Python API:
 
 - A lower-level tensor API that saves and restore tensors for each specific deep learning library. For examples, PyTorch API for saving and loading a PyTorch `state_dict` .
 - A higher-level model API, built on the tensor API, that saves and loads models for inference libraries like *Transformers* and *vLLM*.
