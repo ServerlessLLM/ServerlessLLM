@@ -31,7 +31,7 @@ We’ll next walk through these planes from a user’s perspective: first deploy
 
 ![arch_step1.jpg](./images/arch_step1.jpg)
 
-Starting with the control plane, model developers use *sllm-cli* to deploy a model, specifying its name on the HuggingFace hub. Upon receiving the model registration request, the controller processes configurations such as backend choice (e.g., https://github.com/huggingface/transformers or https://github.com/vllm-project/vllm), auto-scaling settings (e.g., concurrency limits, minimum/maximum instances), and resource requirements (e.g., CPU and GPU allocation).
+Starting with the control plane, model developers use *sllm-cli* to deploy a model, specifying its name on the HuggingFace hub. Upon receiving the model registration request, the controller processes configurations such as backend choice (e.g., [Transformers](https://github.com/huggingface/transformers) or [vLLM](https://github.com/vllm-project/vllm)), auto-scaling settings (e.g., concurrency limits, minimum/maximum instances), and resource requirements (e.g., CPU and GPU allocation).
 
 Once configured, the controller creates a router for the model and registers its checkpoint with the store manager. The store manager determines an initial server for downloading model checkpoints, then instructs *sllm-store* to download and convert the model into the optimized format. This approach ensures the model is ready for rapid loading and minimal latency during cold starts.
 
@@ -57,7 +57,7 @@ In summary, these steps illustrate how ServerlessLLM efficiently deploys, serves
 
 ServerlessLLM Store enables fast checkpoint loading with two core modules:
 
-- A checkpoint parser that saves and restores model checkpoints in a cold-start optimized format.
+- A checkpoint parser that saves and restores model checkpoints in a cold-start optimized format (detailed in Step 1 below).
 - A dedicated checkpoint manager on each GPU server that loads checkpoints into GPUs efficiently and caches frequently used ones in host memory.
 
 Built on these core modules, ServerlessLLM Store offers a two-level Python API:
