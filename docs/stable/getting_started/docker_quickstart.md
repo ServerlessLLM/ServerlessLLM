@@ -17,7 +17,7 @@ Before you begin, make sure you have the following:
 
 ## Run ServerlessLLM using Docker Compose
 
-We will use docker-compose to simplify the setup of ServerlessLLM. The `docker-compose.yml` file is located in the `examples/docker/` directory of the ServerlessLLM repository.
+We will use docker compose to simplify the setup of ServerlessLLM. The `docker-compose.yml` file is located in the `examples/docker/` directory of the ServerlessLLM repository.
 
 ### Step 1: Clone the ServerlessLLM Repository
 
@@ -41,10 +41,10 @@ Replace /path/to/your/models with the actual path where you want to store the mo
 
 ### Step 3: Start the Services
 
-Start the ServerlessLLM services using docker-compose:
+Start the ServerlessLLM services using docker compose:
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
@@ -105,5 +105,5 @@ This will remove the specified model from the ServerlessLLM server.
 
 To stop the ServerlessLLM services, use the following command:
 ```bash
-docker-compose down
+docker compose down
 ```

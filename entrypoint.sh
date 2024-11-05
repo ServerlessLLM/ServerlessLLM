@@ -42,7 +42,7 @@ initialize_head_node() {
   eval "$CMD"
 
   # Start sllm
-  exec /opt/conda/bin/sllm-serve start
+  sh -c "/opt/conda/bin/sllm-serve start"
 }
 
 # Function to initialize the worker node
