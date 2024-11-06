@@ -1,6 +1,16 @@
-# ServerlessLLM v0.5.0 architecture walkthrough
+# ServerlessLLM Architecture Overview
 
-## **ServerlessLLM (SLLM) Architecture Overview**
+## Table of Contents
+
+- [ServerlessLLM Architecture Overview](#serverlessllm-architecture-overview)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [ServerlessLLM Serve](#serverlessllm-serve)
+  - [ServerlessLLM Store](#serverlessllm-store)
+  - [Conclusion and Future Work](#conclusion-and-future-work)
+
+
+## Introduction
 
 ServerlessLLM (SLLM, pronounced “slim”) enables low-latency, serverless LLM inference via two core components: **sllm-serve** and **sllm-store**. *sllm-serve* is a serving platform that manages auto-scaling, load-balancing, and resource allocation for deployed LLMs across a distributed GPU cluster. *sllm-store*, built in C++, serves as a high-performance checkpoint store optimized for cold-start with efficient model loading and caching.
 
@@ -13,7 +23,7 @@ This article will walk you through the system architecture of *sllm* and aims to
 
 The goal is to offer a clear picture of how ServerlessLLM functions under the hood, providing insights that will help readers both understand the architecture and potentially contribute to its development.
 
-### ServerlessLLM Serve
+## ServerlessLLM Serve
 
 <p align="center">
   <img src="./images/arch_overview.jpg" alt="arch_overview.jpg" width="600">
@@ -53,7 +63,7 @@ In summary, these steps illustrate how ServerlessLLM efficiently deploys, serves
 
 ![arch_full.jpg](./images/arch_full.jpg)
 
-### ServerlessLLM Store
+## ServerlessLLM Store
 
 <p align="center">
   <img src="./images/sllm-store.jpg" alt="sllm-store.jpg" width="650">
@@ -98,6 +108,6 @@ The PyTorch API allocates GPU memory for each tensor, calling the standalone che
 
 Before returning the model, a final sync call is sent to the checkpoint manager to ensure all data has loaded correctly.
 
-### **Conclusion and Future Work**
+## Conclusion and Future Work
 
 In the next blog post, we’ll demonstrate a deployment example of Serverless RAG. Future posts will also explore specific topics in greater detail, including the scheduling algorithm, cold-start optimized checkpoint format, and the efficient multi-tier checkpoint loading pipeline.
