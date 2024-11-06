@@ -4,92 +4,52 @@ sidebar_position: 2
 
 # Docker Quickstart Guide
 
-This guide will help you get started with the basics of using ServerlessLLM with Docker. Please make sure you have Docker installed on your system and have installed ServerlessLLM CLI following the [installation guide](./installation.md).
+This guide shows how to quickly set up a local ServerlessLLM cluster using Docker Compose. We will start a cluster with a head node and two worker nodes, deploy and query a model using the `sllm-cli`.
 
 ## Pre-requisites
 
-Ensure you have the following pre-requisites:
+Before you begin, make sure you have the following:
 
-1. **GPUs**: Ensure you have at least 2 GPUs available. If more GPUs are provided, you can adjust the number of workers and the number of devices assigned to each worker.
-2. **NVIDIA Docker Toolkit**: This allows Docker to use NVIDIA GPUs. You can find the installation guide [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
+1. **Docker**: Installed on your system. You can download it from [here](https://docs.docker.com/get-docker/).
+2. **ServerlessLLM CLI**: Installed on your system. You can install it using `pip install serverless-llm`.
+1. **GPUs**: At least 2 NVIDIA GPUs are necessary. If you have more GPUs, you can adjust the `docker-compose.yml` file accordingly.
+2. **NVIDIA Docker Toolkit**: This allows Docker to use NVIDIA GPUs. Follow the installation guide [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
-## Run ServerlessLLM using Docker
+## Run ServerlessLLM using Docker Compose
 
-First, let's start a local Docker-based ray cluster to run ServerlessLLM.
+We will use docker compose to simplify the setup of ServerlessLLM. The `docker-compose.yml` file is located in the `examples/docker/` directory of the ServerlessLLM repository.
 
-### Step 1: Build Docker Images
+### Step 1: Clone the ServerlessLLM Repository
 
-Run the following commands to build the Docker images:
-
-```bash
-docker build . -t serverlessllm/sllm-serve
-docker build -f Dockerfile.worker . -t serverlessllm/sllm-serve-worker
-```
-
-### Step 2: Configuration
-
-Ensure that you have a directory for storing your models and set the `MODEL_FOLDER` environment variable to this directory:
+If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
-export MODEL_FOLDER=path/to/models
+git clone https://github.com/serverless-llm/serverlessllm.git
+cd serverlessllm/examples/docker/
 ```
 
-Also, check if the Docker network `sllm` exists and create it if it doesn't:
+### Step 2:  Configuration
+
+Set the Model Directory
+Create a directory on your host machine where models will be stored and set the MODEL_FOLDER environment variable to point to this directory:
 
 ```bash
-if ! docker network ls | grep -q "sllm"; then
-  echo "Docker network 'sllm' does not exist. Creating network..."
-  docker network create sllm
-else
-  echo "Docker network 'sllm' already exists."
-fi
+export MODEL_FOLDER=/path/to/your/models
 ```
 
-### Step 3: Start the Ray Head and Worker Nodes
+Replace /path/to/your/models with the actual path where you want to store the models.
 
-Run the following commands to start the Ray head node and worker nodes:
+### Step 3: Start the Services
 
-#### Start Ray Head Node
+Start the ServerlessLLM services using docker compose:
 
 ```bash
-docker run -d --name ray_head \
-  --runtime nvidia \
-  --network sllm \
-  -p 6379:6379 \
-  -p 8343:8343 \
-  --gpus '"device=none"' \
-  serverlessllm/sllm-serve
+docker compose up -d --build
 ```
 
-#### Start Ray Worker Nodes
+This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
 
-```bash
-docker run -d --name ray_worker_0 \
-  --runtime nvidia \
-  --network sllm \
-  --gpus '"device=0"' \
-  --env WORKER_ID=0 \
-  --mount type=bind,source=$MODEL_FOLDER,target=/models \
-  serverlessllm/sllm-serve-worker
-
-docker run -d --name ray_worker_1 \
-  --runtime nvidia \
-  --network sllm \
-  --gpus '"device=1"' \
-  --env WORKER_ID=1 \
-  --mount type=bind,source=$MODEL_FOLDER,target=/models \
-  serverlessllm/sllm-serve-worker
-```
-
-### Step 4: Start ServerlessLLM Serve
-
-Run the following command to start the ServerlessLLM serve:
-
-```bash
-docker exec ray_head sh -c "/opt/conda/bin/sllm-serve start"
-```
-
-### Step 5: Deploy a Model Using sllm-cli
+### Step 4: Deploy a Model Using sllm-cli
 
 Open a new terminal, activate the `sllm` environment, and set the `LLM_SERVER_URL` environment variable:
 
@@ -113,7 +73,7 @@ INFO 08-01 07:38:12 deploy.py:36] Deploying model facebook/opt-1.3b with default
 INFO 08-01 07:39:00 deploy.py:49] Model registered successfully.
 ```
 
-### Step 6: Query the Model
+### Step 5: Query the Model
 
 Now, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```bash
@@ -134,7 +94,7 @@ Expected output:
 {"id":"chatcmpl-8b4773e9-a98b-41db-8163-018ed3dc65e2","object":"chat.completion","created":1720183759,"model":"facebook/opt-1.3b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}%
 ```
 
-### Deleting a Model
+### Step 6: Clean Up
 To delete a deployed model, use the following command:
 
 ```bash
@@ -143,22 +103,7 @@ sllm-cli delete facebook/opt-1.3b
 
 This will remove the specified model from the ServerlessLLM server.
 
-You can also remove several models at once by providing multiple model names separated by spaces:
-
+To stop the ServerlessLLM services, use the following command:
 ```bash
-sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
-```
-
-### Cleanup
-
-If you need to stop and remove the containers, you can use the following commands:
-
-```bash
-docker exec ray_head sh -c "ray stop"
-docker exec ray_worker_0 sh -c "ray stop"
-docker exec ray_worker_1 sh -c "ray stop"
-
-docker stop ray_head ray_worker_0 ray_worker_1
-docker rm ray_head ray_worker_0 ray_worker_1
-docker network rm sllm
+docker compose down
 ```

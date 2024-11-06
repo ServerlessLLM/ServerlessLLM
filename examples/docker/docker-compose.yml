@@ -1,0 +1,64 @@
+services:
+  # Ray Head Node
+  ray_head:
+    build:
+      context: ../../
+      dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
+    image: serverlessllm/sllm-serve
+    container_name: ray_head
+    environment:
+      - MODEL_FOLDER=${MODEL_FOLDER}
+    ports:
+      - "6379:6379"    # Redis port
+      - "8343:8343"    # ServerlessLLM port
+    networks:
+      - sllm_network
+
+  # Ray Worker Node 0
+  ray_worker_0:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
+    image: serverlessllm/sllm-serve-worker
+    container_name: ray_worker_0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              count: 1  # Assigns 1 GPU to the worker
+    environment:
+      - WORKER_ID=0
+      - MODEL_FOLDER=${MODEL_FOLDER}
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+
+  # Ray Worker Node 1
+  ray_worker_1:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.worker
+    image: serverlessllm/sllm-serve-worker
+    container_name: ray_worker_1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              count: 1  # Assigns 1 GPU to the worker
+    environment:
+      - WORKER_ID=1
+      - MODEL_FOLDER=${MODEL_FOLDER}
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+
+networks:
+  sllm_network:
+    driver: bridge
+    name: sllm
