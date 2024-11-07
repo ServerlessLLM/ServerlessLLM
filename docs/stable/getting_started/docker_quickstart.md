@@ -24,7 +24,7 @@ We will use docker compose to simplify the setup of ServerlessLLM. The `docker-c
 If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
-git clone https://github.com/serverless-llm/serverlessllm.git
+git clone https://github.com/ServerlessLLM/ServerlessLLM.git
 cd serverlessllm/examples/docker/
 ```
 
