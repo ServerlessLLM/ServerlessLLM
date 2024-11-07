@@ -4,6 +4,10 @@ sidebar_position: 0
 
 # Installations
 
+:::note
+If you plan to use vLLM with ServerlessLLM, you must apply our patch to the vLLM library after installation, whether you installed via pip or from source. See the [vLLM Patch](##vllm-patch) section for details.
+:::
+
 ## Requirements
 - OS: Ubuntu 20.04
 - Python: 3.10
@@ -23,11 +27,6 @@ conda activate sllm-worker
 pip install serverless-llm[worker]
 pip install serverless-llm-store
 ```
-
-:::note
-If you plan to use vLLM with ServerlessLLM, you need to apply our patch to the vLLM repository. Refer to the [vLLM Patch](#vllm-patch) section for more details.
-:::
-
 
 ## Installing from source
 To install the package from source, follow these steps:
@@ -54,7 +53,7 @@ cd sllm_store && rm -rf build
 pip install .
 ```
 
-# vLLM Patch
+## vLLM Patch
 To use vLLM with ServerlessLLM, you need to apply our patch located at `sllm_store/vllm_patch/sllm_load.patch` to the vLLM repository. to the vLLM repository.
 The patch has been tested with vLLM version `0.5.0.post1`.
 
