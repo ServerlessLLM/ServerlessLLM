@@ -8,17 +8,20 @@ To help make your contributions as smooth as possible, we've put together this g
 
 ## Table of Contents
 
-- [Join the Community](#join-the-community)
-- [Code of Conduct](#code-of-conduct)
-- [How to Contribute](#how-to-contribute)
-   - [Roadmap and Tasks](#roadmap-and-tasks)
-   - [Development Environment](#development-environment)
-   - [Commit Message Guidelines](#commit-message-guidelines)
+- [Contributing to ServerlessLLM](#contributing-to-serverlessllm)
+  - [Table of Contents](#table-of-contents)
+  - [Community](#community)
+  - [Code of Conduct](#code-of-conduct)
+  - [How to Contribute](#how-to-contribute)
+    - [Roadmap and Tasks](#roadmap-and-tasks)
+    - [Development Environment](#development-environment)
+    - [Commit Message Guidelines](#commit-message-guidelines)
+      - [Commit Message Structure](#commit-message-structure)
 
 ## Community
 ServerlessLLM is an open-source community dedicated to making custom LLM deployment easy, fast, and affordable. As models grow in size and complexity, deploying them on distributed GPUs has become increasingly costly and technically challenging, limiting the benefits of custom LLM deployment to only a select few. ServerlessLLM tackles these challenges by a full-stack, LLM-centric serverless system design, integrating multiple LLM-optimized layers—from checkpoint formats and inference runtimes to the storage layer and cluster scheduler.
 
-We welcome you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.jpg) to share your ideas, ask questions, and contribute to the project.
+We welcome you to join our community on [Discord](https://discord.gg/AEF8Gduvm8) and [WeChat](./docs/images/wechat.png) to share your ideas, ask questions, and contribute to the project.
 
 ## Code of Conduct
 

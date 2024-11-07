@@ -15,13 +15,24 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
+
+# Stage 1: Builder
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel AS builder
 
 # Set non-interactive installation
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 # Install necessary packages for wget and HTTPS
-RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        wget \
+        bzip2 \
+        ca-certificates \
+        git \
+        && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
@@ -29,7 +40,7 @@ WORKDIR /app
 RUN conda install python=3.10
 RUN pip install -U pip
 
-# Install checkpoint store
+# Build checkpoint store
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
 COPY sllm_store/cmake /app/sllm_store/cmake
 COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
@@ -42,22 +53,45 @@ COPY sllm_store/setup.cfg /app/sllm_store/setup.cfg
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto /app/sllm_store/proto
-RUN cd sllm_store && pip install .
+RUN cd sllm_store && \
+  pip install -r requirements.txt && \
+  pip install setuptools wheel  && \
+  python setup.py sdist bdist_wheel
 
-COPY requirements.txt /app/
-COPY requirements-worker.txt /app/
-RUN pip install -r requirements.txt
-
+COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py setup.cfg py.typed /app/
 COPY sllm/serve /app/sllm/serve
 COPY sllm/cli /app/sllm/cli
-COPY examples examples
 COPY README.md /app/
-RUN pip install .
+RUN python setup.py sdist bdist_wheel
 
+# Stage 2: Runner
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
+
+# Set non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Set the working directory
+WORKDIR /app
+
+RUN conda install python=3.10
+RUN pip install -U pip
+
+# Copy the built wheels from the builder
+COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
+COPY --from=builder /app/dist /app/dist
+
+# Install the built wheels
+RUN pip install /app/dist/*.whl
+RUN pip install /app/sllm_store/dist/*.whl
+
+# Copy the entrypoint
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
+# Set the environment variables
 ENV NODE_TYPE=HEAD
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
