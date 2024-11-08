@@ -1,7 +1,9 @@
 #!/bin/bash
 
+SLLM_ROOT=$(git rev-parse --show-toplevel)
+
 # Navigate to docker directory and start containers
-cd ServerlessLLM/examples/docker
+cd $SLLM_ROOT/examples/docker
 docker compose up -d --build
 
 # Go back home
