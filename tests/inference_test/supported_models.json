@@ -1,0 +1,6 @@
+{
+    "facebook/opt-6.7b": {
+        "can_store": true,
+        "can_inference": true
+    }
+}
