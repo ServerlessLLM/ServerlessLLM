@@ -14,7 +14,7 @@ To build `sllm-store` from source, we suggest you using the docker and build it 
 1. Clone the repository and enter the `store` directory:
 
 ```bash
-git clone git@github.com:ServerlessLLM/ServerlessLLM.git
+git clone https://github.com/ServerlessLLM/ServerlessLLM.git
 cd ServerlessLLM/sllm_store
 ```
 
