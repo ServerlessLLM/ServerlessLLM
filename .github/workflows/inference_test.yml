@@ -22,8 +22,8 @@ jobs:
 
       - name: Setup Environment and Start Services
         run: |
-          chmod +x docker-build.sh
-          ./docker-build.sh
+          chmod +x entrypoint.sh
+          ./entrypoint.sh
       
       - name: Initialize conda and paths
         run: |
