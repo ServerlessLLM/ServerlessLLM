@@ -1,4 +1,10 @@
 {
+    "facebook/opt-1.3b": {
+        "can_store": true,
+        "can_inference": true,
+        "last_tested_date": ""
+    }, 
+
     "facebook/opt-6.7b": {
         "can_store": true,
         "can_inference": true,

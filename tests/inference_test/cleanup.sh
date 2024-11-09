@@ -5,4 +5,4 @@ docker compose down
 
 conda deactivate
 
-rm -f test/sinference_test/failed_models.json
+rm -f tests/inference_test/failed_models.json
