@@ -2,14 +2,13 @@
 
 ServerlessLLM supports a plethora of language models from [Huggingface (HF) Transformers](https://huggingface.co/models). This page lists the models and model architectures currently supported by ServerlessLLM.
 
-For other models, you can check the `config.json` file inside the model repository. If the `"architectures"` field contains a model architecture listed below, then it should be supported in theory.
-
+To test a model, simply add it to the `supported_models.json` inside `/ServerlessLLM/tests/inference_tests` and the Github Actions will automatically test whether not it is supported.
 
 ## Text-only Language Models 
 
 Architecture      |Models        |Example HF Models   |vLLM |Transformers |ONNX |TensorRT
 ------------------|--------------|--------------------|-----|-------------|-----|--------
-`OPTForCausalLM`  |OPT, OPT-IML  |`facebook/opt-6.7b` |✅   |             |     |
+`OPTForCausalLM`  |OPT, OPT-IML  |`facebook/opt-6.7b` |✅   |✅           |     |
 
 
 ## Multimodal Language Models 
@@ -18,5 +17,3 @@ Architecture      |Models        |Inputs | Example HF Models   |vLLM |Transforme
 ------------------|--------------|-------|---------------------|-----|-------------|-----|--------
                   |              |       |                     |     |             |     |
 
-# Model Support Policy
-Yes.
