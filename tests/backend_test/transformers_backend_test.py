@@ -76,7 +76,6 @@ async def test_init_backend(transformers_backend, backend_config):
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = Path(
             os.path.join(
-                storage_path,
                 "transformers",
                 backend_config["pretrained_model_name_or_path"],
             )
@@ -104,7 +103,6 @@ async def test_init_encoder_backend(encoder_backend, encoder_config):
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = Path(
             os.path.join(
-                storage_path,
                 "transformers",
                 encoder_config["pretrained_model_name_or_path"],
             )
