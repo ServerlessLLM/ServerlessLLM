@@ -16,7 +16,6 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -74,18 +73,16 @@ async def test_init_backend(transformers_backend, backend_config):
         await transformers_backend.init_backend()
         mock_load_model.assert_called_once()
         storage_path = os.getenv("STORAGE_PATH", "./models")
-        model_path = Path(
-            os.path.join(
-                "transformers",
-                backend_config["pretrained_model_name_or_path"],
-            )
-        ).resolve()
+        model_path = os.path.join(
+            "transformers",
+            backend_config["pretrained_model_name_or_path"],
+        )
         device_map = backend_config.get("device_map", "auto")
         torch_dtype = backend_config.get("torch_dtype", torch.float16)
         torch_dtype = getattr(torch, torch_dtype)
         hf_model_class = backend_config.get("hf_model_class", None)
         mock_load_model.assert_called_once_with(
-            str(model_path),
+            model_path,
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
@@ -101,18 +98,16 @@ async def test_init_encoder_backend(encoder_backend, encoder_config):
         await encoder_backend.init_backend()
         mock_load_model.assert_called_once()
         storage_path = os.getenv("STORAGE_PATH", "./models")
-        model_path = Path(
-            os.path.join(
-                "transformers",
-                encoder_config["pretrained_model_name_or_path"],
-            )
-        ).resolve()
+        model_path = os.path.join(
+            "transformers",
+            encoder_config["pretrained_model_name_or_path"],
+        )
         device_map = encoder_config.get("device_map", "auto")
         torch_dtype = encoder_config.get("torch_dtype", torch.float16)
         torch_dtype = getattr(torch, torch_dtype)
         hf_model_class = encoder_config.get("hf_model_class", None)
         mock_load_model.assert_called_once_with(
-            str(model_path),
+            model_path,
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
