@@ -38,28 +38,28 @@ services:
       - ${MODEL_FOLDER}:/models
     command: ["-mem_pool_size", "4", "-registration_required", "true"]
 
-  # Worker Node 1
-  sllm_worker_1:
-    build:
-      context: ../../
-      dockerfile: Dockerfile.worker
-    image: serverlessllm/sllm-serve-worker
-    container_name: sllm_worker_1
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: ["gpu"]
-              count: 1  # Assigns 1 GPU to the worker
-    environment:
-      - WORKER_ID=1
-      - STORAGE_PATH=/models
-    networks:
-      - sllm_network
-    volumes:
-      - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "4", "-registration_required", "true"]
+  # # Ray Worker Node 1
+  # ray_worker_1:
+  #   build:
+  #     context: ../../
+  #     dockerfile: Dockerfile.worker
+  #   image: serverlessllm/sllm-serve-worker
+  #   container_name: ray_worker_1
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             capabilities: ["gpu"]
+  #             count: 1  # Assigns 1 GPU to the worker
+  #   environment:
+  #     - WORKER_ID=1
+  #     - MODEL_FOLDER=${MODEL_FOLDER}
+  #   networks:
+  #     - sllm_network
+  #   volumes:
+  #     - ${MODEL_FOLDER}:/models
+  #   command: ["-mem_pool_size", "4", "-registration_required", "true"]
 
 networks:
   sllm_network:

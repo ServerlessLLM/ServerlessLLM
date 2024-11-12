@@ -20,7 +20,6 @@ import json
 import os
 import time
 import uuid
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
@@ -77,11 +76,9 @@ class TransformersBackend(SllmBackend):
                 )
 
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = Path(
-                os.path.join(storage_path, "transformers", self.model_name)
-            ).resolve()
+            model_path = os.path.join("transformers", self.model_name)
             self.model = load_model(
-                str(model_path),
+                model_path,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 storage_path=storage_path,
