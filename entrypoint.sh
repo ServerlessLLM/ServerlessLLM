@@ -24,7 +24,7 @@ set -e
 DEFAULT_RAY_PORT=6379
 DEFAULT_RAY_RESOURCES_HEAD='{"control_node": 1}'
 DEFAULT_RAY_NUM_CPUS=20
-DEFAULT_RAY_HEAD_ADDRESS="ray_head:6379"
+DEFAULT_RAY_HEAD_ADDRESS="sllm_head:6379"
 DEFAULT_STORAGE_PATH="/models"
 
 # Function to initialize the head node
@@ -35,11 +35,15 @@ initialize_head_node() {
   RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
 
   # Construct the command
-  CMD="ray start --head --port=$RAY_PORT --resources='$RAY_RESOURCES' --num-cpus=$RAY_NUM_CPUS --block"
+  CMD="ray start --head --port=$RAY_PORT --resources='$RAY_RESOURCES' --num-cpus=$RAY_NUM_CPUS"
 
   # Display and execute the command
   echo "Executing: $CMD"
   eval "$CMD"
+
+  # Start sllm-serve with any additional arguments passed to the script
+  echo "Starting sllm-serve with arguments: $@"
+  exec /opt/conda/bin/sllm-serve start "$@"
 }
 
 # Function to initialize the worker node
@@ -48,15 +52,7 @@ initialize_worker_node() {
 
   # Patch the vLLM code
   VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
-  patch -p2 -d $VLLM_PATH < ./sllm_store/vllm_patch/sllm_load.patch
-
-  # Start checkpoint store
-  STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
-  # TODO: Temporary remove the registration required flag, as registration is not working for vLLM backend
-  CMD="sllm-store-server -storage_path=$STORAGE_PATH -registration_required=true &"
-  # CMD="sllm-store-server -storage_path=$STORAGE_PATH &"
-  echo "Executing: $CMD"
-  eval "$CMD"
+  patch -p2 -d "$VLLM_PATH" < ./vllm_patch/sllm_load.patch
 
   # Start the worker
   RAY_HEAD_ADDRESS="${RAY_HEAD_ADDRESS:-$DEFAULT_RAY_HEAD_ADDRESS}"
@@ -69,19 +65,24 @@ initialize_worker_node() {
   RAY_RESOURCES='{"worker_node": 1, "worker_id_'$WORKER_ID'": 1}'
 
   # Construct the command
-  CMD="ray start --address=$RAY_HEAD_ADDRESS --resources='$RAY_RESOURCES' --block"
+  CMD="ray start --address=$RAY_HEAD_ADDRESS --resources='$RAY_RESOURCES'"
 
   # Display and execute the command
   echo "Executing: $CMD"
   eval "$CMD"
+
+  # Start sllm-store-server with any additional arguments passed to the script
+  STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
+  echo "Starting sllm-store-server with arguments: -storage_path=$STORAGE_PATH $@"
+  exec sllm-store-server -storage_path=$STORAGE_PATH "$@"
 }
 
 # Determine the node type and call the appropriate initialization function
-if [ "$NODE_TYPE" == "HEAD" ]; then
-  initialize_head_node
-elif [ "$NODE_TYPE" == "WORKER" ]; then
-  initialize_worker_node
+if [ "$MODE" == "HEAD" ]; then
+  initialize_head_node "$@"
+elif [ "$MODE" == "WORKER" ]; then
+  initialize_worker_node "$@"
 else
-  echo "NODE_TYPE must be set to either HEAD or WORKER"
+  echo "MODE must be set to either HEAD or WORKER"
   exit 1
 fi

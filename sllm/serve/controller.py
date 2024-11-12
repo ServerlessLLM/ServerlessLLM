@@ -37,7 +37,6 @@ class SllmControllerException(Exception):
 logger = init_logger(__name__)
 
 
-# @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class SllmController:
     def __init__(self, config: Optional[Mapping] = None):
         self.config = config
@@ -72,7 +71,7 @@ class SllmController:
             ray_scheduler_cls = ray.remote(FcfsScheduler)
 
         self.scheduler = ray_scheduler_cls.options(
-            name="model_loading_scheduler"
+            name="model_loading_scheduler", resources={"control_node": 0.1}
         ).remote()
 
         self.scheduler.start.remote()
