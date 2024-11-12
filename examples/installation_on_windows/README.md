@@ -35,7 +35,7 @@ If everything goes right, you should have this terminal. The command line starts
 
 
 ## 2 Configure the WSL connection
-Back to the installation of sllm, as the processing of deploying LLM requires sufficient GPU memory. We need to ensure the WSL connection has enough resources. Use `free -h` to check the memory status. It's strongly recommended to assgining 20GB+ Mem and 8GB+ Swap. If it didn't meet this requirement, we need to set it manually in a file `.wslconfig`, and it should locate in `C:\Users\your_username\`. If not, we need to create it ourselves. Within the file, a sample setting is given below
+Back to the installation of sllm, as the processing of deploying LLM requires sufficient GPU memory. It is necessary to ensure the WSL connection has enough resources. Use `free -h` to check the memory status. It's strongly recommended to assigning 20GB+ Mem and 8GB+ Swap. If it didn't meet this requirement, it needs to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If not, just create it. Within the file, a sample setting is given below
 
     [wsl2]               # this line is a must-have
     memory=28GB          # Limits VM memory
@@ -43,25 +43,16 @@ Back to the installation of sllm, as the processing of deploying LLM requires su
 
 Then, following the installation guidance using pip install, everything should be work. 
 
-## 3 Potential issues to be encountered:
+## Potential issues:
 
 ### 3.1 CUDA issues
 
-If you see error message like 'error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory', you need to double-check if CUDA v12 are correctly installed in the sllm and sllm-worker envs. Using 'nvcc --version' can check the installed version. The correct setting should be looking like this.
+If it shows error message like 'error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory', you need to double-check if CUDA v12 are correctly installed in the sllm and sllm-worker envs. Using 'nvcc --version' can check the installed version. The correct setting should be looking like this.
 
 ![alt text](cuda-version-check.png)
 
 ### 3.2 Folder Access
 
-Sometime, WSL connection might forbid accessing created folders. For example, I met this error message `No such file or directory: './model/vllm'`. When I check my home folder, I realised the `model/` folder marked in red, which means the system has no access to it. So I just `rm -rf model/` and `mkdir model/`, then it all runs well.
+Sometime, WSL connection might forbid accessing created folders. For example, this error message `No such file or directory: './model/vllm'`. This is probably because the `model/` folder cannot be accessed by the system. By `running model_folder_checker.py` file, it will check the `home_path\models\` status and update it when necessary.
 
-### 3.3 GPU Number
-
-As most machines have only one GPU, the num_gpu needs to be set as 1 while starting the ray server in sllm-worker. You can double-check the available number of GPUs by `nvidia-smi -L`
-
-    conda activate sllm-worker
-    ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=2 \
-    --resources='{"worker_node": 1, "worker_id_0": 1}' --block
-
-
-At this point, it should allow you to deploy models on the windows machine. Please don't hesitate to post any concerns encountered during your installation.
+At this point, it should allow you to deploy models on the Windows machine. Please don't hesitate to post any concerns encountered during your installation.
