@@ -21,41 +21,29 @@ class HardwareInfoCollector:
     A Ray actor class responsible for collecting hardware information.
     """
 
-    def __init__(self):
-        """
-        Initialize the HardwareInfoCollector actor.
-        """
-        self.collector = HardwareInfoCollectorMethods()
-
     def collect_all_info(self):
         """
         Collect all hardware information and return as a dictionary.
         """
         hardware_info = {}
-        hardware_info["host_size"] = self.collector.get_memory_info()
+        hardware_info["host_size"] = self.get_memory_info()
         hardware_info["host_bandwidth"] = (
-            self.collector.benchmark_memory_bandwidth()
+            self.benchmark_memory_bandwidth()
         )
         hardware_info["pcie_bandwidth"] = "N/A"  # TODO: Not implemented
-        hardware_info["disk_size"] = self.collector.get_disk_info()
-        write_bw, read_bw = self.collector.benchmark_disk_bandwidth()
+        hardware_info["disk_size"] = self.get_disk_info()
+        write_bw, read_bw = self.benchmark_disk_bandwidth()
         hardware_info["disk_bandwidth"] = (
             write_bw + read_bw
         ) / 2  # Average of write and read bandwidth
         hardware_info["disk_write_bandwidth"] = write_bw
         hardware_info["disk_read_bandwidth"] = read_bw
         # Temporarily disabled due to network issues
-        # upload_bw, download_bw = self.collector.get_network_bandwidth()
+        # upload_bw, download_bw = self.get_network_bandwidth()
         # hardware_info["network_upload_bandwidth"] = upload_bw
         # hardware_info["network_download_bandwidth"] = download_bw
-        hardware_info["GPUs_info"] = self.collector.get_gpu_info()
+        hardware_info["GPUs_info"] = self.get_gpu_info()
         return hardware_info
-
-
-class HardwareInfoCollectorMethods:
-    """
-    A class encapsulating methods to collect various hardware metrics.
-    """
 
     def get_memory_info(self):
         """
