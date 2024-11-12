@@ -23,7 +23,7 @@ from typing import List, Mapping, Optional
 
 import ray
 
-from sllm.serve.hardware_info_collector import HardwareInfoCollector
+from sllm.serve.hardware_info_collector import collect_all_info
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
     VllmModelDownloader,
@@ -215,31 +215,12 @@ class StoreManager:
 
         # Initialize hardware_info dictionary
         self.hardware_info = {}
-
         # Collect hardware info from each node
-        collectors = {}
-        for node_id in worker_node_info:
-            # Create HardwareInfoCollector actor on the specific node
-            resource_label = f"worker_id_{node_id}"
-            try:
-                collectors[node_id] = HardwareInfoCollector.options(
-                    resources={
-                        resource_label: 0.01
-                    }  # Small fraction to avoid resource conflicts
-                ).remote()
-                logger.info(
-                    f"HardwareInfoCollector actor created on node {node_id}"
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to create HardwareInfoCollector on node {node_id}: {e}"
-                )
-                continue
-
-        # Collect hardware info asynchronously
         hardware_info_futures = {
-            node_id: collector.collect_all_info.remote()
-            for node_id, collector in collectors.items()
+            node_id: collect_all_info.options(
+            resources={f"worker_id_{node_id}": 0.01}
+            ).remote()
+            for node_id in worker_node_info
         }
 
         # Gather hardware info
