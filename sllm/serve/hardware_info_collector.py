@@ -14,6 +14,7 @@ from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
+
 @ray.remote
 def collect_all_info():
     """
@@ -21,9 +22,7 @@ def collect_all_info():
     """
     hardware_info = {}
     hardware_info["host_size"] = get_memory_info()
-    hardware_info["host_bandwidth"] = (
-        benchmark_memory_bandwidth()
-    )
+    hardware_info["host_bandwidth"] = benchmark_memory_bandwidth()
     hardware_info["pcie_bandwidth"] = "N/A"  # TODO: Not implemented
     hardware_info["disk_size"] = get_disk_info()
     write_bw, read_bw = benchmark_disk_bandwidth()
@@ -54,7 +53,8 @@ def get_memory_info():
         logger.error(f"Failed to retrieve memory info: {e}")
         return "N/A"
 
-def benchmark_memory_bandwidth( num_iterations=5):
+
+def benchmark_memory_bandwidth(num_iterations=5):
     """
     Estimates memory bandwidth by performing memory operations multiple times.
     Args:
@@ -83,6 +83,7 @@ def benchmark_memory_bandwidth( num_iterations=5):
         logger.error(f"Memory bandwidth benchmark failed: {e}")
         return "N/A"
 
+
 def get_disk_info():
     """
     Retrieves total size of the primary disk partition.
@@ -105,7 +106,8 @@ def get_disk_info():
         logger.error(f"Failed to retrieve disk info: {e}")
         return "N/A"
 
-def benchmark_disk_bandwidth( num_iterations=5):
+
+def benchmark_disk_bandwidth(num_iterations=5):
     """
     Measures disk read and write bandwidth by writing and reading a temporary file multiple times.
     Args:
@@ -150,7 +152,8 @@ def benchmark_disk_bandwidth( num_iterations=5):
         logger.error(f"Disk bandwidth benchmark failed: {e}")
         return "N/A", "N/A"
 
-def get_network_bandwidth( num_iterations=1):
+
+def get_network_bandwidth(num_iterations=1):
     """
     Measures network upload and download bandwidth by performing speed tests multiple times.
     Args:
@@ -161,9 +164,7 @@ def get_network_bandwidth( num_iterations=1):
     upload_results = []
     download_results = []
     try:
-        for _ in tqdm(
-            range(num_iterations), desc="Testing network bandwidth"
-        ):
+        for _ in tqdm(range(num_iterations), desc="Testing network bandwidth"):
             st = speedtest.Speedtest()
             st.get_best_server()
             download_speed_mbps = st.download()
@@ -183,6 +184,7 @@ def get_network_bandwidth( num_iterations=1):
     except Exception as e:
         logger.error(f"Network bandwidth test failed: {e}")
         return "N/A", "N/A"
+
 
 def get_gpu_info():
     """

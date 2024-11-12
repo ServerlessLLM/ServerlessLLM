@@ -218,7 +218,7 @@ class StoreManager:
         # Collect hardware info from each node
         hardware_info_futures = {
             node_id: collect_all_info.options(
-            resources={f"worker_id_{node_id}": 0.01}
+                resources={f"worker_id_{node_id}": 0.01}
             ).remote()
             for node_id in worker_node_info
         }
