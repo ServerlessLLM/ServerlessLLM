@@ -20,36 +20,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Environment and Start Services
+      - name: Install Dependencies
         run: |
-          chmod +x entrypoint.sh
-          ./entrypoint.sh
-      
+          apt-get update
+          apt-get install -y patch git wget
+
       - name: Initialize conda and paths
         run: |
           echo "Activating conda environment..."
           source ~/miniconda3/bin/activate
+          conda create -n sllm python=3.10 -y
           conda activate sllm
+
+          pip install serverless-llm
+          pip install serverless-llm-store
+          pip install ray vllm
           
           echo "Creating models directory..."
           mkdir -p models
           echo "Models directory created at $(pwd)/models"
           
           echo "Setting up environment variables..."
-          export MODEL_FOLDER=$(pwd)/models
-          export LLM_SERVER_URL=http://127.0.0.1:8343/
+          echo "MODEL_FOLDER=$(pwd)/models" >> $GITHUB_ENV
+          echo "LLM_SERVER_URL=http://127.0.0.1:8343/" >> $GITHUB_ENV
           echo "MODEL_FOLDER is set to: $MODEL_FOLDER"
-          echo "LLM_SERVER_URL is set to: $LLM_SERVER_URL"
+          echo "LLM_SERVER_URL is set to: $LLM_SERVER_URL" 
 
-      - name: Test sllm-cli deploy
+      - name: Setup Environment and Start Services
+        env:
+          NODE_TYPE: "HEAD"
         run: |
-          source ./tests/inference_test/inference_conda.sh
+          source ~/miniconda3/bin/activate sllm
+          chmod +x entrypoint.sh
+          ./entrypoint.sh
+      
+
+      - name: Test sllm store 
+        run: |
+          source ~/miniconda3/bin/activate sllm
           python ./tests/inference_test/store_test.py
     
-      - name: Test inference
+      - name: Test sllm inference
         if: always()
         run: |
-          source ./tests/inference_test/inference_conda.sh
+          source ~/miniconda3/bin/activate sllm
           python ./tests/inference_test/inference_test.py
 
       - name: Check results 
