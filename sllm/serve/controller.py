@@ -60,7 +60,8 @@ class SllmController:
         enable_storage_aware = self.config.get("enable_storage_aware", False)
         ray_manager_cls = ray.remote(StoreManager)
         self.store_manager = ray_manager_cls.options(
-            name="store_manager"
+            name="store_manager",
+            resources={"control_node": 0.1},
         ).remote()
         await self.store_manager.initialize_cluster.remote()
 
