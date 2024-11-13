@@ -27,8 +27,19 @@ jobs:
       
       - name: Initialize conda and paths
         run: |
-          chmod +x ./tests/inference_test/inference_conda.sh
-          source ./tests/inference_test/inference_conda.sh
+          echo "Activating conda environment..."
+          source ~/miniconda3/bin/activate
+          conda activate sllm
+          
+          echo "Creating models directory..."
+          mkdir -p models
+          echo "Models directory created at $(pwd)/models"
+          
+          echo "Setting up environment variables..."
+          export MODEL_FOLDER=$(pwd)/models
+          export LLM_SERVER_URL=http://127.0.0.1:8343/
+          echo "MODEL_FOLDER is set to: $MODEL_FOLDER"
+          echo "LLM_SERVER_URL is set to: $LLM_SERVER_URL"
 
       - name: Test sllm-cli deploy
         run: |
@@ -48,9 +59,3 @@ jobs:
             echo "::error::Tests failed - see above for details"
             exit 1
           fi
-
-      - name: Cleanup
-        if: always()
-        run: |
-          chmod +x ./tests/inference_test/cleanup.sh
-          ./test/inference_test/cleanup.sh

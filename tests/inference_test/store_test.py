@@ -3,29 +3,12 @@ import json
 import subprocess
 from typing import Optional, Dict, Any
 
-def store_test(model: str) -> Optional[str]:
+from sllm_store.transformers import save_model
+
+def store_test(model: str, model_path: str) -> Optional[str]:
     try: 
-        result = subprocess.run(
-            f"sllm-cli deploy --model {model}",
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=600
-        )
-
-        if result.returncode == 0: 
-            return None
-
-        return str(result.stderr) if result.stderr else str(result.stdout)
-
-    except subprocess.TimeoutExpired:
-        return "Deployment timed out after 10 minutes"
-        
-    except FileNotFoundError:
-        return "sllm-cli command not found"
-            
-    except subprocess.SubprocessError as e:
-        return str(e)
+        save_model(model, model_path) 
+        return None
 
     except Exception as e: 
         return str(e)
@@ -33,6 +16,7 @@ def store_test(model: str) -> Optional[str]:
 
 def main():
     failed_models = []
+    MODEL_FOLDER = os.environ["MODEL_FOLDER"]
 
     try: 
         with open('supported_models.json', 'r') as f:
@@ -43,8 +27,10 @@ def main():
          
     print("::group::Model Testing Results")
     for model, model_info in models.items():
+        model_path = os.path.join(MODEL_FOLDER, model)
+
         print(f"Testing: {model}")
-        error = store_test(model)
+        error = store_test(model, model_path)
 
         if error: 
             print(f"::error file=supported_models.json::Model {model} failed: {error}")

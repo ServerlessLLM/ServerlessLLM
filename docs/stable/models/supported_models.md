@@ -11,9 +11,3 @@ Architecture      |Models        |Example HF Models   |vLLM |Transformers |ONNX 
 `OPTForCausalLM`  |OPT, OPT-IML  |`facebook/opt-6.7b` |✅   |✅           |     |
 
 
-## Multimodal Language Models 
-
-Architecture      |Models        |Inputs | Example HF Models   |vLLM |Transformers |ONNX |TensorRT
-------------------|--------------|-------|---------------------|-----|-------------|-----|--------
-                  |              |       |                     |     |             |     |
-
