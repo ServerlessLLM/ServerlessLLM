@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import subprocess
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from sllm_store.transformers import save_model
 
