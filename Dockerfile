@@ -92,6 +92,6 @@ COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 # Set the environment variables
-ENV NODE_TYPE=HEAD
+ENV MODE=HEAD
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

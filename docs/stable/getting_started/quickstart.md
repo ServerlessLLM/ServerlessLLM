@@ -19,7 +19,8 @@ ray start --head --port=6379 --num-cpus=4 --num-gpus=0 \
 In a new terminal, start the worker node:
 ```bash
 conda activate sllm-worker
-ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=2 \
+export CUDA_VISIBLE_DEVICES=0
+ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 \
 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
 ```
 
@@ -27,22 +28,23 @@ And start ServerlessLLM Store server. This server will use `./models` as the sto
 
 ```bash
 conda activate sllm-worker
+export CUDA_VISIBLE_DEVICES=0
 sllm-store-server
 ```
 
 Expected output:
 ```bash
 $ sllm-store-server
-TODO Run server...
+Run server...
 WARNING: Logging before InitGoogleLogging() is written to STDERR
-I20240720 08:40:59.634253 141776 server.cpp:307] Log directory already exists.
-I20240720 08:40:59.671192 141776 checkpoint_store.cpp:46] Number of GPUs: 2
-I20240720 08:40:59.671768 141776 checkpoint_store.cpp:48] I/O threads: 4, chunk size: 32MB
-I20240720 08:40:59.797175 141776 checkpoint_store.cpp:69] GPU 0 UUID: cef23f2a-71f7-44f3-8246-5ebd870755e7
-I20240720 08:40:59.951408 141776 checkpoint_store.cpp:69] GPU 1 UUID: bbd10d20-aed8-4324-8b2e-7b6e54aaca0e
-I20240720 08:41:00.759124 141776 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 1024 buffers of 33554432 bytes
-I20240720 08:41:24.315564 141776 checkpoint_store.cpp:80] Memory pool created with 32GB
-I20240720 08:41:24.318261 141776 server.cpp:279] Server listening on 0.0.0.0:8073
+I20241111 16:34:14.856642 467195 server.cpp:333] Log directory already exists.
+I20241111 16:34:14.897728 467195 checkpoint_store.cpp:41] Number of GPUs: 1
+I20241111 16:34:14.897949 467195 checkpoint_store.cpp:43] I/O threads: 4, chunk size: 32MB
+I20241111 16:34:14.897960 467195 checkpoint_store.cpp:45] Storage path: "./models/"
+I20241111 16:34:14.972811 467195 checkpoint_store.cpp:71] GPU 0 UUID: c9938b31-33b0-e02f-24c5-88bd6fbe19ad
+I20241111 16:34:14.972856 467195 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
+I20241111 16:34:16.449775 467195 checkpoint_store.cpp:83] Memory pool created with 4GB
+I20241111 16:34:16.462957 467195 server.cpp:306] Server listening on 0.0.0.0:8073
 ```
 
 Now, let’s start ServerlessLLM.
@@ -89,9 +91,3 @@ sllm-cli delete facebook/opt-1.3b
 ```
 
 This will remove the specified model from the ServerlessLLM server.
-
-You can also remove several models at once by providing multiple model names separated by spaces:
-
-```bash
-sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
-```
