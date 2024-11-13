@@ -12,16 +12,8 @@ from qdrant_client.models import (
 from tqdm import tqdm
 
 ## Create OpenAI clients
-client_emb = OpenAI(
-    base_url="http://localhost:8000/v1",
-)
-
-client_chat = OpenAI(
-    base_url="http://localhost:8001/v1",
-)
-
-client_relevance = OpenAI(
-    base_url="http://localhost:8002/v1",
+client = OpenAI(
+    base_url="http://127.0.0.1:8343/v1",
 )
 
 chat_model = "Qwen/Qwen2.5-7B-Instruct"
@@ -33,7 +25,9 @@ relevance_expert = "Qwen/Qwen2.5-3B-Instruct"
 def encode(texts):
     if isinstance(texts, str):
         batch = [texts]
-    res = client_emb.embeddings.create(input=batch, model=embedding_model)
+    else:
+        batch = texts
+    res = client.embeddings.create(input=batch, model=embedding_model)
     return [i.embedding for i in res.data]
 
 
@@ -64,8 +58,8 @@ def select_rel(passages, query, k, r=2):
         },
     ]
 
-    relevance_check_completion = client_relevance.chat.completions.create(
-        model=relevance_expert, messages=relevance_prompts, temperature=0
+    relevance_check_completion = client.chat.completions.create(
+        model=relevance_expert, messages=relevance_prompts
     )
     relevance_check_res = relevance_check_completion.choices[0].message.content
     relevance_check_res = json.loads(relevance_check_res)
@@ -81,9 +75,10 @@ def chat(relevant_passages, query):
 
     Answer the following question, if possible: {query}."""
 
-    completion = client_chat.chat.completions.create(
+    completion = client.chat.completions.create(
         model=chat_model,
         messages=[{"role": "user", "content": f"{RAG_prompt}"}],
+        max_tokens=100,
     )
     return completion.choices[0].message.content
 
@@ -138,7 +133,7 @@ passages = [docs[i.id] for i in similar_doc_ids]
 ## Select the most relevant passages
 relevant_passages = select_rel(passages, query, k)
 
-## Generate the final answer.
+# Generate the final answer.
 answer = chat(relevant_passages, query)
 
 print(answer)
