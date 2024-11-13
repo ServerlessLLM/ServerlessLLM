@@ -15,8 +15,8 @@ def store_test(model: str, model_path: str) -> Optional[str]:
         return str(e)
 
 
-def main():
-    failed_models = []
+def main() -> int:
+    failed_models: List[Dict[str, str]] = []
     MODEL_FOLDER = os.environ["MODEL_FOLDER"]
 
     try: 

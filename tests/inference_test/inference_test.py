@@ -1,8 +1,9 @@
+import os
 import sys
 import json
 import requests
 import subprocess
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 def cleanup_models(models: List[str]) -> None:
@@ -47,7 +48,7 @@ def test_inference(model: str) -> bool:
 
 
 def main() -> int:
-    failed_models = []
+    failed_models: List[Dict[str, str]] = []
 
     try:
         with open('supported_models.json', 'r') as f:
