@@ -31,14 +31,6 @@ export MODEL_FOLDER=/path/to/your/models
 
 Replace `/path/to/your/models` with the actual path where you want to store the models.
 
-:::tip
-Use the following command to monitor the logs of the head node:
-
-```bash
-docker logs -f sllm_head
-```
-:::
-
 ### Step 3: Enable Storage Aware Scheduling in Docker Compose
 
 To activate storage-aware scheduling, edit the `docker-compose.yml` file to enable the feature. Update the `sllm_head` service to include the `--enable_storage_aware` command, and adjust the configuration for the worker nodes. The following is an example of the updated `docker-compose.yml` file:
@@ -130,6 +122,14 @@ docker compose up -d --build
 ```
 
 This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
+
+:::tip
+Use the following command to monitor the logs of the head node:
+
+```bash
+docker logs -f sllm_head
+```
+:::
 
 ### Step 5: Deploy Models with Placement Spec
 
