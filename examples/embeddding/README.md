@@ -59,7 +59,7 @@ curl http://127.0.0.1:8343/v1/embeddings \
 -d '{
         "model": "intfloat/e5-mistral-7b-instruct",
         "task_instruct": "Given a question, retrieve passages that answer the question",
-        "query": [
+        "input": [
            "Hi, How are you?"
         ]
     }'
