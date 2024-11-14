@@ -1,7 +1,7 @@
-Name: Test Store and Inference 
+name: Test Store and Inference
 
-on: 
-  pull_request: 
+on:
+  pull_request:
     branches:
       - main
     paths:
@@ -10,7 +10,7 @@ on:
       - 'tests/inference_test/**'
       - 'docker-build.sh'
 
-jobs: 
+jobs:
   inference_store_tests:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
@@ -35,16 +35,16 @@ jobs:
           pip install serverless-llm
           pip install serverless-llm-store
           pip install ray vllm
-          
+
           echo "Creating models directory..."
           mkdir -p models
           echo "Models directory created at $(pwd)/models"
-          
+
           echo "Setting up environment variables..."
           echo "MODEL_FOLDER=$(pwd)/models" >> $GITHUB_ENV
           echo "LLM_SERVER_URL=http://127.0.0.1:8343/" >> $GITHUB_ENV
           echo "MODEL_FOLDER is set to: $MODEL_FOLDER"
-          echo "LLM_SERVER_URL is set to: $LLM_SERVER_URL" 
+          echo "LLM_SERVER_URL is set to: $LLM_SERVER_URL"
 
       - name: Setup Environment and Start Services
         env:
@@ -53,20 +53,20 @@ jobs:
           source ~/miniconda3/bin/activate sllm
           chmod +x entrypoint.sh
           ./entrypoint.sh
-      
 
-      - name: Test sllm store 
+
+      - name: Test sllm store
         run: |
           source ~/miniconda3/bin/activate sllm
           python ./tests/inference_test/store_test.py
-    
+
       - name: Test sllm inference
         if: always()
         run: |
           source ~/miniconda3/bin/activate sllm
           python ./tests/inference_test/inference_test.py
 
-      - name: Check results 
+      - name: Check results
         if: always()
         run: |
           if [ -f failed_models.json ]; then

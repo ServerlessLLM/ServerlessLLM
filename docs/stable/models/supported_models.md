@@ -4,7 +4,7 @@ ServerlessLLM supports a plethora of language models from [Huggingface (HF) Tran
 
 To test a model, simply add it to the `supported_models.json` inside `/ServerlessLLM/tests/inference_tests` and the Github Actions will automatically test whether not it is supported.
 
-## Text-only Language Models 
+## Text-only Language Models
 
 Architecture      |Models        |Example HF Models   |vLLM |Transformers |ONNX |TensorRT
 ------------------|--------------|--------------------|-----|-------------|-----|--------
