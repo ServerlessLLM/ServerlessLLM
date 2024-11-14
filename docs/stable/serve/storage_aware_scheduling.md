@@ -18,7 +18,7 @@ If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
 git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd serverlessllm/examples/storage_aware_scheduling
+cd ServerlessLLM/examples/storage_aware_scheduling
 ```
 
 ### Step 2: Configuration
