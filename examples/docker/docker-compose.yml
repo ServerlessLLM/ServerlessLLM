@@ -28,7 +28,7 @@ services:
           devices:
             - driver: nvidia
               capabilities: ["gpu"]
-              device_ids: ["0, 1"] # Assigns GPU 0 to the worker
+              device_ids: ["0"] # Assigns GPU 0 to the worker
     environment:
       - WORKER_ID=0
       - STORAGE_PATH=/models
