@@ -27,15 +27,12 @@ jobs:
       - name: Install Dependencies
         run: |
           apt-get update
-          apt-get install -y patch git npm wget
-          curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-          apt-get install -y nodejs
+          apt-get install -y patch git npm wget nodejs
 
       - name: Initialize conda and paths
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@v2
         with:
           python-version: "3.10"
-          auto-activate-base: false
           activate-environment: sllm
           miniconda-version: "latest"
 
