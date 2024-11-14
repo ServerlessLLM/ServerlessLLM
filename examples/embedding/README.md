@@ -11,7 +11,7 @@ Set the Model Directory `MODEL_FOLDER` where models will be stored:
 ```bash
 export MODEL_FOLDER=/path/to/your/models
 ```
-Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `all-MiniLM-L12-v2` is approximately 0.12GB in size (float32), so you'll need to configure the store server with a memory pool of at least 0.12GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is defaultly set to 4GB. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
+Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `all-MiniLM-L12-v2` is approximately 0.12GB in size (float32), so you'll need to configure the store server with a memory pool of at least 0.12GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is set to 4GB by default. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
 
 ```yaml
 command: ["-mem_pool_size", "32", "-registration_required", "true"]
