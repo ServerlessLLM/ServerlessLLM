@@ -1,7 +1,7 @@
 # ServerlessLLM Example Scripts
 Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/getting_started/installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
-This example shows deploying and calling [e5-mistral-7b-instruct](https://huggingface.co/intfloat/e5-mistral-7b-instruct) using ServerlessLLM.
+This example shows deploying and calling [gte-Qwen2-1.5B-instruct](https://huggingface.co/Alibaba-NLP/gte-Qwen2-1.5B-instruct) using ServerlessLLM.
 
 First and foremost, start a local ray cluster with 1 head node and 1 worker node:
 ```bash
@@ -12,13 +12,14 @@ ray start --head --port=6379 --num-cpus=4 --num-gpus=0 \
 Start a new terminal and initiate the worker node:
 ```bash
 conda activate sllm-worker
-ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=2 \
+ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 \
 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
 ```
-Secondly, in a new terminal, launch the ServerlessLLM store server. It's important to note that the model `e5-mistral-7b-instruct` is approximately 14GB in size (float16), so you'll need to configure the store server with a memory pool of at least 14GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible.
+Secondly, in a new terminal, launch the ServerlessLLM store server. It's important to note that the model `gte-Qwen2-1.5B-instruct` is approximately 7.2GB in size (float32), so you'll need to configure the store server with a memory pool of at least 7.2GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. So here we set the memory pool size to 20GB.
 ```bash
 conda activate sllm-worker
-sllm-store-server --mem_pool_size 14
+export CUDA_VISIBLE_DEVICES=0
+sllm-store-server --mem_pool_size 20
 ```
 Thirdly, start the ServerlessLLM Serve in another new terminal
 ```bash
@@ -30,7 +31,7 @@ Now let's deploy the embedding model.
 First, write your deployment configuration `my_config.json`:
 ```json
 {
-    "model": "intfloat/e5-mistral-7b-instruct",
+    "model": "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
     "backend": "transformers",
     "num_gpus": 1,
     "auto_scaling_config": {
@@ -42,7 +43,7 @@ First, write your deployment configuration `my_config.json`:
     "backend_config": {
         "pretrained_model_name_or_path": "",
         "device_map": "auto",
-        "torch_dtype": "float16",
+        "torch_dtype": "float32",
         "hf_model_class": "AutoModel"
     }
 }
@@ -57,8 +58,8 @@ Then post a request.
 curl http://127.0.0.1:8343/v1/embeddings \
 -H "Content-Type: application/json" \
 -d '{
-        "model": "intfloat/e5-mistral-7b-instruct",
-        "task_instruct": "Given a question, retrieve passages that answer the question",
+        "model": "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
+        "task_instruct": "Given a web search query, retrieve relevant passages that answer the query",
         "input": [
            "Hi, How are you?"
         ]
@@ -73,23 +74,23 @@ You will finally receive the response like:
             "object": "embedding",
             "index": 0,
             "embedding": [
-                0.0027561187744140625,
-                0.00395965576171875,
-                -0.004638671875,
+                -0.01648230291903019,
+                0.015597847290337086,
+                0.03538760170340538,
                 ... # (omit for spacing)
-                0.0007066726684570312,
-                -0.0082550048828125,
-                0.0109710693359375,
-                0.00965118408203125,
-                -0.0013055801391601562,
-                0.005157470703125
+                -0.009428886696696281,
+                -0.029391411691904068,
+                -0.008450884371995926,
+                -0.017801402136683464,
+                -0.01637541688978672,
+                0.023089321330189705
             ]
         }
     ],
-    "model": "intfloat/e5-mistral-7b-instruct",
+    "model": "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
     "usage": {
-        "query_tokens": 23,
-        "total_tokens": 23
+        "query_tokens": 25,
+        "total_tokens": 25
     }
 }
 ```

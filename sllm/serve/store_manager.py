@@ -346,13 +346,17 @@ class StoreManager:
             for node_id in target_nodes:
                 if backend == "transformers":
                     hf_model_class = backend_config.get("hf_model_class", None)
+                    torch_dtype = backend_config.get("torch_dtype", "float16")
                     if hf_model_class is None:
                         logger.error(
                             "hf_model_type not specified in backend_config."
                         )
                         break
                     await self.download_transformers_model(
-                        pretrained_model_name, node_id, hf_model_class
+                        pretrained_model_name,
+                        node_id,
+                        hf_model_class,
+                        torch_dtype,
                     )
                 elif backend == "vllm":
                     await self.download_vllm_model(
@@ -360,6 +364,7 @@ class StoreManager:
                         node_id,
                         model_config.get("num_gpus", 1),
                         backend_config.get("tensor_parallel_size", 1),
+                        torch_dtype,
                     )
                 else:
                     logger.error(f"Backend {backend} not supported")
@@ -378,15 +383,20 @@ class StoreManager:
             pass
 
     async def download_transformers_model(
-        self, pretrained_model_name, node_id, hf_model_class
+        self, pretrained_model_name, node_id, hf_model_class, torch_dtype
     ) -> int:
         logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
-        ).remote(pretrained_model_name, "float16", hf_model_class)
+        ).remote(pretrained_model_name, torch_dtype, hf_model_class)
 
     async def download_vllm_model(
-        self, pretrained_model_name, node_id, num_gpus, tensor_parallel_size
+        self,
+        pretrained_model_name,
+        node_id,
+        num_gpus,
+        tensor_parallel_size,
+        torch_dtype,
     ):
         logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
         vllm_backend_downloader = (
@@ -399,6 +409,6 @@ class StoreManager:
         )
         return await vllm_backend_downloader.download_vllm_model.remote(
             pretrained_model_name,
-            "float16",  # FIXME: use backend_config
+            torch_dtype,
             tensor_parallel_size,
         )
