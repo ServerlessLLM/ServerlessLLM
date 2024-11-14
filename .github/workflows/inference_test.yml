@@ -27,7 +27,7 @@ jobs:
       - name: Install Dependencies
         run: |
           apt-get update
-          apt-get install -y patch git wget
+          apt-get install -y patch git nodejs npm wget
 
       - name: Initialize conda and paths
         uses: conda-incubator/setup-miniconda@v3
@@ -60,15 +60,16 @@ jobs:
           chmod +x entrypoint.sh
           ./entrypoint.sh
 
-
       - name: Test sllm store
         run: |
-          python ./tests/inference_test/store_test.py
+          cd ./tests/inference_test
+          python store_test.py
 
       - name: Test sllm inference
         if: always()
         run: |
-          python ./tests/inference_test/inference_test.py
+          cd ./tests/inference_test
+          python inference_test.py
 
       - name: Check results
         if: always()
