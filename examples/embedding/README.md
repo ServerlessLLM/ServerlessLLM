@@ -87,7 +87,7 @@ You will finally receive the response like:
             ]
         }
     ],
-    "model": "Alibaba-NLP/gte-Qwen2-1.5B-instruct",
+    "model": "sentence-transformers/all-MiniLM-L12-v2",
     "usage": {
         "query_tokens": 11,
         "total_tokens": 11
