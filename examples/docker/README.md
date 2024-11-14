@@ -30,3 +30,5 @@ To specify the GPU devices to be used by the worker nodes, modify the `device_id
 ```yaml
 device_ids: ["0", "1"]
 ```
+
+This configuration will assign GPUs 0 and 1 to the worker nodes.
