@@ -18,7 +18,7 @@ If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
 git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd serverlessllm/examples/docker/
+cd serverlessllm/examples/storage_aware_scheduling
 ```
 
 ### Step 2: Configuration
@@ -33,80 +33,7 @@ Replace `/path/to/your/models` with the actual path where you want to store the 
 
 ### Step 3: Enable Storage Aware Scheduling in Docker Compose
 
-To activate storage-aware scheduling, edit the `docker-compose.yml` file to enable the feature. Update the `sllm_head` service to include the `--enable_storage_aware` command, and adjust the configuration for the worker nodes. The following is an example of the updated `docker-compose.yml` file:
-
-```yaml
-services:
-  # Head Node
-  sllm_head:
-    build:
-      context: ../../
-      dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
-    image: serverlessllm/sllm-serve
-    container_name: sllm_head
-    environment:
-      - MODEL_FOLDER=${MODEL_FOLDER}
-    ports:
-      - "6379:6379"    # Redis port
-      - "8343:8343"    # ServerlessLLM port
-    networks:
-      - sllm_network
-    command: ["--enable_storage_aware"]  # Enable storage-aware scheduling
-
-  # Worker Node 0
-  sllm_worker_0:
-    build:
-      context: ../../
-      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
-    image: serverlessllm/sllm-serve-worker
-    container_name: sllm_worker_0
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: ["gpu"]
-              # count: 1  # Assigns 1 GPU to the worker
-              device_ids: ["0"]
-    environment:
-      - WORKER_ID=0
-      - STORAGE_PATH=/models
-    networks:
-      - sllm_network
-    volumes:
-      - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "32", "-registration_required", "true"]
-
-  # Worker Node 1
-  sllm_worker_1:
-    build:
-      context: ../../
-      dockerfile: Dockerfile.worker
-    image: serverlessllm/sllm-serve-worker
-    container_name: sllm_worker_1
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: ["gpu"]
-              # count: 1  # Assigns 1 GPU to the worker
-              device_ids: ["1"]
-    environment:
-      - WORKER_ID=1
-      - MODEL_FOLDER=${MODEL_FOLDER}
-    networks:
-      - sllm_network
-    volumes:
-      - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "32", "-registration_required", "true"]
-
-networks:
-  sllm_network:
-    driver: bridge
-    name: sllm
-
-```
+The Docker Compose configuration is already located in the `examples/storage_aware_scheduling` directory. To activate storage-aware scheduling, ensure the `docker-compose.yml` file includes the necessary configurations(`sllm_head` service should include the `--enable_storage_aware` command).
 
 :::tip
 Recommend to adjust the number of GPUs and `mem_pool_size` based on the resources available on your machine.
@@ -133,48 +60,7 @@ docker logs -f sllm_head
 
 ### Step 5: Deploy Models with Placement Spec
 
-1. Create model deployment spec files. In this example, model "facebook/opt-2.7b" will be placed on server 0, while model "facebook/opt-1.3b" will be placed on server 1.
-
-```bash
-echo '{
-    "model": "facebook/opt-2.7b",
-    "backend": "transformers",
-    "num_gpus": 1,
-    "auto_scaling_config": {
-        "metric": "concurrency",
-        "target": 1,
-        "min_instances": 0,
-        "max_instances": 10
-    },
-    "placement_config": {
-        "target_nodes": ["0"]
-    },
-    "backend_config": {
-        "pretrained_model_name_or_path": "facebook/opt-2.7b",
-        "device_map": "auto",
-        "torch_dtype": "float16"
-    }
-}' > config-opt-2.7b.json
-echo '{
-    "model": "facebook/opt-1.3b",
-    "backend": "transformers",
-    "num_gpus": 1,
-    "auto_scaling_config": {
-        "metric": "concurrency",
-        "target": 1,
-        "min_instances": 0,
-        "max_instances": 10
-    },
-    "placement_config": {
-        "target_nodes": ["1"]
-    },
-    "backend_config": {
-        "pretrained_model_name_or_path": "facebook/opt-1.3b",
-        "device_map": "auto",
-        "torch_dtype": "float16"
-    }
-}' > config-opt-1.3b.json
-```
+In the `examples/storage_aware_scheduling` directory, the example configuration files (`config-opt-2.7b.json` and `config-opt-1.3b.json`) are already given.
 
 > Note: Storage aware scheduling currently only supports the "transformers" backend. Support for other backends will come soon.
 
