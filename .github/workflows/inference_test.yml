@@ -17,6 +17,10 @@ jobs:
     container:
       image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
       options: --gpus all
+    defaults:
+      run:
+          shell: bash -l {0}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,12 +30,15 @@ jobs:
           apt-get install -y patch git wget
 
       - name: Initialize conda and paths
-        run: |
-          echo "Activating conda environment..."
-          source ~/miniconda3/bin/activate
-          conda create -n sllm python=3.10 -y
-          conda activate sllm
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.10"
+          auto-activate-base: false
+          activate-environment: sllm
+          miniconda-version: "latest"
 
+      - name: Import Python libraries
+        run: |
           pip install serverless-llm
           pip install serverless-llm-store
           pip install ray vllm
@@ -50,20 +57,17 @@ jobs:
         env:
           NODE_TYPE: "HEAD"
         run: |
-          source ~/miniconda3/bin/activate sllm
           chmod +x entrypoint.sh
           ./entrypoint.sh
 
 
       - name: Test sllm store
         run: |
-          source ~/miniconda3/bin/activate sllm
           python ./tests/inference_test/store_test.py
 
       - name: Test sllm inference
         if: always()
         run: |
-          source ~/miniconda3/bin/activate sllm
           python ./tests/inference_test/inference_test.py
 
       - name: Check results
