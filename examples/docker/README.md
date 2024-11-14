@@ -11,7 +11,9 @@ Note: Make sure you have Docker installed on your system and NVIDIA GPUs availab
 
 ServerlessLLM now supports flexible runtime configurations for both the head and worker nodes through customizable command-line arguments. You can adjust these settings in the `docker-compose.yml` file to optimize resource allocation and adapt the deployment to your specific needs.
 
-### Example: Adjusting Memory Pool Size
+### Examples:
+
+#### 1. Adjusting Memory Pool Size
 
 To use a memory pool size of 16GB, modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows:
 
@@ -20,3 +22,13 @@ command: ["-mem_pool_size", "16", "-registration_required", "true"]
 ```
 
 This command line option will set a memory pool size of 16GB for each worker node.
+
+#### 2. Specifying GPU Devices
+
+To specify the GPU devices to be used by the worker nodes, modify the `device_ids` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows:
+
+```yaml
+device_ids: ["0", "1"]
+```
+
+This configuration will assign GPUs 0 and 1 to the worker nodes.
