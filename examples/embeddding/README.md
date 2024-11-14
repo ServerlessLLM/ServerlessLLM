@@ -3,6 +3,13 @@ Please follow the [Installation instructions](https://serverlessllm.github.io/do
 ## Calling Embedding API
 This example shows deploying and calling [gte-Qwen2-1.5B-instruct](https://huggingface.co/Alibaba-NLP/gte-Qwen2-1.5B-instruct) using ServerlessLLM.
 
+This embedding model requires `flash_attn>=2.5.6`. So before you start, you need to do:
+```bash
+conda activate sllm-worker
+pip install flash_attn
+```
+Now you are ready.
+
 First and foremost, start a local ray cluster with 1 head node and 1 worker node:
 ```bash
 conda activate sllm
