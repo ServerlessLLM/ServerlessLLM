@@ -42,7 +42,7 @@ services:
   sllm_worker_1:
     build:
       context: ../../
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
     image: serverlessllm/sllm-serve-worker
     container_name: sllm_worker_1
     deploy:
@@ -54,7 +54,7 @@ services:
               device_ids: ["1"] # Assigns GPU 1 to the worker
     environment:
       - WORKER_ID=1
-      - MODEL_FOLDER=${MODEL_FOLDER}
+      - STORAGE_PATH=/models
     networks:
       - sllm_network
     volumes:
