@@ -94,3 +94,13 @@ You will finally receive the response like:
     }
 }
 ```
+
+In the end, if you would like to delete the model, please run:
+```bash
+sllm-cli delete sentence-transformers/all-MiniLM-L12-v2
+```
+
+To stop the ServerlessLLM services, please run:
+```bash
+docker compose down
+```
