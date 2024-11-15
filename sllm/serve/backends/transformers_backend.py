@@ -84,7 +84,10 @@ class TransformersBackend(SllmBackend):
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            tokenizer_path = os.path.join(
+                storage_path, "transformers", self.model_name + "_tokenizer"
+            )
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
             self.model_initialized = True
 
     def _tokenize(self, prompt: str):
