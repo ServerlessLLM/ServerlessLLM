@@ -5,7 +5,7 @@ This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface
 
 First and foremost, enter the folder where docker compose file is located:
 ```bash
-cd serverlessllm/examples/docker/
+cd ServerlessLLM/examples/docker/
 ```
 Set the Model Directory `MODEL_FOLDER` where models will be stored:
 ```bash
