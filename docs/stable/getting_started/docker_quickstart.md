@@ -25,7 +25,7 @@ If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
 git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd serverlessllm/examples/docker/
+cd ServerlessLLM/examples/docker/
 ```
 
 ### Step 2:  Configuration
