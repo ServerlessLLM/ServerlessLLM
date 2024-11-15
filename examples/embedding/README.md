@@ -3,6 +3,7 @@ Please follow the [Installation instructions](https://serverlessllm.github.io/do
 ## Calling Embedding API
 This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using ServerlessLLM.
 
+### 1. Environment and Service Setup
 First and foremost, enter the folder where docker compose file is located:
 ```bash
 cd ServerlessLLM/examples/docker/
@@ -25,7 +26,7 @@ Afterwards, run docker compose to start the service.
 docker compose up -d --build
 ```
 
-
+### 2. Model Deployment
 Now let's deploy the embedding model.
 
 First, write your deployment configuration `my_config.json`:
@@ -54,7 +55,9 @@ conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343/
 sllm-cli deploy --config /path/to/my_config.json
 ```
-Then post a request.
+
+### 3. Service Request
+Post a request by:
 ```bash
 curl http://127.0.0.1:8343/v1/embeddings \
 -H "Content-Type: application/json" \
@@ -95,6 +98,7 @@ You will finally receive the response like:
 }
 ```
 
+### 4. Clean Up
 In the end, if you would like to delete the model, please run:
 ```bash
 sllm-cli delete sentence-transformers/all-MiniLM-L12-v2
