@@ -8,7 +8,7 @@ on:
       - 'sllm/serve/**'
       - 'sllm/cli/**'
       - 'tests/inference_test/**'
-      - 'docker-build.sh'
+      - 'entrypoint.sh'
 
 jobs:
   inference_store_tests:
@@ -23,17 +23,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          activate-environment: sllm
-          python-version: 3.10
-          auto-activate-base: false
-      - run: conda info
+
+      - name: Setup conda in shell
+        run: |
+          echo 'eval "$(conda shell.bash hook)"' >> ~/.bashrc
+          echo 'conda activate sllm' >> ~/.bashrc
+          source ~/.bashrc
 
       - name: Install Dependencies
         run: |
           apt-get update
-          apt-get install -y patch git npm wget nodejs
+          apt-get install -y patch git npm wget 
 
       - name: Import Python libraries
         run: |
