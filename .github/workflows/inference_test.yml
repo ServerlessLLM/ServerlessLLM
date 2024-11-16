@@ -42,12 +42,10 @@ jobs:
           echo "Setting up environment variables..."
           echo "MODEL_FOLDER=$(pwd)/models" >> $GITHUB_ENV
           echo "LLM_SERVER_URL=http://127.0.0.1:8343/" >> $GITHUB_ENV
-          echo "MODEL_FOLDER is set to: $MODEL_FOLDER"
-          echo "LLM_SERVER_URL is set to: $LLM_SERVER_URL"
 
       - name: Setup Environment and Start Services
         env:
-          NODE_TYPE: "HEAD"
+          MODE: "HEAD"
         run: |
           chmod +x entrypoint.sh
           ./entrypoint.sh
