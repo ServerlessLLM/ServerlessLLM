@@ -17,6 +17,7 @@ jobs:
     container:
       image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
       options: --gpus all
+    defaults:
       run:
           shell: bash -l {0}
 
