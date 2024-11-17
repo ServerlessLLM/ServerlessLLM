@@ -27,7 +27,7 @@ jobs:
       - name: Install Dependencies
         run: |
           apt-get update
-          apt-get install -y patch git npm wget 
+          apt-get install -y patch git npm wget
 
       - name: Import Python libraries
         run: |
