@@ -57,17 +57,12 @@ class SllmController:
             self.running = True
 
         logger.info("Starting store manager")
-        enable_storage_aware = False
-        hardware_config = None
-        if self.config is not None and "hardware_config" in self.config:
-            hardware_config = self.config["hardware_config"]
-        if hardware_config:
-            enable_storage_aware = True
+        enable_storage_aware = self.config.get("enable_storage_aware", False)
         ray_manager_cls = ray.remote(StoreManager)
         self.store_manager = ray_manager_cls.options(
             name="store_manager",
             resources={"control_node": 0.1},
-        ).remote(hardware_config)
+        ).remote()
         await self.store_manager.initialize_cluster.remote()
 
         logger.info("Starting scheduler")
