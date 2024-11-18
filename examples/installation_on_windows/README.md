@@ -1,7 +1,7 @@
 # Install SLLM on Windows Machines
 
 ## 1 Windows Subsystem for Linux
-To install the SLLM dependencies, Ubuntu 20.04 is required by the installation guidance states. Packages, like vllm, cannot be installed on Windows. Therefore, we need a sub-system to run Linux on Windows machines. Here, I recommend downloading the Ubuntu app from Microsoft store and the WSL connection will allow to you install everything needed for. If you have more familiar to start Linux environment, please feel free to go ahead and share your experience with us. Generally speaking, it is a developed and stable app except WSL connection doesn't support GUI, and sometimes it can be nasty to set variable path.
+To install the SLLM dependencies, Ubuntu 20.04 is required by the installation guidance states. Packages, like vllm, cannot be installed on Windows. Therefore, the Windows machines require a sub-system to run Linux. Here, it's recommended downloading the Ubuntu app from Microsoft store and the WSL connection will allow to you install everything needed for. If you have more familiar to start Linux environment, please feel free to go ahead and share your experience with us. Generally speaking, it is a developed and stable app except WSL connection doesn't support GUI, and sometimes it can be nasty to set variable path.
 
 ![alt text](Ubuntu-app.png)
 
@@ -35,13 +35,13 @@ If everything goes right, you should have this terminal. The command line starts
 
 
 ## 2 Configure the WSL connection
-Back to the installation of sllm, as the processing of deploying LLM requires sufficient GPU memory. It is necessary to ensure the WSL connection has enough resources. Use `free -h` to check the memory status. It's strongly recommended to assigning 20GB+ Mem and 8GB+ Swap. If it didn't meet this requirement, it needs to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If not, just create it. Within the file, a sample setting is given below
+Back to the installation of sllm, as the processing of deploying LLM requires sufficient GPU memory. It is necessary to ensure the WSL connection has enough resources. Use `free -h` to check the memory status. It's strongly recommended to assigning 20GB+ Mem and 8GB+ Swap. If it didn't meet this requirement, it needs to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If not, just create it. Within the file, a sample setting is given below.
 
     [wsl2]               # this line is a must-have
     memory=28GB          # Limits VM memory
     swap=8GB             # Sets swap file size
 
-Then, following the installation guidance using pip install, everything should be work. 
+Then, following the installation guidance using pip install, everything should be work.
 
 ## Potential issues:
 
@@ -50,9 +50,3 @@ Then, following the installation guidance using pip install, everything should b
 If it shows error message like 'error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory', you need to double-check if CUDA v12 are correctly installed in the sllm and sllm-worker envs. Using 'nvcc --version' can check the installed version. The correct setting should be looking like this.
 
 ![alt text](cuda-version-check.png)
-
-### 3.2 Folder Access
-
-Sometime, WSL connection might forbid accessing created folders. For example, this error message `No such file or directory: './model/vllm'`. This is probably because the `model/` folder cannot be accessed by the system. By `running model_folder_checker.py` file, it will check the `home_path\models\` status and update it when necessary.
-
-At this point, it should allow you to deploy models on the Windows machine. Please don't hesitate to post any concerns encountered during your installation.
