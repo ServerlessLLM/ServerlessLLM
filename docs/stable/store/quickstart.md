@@ -133,92 +133,15 @@ Our api aims to be compatible with the `sharded_state` load format in vLLM. Thus
 Thus, for fist-time users, you have to load the model from other backends and then converted it to the ServerlessLLM format.
 
 1. Download the model from HuggingFace and save it in the ServerlessLLM format:
-``` python
-import os
-import shutil
-from typing import Optional
+``` bash
+python3 examples/sllm_store/save_vllm_model.py --model_name facebook/opt-1.3b --storage_path $PWD/models
 
-class VllmModelDownloader:
-    def __init__(self):
-        pass
-
-    def download_vllm_model(
-        self,
-        model_name: str,
-        torch_dtype: str,
-        tensor_parallel_size: int = 1,
-        pattern: Optional[str] = None,
-        max_size: Optional[int] = None,
-    ):
-        import gc
-        import shutil
-        from tempfile import TemporaryDirectory
-
-        import torch
-        from huggingface_hub import snapshot_download
-        from vllm import LLM
-        from vllm.config import LoadFormat
-
-        # set the model storage path
-        storage_path = os.getenv("STORAGE_PATH", "./models")
-
-        def _run_writer(input_dir, model_name):
-            # load models from the input directory
-            llm_writer = LLM(
-                model=input_dir,
-                download_dir=input_dir,
-                dtype=torch_dtype,
-                tensor_parallel_size=tensor_parallel_size,
-                num_gpu_blocks_override=1,
-                enforce_eager=True,
-                max_model_len=1,
-            )
-            model_path = os.path.join(storage_path, model_name)
-            model_executer = llm_writer.llm_engine.model_executor
-            # save the models in the ServerlessLLM format
-            model_executer.save_serverless_llm_state(
-                path=model_path, pattern=pattern, max_size=max_size
-            )
-            for file in os.listdir(input_dir):
-                # Copy the metadata files into the output directory
-                if os.path.splitext(file)[1] not in (
-                    ".bin",
-                    ".pt",
-                    ".safetensors",
-                ):
-                    src_path = os.path.join(input_dir, file)
-                    dest_path = os.path.join(model_path, file)
-                    if os.path.isdir(src_path):
-                        shutil.copytree(src_path, dest_path)
-                    else:
-                        shutil.copy(src_path, dest_path)
-            del model_executer
-            del llm_writer
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-
-        try:
-            with TemporaryDirectory() as cache_dir:
-                # download from huggingface
-                input_dir = snapshot_download(
-                    model_name,
-                    cache_dir=cache_dir,
-                    allow_patterns=["*.safetensors", "*.bin", "*.json", "*.txt"],
-                )
-                _run_writer(input_dir, model_name)
-        except Exception as e:
-            print(f"An error occurred while saving the model: {e}")
-            # remove the output dir
-            shutil.rmtree(os.path.join(storage_path, model_name))
-            raise RuntimeError(
-                f"Failed to save {model_name} for vllm backend: {e}"
-            )
-
-downloader = VllmModelDownloader()
-downloader.download_vllm_model("facebook/opt-1.3b", "float16", 1)
 ```
+
+You can also transfer the model from the local path compared to download it from network by passing the `--local_model_path` argument.
+
+If you want to use tensor parallelism with our format in vLLM, you can pass the `--tensor_parallel_size` argument to specify the level of tensor parallelism. The default value is 1.
+
 
 After downloading the model, you can launch the checkpoint store server and load the model in vLLM through `sllm` load format.
 

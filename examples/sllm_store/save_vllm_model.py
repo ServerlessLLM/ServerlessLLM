@@ -105,7 +105,7 @@ parser.add_argument(
     "--local_model_path",
     type=str,
     required=False,
-    help="Local path to the model.",
+    help="Local path to the model snapshot.",
 )
 parser.add_argument(
     "--storage_path",
@@ -113,17 +113,25 @@ parser.add_argument(
     default="./models",
     help="Local path to save the model.",
 )
+parser.add_argument(
+    "--tensor_parallel_size",
+    type=int,
+    default=1,
+    help="Tensor parallel size.",
+)
 
 args = parser.parse_args()
 
 model_name = args.model_name
 local_model_path = args.local_model_path
 storage_path = args.storage_path
+tensor_parallel_size = args.tensor_parallel_size
 
 downloader = VllmModelDownloader()
 downloader.download_vllm_model(
     model_name,
     "float16",
+    tensor_parallel_size=tensor_parallel_size,
     storage_path=storage_path,
     local_model_path=local_model_path,
 )
