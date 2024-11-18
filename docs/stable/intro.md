@@ -9,7 +9,7 @@ sidebar_position: 1
 
 ServerlessLLM is a **fast** and **easy-to-use** serving system designed for **affordable** multi-LLM serving, also known as LLM-as-a-Service. ServerlessLLM is ideal for environments with multiple LLMs that need to be served on limited GPU resources, as it enables efficient dynamic loading of LLMs onto GPUs. By elastically scaling model instances and multiplexing GPUs, ServerlessLLM can significantly reduce costs compared to traditional GPU-dedicated serving systems while still providing low-latency (Time-to-First-Token, TTFT) LLM completions.
 
-ServerlessLLM now supports NVIDIA and AMD GPUs, we have tested ServerlessLLM on the following hardwares:
+ServerlessLLM now supports NVIDIA and AMD GPUs, we have tested ServerlessLLM on the following hardware:
 * NVIDIA GPUs: Compute Capability 8.0+ (e.g, A100, RTX A5000, RTX A6000)
 * AMD GPUs: ROCm 6.2.0+
 
