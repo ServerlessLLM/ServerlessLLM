@@ -4,6 +4,15 @@ sidebar_position: 1
 
 # Installation with ROCm (Experimental)
 
+## Latest Tested Version
++ v0.5.1
+
+## Tested Hardware
++ OS: Ubuntu 22.04
++ ROCm: 6.2
++ PyTorch: 2.3.0
++ GPU: MI100s (gfx908), MI200s (gfx90a)
+
 ## Build the wheel from source and install
 ServerlessLLM Store (`sllm-store`) currently provides experimental support for ROCm platform. Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
 
@@ -161,13 +170,6 @@ bash build.sh
 cd ServerlessLLM/sllm_store/build
 ctest --output-on-failure
 ```
-
-## Tested Hardware
-+ OS: Ubuntu 22.04
-+ ROCm: 6.2
-+ PyTorch: 2.3.0
-+ GPU: MI100s (gfx908), MI200s (gfx90a)
-
 
 ## Known issues
 

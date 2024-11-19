@@ -707,3 +707,5 @@ gte
 Qwen
 MiniLM
 L12
+RTX
+GeForce
