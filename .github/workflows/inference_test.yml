@@ -33,7 +33,6 @@ jobs:
         run: |
           pip install serverless-llm
           pip install serverless-llm-store
-          pip install ray vllm
 
           echo "Creating models directory..."
           mkdir -p models
@@ -46,6 +45,13 @@ jobs:
       - name: Setup Environment and Start Services
         env:
           MODE: "HEAD"
+        run: |
+          chmod +x entrypoint.sh
+          ./entrypoint.sh
+
+      - name: Start Worker 
+        env:
+          MODE: "WORKER"
         run: |
           chmod +x entrypoint.sh
           ./entrypoint.sh
