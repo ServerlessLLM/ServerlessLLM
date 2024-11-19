@@ -44,7 +44,7 @@ def download_transformers_model(
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
     tokenizer_path = os.path.join(
-        storage_path, "transformers", model_name + "_tokenizer"
+        storage_path, "transformers", model_name, "tokenizer"
     )
 
     if os.path.exists(model_path):

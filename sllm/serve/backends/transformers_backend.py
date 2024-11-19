@@ -85,7 +85,7 @@ class TransformersBackend(SllmBackend):
                 hf_model_class=hf_model_class,
             )
             tokenizer_path = os.path.join(
-                storage_path, "transformers", self.model_name + "_tokenizer"
+                storage_path, "transformers", self.model_name, "tokenizer"
             )
             if os.path.exists(tokenizer_path):
                 self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
