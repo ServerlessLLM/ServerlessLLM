@@ -4,12 +4,14 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional
 
+from transformers import AutoModelForCausalLM
 from sllm_store.transformers import save_model
 
 
 def store_test(model: str, model_path: str) -> Optional[str]:
     try:
-        save_model(model, model_path)
+        hf_model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float16)
+        save_model(hf_model, model_path)
         return None
 
     except Exception as e:
