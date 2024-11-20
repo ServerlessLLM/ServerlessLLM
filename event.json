@@ -1,0 +1,23 @@
+{
+  "pull_request": {
+    "head": {
+      "ref": "sample-head-ref"
+    },
+    "base": {
+      "ref": "main"
+    },
+    "labels": [
+      {
+        "name": "ready-for-gpu-testing"
+      }
+    ]
+  },
+  "repository": {
+    "full_name": "dalongbao/ServerlessLLM",
+    "name": "ServerlessLLM",
+    "owner": {
+      "login": "dalongbao"
+    }
+  },
+  "action": "opened"
+}

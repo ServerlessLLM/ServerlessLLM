@@ -60,10 +60,11 @@ jobs:
           WORKER_ID: "1"
           RAY_HEAD_ADDRESS: "localhost:6379"
         run: |
+          eval "$(conda shell.bash hook)"
           conda activate sllm-worker
           pip install -e ".[worker]"
           cd sllm_store && rm -rf build
-          cd .. 
+          cd ..
           chmod +x entrypoint.sh
           ./entrypoint.sh &
           sleep 10
