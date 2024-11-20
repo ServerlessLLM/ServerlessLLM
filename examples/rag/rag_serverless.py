@@ -1,5 +1,4 @@
-import json
-
+import torch
 from datasets import load_dataset
 from openai import OpenAI
 from qdrant_client import QdrantClient
@@ -18,7 +17,7 @@ client = OpenAI(
 
 chat_model = "Qwen/Qwen2.5-7B-Instruct"
 embedding_model = "intfloat/e5-mistral-7b-instruct"
-relevance_expert = "Qwen/Qwen2.5-3B-Instruct"
+relevance_expert = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 ## Define functions
@@ -31,40 +30,33 @@ def encode(texts):
     return [i.embedding for i in res.data]
 
 
-def select_rel(passages, query, k, r=2):
-    passage_order_str = "\n".join(
-        [f"[{i}] {passage}" for i, passage in enumerate(passages)]
+def select_rel(passages, query, r):
+    def compute_relevance_scores(query_encoding, document_encodings, r):
+        scores = torch.matmul(
+            query_encoding.unsqueeze(0), document_encodings.transpose(1, 2)
+        )
+        max_scores_per_query_term = scores.max(dim=2).values
+        total_scores = max_scores_per_query_term.sum(dim=1)
+        sorted_indices = total_scores.argsort(descending=True)
+        return sorted_indices[:r]
+
+    query_encoding = (
+        client.embeddings.create(input=[query], model=relevance_expert)
+        .data[0]
+        .embedding
     )
-    relevance_prompts = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {
-            "role": "user",
-            "content": f"""
-    **Important**:
-    The output should be only a list of two integer IDs.
+    query_encoding = torch.tensor([query_encoding])
 
-    I will provide you with {k} passages, each labeled with a unique integer ID (e.g., `[ID] Passage`).
-
-    **Passages**:
-    {passage_order_str}
-
-    **Question**:
-    Which {r} passages are the most relevant to answering the following question?
-    {query}
-
-    **Output format**:
-    Return only a `list` of the {r} most relevant passage IDs as integers from most relevant to least relevant (e.g., `[ID1, ID2]`).
-    """,
-        },
-    ]
-
-    relevance_check_completion = client.chat.completions.create(
-        model=relevance_expert, messages=relevance_prompts
+    passage_encoding_res = client.embeddings.create(
+        input=[passages], model=relevance_expert
     )
-    relevance_check_res = relevance_check_completion.choices[0].message.content
-    relevance_check_res = json.loads(relevance_check_res)
-    relevant_passages = [passages[i] for i in relevance_check_res]
-    relevant_passages = "\n".join(relevant_passages)
+    passage_encodings = torch.tensor(
+        [i.embedding for i in passage_encoding_res.data]
+    )
+    relevant_indices = compute_relevance_scores(
+        query_encoding, passage_encodings, r
+    )
+    relevant_passages = [passages[i] for i in relevant_indices]
     return relevant_passages
 
 
@@ -131,7 +123,7 @@ similar_doc_ids = qdrant_cli.search(
 passages = [docs[i.id] for i in similar_doc_ids]
 
 ## Select the most relevant passages
-relevant_passages = select_rel(passages, query, k)
+relevant_passages = select_rel(passages, query, 2)
 
 # Generate the final answer.
 answer = chat(relevant_passages, query)
