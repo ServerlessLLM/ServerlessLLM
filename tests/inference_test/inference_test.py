@@ -24,6 +24,16 @@ def cleanup_models(models: List[str]) -> None:
 
 
 def test_inference(model: str) -> bool:
+    try:
+            subprocess.run(
+                ["sllm-cli", "deploy", "--model",  model],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+    except subprocess.CalledProcessError as e:
+        print(f"::warning::Failed to deploy {model}: {e.stderr}")
+
     url = "http://127.0.0.1:8343/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
     query = {

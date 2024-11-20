@@ -7,5 +7,25 @@
     "facebook/opt-6.7b": {
         "can_store": true,
         "can_inference": true
+    },
+
+    "meta-llama/Llama-3.2-1B": {
+        "can_store": true,
+        "can_inference": true
+    },
+
+    "vikhyatk/moondream2": {
+        "can_store": false,
+        "can_inference": false
+    },
+
+    "black-forest-labs/FLUX.1-dev": {
+        "can_store": false,
+        "can_inference": false
+    },
+
+    "ali-vilab/In-Context-LoRA": {
+        "can_store": false,
+        "can_inference": false
     }
 }
