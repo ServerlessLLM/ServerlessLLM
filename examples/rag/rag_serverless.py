@@ -31,13 +31,11 @@ def encode(texts):
 
 
 def select_rel(passages, query, r):
-    def compute_relevance_scores(query_encoding, document_encodings, r):
-        scores = torch.matmul(
-            query_encoding.unsqueeze(0), document_encodings.transpose(1, 2)
+    def cosine_relavance_score(query_encoding, document_encodings, r):
+        scores = torch.nn.functional.cosine_similarity(
+            query_encoding, document_encodings
         )
-        max_scores_per_query_term = scores.max(dim=2).values
-        total_scores = max_scores_per_query_term.sum(dim=1)
-        sorted_indices = total_scores.argsort(descending=True)
+        sorted_indices = scores.argsort(descending=True)
         return sorted_indices[:r]
 
     query_encoding = (
@@ -48,12 +46,12 @@ def select_rel(passages, query, r):
     query_encoding = torch.tensor([query_encoding])
 
     passage_encoding_res = client.embeddings.create(
-        input=[passages], model=relevance_expert
+        input=passages, model=relevance_expert
     )
     passage_encodings = torch.tensor(
         [i.embedding for i in passage_encoding_res.data]
     )
-    relevant_indices = compute_relevance_scores(
+    relevant_indices = cosine_relavance_score(
         query_encoding, passage_encodings, r
     )
     relevant_passages = [passages[i] for i in relevant_indices]
