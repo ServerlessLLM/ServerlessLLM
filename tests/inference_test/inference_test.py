@@ -2,12 +2,13 @@ import json
 import os
 import subprocess
 import sys
-import requests
 from typing import Any, Dict, List, Optional
 
+import requests
 import torch
 from transformers import AutoTokenizer
-from sllm_store.transformers import load_mode
+
+from sllm_store.transformers import load_model
 
 
 def cleanup_models(models: List[str]) -> None:
@@ -26,16 +27,21 @@ def cleanup_models(models: List[str]) -> None:
     print("::endgroup::")
 
 
-def test_inference(model: str) -> bool:
+def test_inference(model_name: str) -> bool:
     try:
         model = load_model(
-            model,
+            model_name,
             device_map="auto",
             torch_dtype=torch.float16,
-            storage_path="/models/",
+            storage_path="/models/",  # this may not work, depends on the path
             fully_parallel=True,
         )
-        tokenizer = AutoTokenizer.from_pretrained(model)
+    except Exception as e:
+        print(f"::error::Model {model_name} loading failed: {str(e)}")
+        return False
+
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
         inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
             "cuda"
         )
@@ -43,7 +49,7 @@ def test_inference(model: str) -> bool:
         return True
 
     except Exception as e:
-        print(f"::error::Model {model} inference failed: {str(e)}")
+        print(f"::error::Model {model_name} inference failed: {str(e)}")
         return False
 
 
