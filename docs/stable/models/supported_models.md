@@ -6,8 +6,8 @@ To test a model, simply add it to the `supported_models.json` inside `/Serverles
 
 ## Text-only Language Models
 
-Architecture      |Models        |Example HF Models   |vLLM |Transformers 
+Architecture      |Models        |Example HF Models   |vLLM |Transformers
 ------------------|--------------|--------------------|-----|-------------
-`OPTForCausalLM`  |OPT, OPT-IML  |`facebook/opt-6.7b` |✅   |✅           
+`OPTForCausalLM`  |OPT, OPT-IML  |`facebook/opt-6.7b` |✅   |✅
 
 

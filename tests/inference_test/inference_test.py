@@ -5,6 +5,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import requests
+from transformers import AutoTokenizer
 
 
 def cleanup_models(models: List[str]) -> None:
@@ -25,28 +26,18 @@ def cleanup_models(models: List[str]) -> None:
 
 def test_inference(model: str) -> bool:
     try:
-            subprocess.run(
-                ["sllm-cli", "deploy", "--model",  model],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-    except subprocess.CalledProcessError as e:
-        print(f"::warning::Failed to deploy {model}: {e.stderr}")
-
-    url = "http://127.0.0.1:8343/v1/chat/completions"
-    headers = {"Content-Type": "application/json"}
-    query = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "What is your name?"},
-        ],
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=query)
-        response.raise_for_status()
+        model = load_model(
+            model,
+            device_map="auto",
+            torch_dtype=torch.float16,
+            storage_path="/models/",
+            fully_parallel=True,
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model)
+        inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
+            "cuda"
+        )
+        outputs = model.generate(**inputs)
         return True
 
     except Exception as e:

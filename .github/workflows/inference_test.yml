@@ -48,13 +48,16 @@ jobs:
         run: |
           chmod +x entrypoint.sh
           ./entrypoint.sh
+          sleep 10
 
-      - name: Start Worker 
+      - name: Start Worker
         env:
           MODE: "WORKER"
+          WORKER_ID: "1"
         run: |
           chmod +x entrypoint.sh
           ./entrypoint.sh
+          sleep 5
 
       - name: Test sllm store
         run: |
