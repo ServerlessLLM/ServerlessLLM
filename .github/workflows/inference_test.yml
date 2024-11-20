@@ -24,40 +24,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Dependencies and create models directory
         run: |
           apt-get update
           apt-get install -y patch git npm wget
 
-      - name: Import Python libraries
-        run: |
-          pip install serverless-llm
-          pip install serverless-llm-store
-
           echo "Creating models directory..."
           mkdir -p models
           echo "Models directory created at $(pwd)/models"
-
-          echo "Setting up environment variables..."
           echo "MODEL_FOLDER=$(pwd)/models" >> $GITHUB_ENV
-          echo "LLM_SERVER_URL=http://127.0.0.1:8343/" >> $GITHUB_ENV
+
+      - name: Setup worker env
+        shell: bash -l {0}
+        run: |
+          conda create -n sllm-worker python=3.10 -y
+
+      - name: Import Python libraries (HEAD)
+        run: |
+          pip install -e .
+          cd sllm_store && rm -rf build
+          pip install .
+          cd ..
+
+          conda run -n sllm-worker pip install -e ".[worker]"
+          conda run -n sllm-worker "cd sllm_store && rm -rf build"
 
       - name: Setup Environment and Start Services
         env:
           MODE: "HEAD"
         run: |
           chmod +x entrypoint.sh
-          ./entrypoint.sh
+          ./entrypoint.sh &
           sleep 10
 
       - name: Start Worker
         env:
           MODE: "WORKER"
           WORKER_ID: "1"
+          RAY_HEAD_ADDRESS: "localhost:6379"
         run: |
+          conda activate sllm-worker
           chmod +x entrypoint.sh
-          ./entrypoint.sh
-          sleep 5
+          ./entrypoint.sh &
+          sleep 10
 
       - name: Test sllm store
         run: |

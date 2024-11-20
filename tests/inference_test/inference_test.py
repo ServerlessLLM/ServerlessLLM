@@ -33,7 +33,7 @@ def test_inference(model_name: str) -> bool:
             model_name,
             device_map="auto",
             torch_dtype=torch.float16,
-            storage_path="/models/",  # this may not work, depends on the path
+            storage_path=os.getenv("MODEL_FOLDER"),  
             fully_parallel=True,
         )
     except Exception as e:
