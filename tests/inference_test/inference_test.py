@@ -2,10 +2,12 @@ import json
 import os
 import subprocess
 import sys
+import requests
 from typing import Any, Dict, List, Optional
 
-import requests
+import torch
 from transformers import AutoTokenizer
+from sllm_store.transformers import load_mode
 
 
 def cleanup_models(models: List[str]) -> None:
