@@ -32,7 +32,7 @@ If you plan to use vLLM with ServerlessLLM, you need to apply our patch to the v
 ## Installing from source
 To install the package from source, follow these steps:
 ```bash
-git clone https://github.com/ServerlessLLM/ServerlessLLM
+git clone https://github.com/ServerlessLLM/ServerlessLLM.git
 cd ServerlessLLM
 ```
 
