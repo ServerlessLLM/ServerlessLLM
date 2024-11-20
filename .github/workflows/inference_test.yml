@@ -73,11 +73,6 @@ jobs:
         run: |
           cd ./tests/inference_test
           python store_test.py
-
-      - name: Test sllm inference
-        if: always()
-        run: |
-          cd ./tests/inference_test
           python inference_test.py
 
       - name: Check results

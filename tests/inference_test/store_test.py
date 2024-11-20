@@ -62,7 +62,7 @@ def main() -> int:
         print("::endgroup::")
         return 1
 
-    print("::notice::✅ All models tested successfully")
+    print("::notice::✅ All models stored successfully")
     return 0
 
 
