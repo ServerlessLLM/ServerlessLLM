@@ -4,13 +4,17 @@ import subprocess
 import sys
 from typing import Any, Dict, List, Optional
 
+import torch
 from transformers import AutoModelForCausalLM
+
 from sllm_store.transformers import save_model
 
 
 def store_test(model: str, model_path: str) -> Optional[str]:
     try:
-        hf_model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float16)
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            model, torch_dtype=torch.float16, trust_remote_code=True
+        )
         save_model(hf_model, model_path)
         return None
 
