@@ -34,23 +34,28 @@ jobs:
           echo "Models directory created at $(pwd)/models"
           echo "MODEL_FOLDER=$(pwd)/models" >> $GITHUB_ENV
 
+      - name: Setup head env
+        shell: bash -l {0}
+        run: |
+          conda create -n sllm python=3.10 -y
+          conda init bash
+
       - name: Setup worker env
         shell: bash -l {0}
         run: |
           conda create -n sllm-worker python=3.10 -y
           conda init bash
 
-      - name: Import Python libraries (HEAD)
+      - name: Start Head
+        env:
+          MODE: "HEAD"
         run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm
           pip install -e .
           cd sllm_store && rm -rf build
           pip install .
           cd ..
-
-      - name: Setup Environment and Start Services
-        env:
-          MODE: "HEAD"
-        run: |
           chmod +x entrypoint.sh
           ./entrypoint.sh &
           sleep 10
@@ -58,7 +63,8 @@ jobs:
       - name: Start Worker
         env:
           MODE: "WORKER"
-          WORKER_ID: "1"
+          WORKER_ID: "0"
+          STORAGE_PATH: $MODEL_FOLDER
           RAY_HEAD_ADDRESS: "localhost:6379"
         run: |
           source /opt/conda/etc/profile.d/conda.sh
@@ -70,8 +76,27 @@ jobs:
           ./entrypoint.sh &
           sleep 10
 
+      - name: Serve Worker
+        env:
+          CUDA_VISIBLE_DEVICES: "0"
+        run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm-worker
+          sllm-store-server & 
+          sleep 10
+
+      - name: Serve Head
+        run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm
+          sllm-serve start &
+          sleep 10
+
       - name: Test sllm store
         run: |
+
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm
           cd ./tests/inference_test
           python store_test.py
           python inference_test.py
