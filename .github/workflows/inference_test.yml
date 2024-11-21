@@ -61,6 +61,7 @@ jobs:
           WORKER_ID: "1"
           RAY_HEAD_ADDRESS: "localhost:6379"
         run: |
+          source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm-worker
           pip install -e ".[worker]"
           cd sllm_store && rm -rf build
