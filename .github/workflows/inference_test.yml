@@ -63,6 +63,7 @@ jobs:
           conda activate sllm-worker
           pip install -e ".[worker]"
           cd sllm_store && rm -rf build
+          pip install .
           cd ..
           ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
           sleep 10
