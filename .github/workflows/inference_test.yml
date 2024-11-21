@@ -16,7 +16,7 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
     container:
       image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
-      options: --gpus all
+      options: --gpus all --network host
     defaults:
       run:
           shell: bash -l {0}
@@ -47,8 +47,6 @@ jobs:
           conda init bash
 
       - name: Start Head
-        env:
-          MODE: "HEAD"
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm
@@ -56,24 +54,17 @@ jobs:
           cd sllm_store && rm -rf build
           pip install .
           cd ..
-          chmod +x entrypoint.sh
-          ./entrypoint.sh &
-          sleep 10
+          ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' &
+          sleep 10 
 
       - name: Start Worker
-        env:
-          MODE: "WORKER"
-          WORKER_ID: "0"
-          STORAGE_PATH: $MODEL_FOLDER
-          RAY_HEAD_ADDRESS: "localhost:6379"
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm-worker
           pip install -e ".[worker]"
           cd sllm_store && rm -rf build
           cd ..
-          chmod +x entrypoint.sh
-          ./entrypoint.sh &
+          ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
           sleep 10
 
       - name: Serve Worker
@@ -82,7 +73,8 @@ jobs:
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm-worker
-          sllm-store-server & 
+          ./sllm_store/vllm_patch/patch.sh
+          sllm-store-server -storage_path $MODEL_FOLDER --mem_pool_size 4 & 
           sleep 10
 
       - name: Serve Head
@@ -94,7 +86,6 @@ jobs:
 
       - name: Test sllm store
         run: |
-
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm
           cd ./tests/inference_test
