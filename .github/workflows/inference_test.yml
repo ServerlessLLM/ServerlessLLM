@@ -1,0 +1,97 @@
+name: Test Store and Inference
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'sllm/serve/**'
+      - 'sllm/cli/**'
+      - 'tests/inference_test/**'
+      - 'entrypoint.sh'
+
+jobs:
+  inference_store_tests:
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
+    container:
+      image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
+      options: --gpus all
+    defaults:
+      run:
+          shell: bash -l {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies and create models directory
+        run: |
+          apt-get update
+          apt-get install -y patch git npm wget
+
+          echo "Creating models directory..."
+          mkdir -p models
+          echo "Models directory created at $(pwd)/models"
+          echo "MODEL_FOLDER=$(pwd)/models" >> $GITHUB_ENV
+
+      - name: Setup head env
+        shell: bash -l {0}
+        run: |
+          conda create -n sllm python=3.10 -y
+          conda init bash
+
+      - name: Setup worker env
+        shell: bash -l {0}
+        run: |
+          conda create -n sllm-worker python=3.10 -y
+          conda init bash
+
+      - name: Start Head
+        run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm
+          pip install serverless-llm
+          pip install serverless-llm-store
+          ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' &
+          sleep 10
+
+      - name: Start Worker
+        run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm-worker
+          pip install serverless-llm[worker]
+          pip install serverless-llm-store
+          ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
+          sleep 10
+
+      - name: Serve Worker
+        env:
+          CUDA_VISIBLE_DEVICES: "0"
+        run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm-worker
+          nohup sllm-store-server -storage_path $MODEL_FOLDER &
+          sleep 10
+
+      - name: Serve Head
+        run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm
+          sllm-serve start &
+          sleep 10
+
+      - name: Test sllm store
+        run: |
+          source /opt/conda/etc/profile.d/conda.sh
+          conda activate sllm
+          cd ./tests/inference_test
+          python store_test.py
+          python inference_test.py
+
+      - name: Check results
+        if: always()
+        run: |
+          if [ -f failed_models.json ]; then
+            echo "::error::Tests failed - see above for details"
+            exit 1
+          fi
