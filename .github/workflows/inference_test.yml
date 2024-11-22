@@ -53,7 +53,7 @@ jobs:
           conda activate sllm
           pip install serverless-llm
           pip install serverless-llm-store
-          ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' &
+          nohup ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' &
           sleep 10
 
       - name: Start Worker
@@ -62,7 +62,7 @@ jobs:
           conda activate sllm-worker
           pip install serverless-llm[worker]
           pip install serverless-llm-store
-          ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
+          nohup ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
           sleep 10
 
       - name: Serve Worker
@@ -78,7 +78,7 @@ jobs:
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm
-          sllm-serve start &
+          nohup sllm-serve start &
           sleep 10
 
       - name: Test sllm store
