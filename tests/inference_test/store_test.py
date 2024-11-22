@@ -7,15 +7,39 @@ from typing import Any, Dict, List, Optional
 import torch
 from transformers import AutoModelForCausalLM
 
-from sllm_store.transformers import save_model
+from sllm_store.transformers import load_model, save_model
 
 
-def store_test(model: str, model_path: str) -> Optional[str]:
+def store_test(model: str, model_folder: str) -> Optional[str]:
     try:
+        model_path = os.path.join(model_folder, model)
         hf_model = AutoModelForCausalLM.from_pretrained(
             model, torch_dtype=torch.float16, trust_remote_code=True
         )
         save_model(hf_model, model_path)
+
+        serverless_llm_model = load_model(
+            model,
+            device_map="auto",
+            torch_dtype=torch.float16,
+            storage_path=model_folder,
+            fully_parallel=True,
+        )
+
+        for name, param in serverless_llm_model.named_parameters():
+            ground_truth_param = hf_model.state_dict()[name]
+
+            if param.dtype != ground_truth_param.dtype:
+                return f"param {name} dtype mismatch: {param.dtype} vs {ground_truth_param.dtype}"
+
+            if param.shape != ground_truth_param.shape:
+                return f"param {name} shape mismatch: {param.shape} vs {ground_truth_param.shape}"
+
+            if not torch.allclose(
+                param.cpu(), ground_truth_param.cpu(), atol=1e-3
+            ):
+                return f"param {name} value mismatch"
+
         return None
 
     except Exception as e:
@@ -35,10 +59,8 @@ def main() -> int:
 
     print("::group::Model Testing Results")
     for model, model_info in models.items():
-        model_path = os.path.join(MODEL_FOLDER, model)
-
         print(f"Testing: {model}")
-        error = store_test(model, model_path)
+        error = store_test(model, MODEL_FOLDER)
 
         if error:
             print(
