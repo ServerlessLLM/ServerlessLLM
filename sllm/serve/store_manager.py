@@ -23,6 +23,7 @@ from typing import List, Mapping, Optional
 
 import ray
 
+from sllm.serve.hardware_info_collector import collect_all_info
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
     VllmModelDownloader,
@@ -192,9 +193,9 @@ class SllmLocalStore:
 
 # @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class StoreManager:
-    def __init__(self, hardware_info: Optional[Mapping] = None):
+    def __init__(self):
         logger.info("Initializing store manager")
-        self.hardware_info = hardware_info
+        self.hardware_info = {}
 
         self.metadata_lock = asyncio.Lock()
         # Storage info
@@ -204,15 +205,39 @@ class StoreManager:
         self.model_storage_info = {}
 
     async def initialize_cluster(self) -> bool:
-        if not self.hardware_info:
-            logger.warning(
-                "Hardware info not provided. Storage-aware scheduling might not work properly"
-            )
+        logger.info("Initializing cluster and collecting hardware info")
+
+        # Get worker nodes
+        worker_node_info = get_worker_nodes()
+        if not worker_node_info:
+            logger.error("No worker nodes found")
             return False
 
+        # Initialize hardware_info dictionary
+        self.hardware_info = {}
+        # Collect hardware info from each node
+        hardware_info_futures = {
+            node_id: collect_all_info.options(
+                resources={f"worker_id_{node_id}": 0.01}
+            ).remote()
+            for node_id in worker_node_info
+        }
+
+        # Gather hardware info
+        for node_id, future in hardware_info_futures.items():
+            try:
+                hardware_info = await future
+                self.hardware_info[node_id] = hardware_info
+                logger.info(f"Hardware info collected for node {node_id}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to collect hardware info from node {node_id}: {e}"
+                )
+                continue
+
         uninitialized_nodes = list(self.hardware_info.keys())
+
         while len(uninitialized_nodes) > 0:
-            worker_node_info = get_worker_nodes()
             for node_id in uninitialized_nodes:
                 if node_id in worker_node_info:
                     node_address = worker_node_info[node_id]["address"]

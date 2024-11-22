@@ -708,3 +708,5 @@ Qwen
 MiniLM
 L12
 IML
+RTX
+GeForce

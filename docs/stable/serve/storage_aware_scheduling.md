@@ -2,135 +2,67 @@
 sidebar_position: 0
 ---
 
-# Storage Aware Scheduling
+# Storage Aware Scheduling with Docker Compose
 
 ## Pre-requisites
-To enable storage aware model loading scheduling, a hardware configuration file is required.
-For example, the following is a sample configuration file for two servers:
-```bash
-echo '{
-  "0": {
-    "host_size": "32GB",
-    "host_bandwidth": "24GB/s",
-    "disk_size": "128GB",
-    "disk_bandwidth": "5GB/s",
-    "network_bandwidth": "10Gbps"
-  },
-  "1": {
-    "host_size": "32GB",
-    "host_bandwidth": "24GB/s",
-    "disk_size": "128GB",
-    "disk_bandwidth": "5GB/s",
-    "network_bandwidth": "10Gbps"
-  }
-}' > hardware_config.json
-```
 
-We will use Docker to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md) before proceeding.
+We will use Docker Compose to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md) before proceeding.
 
 ## Usage
-Start a local Docker-based ray cluster.
 
-### Step 1: Start Ray Head Node and Worker Nodes
+Start a local Docker-based ray cluster using Docker Compose.
 
-1. Start the Ray head node.
+### Step 1: Clone the ServerlessLLM Repository
 
-```bash
-docker run -d --name ray_head \
-  --runtime nvidia \
-  --network sllm \
-  -p 6379:6379 \
-  -p 8343:8343 \
-  --gpus '"device=none"' \
-  serverlessllm/sllm-serve
-```
-
-2. Start the Ray worker nodes.
-
-Ensure that you have a directory for storing your models and set the `MODEL_FOLDER` environment variable to this directory:
+If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
-export MODEL_FOLDER=path/to/models
+git clone https://github.com/ServerlessLLM/ServerlessLLM.git
+cd ServerlessLLM/examples/storage_aware_scheduling
 ```
+
+### Step 2: Configuration
+
+Set the Model Directory. Create a directory on your host machine where models will be stored and set the `MODEL_FOLDER` environment variable to point to this directory:
 
 ```bash
-docker run -d --name ray_worker_0 \
-  --runtime nvidia \
-  --network sllm \
-  --gpus '"device=0"' \
-  --env WORKER_ID=0 \
-  --mount type=bind,source=$MODEL_FOLDER,target=/models \
-  serverlessllm/sllm-serve-worker
-
-docker run -d --name ray_worker_1 \
-  --runtime nvidia \
-  --network sllm \
-  --gpus '"device=1"' \
-  --env WORKER_ID=1 \
-  --mount type=bind,source=$MODEL_FOLDER,target=/models \
-  serverlessllm/sllm-serve-worker
+export MODEL_FOLDER=/path/to/your/models
 ```
 
-### Step 2: Start ServerlessLLM Serve with Storage Aware Scheduler
+Replace `/path/to/your/models` with the actual path where you want to store the models.
 
-1. Copy the hardware configuration file to the Ray head node.
+### Step 3: Enable Storage Aware Scheduling in Docker Compose
+
+The Docker Compose configuration is already located in the `examples/storage_aware_scheduling` directory. To activate storage-aware scheduling, ensure the `docker-compose.yml` file includes the necessary configurations(`sllm_head` service should include the `--enable_storage_aware` command).
+
+:::tip
+Recommend to adjust the number of GPUs and `mem_pool_size` based on the resources available on your machine.
+:::
+
+
+### Step 4: Start the Services
+
+Start the ServerlessLLM services using Docker Compose:
 
 ```bash
-docker cp hardware_config.json ray_head:/app/hardware_config.json
+docker compose up -d --build
 ```
 
-2. Start the ServerlessLLM serve with the storage aware scheduler.
+This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
+
+:::tip
+Use the following command to monitor the logs of the head node:
 
 ```bash
-docker exec ray_head sh -c "/opt/conda/bin/sllm-serve start --hardware-config /app/hardware_config.json"
+docker logs -f sllm_head
 ```
+:::
 
-### Step 3: Deploy Models with Placement Spec
+### Step 5: Deploy Models with Placement Spec
 
-1. Create model deployment spec files.
-In this example, model "opt-2.7b" will be placed on server 0; while model "opt-1.3b" will be placed on server 1.
-```bash
-echo '{
-    "model": "opt-2.7b",
-    "backend": "transformers",
-    "num_gpus": 1,
-    "auto_scaling_config": {
-        "metric": "concurrency",
-        "target": 1,
-        "min_instances": 0,
-        "max_instances": 10
-    },
-    "placement_config": {
-        "target_nodes": ["0"]
-    },
-    "backend_config": {
-        "pretrained_model_name_or_path": "facebook/opt-2.7b",
-        "device_map": "auto",
-        "torch_dtype": "float16"
-    }
-}' > config-opt-2.7b.json
-echo '{
-    "model": "opt-1.3b",
-    "backend": "transformers",
-    "num_gpus": 1,
-    "auto_scaling_config": {
-        "metric": "concurrency",
-        "target": 1,
-        "min_instances": 0,
-        "max_instances": 10
-    },
-    "placement_config": {
-        "target_nodes": ["1"]
-    },
-    "backend_config": {
-        "pretrained_model_name_or_path": "facebook/opt-1.3b",
-        "device_map": "auto",
-        "torch_dtype": "float16"
-    }
-}' > config-opt-1.3b.json
-```
+In the `examples/storage_aware_scheduling` directory, the example configuration files (`config-opt-2.7b.json` and `config-opt-1.3b.json`) are already given.
 
-> Note: Storage aware scheduling currently only supports "transformers" backend. Support for other backends will come soon.
+> Note: Storage aware scheduling currently only supports the "transformers" backend. Support for other backends will come soon.
 
 2. Deploy models with the placement spec files.
 
@@ -148,7 +80,7 @@ sllm-cli deploy --config config-opt-1.3b.json
 curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
-        "model": "opt-2.7b",
+        "model": "facebook/opt-2.7b",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -158,7 +90,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
 curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
-        "model": "opt-1.3b",
+        "model": "facebook/opt-1.3b",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -166,18 +98,16 @@ curl http://127.0.0.1:8343/v1/chat/completions \
     }'
 ```
 
-As shown in the log message, the model "opt-2.7b" is scheduled on server 0, while the model "opt-1.3b" is scheduled on server 1.
-```plaintext
-...
-(StorageAwareScheduler pid=1584) INFO 07-30 12:08:40 storage_aware_scheduler.py:138] Sorted scheduling options: [('0', 0.9877967834472656)]
-(StorageAwareScheduler pid=1584) INFO 07-30 12:08:40 storage_aware_scheduler.py:145] Allocated node 0 for model opt-2.7b
-...
-(StorageAwareScheduler pid=1584) INFO 07-30 12:08:51 storage_aware_scheduler.py:138] Sorted scheduling options: [('1', 0.4901580810546875)]
-(StorageAwareScheduler pid=1584) INFO 07-30 12:08:51 storage_aware_scheduler.py:145] Allocated node 1 for model opt-1.3b
-...
+As shown in the log message, the model "facebook/opt-2.7b" is scheduled on server 0, while the model "facebook/opt-1.3b" is scheduled on server 1.
+
+```log
+(StorageAwareScheduler pid=1543) INFO 11-12 23:48:27 storage_aware_scheduler.py:137] Sorted scheduling options: [('0', 4.583079601378258)]
+(StorageAwareScheduler pid=1543) INFO 11-12 23:48:27 storage_aware_scheduler.py:144] Allocated node 0 for model facebook/opt-2.7b
+(StorageAwareScheduler pid=1543) INFO 11-12 23:48:38 storage_aware_scheduler.py:137] Sorted scheduling options: [('1', 2.266678696047572)]
+(StorageAwareScheduler pid=1543) INFO 11-12 23:48:38 storage_aware_scheduler.py:144] Allocated node 1 for model facebook/opt-1.3b
 ```
 
-### Step 4: Clean Up
+### Step 6: Clean Up
 
 Delete the model deployment by running the following command:
 
@@ -188,11 +118,6 @@ sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
 If you need to stop and remove the containers, you can use the following commands:
 
 ```bash
-docker exec ray_head sh -c "ray stop"
-docker exec ray_worker_0 sh -c "ray stop"
-docker exec ray_worker_1 sh -c "ray stop"
-
-docker stop ray_head ray_worker_0 ray_worker_1
-docker rm ray_head ray_worker_0 ray_worker_1
-docker network rm sllm
+docker compose down
 ```
+

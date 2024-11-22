@@ -40,6 +40,7 @@ ServerlessLLM is designed to support multiple LLMs in efficiently sharing limite
 **ServerlessLLM is Easy-to-Use**:
 - Simplifies deployment through [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) via [KubeRay](https://github.com/ray-project/kuberay).
 - Supports seamless deployment of [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) and custom LLM models.
+- Supports NVIDIA and AMD GPUs
 - Easily integrates with the [OpenAI Query API](https://platform.openai.com/docs/overview).
 
 ## Getting Started
