@@ -50,10 +50,8 @@ jobs:
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm
-          pip install -e .
-          cd sllm_store && rm -rf build
-          pip install .
-          cd ..
+          pip install serverless-llm
+          pip install serverless-llm-store
           ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' &
           sleep 10 
 
@@ -61,10 +59,8 @@ jobs:
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm-worker
-          pip install -e ".[worker]"
-          cd sllm_store && rm -rf build
-          pip install .
-          cd ..
+          pip install serverless-llm[worker]
+          pip install serverless-llm-store
           ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
           sleep 10
 
@@ -74,7 +70,6 @@ jobs:
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm-worker
-          ./sllm_store/vllm_patch/patch.sh
           sllm-store-server -storage_path $MODEL_FOLDER & 
           sleep 10
 
