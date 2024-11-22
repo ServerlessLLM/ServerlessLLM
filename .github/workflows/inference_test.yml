@@ -1,7 +1,6 @@
 name: Test Store and Inference
 
 on:
-  workflow_dispatch:
   pull_request:
     branches:
       - main
@@ -14,7 +13,7 @@ on:
 jobs:
   inference_store_tests:
     runs-on: self-hosted
-    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing') || github.event_name == 'workflow_dispatch'
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
     container:
       image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
       options: --gpus all
@@ -54,7 +53,7 @@ jobs:
           pip install serverless-llm
           pip install serverless-llm-store
           nohup ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' &
-          sleep 10
+          sleep 60
 
       - name: Start Worker
         run: |
@@ -63,7 +62,7 @@ jobs:
           pip install serverless-llm[worker]
           pip install serverless-llm-store
           nohup ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
-          sleep 10
+          sleep 60
 
       - name: Serve Worker
         env:
@@ -71,15 +70,15 @@ jobs:
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm-worker
-          nohup sllm-store-server -storage_path $MODEL_FOLDER &
-          sleep 10
+          nohup sllm-store-server --mem_pool_size 8 -storage_path $MODEL_FOLDER &
+          sleep 60
 
       - name: Serve Head
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm
           nohup sllm-serve start &
-          sleep 10
+          sleep 60
 
       - name: Test sllm store
         run: |
