@@ -13,7 +13,7 @@ services:
       - "8343:8343"    # ServerlessLLM port
     networks:
       - sllm_network
-    command: []
+    command: ["--enable_storage_aware"]  # Enable storage-aware scheduling
 
   # Worker Node 0
   sllm_worker_0:
@@ -36,30 +36,30 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "4", "-registration_required", "true"] # Customize the memory pool size here
+    command: ["-mem_pool_size", "32", "-registration_required", "true"] # Customize the memory pool size here
 
-  # # Worker Node 1
-  # sllm_worker_1:
-  #   build:
-  #     context: ../../
-  #     dockerfile: Dockerfile.worker
-  #   image: serverlessllm/sllm-serve-worker
-  #   container_name: sllm_worker_1
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities: ["gpu"]
-  #             device_ids: ["1"] # Assigns GPU 1 to the worker
-  #   environment:
-  #     - WORKER_ID=1
-  #     - MODEL_FOLDER=${MODEL_FOLDER}
-  #   networks:
-  #     - sllm_network
-  #   volumes:
-  #     - ${MODEL_FOLDER}:/models
-  #   command: ["-mem_pool_size", "4", "-registration_required", "true"] # Customize the memory pool size here
+  # Worker Node 1
+  sllm_worker_1:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
+    image: serverlessllm/sllm-serve-worker
+    container_name: sllm_worker_1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              device_ids: ["1"] # Assigns GPU 1 to the worker
+    environment:
+      - WORKER_ID=1
+      - STORAGE_PATH=/models
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+    command: ["-mem_pool_size", "32", "-registration_required", "true"] # Customize the memory pool size here
 
 networks:
   sllm_network:

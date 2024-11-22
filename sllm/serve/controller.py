@@ -37,7 +37,6 @@ class SllmControllerException(Exception):
 logger = init_logger(__name__)
 
 
-# @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class SllmController:
     def __init__(self, config: Optional[Mapping] = None):
         self.config = config
@@ -58,16 +57,12 @@ class SllmController:
             self.running = True
 
         logger.info("Starting store manager")
-        enable_storage_aware = False
-        hardware_config = None
-        if self.config is not None and "hardware_config" in self.config:
-            hardware_config = self.config["hardware_config"]
-        if hardware_config:
-            enable_storage_aware = True
+        enable_storage_aware = self.config.get("enable_storage_aware", False)
         ray_manager_cls = ray.remote(StoreManager)
         self.store_manager = ray_manager_cls.options(
-            name="store_manager"
-        ).remote(hardware_config)
+            name="store_manager",
+            resources={"control_node": 0.1},
+        ).remote()
         await self.store_manager.initialize_cluster.remote()
 
         logger.info("Starting scheduler")
@@ -77,7 +72,7 @@ class SllmController:
             ray_scheduler_cls = ray.remote(FcfsScheduler)
 
         self.scheduler = ray_scheduler_cls.options(
-            name="model_loading_scheduler"
+            name="model_loading_scheduler", resources={"control_node": 0.1}
         ).remote()
 
         self.scheduler.start.remote()

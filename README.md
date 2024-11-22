@@ -15,6 +15,7 @@ ServerlessLLM (`sllm`, pronounced "slim") is an open-source serverless framework
 
 ## News
 
+- **[11/24]** We have added experimental support of fast checkpoint loading for AMD GPUs (ROCm) when using with vLLM, PyTorch and HuggingFace Accelerate. Please refer to the [documentation](https://serverlessllm.github.io/docs/stable/store/installation_with_rocm) for more details.
 - **[10/24]** ServerlessLLM was invited to present at a global AI tech vision forum in Singapore.
 - **[10/24]** We hosted the first ServerlessLLM developer meetup in Edinburgh, attracting over 50 attendees both offline and online. Together, we brainstormed many exciting new features to develop. If you have great ideas, we’d love for you to join us!
 - **[10/24]** We made the first public release of ServerlessLLM. Check out the details of the release [here](https://github.com/ServerlessLLM/ServerlessLLM/releases/tag/v0.5.0).
@@ -39,6 +40,7 @@ ServerlessLLM is designed to support multiple LLMs in efficiently sharing limite
 **ServerlessLLM is Easy-to-Use**:
 - Simplifies deployment through [Ray Cluster](https://docs.ray.io/en/latest/cluster/getting-started.html) and [Kubernetes](https://kubernetes.io/) via [KubeRay](https://github.com/ray-project/kuberay).
 - Supports seamless deployment of [HuggingFace Transformers](https://huggingface.co/docs/transformers/en/index) and custom LLM models.
+- Supports NVIDIA and AMD GPUs
 - Easily integrates with the [OpenAI Query API](https://platform.openai.com/docs/overview).
 
 ## Getting Started

@@ -20,7 +20,6 @@ import json
 import os
 import time
 import uuid
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
@@ -77,11 +76,9 @@ class TransformersBackend(SllmBackend):
                 )
 
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = Path(
-                os.path.join(storage_path, "transformers", self.model_name)
-            ).resolve()
+            model_path = os.path.join("transformers", self.model_name)
             self.model = load_model(
-                str(model_path),
+                model_path,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
                 storage_path=storage_path,
@@ -129,7 +126,7 @@ class TransformersBackend(SllmBackend):
         model_name = request_data.get("model", "dummy-model")
         task_instruct = request_data.get("task_instruct", "")
         max_length = request_data.get("max_length", 4096)
-        query = request_data.get("query", [])
+        query = request_data.get("input", [])
 
         if not query:
             return {"error": "Missing query in request data"}
@@ -175,12 +172,8 @@ class TransformersBackend(SllmBackend):
         max_tokens = request_data.get("max_tokens", 10)
 
         # Combine messages to form the prompt
-        prompt = "\n".join(
-            [
-                f"{message['role']}: {message['content']}"
-                for message in messages
-                if "content" in message
-            ]
+        prompt = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=False
         )
 
         if not prompt:
@@ -194,8 +187,9 @@ class TransformersBackend(SllmBackend):
                 **inputs, max_new_tokens=max_tokens, temperature=temperature
             )
 
+        real_output = outputs[0][len(inputs.input_ids[0]) :]
         output_text = self.tokenizer.decode(
-            outputs[0], skip_special_tokens=True
+            real_output, skip_special_tokens=True
         )
 
         # Simulate token counts for the response

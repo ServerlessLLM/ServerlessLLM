@@ -4,6 +4,15 @@ sidebar_position: 1
 
 # Installation with ROCm (Experimental)
 
+## Latest Tested Version
++ v0.5.1
+
+## Tested Hardware
++ OS: Ubuntu 22.04
++ ROCm: 6.2
++ PyTorch: 2.3.0
++ GPU: MI100s (gfx908), MI200s (gfx90a)
+
 ## Build the wheel from source and install
 ServerlessLLM Store (`sllm-store`) currently provides experimental support for ROCm platform. Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
 
@@ -14,7 +23,7 @@ To build `sllm-store` from source, we suggest you using the docker and build it 
 1. Clone the repository and enter the `store` directory:
 
 ```bash
-git clone git@github.com:ServerlessLLM/ServerlessLLM.git
+git clone https://github.com/ServerlessLLM/ServerlessLLM.git
 cd ServerlessLLM/sllm_store
 ```
 
@@ -43,7 +52,7 @@ pip install dist/*.whl
 
 #### Transformer model Loading and Inference
 
-1. Save the `faceboo/opt-1.3b` model in `./models` directory
+1. Save the `facebook/opt-1.3b` model in `./models` directory
 
 ``` bash
 python3 examples/sllm_store/save_transformers_model.py --model_name facebook/opt-1.3b --storage_path ./models
@@ -89,7 +98,7 @@ Similar as in CUDA, you need to apply our patch `sllm_store/vllm_patch/sllm_load
 ```
 :::
 
-1. Save the `faceboo/opt-1.3b` model in `./models` directory
+1. Save the `facebook/opt-1.3b` model in `./models` directory
 
 ``` bash
 python3 examples/sllm_store/save_vllm_model.py --model_name facebook/opt-1.3b --storage_path ./models
@@ -161,13 +170,6 @@ bash build.sh
 cd ServerlessLLM/sllm_store/build
 ctest --output-on-failure
 ```
-
-## Tested Hardware
-+ OS: Ubuntu 22.04
-+ ROCm: 6.2
-+ PyTorch: 2.3.0
-+ GPU: MI100s (gfx908), MI200s (gfx90a)
-
 
 ## Known issues
 

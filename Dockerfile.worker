@@ -98,7 +98,6 @@ RUN pip install -r requirements-worker.txt
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-ENV NODE_TYPE=WORKER
-ENV STORAGE_PATH="/models"
+ENV MODE=WORKER
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Docker Quickstart Guide
 
-This guide shows how to quickly set up a local ServerlessLLM cluster using Docker Compose. We will start a cluster with a head node and two worker nodes, deploy and query a model using the `sllm-cli`.
+This guide shows how to quickly set up a local ServerlessLLM cluster using Docker Compose. We will start a minimal cluster with a head node and one worker node, deploy and query a model using the `sllm-cli`.
 
 ## Pre-requisites
 
@@ -12,7 +12,7 @@ Before you begin, make sure you have the following:
 
 1. **Docker**: Installed on your system. You can download it from [here](https://docs.docker.com/get-docker/).
 2. **ServerlessLLM CLI**: Installed on your system. You can install it using `pip install serverless-llm`.
-1. **GPUs**: At least 2 NVIDIA GPUs are necessary. If you have more GPUs, you can adjust the `docker-compose.yml` file accordingly.
+1. **GPUs**: At least one NVIDIA GPU is necessary. If you have more GPUs, you can adjust the `docker-compose.yml` file accordingly.
 2. **NVIDIA Docker Toolkit**: This allows Docker to use NVIDIA GPUs. Follow the installation guide [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
 
 ## Run ServerlessLLM using Docker Compose
@@ -24,13 +24,12 @@ We will use docker compose to simplify the setup of ServerlessLLM. The `docker-c
 If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
-git clone https://github.com/serverless-llm/serverlessllm.git
-cd serverlessllm/examples/docker/
+git clone https://github.com/ServerlessLLM/ServerlessLLM.git
+cd ServerlessLLM/examples/docker/
 ```
 
 ### Step 2:  Configuration
 
-Set the Model Directory
 Create a directory on your host machine where models will be stored and set the MODEL_FOLDER environment variable to point to this directory:
 
 ```bash
