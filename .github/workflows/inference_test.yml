@@ -70,7 +70,7 @@ jobs:
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm-worker
-          sllm-store-server -storage_path $MODEL_FOLDER & 
+          nohup sllm-store-server -storage_path $MODEL_FOLDER & 
           sleep 10
 
       - name: Serve Head
