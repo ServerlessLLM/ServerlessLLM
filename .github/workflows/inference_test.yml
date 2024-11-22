@@ -1,6 +1,7 @@
 name: Test Store and Inference
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
