@@ -35,18 +35,22 @@ If everything goes right, you should have this terminal. The command line starts
 
 
 ## 2 Configure the WSL connection
-Back to the installation of sllm, as the processing of deploying LLM requires sufficient GPU memory. It is necessary to ensure the WSL connection has enough resources. Use `free -h` to check the memory status. It's strongly recommended to assigning 20GB+ Mem and 8GB+ Swap. If it didn't meet this requirement, it needs to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If not, just create it. Within the file, a sample setting is given below.
+Back to the installation of sllm, use `free -h` to check the memory status. After testing, the minimum setting is 22GB Mem and 8GB Swap as shown below. If it didn't meet this requirement, you need to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If not, just create it. Within the file, a sample setting is given below. The actual available Mem is equal `memory - swap` assigned in the config file.  This is because WSL2's VM allocates a certain amount of memory, and Swap space is managed within that VM's memory allocation. This means the Swap memory consumes the RAM in WSL connection. Also, the actual Mem needs to be at least 2 times of the Swap so the WSL connection can work normally.
 
     [wsl2]               # this line is a must-have
-    memory=28GB          # Limits VM memory
+    memory=22GB          # Limits VM memory
     swap=8GB             # Sets swap file size
 
 Then, following the installation guidance using pip install, everything should be work.
 
 ## Potential issues:
 
-### 3.1 CUDA issues
+### 3.1 CUDA Issue
 
 If it shows error message like 'error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory', you need to double-check if CUDA v12 are correctly installed in the sllm and sllm-worker envs. Using 'nvcc --version' can check the installed version. The correct setting should be looking like this.
 
 ![alt text](cuda-version-check.png)
+
+### 3.2 Folder Access Issue
+
+If an error occurred while saving the model: No such file or directory: './models/vllm', it is probably because the `./models' folder created on the WSL connection are not accessible. Running `python3 ./examples/installation_on_windows/model_folder_checker.py` does a diagnosis on this access issue. (Make sure you are in the git cloned folder `ServerlessLLM`)

@@ -716,3 +716,6 @@ npm
 wsl
 envs
 libcudart
+Swap
+swap
+Mem
