@@ -35,7 +35,7 @@ If everything goes right, you should have this terminal. The command line starts
 
 
 ## 2 Configure the WSL connection
-Back to the installation of sllm, use `free -h` to check the memory status. After testing, the minimum setting is 22GB Mem and 8GB Swap as shown below. If it didn't meet this requirement, you need to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If not, just create it. Within the file, a sample setting is given below. The actual available Mem is equal `memory - swap` assigned in the config file.  This is because WSL2's VM allocates a certain amount of memory, and Swap space is managed within that VM's memory allocation. This means the Swap memory consumes the RAM in WSL connection. Also, the actual Mem needs to be at least 2 times of the Swap so the WSL connection can work normally.
+Back to the installation of sllm, use `free -h` to check the memory status. After testing, the minimum setting is 22GB Mem and 8GB Swap as shown below. If it didn't meet this requirement, you need to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If not, just create it. Within the file, copy and paste the setting below. WSL2's VM allocates a certain amount of memory, and Swap space is managed within that VM's memory allocation. This means the Swap memory potentially consumes the RAM in WSL connection. Therefore, the memory needs to be much bigger than Swap to run the sllm successfully. After testing on different WSL config settings, the minimum memory and swap required is listed below.
 
     [wsl2]               # this line is a must-have
     memory=22GB          # Limits VM memory
