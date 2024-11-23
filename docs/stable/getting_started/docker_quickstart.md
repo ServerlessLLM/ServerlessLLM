@@ -25,12 +25,11 @@ If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
 git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd serverlessllm/examples/docker/
+cd ServerlessLLM/examples/docker/
 ```
 
 ### Step 2:  Configuration
 
-Set the Model Directory
 Create a directory on your host machine where models will be stored and set the MODEL_FOLDER environment variable to point to this directory:
 
 ```bash

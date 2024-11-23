@@ -2,6 +2,7 @@
 
 To quickly set up a local ServerlessLLM cluster using Docker Compose, follow these steps:
 ```bash
+export MODEL_FOLDER=/path/to/models
 docker compose up -d --build
 ```
 

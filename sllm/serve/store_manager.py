@@ -23,6 +23,7 @@ from typing import List, Mapping, Optional
 
 import ray
 
+from sllm.serve.hardware_info_collector import collect_all_info
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
     VllmModelDownloader,
@@ -192,9 +193,9 @@ class SllmLocalStore:
 
 # @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class StoreManager:
-    def __init__(self, hardware_info: Optional[Mapping] = None):
+    def __init__(self):
         logger.info("Initializing store manager")
-        self.hardware_info = hardware_info
+        self.hardware_info = {}
 
         self.metadata_lock = asyncio.Lock()
         # Storage info
@@ -204,15 +205,39 @@ class StoreManager:
         self.model_storage_info = {}
 
     async def initialize_cluster(self) -> bool:
-        if not self.hardware_info:
-            logger.warning(
-                "Hardware info not provided. Storage-aware scheduling might not work properly"
-            )
+        logger.info("Initializing cluster and collecting hardware info")
+
+        # Get worker nodes
+        worker_node_info = get_worker_nodes()
+        if not worker_node_info:
+            logger.error("No worker nodes found")
             return False
 
+        # Initialize hardware_info dictionary
+        self.hardware_info = {}
+        # Collect hardware info from each node
+        hardware_info_futures = {
+            node_id: collect_all_info.options(
+                resources={f"worker_id_{node_id}": 0.01}
+            ).remote()
+            for node_id in worker_node_info
+        }
+
+        # Gather hardware info
+        for node_id, future in hardware_info_futures.items():
+            try:
+                hardware_info = await future
+                self.hardware_info[node_id] = hardware_info
+                logger.info(f"Hardware info collected for node {node_id}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to collect hardware info from node {node_id}: {e}"
+                )
+                continue
+
         uninitialized_nodes = list(self.hardware_info.keys())
+
         while len(uninitialized_nodes) > 0:
-            worker_node_info = get_worker_nodes()
             for node_id in uninitialized_nodes:
                 if node_id in worker_node_info:
                     node_address = worker_node_info[node_id]["address"]
@@ -346,13 +371,17 @@ class StoreManager:
             for node_id in target_nodes:
                 if backend == "transformers":
                     hf_model_class = backend_config.get("hf_model_class", None)
+                    torch_dtype = backend_config.get("torch_dtype", "float16")
                     if hf_model_class is None:
                         logger.error(
                             "hf_model_type not specified in backend_config."
                         )
                         break
                     await self.download_transformers_model(
-                        pretrained_model_name, node_id, hf_model_class
+                        pretrained_model_name,
+                        node_id,
+                        hf_model_class,
+                        torch_dtype,
                     )
                 elif backend == "vllm":
                     await self.download_vllm_model(
@@ -360,6 +389,7 @@ class StoreManager:
                         node_id,
                         model_config.get("num_gpus", 1),
                         backend_config.get("tensor_parallel_size", 1),
+                        torch_dtype,
                     )
                 else:
                     logger.error(f"Backend {backend} not supported")
@@ -378,15 +408,20 @@ class StoreManager:
             pass
 
     async def download_transformers_model(
-        self, pretrained_model_name, node_id, hf_model_class
+        self, pretrained_model_name, node_id, hf_model_class, torch_dtype
     ) -> int:
         logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
-        ).remote(pretrained_model_name, "float16", hf_model_class)
+        ).remote(pretrained_model_name, torch_dtype, hf_model_class)
 
     async def download_vllm_model(
-        self, pretrained_model_name, node_id, num_gpus, tensor_parallel_size
+        self,
+        pretrained_model_name,
+        node_id,
+        num_gpus,
+        tensor_parallel_size,
+        torch_dtype,
     ):
         logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
         vllm_backend_downloader = (
@@ -399,6 +434,6 @@ class StoreManager:
         )
         return await vllm_backend_downloader.download_vllm_model.remote(
             pretrained_model_name,
-            "float16",  # FIXME: use backend_config
+            torch_dtype,
             tensor_parallel_size,
         )

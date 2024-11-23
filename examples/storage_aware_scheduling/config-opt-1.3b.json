@@ -1,0 +1,19 @@
+{
+    "model": "facebook/opt-1.3b",
+    "backend": "transformers",
+    "num_gpus": 1,
+    "auto_scaling_config": {
+        "metric": "concurrency",
+        "target": 1,
+        "min_instances": 0,
+        "max_instances": 10
+    },
+    "placement_config": {
+        "target_nodes": ["1"]
+    },
+    "backend_config": {
+        "pretrained_model_name_or_path": "facebook/opt-1.3b",
+        "device_map": "auto",
+        "torch_dtype": "float16"
+    }
+}
