@@ -38,10 +38,10 @@ If everything goes right, you should have this terminal. The command line starts
 Back to the installation of sllm, use `free -h` to check the memory status. After testing, the minimum setting is 22GB Mem and 8GB Swap as shown below. If it didn't meet this requirement, you need to be set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If the file does not exist, simply create it. Within the file, copy and paste the setting below. WSL2's VM allocates a certain amount of memory, and Swap space is managed within that VM's memory allocation. This means the Swap memory potentially consumes the RAM in WSL connection. Therefore, the memory needs to be much bigger than Swap to run the sllm successfully. After testing on different WSL config settings, the minimum memory and swap required is listed below.
 
     [wsl2]               # this line is a must-have
-    memory=22GB          # Limits VM memory
+    memory=17GB          # Limits VM memory
     swap=8GB             # Sets swap file size
 
-Then, following the installation guidance using pip install, everything should be work.
+Next, restart the WSL connection to implement the changes by `wsl --shutdown` preceding `wsl`. Then, following the installation guidance using pip install, everything should work.
 
 ## Potential issues:
 
@@ -53,4 +53,5 @@ If it shows error message like 'error while loading shared libraries: libcudart.
 
 ### 3.2 Folder Access Issue
 
-If an error occurred while saving the model: No such file or directory: `./models/vllm`, it is probably because the `./models` folder created on the WSL connection are not accessible. Running `python3 ./examples/installation_on_windows/model_folder_checker.py` does a diagnosis on this access issue. (Make sure you are in the git cloned folder `ServerlessLLM`)
+If an error occurred while saving the model: No such file or directory: `./models/vllm`, it is probably because the `./models` folder created on the WSL connection are not accessible.
+Running `cd path_to_installation_on_windows; python3 model_folder_checker.py` does a diagnosis on this access issue.
