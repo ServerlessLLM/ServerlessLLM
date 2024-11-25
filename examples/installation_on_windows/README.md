@@ -1,43 +1,100 @@
 # Install ServerlessLLM on Windows Machines
 
+To install the ServerlessLLM dependencies, Ubuntu 20.04 is required according to the installation guide. Some packages, such as `vllm`, cannot be installed natively on Windows. Therefore, a Linux environment is necessary. Windows Subsystem for Linux (WSL) provides a convenient way to run Linux on Windows machines.
+
 ## 1 Windows Subsystem for Linux
-To install the ServerlessLLM dependencies, Ubuntu 20.04 is required by the installation guidance states. Packages, like vllm, cannot be installed on Windows. Therefore, the Windows machines require a sub-system to run Linux. Here, it's recommended downloading the Ubuntu app from Microsoft store and the WSL connection will allow to you install everything needed for. If you have more familiar to start Linux environment, please feel free to go ahead and share your experience with us. Generally speaking, it is a developed and stable app except WSL connection doesn't support GUI, and sometimes it can be nasty to set variable path.
+It is recommended to download the Ubuntu app from the Microsoft Store. This enables a fully functional Linux terminal environment.
+
+Advantages:
+Allows installation of all required dependencies.
+Seamlessly integrates with Windows.
+
+Limitations:
+WSL does not support GUI applications by default.
+Configuring variable paths can occasionally be challenging.
+
+You can install Ubuntu from the Microsoft Store.
 
 ![alt text](Ubuntu-app.png)
 
-Description:
-Install a complete Ubuntu terminal environment in minutes with Windows Subsystem for Linux (WSL). Develop cross-platform applications, improve your data science or web development workflows and manage IT infrastructure without leaving Windows.
+**Description**:
+Install a complete Ubuntu terminal environment in minutes using WSL. This allows you to:
+- Develop cross-platform applications.
+- Enhance workflows for data science or web development.
+- Manage IT infrastructure—all without leaving Windows.
 
-For more information about Ubuntu WSL and how Canonical supports developers please visit: https://ubuntu.com/wsl
+For more details on Ubuntu WSL and Canonical's developer support, visit: [https://ubuntu.com/wsl](https://ubuntu.com/wsl).
 
-A step-by-step guidance is available on YT https://www.youtube.com/watch?v=sUsTQTJFmjs given by ProgrammingKnowledge, it is really detailed (basically telling you which button to click).
+### 1.2 Setting Up WSL
+For a step-by-step video guide, check out this [YouTube tutorial](https://www.youtube.com/watch?v=sUsTQTJFmjs) by ProgrammingKnowledge. It covers the process in detail, including every button click.
 
-If everything goes right, you should have this terminal. The command line starts with your pre-set username.
+If the installation is successful, your terminal should look like this:
 
-<img src="wsl-terminal.png" alt="Description" width="800"/>
+<img src="wsl-terminal.png" alt="WSL Terminal" width="800"/>
 
+---
 
-## 2 Configure the WSL connection
-Back to the installation of ServerlessLLM, use `free -h` to check the memory status. After testing, the minimum setting is 17GB Mem and 8GB Swap as shown below. If it didn't meet this requirement, you need to set manually in the file `.wslconfig` which should locate in `C:\Users\your_username\`. If the file does not exist, simply create it. Within the file, copy and paste the setting below. WSL2's VM allocates a certain amount of memory, and Swap space is managed within that VM's memory allocation. This means the Swap memory potentially consumes the RAM in WSL connection. Therefore, the memory needs to be much bigger than Swap to run the ServerlessLLM successfully. After testing on different WSL config settings, the minimum memory and swap are shown below. Please feel free to increase them when necessary.
+## 2. Configuring WSL for ServerlessLLM
+
+### 2.1 Checking Memory Status
+To ensure smooth operation for the sample model, the WSL environment must meet the following minimum memory requirements:
+- **17GB Memory**
+- **8GB Swap**
+
+You can check the current memory status using:
+
+```bash
+free -h
+```
+
+If your configuration does not meet these requirements, you need to update the `.wslconfig` file located in C:\Users\your_username\\. If this file does not exist, create it manually.
+
+Add the following configuration to `.wslconfig`:
 
     [wsl2]               # this line is a must-have
     memory=17GB          # Limits VM memory
     swap=8GB             # Sets swap file size
 
-Next, restart the WSL connection to implement the changes by `wsl --shutdown` preceding `wsl`. Then, following the installation guidance using pip install, everything should work.
+### 2.2 Applying Changes
+Restart the WSL connection to apply changes:
+```bash
+wsl --shutdown
+wsl
+```
+
+After this, proceed with installing ServerlessLLM using `pip install` as instructed in the installation guide. If everything is configured correctly, the installation should proceed without issues.
 
 ## Potential issues:
 
 ### 3.1 CUDA Issue
 
-If it shows error message like 'error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory', you need to double-check if CUDA v12 are correctly installed in the ServerlessLLM and sllm-worker envs. Using 'nvcc --version' can check the installed version. The correct setting should be looking like this.
+If you encounter an error such as
+```vbnet
+error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory'
+```
+
+Follow these steps:
+
+1. Verify that CUDA v12 is correctly installed in both the ServerlessLLM and sllm-worker environments.
+2. Use the following command to check the CUDA version:
+
+```bash
+nvcc --version
+```
+The output should look similar to this:
 
 ![alt text](cuda-version-check.png)
 
 ### 3.2 Folder Access Issue
 
-If an error occurred while saving the model: No such file or directory: `./models/vllm`, it is probably because the `./models` folder created on the WSL connection are not accessible.
-Running the codes below does a diagnosis on this access issue.
+If an error occurred while saving the model, like
+```vbnet
+No such file or directory: `./models/vllm`
+```
 
-    cd examples/installation_on_windows/
-    python model_folder_checker.py
+This issue is likely due to the `./models` folder created in the WSL environment not being accessible. Run the following commands to diagnose the issue:
+
+```bash
+cd ServerlessLLM/examples/installation_on_windows/
+python model_folder_checker.py
+```
