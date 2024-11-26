@@ -51,7 +51,7 @@ The minimum setting to start `sllm-store-server` is
 memory=5GB           # Limits VM memory
 swap=2GB             # Sets swap file size
 ```
-However, depending on the size of models you want to deploy, you need to increase the configuration accordingly in most cases. For example, the WSL environment must meet the following minimum memory requirements to deploy the sample model. Using the Hugging Face backend can avoid the issue with passing the dtype parameter to the vLLM model downloader. Also, it allows a much faster deployment. Therefore, it is recommended to use the command below to deploy the `facebook/opt-13.b` model.
+However, depending on the size of models you want to deploy, you need to increase the configuration accordingly in most cases. For example, the WSL environment must meet the following minimum memory requirements to deploy the sample model. Using the Hugging Face backend can avoid the issue with passing the dtype parameter to the vLLM model downloader. Also, it allows a much faster deployment. Therefore, it is recommended to use the command below to deploy the `facebook/opt-1.3b` model.
 
 ```bash
 sllm-cli deploy --model facebook/opt-1.3b --backend transformers
