@@ -719,3 +719,5 @@ libcudart
 Swap
 swap
 Mem
+natively
+ProgrammingKnowledge
