@@ -1,4 +1,5 @@
 import os
+import shutil
 
 
 def is_folder_accessible(folder_path):
@@ -23,16 +24,35 @@ def is_folder_accessible(folder_path):
 
 def main():
     home_dir = os.path.expanduser("~")
-    model_path = home_dir + "/models"
+    model_path = os.path.join(home_dir, "models")
     if is_folder_accessible(model_path):
-        print("The '~/models' folder exists")
+        print("The '~/models' folder exists and is accessible.")
     else:
-        print(
-            "Access issue detected, trying to create the model/ folder in home directory."
-        )
-        input("Press Enter to continue...")
-        os.makedirs(model_path)
-        print("The '~/models' folder is successfully created")
+        print("Access issue detected with '~/models' folder.")
+        if os.path.exists(model_path):
+            print("Attempting to delete the inaccessible '~/models' folder...")
+            try:
+                shutil.rmtree(model_path)
+                print("Inaccessible folder deleted successfully.")
+            except PermissionError:
+                print("Permission denied: Cannot delete the '~/models' folder.")
+                return
+            except Exception as e:
+                print(f"An error occurred while deleting the folder: {e}")
+                return
+        else:
+            print(
+                "The '~/models' folder does not exist. No deletion necessary."
+            )
+
+        # Attempt to create the folder after deletion
+        try:
+            os.makedirs(model_path)
+            print("The '~/models' folder has been successfully created.")
+        except PermissionError:
+            print("Permission denied: Cannot create the '~/models' folder.")
+        except Exception as e:
+            print(f"An error occurred while creating the folder: {e}")
 
 
 if __name__ == "__main__":

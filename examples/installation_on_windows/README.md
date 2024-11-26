@@ -103,3 +103,10 @@ This issue is likely due to the `./models` folder created in the WSL environment
 cd ServerlessLLM/examples/installation_on_windows/
 python model_folder_checker.py
 ```
+
+It will try to solve the access issue by deleting the inaccessible `./models` folder and creating a new one. If it encounters an error, like `Permission denied: Cannot delete the '~/models' folder.`, you can always check your home directory and force delete the inaccessible folder. Then, run `model_folder_checker.py` again.
+
+```
+ls -a # check if the models folder is red, meaning it is not accessible
+rm -rf FOLDER_TO_BE_DELETED
+```
