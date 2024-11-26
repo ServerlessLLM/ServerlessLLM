@@ -75,7 +75,7 @@ After this, proceed with installing ServerlessLLM using `pip install` as instruc
 
 If you encounter an error such as
 ```vbnet
-error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory'
+error while loading shared libraries: libcudart.so.12: cannot open shared object file: No such file or directory
 ```
 
 Follow these steps:
