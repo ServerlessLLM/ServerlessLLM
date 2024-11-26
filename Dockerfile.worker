@@ -52,7 +52,7 @@ COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
 COPY sllm_store/setup.cfg /app/sllm_store/setup.cfg
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
-COPY sllm_store/proto /app/sllm_store/proto
+COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
 RUN cd sllm_store && \
   pip install -r requirements.txt && \
   pip install setuptools wheel  && \
@@ -88,8 +88,8 @@ COPY requirements-worker.txt /app/requirements-worker.txt
 COPY sllm_store/vllm_patch /app/vllm_patch
 
 # Install the built wheels
-RUN pip install /app/dist/*.whl
-RUN pip install /app/sllm_store/dist/*.whl
+RUN pip install /app/dist/*.whl --force-reinstall
+RUN pip install /app/sllm_store/dist/*.whl --force-reinstall
 
 # Install the worker requirements
 RUN pip install -r requirements-worker.txt
