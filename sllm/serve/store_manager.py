@@ -278,8 +278,13 @@ class StoreManager:
                                 f"Chunk size not found in server config for node {node_id}"  # noqa: E501
                             )
                         chunk_size = local_server_config["chunk_size"]
+                        if "mem_pool_size" not in local_server_config:
+                            logger.error(
+                                f"Memory pool size not found in server config for node {node_id}"
+                            )
+                        mem_pool_size = local_server_config["mem_pool_size"]
                         self.local_servers[node_id] = SllmLocalStore(
-                            node_id, sllm_store_client, chunk_size
+                            node_id, sllm_store_client, mem_pool_size, chunk_size, self.hardware_info[node_id]
                         )
                         self.local_servers[
                             node_id
