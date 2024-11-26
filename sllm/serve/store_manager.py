@@ -389,7 +389,7 @@ class StoreManager:
                         node_id,
                         model_config.get("num_gpus", 1),
                         backend_config.get("tensor_parallel_size", 1),
-                        torch_dtype.get("torch_dtype", "float16"),
+                        backend_config.get("torch_dtype", "float16"),
                     )
                 else:
                     logger.error(f"Backend {backend} not supported")
