@@ -37,23 +37,32 @@ If the installation is successful, your terminal should look like this:
 ## 2. Configuring WSL for ServerlessLLM
 
 ### 2.1 Checking Memory Status
-To ensure smooth operation for the sample model, the WSL environment must meet the following minimum memory requirements:
-- **17GB Memory**
-- **8GB Swap**
 
+If your configuration does not meet the requirements below, you need to update the `.wslconfig` file located in C:\Users\your_username\\. If this file does not exist, create it manually.
 You can check the current memory status using:
 
 ```bash
 free -h
 ```
 
-If your configuration does not meet these requirements, you need to update the `.wslconfig` file located in C:\Users\your_username\\. If this file does not exist, create it manually.
+The minimum setting to start `sllm-store-server` is
+```bash
+[wsl2]               # this line is a must-have
+memory=5GB           # Limits VM memory
+swap=2GB             # Sets swap file size
+```
+However, depending on the size of models you want to deploy, you need to increase the configuration accordingly in most cases. For example, the WSL environment must meet the following minimum memory requirements to deploy the sample model. Using the Hugging Face backend can avoid the issue with passing the dtype parameter to the vLLM model downloader. Also, it allows a much faster deployment. Therefore, it is recommended to use the command below to deploy the `facebook/opt-13.b` model.
 
-Add the following configuration to `.wslconfig`:
+```bash
+sllm-cli deploy --model facebook/opt-1.3b --backend transformers
+```
 
-    [wsl2]               # this line is a must-have
-    memory=17GB          # Limits VM memory
-    swap=8GB             # Sets swap file size
+```bash
+[wsl2]               # this line is a must-have
+memory=16GB          # Limits VM memory
+swap=8GB             # Sets swap file size
+```
+
 
 ### 2.2 Applying Changes
 Restart the WSL connection to apply changes:
