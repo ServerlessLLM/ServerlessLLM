@@ -118,18 +118,22 @@ class SllmLocalStore:
             _, model_size = self.disk_models[model_name]
             start_time = time.time()
             if len(self.io_queue) > 0:
-                start_time = self.io_queue[-1]["estimated_time"]
+                start_time = max(
+                    self.io_queue[-1]["estimated_time"], start_time
+                )
             disk_bandwidth = self.hardware_info.get("disk_bandwidth", 1)
+            estimated_completion_time = start_time + model_size / disk_bandwidth
             self.io_queue.append(
                 {
                     "model_name": model_name,
-                    "estimated_time": start_time + model_size / disk_bandwidth,
+                    "estimated_time": estimated_completion_time,
                 }
             )
             self.queued_models[model_name] = True
             logger.info(
-                f"{model_name} is being loaded to node {self.node_id}, "
-                f"estimated time: {self.io_queue[-1]['estimated_time']}"
+                f"{model_name} is being loaded to node {self.node_id},"
+                " estimated completion time: "
+                f"{self._format_time(estimated_completion_time)}"
             )
             return True
 
@@ -203,6 +207,9 @@ class SllmLocalStore:
 
     async def _get_model_path(self, model_name, backend):
         return os.path.join(backend, model_name)
+
+    def _format_time(self, t):
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
 
 
 # @ray.remote(num_cpus=1, resources={"control_node": 0.1})
