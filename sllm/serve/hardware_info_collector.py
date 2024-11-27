@@ -21,9 +21,8 @@ def collect_all_info():
     Collect all hardware information and return as a dictionary.
     """
     hardware_info = {}
-    hardware_info["host_size"] = get_memory_info()
-    hardware_info["host_bandwidth"] = benchmark_memory_bandwidth()
-    hardware_info["pcie_bandwidth"] = "N/A"  # TODO: Not implemented
+    # TODO: collect pcie_bandwidth
+    hardware_info["pcie_bandwidth"] = 25000000000  # 25 GB/s, PCIe 4.0 x16
     hardware_info["disk_size"] = get_disk_info()
     write_bw, read_bw = benchmark_disk_bandwidth()
     hardware_info["disk_bandwidth"] = (
@@ -51,36 +50,6 @@ def get_memory_info():
         return mem.total
     except Exception as e:
         logger.error(f"Failed to retrieve memory info: {e}")
-        return "N/A"
-
-
-def benchmark_memory_bandwidth(num_iterations=5):
-    """
-    Estimates memory bandwidth by performing memory operations multiple times.
-    Args:
-        num_iterations (int): Number of iterations to run.
-    Returns:
-        str: Average memory bandwidth in B/s
-    """
-    bandwidth_results = []
-    try:
-        size = 100 * 1024 * 1024  # 100 MB
-        for _ in range(num_iterations):
-            data = bytearray(os.urandom(size))
-            start_time = time.time()
-            # Simulate memory operations
-            for _ in range(10):
-                data = bytearray(data)
-            end_time = time.time()
-            elapsed = end_time - start_time
-            # Calculate bandwidth in B/s
-            bandwidth_b_s = size * 10 / elapsed
-            bandwidth_results.append(bandwidth_b_s)
-        # Calculate average bandwidth
-        average_bandwidth = sum(bandwidth_results) / len(bandwidth_results)
-        return average_bandwidth
-    except Exception as e:
-        logger.error(f"Memory bandwidth benchmark failed: {e}")
         return "N/A"
 
 
