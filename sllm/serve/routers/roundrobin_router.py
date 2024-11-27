@@ -221,7 +221,7 @@ class RoundRobinRouter(SllmRouter):
                 logger.info("Creating new instance")
                 await self._create_instance()
             elif desired_instances < num_running_instances:
-                keep_alive = auto_scaling_config["keep_alive"]
+                keep_alive = auto_scaling_config.get("keep_alive", -1)
                 if self.idle_time > keep_alive:
                     logger.info(
                         f"Stopping instance, idle_time: {self.idle_time}, keep_alive: {keep_alive}"
