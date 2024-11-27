@@ -62,7 +62,7 @@ class SllmLocalStore:
         self.loader = asyncio.create_task(self.loading_loop())
 
         logger.info(
-            f"Initalized local store for node {self.node_id}"
+            f"Initialized local store for node {self.node_id}"
             f" with {self.pinned_memory_pool_chunks} chunks"
             f" (chunk size: {chunk_size})"
         )
