@@ -66,6 +66,7 @@ class RoundRobinRouter(SllmRouter):
         self.backend = backend
         self.backend_config = backend_config
 
+        self.loop_interval = 1
         self.loop = asyncio.get_running_loop()
         self.request_queue = asyncio.Queue()  # type:ignore
         self.starting_instances: Dict[str, InstanceHandle] = {}  # type:ignore
@@ -81,6 +82,9 @@ class RoundRobinRouter(SllmRouter):
 
         self.running = False
         self.running_lock = asyncio.Lock()
+
+        self.idle_time = 0
+        self.idle_time_lock = asyncio.Lock()
 
         self.auto_scaler = None
         logger.info(f"Created new handler for model {self.model_name}")
@@ -113,6 +117,9 @@ class RoundRobinRouter(SllmRouter):
 
         async with self.request_count_lock:
             self.request_count += 1
+
+        async with self.idle_time_lock:
+            self.idle_time = 0
 
         instance_allocation = self.loop.create_future()
         await self.request_queue.put(instance_allocation)
@@ -192,7 +199,7 @@ class RoundRobinRouter(SllmRouter):
                         instance_allocation.set_result(instance_id)
 
                 if not allocated:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(self.loop_interval)
 
     async def _auto_scaler_loop(self):
         while True:
@@ -214,12 +221,24 @@ class RoundRobinRouter(SllmRouter):
                 logger.info("Creating new instance")
                 await self._create_instance()
             elif desired_instances < num_running_instances:
-                logger.info("Stopping instance")
-                await self._stop_instance()
+                keep_alive = auto_scaling_config["keep_alive"]
+                if self.idle_time > keep_alive:
+                    logger.info(
+                        f"Stopping instance, idle_time: {self.idle_time}, keep_alive: {keep_alive}"
+                    )
+                    await self._stop_instance()
+                    async with self.idle_time_lock:
+                        self.idle_time = 0
+                else:
+                    logger.info(
+                        f"idle_time: {self.idle_time}, keep_alive: {keep_alive}"
+                    )
+                    async with self.idle_time_lock:
+                        self.idle_time += self.loop_interval
             else:
                 # logger.info("No scaling needed")
                 pass
-            await asyncio.sleep(1)
+            await asyncio.sleep(self.loop_interval)
 
     async def _create_instance(self):
         instance_id = self._new_instance_id()
