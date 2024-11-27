@@ -284,7 +284,11 @@ class StoreManager:
                             )
                         mem_pool_size = local_server_config["mem_pool_size"]
                         self.local_servers[node_id] = SllmLocalStore(
-                            node_id, sllm_store_client, mem_pool_size, chunk_size, self.hardware_info[node_id]
+                            node_id,
+                            sllm_store_client,
+                            mem_pool_size,
+                            chunk_size,
+                            self.hardware_info[node_id],
                         )
                         self.local_servers[
                             node_id
