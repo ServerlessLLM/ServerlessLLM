@@ -74,7 +74,7 @@ class SllmLocalStore:
             if model_name in self.disk_models:
                 logger.error(f"{model_name} already registered")
                 return
-            model_path = await self._get_model_path(model_name, backend)
+            model_path = self._get_model_path(model_name, backend)
             if backend == "transformers":
                 model_size = self.client.register_model(model_path)
             elif backend == "vllm":
@@ -205,7 +205,7 @@ class SllmLocalStore:
                 <= self.pinned_memory_pool_chunks
             )
 
-    async def _get_model_path(self, model_name, backend):
+    def _get_model_path(self, model_name, backend):
         return os.path.join(backend, model_name)
 
     def _format_time(self, t):
