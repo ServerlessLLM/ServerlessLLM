@@ -39,9 +39,8 @@ class TransformersBackend(SllmBackend):
     ) -> None:
         self.backend_config = backend_config
         logger.info(
-            f"Initializing TransformersBackend with config: {backend_config}"
+            f"Initializing TransformersBackend for {model_name} with config: {backend_config}"
         )
-        # self.model_name = backend_config.get("pretrained_model_name_or_path")
         self.model_name = model_name
         self.model_name_or_path = backend_config.get(
             "pretrained_model_name_or_path"
@@ -90,7 +89,9 @@ class TransformersBackend(SllmBackend):
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name_or_path
+            )
             self.model_initialized = True
 
     def _tokenize(self, prompt: str):

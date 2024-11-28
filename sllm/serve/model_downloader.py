@@ -36,7 +36,6 @@ logger = logging.getLogger("ray")
 #     return total_size
 
 
-# FEAT support local model path
 @ray.remote(num_cpus=1)
 def download_transformers_model(
     model_name: str,
@@ -65,7 +64,6 @@ def download_transformers_model(
         model_name_or_path,
         torch_dtype=torch_dtype,
         trust_remote_code=True,
-        # model_name, torch_dtype=torch_dtype, trust_remote_code=True
     )
 
     from sllm_store.transformers import save_model

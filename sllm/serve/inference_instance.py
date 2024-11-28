@@ -45,5 +45,5 @@ def start_instance(
         raise ValueError(f"Unknown backend: {backend}")
 
     return model_backend_cls.options(name=instance_id, **startup_config).remote(
-        model_name=model_name, backend_config=backend_config
+        model_name, backend_config
     )
