@@ -34,12 +34,18 @@ logger = init_logger(__name__)
 
 
 class TransformersBackend(SllmBackend):
-    def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         self.backend_config = backend_config
         logger.info(
             f"Initializing TransformersBackend with config: {backend_config}"
         )
-        self.model_name = backend_config.get("pretrained_model_name_or_path")
+        # self.model_name = backend_config.get("pretrained_model_name_or_path")
+        self.model_name = model_name
+        self.model_name_or_path = backend_config.get(
+            "pretrained_model_name_or_path"
+        )
         self.model = None
         self.model_initialized = False
         self.model_status_lock = asyncio.Lock()

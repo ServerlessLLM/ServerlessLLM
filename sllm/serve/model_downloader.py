@@ -36,9 +36,13 @@ logger = logging.getLogger("ray")
 #     return total_size
 
 
+# FEAT support local model path
 @ray.remote(num_cpus=1)
 def download_transformers_model(
-    model_name: str, torch_dtype: str, hf_model_class: str
+    model_name: str,
+    model_name_or_path: str,
+    torch_dtype: str,
+    hf_model_class: str,
 ) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
@@ -58,7 +62,10 @@ def download_transformers_model(
     module = importlib.import_module("transformers")
     hf_model_cls = getattr(module, hf_model_class)
     model = hf_model_cls.from_pretrained(
-        model_name, torch_dtype=torch_dtype, trust_remote_code=True
+        model_name_or_path,
+        torch_dtype=torch_dtype,
+        trust_remote_code=True,
+        # model_name, torch_dtype=torch_dtype, trust_remote_code=True
     )
 
     from sllm_store.transformers import save_model

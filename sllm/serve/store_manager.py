@@ -378,6 +378,7 @@ class StoreManager:
                         )
                         break
                     await self.download_transformers_model(
+                        model_name,
                         pretrained_model_name,
                         node_id,
                         hf_model_class,
@@ -408,12 +409,17 @@ class StoreManager:
             pass
 
     async def download_transformers_model(
-        self, pretrained_model_name, node_id, hf_model_class, torch_dtype
+        self,
+        model_name,
+        pretrained_model_name,
+        node_id,
+        hf_model_class,
+        torch_dtype,
     ) -> int:
         logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
-        ).remote(pretrained_model_name, torch_dtype, hf_model_class)
+        ).remote(model_name, pretrained_model_name, torch_dtype, hf_model_class)
 
     async def download_vllm_model(
         self,
