@@ -39,20 +39,6 @@ def collect_all_info():
     return hardware_info
 
 
-def get_memory_info():
-    """
-    Retrieves total system memory.
-    Returns:
-        str: Total memory in B
-    """
-    try:
-        mem = psutil.virtual_memory()
-        return mem.total
-    except Exception as e:
-        logger.error(f"Failed to retrieve memory info: {e}")
-        return "N/A"
-
-
 def get_disk_info():
     """
     Retrieves total size of the primary disk partition.
