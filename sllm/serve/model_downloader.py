@@ -91,6 +91,7 @@ class VllmModelDownloader:
     def download_vllm_model(
         self,
         model_name: str,
+        pretrained_model_name_or_path: str,
         torch_dtype: str,
         tensor_parallel_size: int = 1,
         pattern: Optional[str] = None,
@@ -111,55 +112,59 @@ class VllmModelDownloader:
             return
 
         try:
-            with TemporaryDirectory() as cache_dir:
-                # download from huggingface
-                input_dir = snapshot_download(
-                    model_name,
-                    cache_dir=cache_dir,
-                    allow_patterns=[
-                        "*.safetensors",
-                        "*.bin",
-                        "*.json",
-                        "*.txt",
-                    ],
-                )
-                logger.info(input_dir)
-                # load models from the input directory
-                llm_writer = LLM(
-                    model=input_dir,
-                    download_dir=input_dir,
-                    dtype=torch_dtype,
-                    tensor_parallel_size=tensor_parallel_size,
-                    num_gpu_blocks_override=1,
-                    enforce_eager=True,
-                    max_model_len=1,
-                )
-                model_executer = llm_writer.llm_engine.model_executor
-                # save the models in the ServerlessLLM format
-                model_executer.save_serverless_llm_state(
-                    path=model_path, pattern=pattern, max_size=max_size
-                )
-                for file in os.listdir(input_dir):
-                    # Copy the metadata files into the output directory
-                    if os.path.splitext(file)[1] not in (
-                        ".bin",
-                        ".pt",
-                        ".safetensors",
-                    ):
-                        src_path = os.path.join(input_dir, file)
-                        dest_path = os.path.join(model_path, file)
-                        logger.info(src_path)
-                        logger.info(dest_path)
-                        if os.path.isdir(src_path):
-                            shutil.copytree(src_path, dest_path)
-                        else:
-                            shutil.copy(src_path, dest_path)
-                del model_executer
-                del llm_writer
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                    torch.cuda.synchronize()
+            if os.path.exists(pretrained_model_name_or_path):
+                input_dir = pretrained_model_name_or_path
+            else:
+                with TemporaryDirectory() as cache_dir:
+                    # download from huggingface
+                    input_dir = snapshot_download(
+                        model_name,
+                        cache_dir=cache_dir,
+                        allow_patterns=[
+                            "*.safetensors",
+                            "*.bin",
+                            "*.json",
+                            "*.txt",
+                        ],
+                    )
+            logger.info(input_dir)
+
+            # load models from the input directory
+            llm_writer = LLM(
+                model=input_dir,
+                download_dir=input_dir,
+                dtype=torch_dtype,
+                tensor_parallel_size=tensor_parallel_size,
+                num_gpu_blocks_override=1,
+                enforce_eager=True,
+                max_model_len=1,
+            )
+            model_executer = llm_writer.llm_engine.model_executor
+            # save the models in the ServerlessLLM format
+            model_executer.save_serverless_llm_state(
+                path=model_path, pattern=pattern, max_size=max_size
+            )
+            for file in os.listdir(input_dir):
+                # Copy the metadata files into the output directory
+                if os.path.splitext(file)[1] not in (
+                    ".bin",
+                    ".pt",
+                    ".safetensors",
+                ):
+                    src_path = os.path.join(input_dir, file)
+                    dest_path = os.path.join(model_path, file)
+                    logger.info(src_path)
+                    logger.info(dest_path)
+                    if os.path.isdir(src_path):
+                        shutil.copytree(src_path, dest_path)
+                    else:
+                        shutil.copy(src_path, dest_path)
+            del model_executer
+            del llm_writer
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir

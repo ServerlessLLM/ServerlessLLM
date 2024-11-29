@@ -109,7 +109,9 @@ class VllmBackend(SllmBackend):
     # - stop: stops every ongoing request and then stops the backend
     # - get_current_tokens: returns a list of all ongoing request tokens
     # - resume_kv_cache: resumes the key-value cache for the given requests
-    def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, model: str, backend_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         if backend_config is None:
             raise ValueError("Backend config is missing")
 
@@ -126,7 +128,7 @@ class VllmBackend(SllmBackend):
         }
         # warp to set model name
         # TODO: Change the format of model from 'pretrained_model_name_or_path' to 'model'
-        model = backend_config.get("pretrained_model_name_or_path")
+        # model = backend_config.get("pretrained_model_name_or_path")
 
         load_format = backend_config.get("load_format")
         torch_dtype = backend_config.get("torch_dtype")
@@ -135,7 +137,9 @@ class VllmBackend(SllmBackend):
 
         if load_format is not None:
             filtered_engine_config["load_format"] = load_format
-            filtered_engine_config["model"] = model
+            filtered_engine_config["model"] = backend_config.get(
+                "pretrained_model_name_or_path"
+            )
         else:
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = os.path.join(storage_path, "vllm", model)

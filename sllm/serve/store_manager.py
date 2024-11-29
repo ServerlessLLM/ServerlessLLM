@@ -386,6 +386,7 @@ class StoreManager:
                     )
                 elif backend == "vllm":
                     await self.download_vllm_model(
+                        model_name,
                         pretrained_model_name,
                         node_id,
                         model_config.get("num_gpus", 1),
@@ -423,6 +424,7 @@ class StoreManager:
 
     async def download_vllm_model(
         self,
+        model_name,
         pretrained_model_name,
         node_id,
         num_gpus,
@@ -439,6 +441,7 @@ class StoreManager:
             .remote()
         )
         return await vllm_backend_downloader.download_vllm_model.remote(
+            model_name,
             pretrained_model_name,
             torch_dtype,
             tensor_parallel_size,
