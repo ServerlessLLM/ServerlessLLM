@@ -65,6 +65,7 @@ class CheckpointStore {
 
  public:
   // Get methods
+  size_t GetMemPoolSize() const { return memory_pool_size_; }
   size_t GetChunkSize() const { return chunk_size_; }
 
  private:
