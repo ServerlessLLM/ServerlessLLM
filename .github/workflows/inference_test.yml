@@ -54,7 +54,6 @@ jobs:
           pip install serverless-llm
           pip install serverless-llm-store
           pip install --upgrade "ray[default]"
-          pip install --upgrade protobuf
           nohup ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' &
           sleep 60
 
@@ -65,7 +64,6 @@ jobs:
           pip install serverless-llm[worker]
           pip install serverless-llm-store
           pip install --upgrade "ray[default]"
-          pip install --upgrade protobuf
           nohup ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' &
           sleep 60
 
