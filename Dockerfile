@@ -52,7 +52,7 @@ COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
 COPY sllm_store/setup.cfg /app/sllm_store/setup.cfg
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
-COPY sllm_store/proto /app/sllm_store/proto
+COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
 RUN cd sllm_store && \
   pip install -r requirements.txt && \
   pip install setuptools wheel  && \
@@ -84,8 +84,8 @@ COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
 
 # Install the built wheels
-RUN pip install /app/dist/*.whl
-RUN pip install /app/sllm_store/dist/*.whl
+RUN pip install /app/dist/*.whl --force-reinstall
+RUN pip install /app/sllm_store/dist/*.whl --force-reinstall
 
 # Copy the entrypoint
 COPY entrypoint.sh .
