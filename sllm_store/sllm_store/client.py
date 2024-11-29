@@ -151,4 +151,7 @@ class SllmStoreClient:
             logger.error(f"Error: {e}")
             return None
         else:
-            return {"chunk_size": response.chunk_size}
+            return {
+                "chunk_size": response.chunk_size,
+                "mem_pool_size": response.mem_pool_size,
+            }
