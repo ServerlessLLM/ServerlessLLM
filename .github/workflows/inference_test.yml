@@ -17,7 +17,7 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing') || github.event_name == 'workflow_dispatch'
     container:
       image: pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
-      options: --gpus all
+      options: --gpus all --volume /shared/protos:/protos
     defaults:
       run:
           shell: bash -l {0}
