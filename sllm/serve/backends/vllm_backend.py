@@ -126,9 +126,6 @@ class VllmBackend(SllmBackend):
         filtered_engine_config = {
             k: v for k, v in backend_config.items() if k in async_engine_fields
         }
-        # warp to set model name
-        # TODO: Change the format of model from 'pretrained_model_name_or_path' to 'model'
-        # model = backend_config.get("pretrained_model_name_or_path")
 
         load_format = backend_config.get("load_format")
         torch_dtype = backend_config.get("torch_dtype")

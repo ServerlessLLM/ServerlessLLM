@@ -330,8 +330,7 @@ class StoreManager:
             logger.info(f"Registering new {model_name}")
 
             backend = model_config.get("backend", None)
-
-            pretrained_model_name = backend_config.get(
+            pretrained_model_name_or_path = backend_config.get(
                 "pretrained_model_name_or_path", None
             )
             # 1. download this model to one worker using round-robin
@@ -366,7 +365,7 @@ class StoreManager:
                 target_nodes = [node_id]
 
             logger.info(
-                f"Downloading model {pretrained_model_name} to nodes {target_nodes}"  # noqa: E501
+                f"Downloading model {pretrained_model_name_or_path} to nodes {target_nodes}"  # noqa: E501
             )
             for node_id in target_nodes:
                 if backend == "transformers":
@@ -379,7 +378,7 @@ class StoreManager:
                         break
                     await self.download_transformers_model(
                         model_name,
-                        pretrained_model_name,
+                        pretrained_model_name_or_path,
                         node_id,
                         hf_model_class,
                         torch_dtype,
@@ -387,7 +386,7 @@ class StoreManager:
                 elif backend == "vllm":
                     await self.download_vllm_model(
                         model_name,
-                        pretrained_model_name,
+                        pretrained_model_name_or_path,
                         node_id,
                         model_config.get("num_gpus", 1),
                         backend_config.get("tensor_parallel_size", 1),
@@ -412,26 +411,35 @@ class StoreManager:
     async def download_transformers_model(
         self,
         model_name,
-        pretrained_model_name,
+        pretrained_model_name_or_path,
         node_id,
         hf_model_class,
         torch_dtype,
     ) -> int:
-        logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
+        logger.info(
+            f"Downloading {pretrained_model_name_or_path} to node {node_id}"
+        )
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
-        ).remote(model_name, pretrained_model_name, torch_dtype, hf_model_class)
+        ).remote(
+            model_name,
+            pretrained_model_name_or_path,
+            torch_dtype,
+            hf_model_class,
+        )
 
     async def download_vllm_model(
         self,
         model_name,
-        pretrained_model_name,
+        pretrained_model_name_or_path,
         node_id,
         num_gpus,
         tensor_parallel_size,
         torch_dtype,
     ):
-        logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
+        logger.info(
+            f"Downloading {pretrained_model_name_or_path} to node {node_id}"
+        )
         vllm_backend_downloader = (
             ray.remote(VllmModelDownloader)
             .options(
@@ -442,7 +450,7 @@ class StoreManager:
         )
         return await vllm_backend_downloader.download_vllm_model.remote(
             model_name,
-            pretrained_model_name,
+            pretrained_model_name_or_path,
             torch_dtype,
             tensor_parallel_size,
         )

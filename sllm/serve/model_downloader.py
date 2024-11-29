@@ -39,7 +39,7 @@ logger = logging.getLogger("ray")
 @ray.remote(num_cpus=1)
 def download_transformers_model(
     model_name: str,
-    model_name_or_path: str,
+    pretrained_model_name_or_path: str,
     torch_dtype: str,
     hf_model_class: str,
 ) -> bool:
@@ -61,7 +61,7 @@ def download_transformers_model(
     module = importlib.import_module("transformers")
     hf_model_cls = getattr(module, hf_model_class)
     model = hf_model_cls.from_pretrained(
-        model_name_or_path,
+        pretrained_model_name_or_path,
         torch_dtype=torch_dtype,
         trust_remote_code=True,
     )

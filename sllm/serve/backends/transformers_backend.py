@@ -42,7 +42,7 @@ class TransformersBackend(SllmBackend):
             f"Initializing TransformersBackend for {model_name} with config: {backend_config}"
         )
         self.model_name = model_name
-        self.model_name_or_path = backend_config.get(
+        self.pretrained_model_name_or_path = backend_config.get(
             "pretrained_model_name_or_path"
         )
         self.model = None
@@ -90,7 +90,7 @@ class TransformersBackend(SllmBackend):
                 hf_model_class=hf_model_class,
             )
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name_or_path
+                self.pretrained_model_name_or_path
             )
             self.model_initialized = True
 
