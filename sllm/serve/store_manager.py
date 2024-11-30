@@ -97,7 +97,7 @@ class SllmLocalStore:
                 delta_time = self.io_queue[-1]["estimated_time"] - time.time()
                 if delta_time < 0:
                     delta_time = 0
-            return self.disk_models, self.pinned_memory_pool, delta_time
+            return [self.disk_models, self.pinned_memory_pool, delta_time]
 
     async def load_to_host(self, model_name: str) -> bool:
         async with self.lock:
@@ -297,9 +297,6 @@ class StoreManager:
                             chunk_size,
                             self.hardware_info[node_id],
                         )
-                        self.local_servers[
-                            node_id
-                        ].hardware_info = self.hardware_info[node_id]
                         uninitialized_nodes.remove(node_id)
                         logger.info(
                             f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
@@ -373,18 +370,17 @@ class StoreManager:
             for node_id, node_info in worker_node_info.items():
                 node_address = node_info["address"]
                 if node_id not in self.local_servers:
-                    self.local_servers[node_id] = SllmLocalStore(
-                        node_id, SllmStoreClient(f"{node_address}:8073"), 1
-                    )
+                    logger.error(f"Node {node_id} not found")
+                    raise ValueError(f"Node {node_id} not found")
 
-            target_nodes = []
-            if placement_config and "target_nodes" in placement_config:
-                target_nodes = placement_config["target_nodes"]
+            local_disk = []
+            if placement_config and "local_disk" in placement_config:
+                local_disk = placement_config["local_disk"]
                 if not all(
-                    [node_id in worker_node_info for node_id in target_nodes]
+                    [node_id in worker_node_info for node_id in local_disk]
                 ):
                     logger.error(
-                        f"Invalid target nodes {target_nodes}, worker nodes: {worker_node_info}"  # noqa: E501
+                        f"Invalid target nodes {local_disk}, worker nodes: {worker_node_info}"  # noqa: E501
                     )
                     return
             else:
@@ -393,12 +389,23 @@ class StoreManager:
                     self.round_robin_index % n_nodes
                 ]
                 self.round_robin_index += 1
-                target_nodes = [node_id]
+                local_disk = [node_id]
+
+            memory_pool = []
+            if placement_config and "memory_pool" in placement_config:
+                memory_pool = placement_config["memory_pool"]
+                if not all(
+                    [node_id in worker_node_info for node_id in memory_pool]
+                ):
+                    logger.error(
+                        f"Invalid target nodes {memory_pool}, worker nodes: {worker_node_info}"  # noqa: E501
+                    )
+                    return
 
             logger.info(
-                f"Downloading model {pretrained_model_name} to nodes {target_nodes}"  # noqa: E501
+                f"Downloading model {pretrained_model_name} to nodes {local_disk}"  # noqa: E501
             )
-            for node_id in target_nodes:
+            for node_id in local_disk:
                 if backend == "transformers":
                     hf_model_class = backend_config.get("hf_model_class", None)
                     torch_dtype = backend_config.get("torch_dtype", "float16")
@@ -431,6 +438,10 @@ class StoreManager:
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
                 logger.info(f"{model_name} downloaded to node {node_id}")
+                if node_id in memory_pool:
+                    # preload to memory pool
+                    await self.load_to_host(node_id, pretrained_model_name)
+                    logger.info(f"{model_name} loaded to memory pool")
             self.model_info[model_name] = model_size
             logger.info(f"{model_name} registered")
         else:
