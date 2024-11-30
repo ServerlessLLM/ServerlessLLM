@@ -15,27 +15,11 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import asyncio
 from dataclasses import dataclass
 from typing import List, Optional
 
 import ray
-
-
-@dataclass
-class MigrationPlan:
-    migration_time: float
-    target_model: str
-    source_node_id: int
-    source_instance_id: int
-    target_node_id: int
-
-
-@dataclass
-class AllocationPlan:
-    node_id: int
-    latency: float
-    wait_time: float = 0
-    migration_plans: Optional[List[MigrationPlan]] = None
 
 
 def get_worker_nodes():
@@ -64,3 +48,49 @@ def get_worker_nodes():
                 }
 
     return worker_node_info
+
+
+@dataclass
+class InstanceStatus:
+    instance_id: str
+    node_id: str
+    num_gpu: int
+    concurrency: int
+
+    model_name: Optional[str] = None
+    num_current_tokens: Optional[int] = None
+
+
+@dataclass
+class InstanceHandle:
+    instance_id: str
+    max_queue_length: int
+    num_gpu: int
+
+    node_id: Optional[str] = None
+    backend_instance: Optional[ray.actor.ActorHandle] = None
+    ready: bool = False
+    concurrency: int = 0
+
+    lock: asyncio.Lock = asyncio.Lock()
+
+    async def add_requests(self, num_requests: int = 1):
+        async with self.lock:
+            if not self.ready:
+                return False
+            if (
+                self.concurrency + num_requests > self.max_queue_length
+                or self.concurrency + num_requests < 0
+            ):
+                return False
+            self.concurrency += num_requests
+            return True
+
+    async def get_status(self):
+        async with self.lock:
+            return InstanceStatus(
+                self.instance_id,
+                self.node_id,
+                self.num_gpu,
+                self.concurrency,
+            )
