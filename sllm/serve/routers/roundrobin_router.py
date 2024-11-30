@@ -23,10 +23,12 @@ from typing import Dict, Optional
 import ray
 
 from sllm.serve.inference_instance import start_instance
+from sllm.serve.logger import init_logger
 
-from .router_utils import InstanceHandle, SllmRouter
+from ..utils import InstanceHandle
+from .router_utils import SllmRouter
 
-logger = logging.getLogger(__name__)
+logger = init_logger(__name__)
 
 
 async def auto_scaler(
@@ -52,7 +54,6 @@ async def auto_scaler(
     return desired_instances
 
 
-@ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class RoundRobinRouter(SllmRouter):
     def __init__(
         self,
@@ -60,11 +61,13 @@ class RoundRobinRouter(SllmRouter):
         resource_requirements: Dict[str, int],
         backend: str,
         backend_config: Dict,
+        router_config: Dict,
     ) -> None:
         self.model_name = model_name
         self.resource_requirements = resource_requirements
         self.backend = backend
         self.backend_config = backend_config
+        self.router_config = router_config
 
         self.loop_interval = 1
         self.loop = asyncio.get_running_loop()
@@ -215,7 +218,8 @@ class RoundRobinRouter(SllmRouter):
                     self.ready_instances
                 )
             logger.info(
-                f"Auto-scaler: {num_running_instances} instances, need {desired_instances} instances"
+                f"{self.model_name}: {num_running_instances} instances,"
+                f"need {desired_instances} instances",
             )
             if desired_instances > num_running_instances:
                 logger.info("Creating new instance")
@@ -246,7 +250,11 @@ class RoundRobinRouter(SllmRouter):
             f"Creating new instance {instance_id} for model {self.model_name}"
         )
         # TODO: Add max_queue_length to instance
-        instance = InstanceHandle(instance_id=instance_id, max_queue_length=10)
+        instance = InstanceHandle(
+            instance_id=instance_id,
+            max_queue_length=10,
+            num_gpu=self.resource_requirements["num_gpus"],
+        )
         async with self.instance_management_lock:
             self.starting_instances[instance_id] = instance
         self.loop.create_task(self._start_instance(instance_id))
@@ -265,7 +273,7 @@ class RoundRobinRouter(SllmRouter):
         )
         startup_node = (
             await self.model_loading_scheduler.allocate_resource.remote(
-                self.model_name, self.resource_requirements
+                self.model_name, instance_id, self.resource_requirements
             )
         )
         startup_config = {
@@ -323,7 +331,7 @@ class RoundRobinRouter(SllmRouter):
         await instance.backend_instance.stop.remote()
         ray.kill(instance.backend_instance)
         await self.model_loading_scheduler.deallocate_resource.remote(
-            instance.node_id, self.resource_requirements
+            self.model_name, instance_id, self.resource_requirements
         )
 
     async def _shutdown_instance(self, instance_id: str):
@@ -340,6 +348,6 @@ class RoundRobinRouter(SllmRouter):
         await instance.backend_instance.shutdown.remote()
         ray.kill(instance.backend_instance)
         await self.model_loading_scheduler.deallocate_resource.remote(
-            instance.node_id, self.resource_requirements
+            self.model_name, instance_id, self.resource_requirements
         )
         return
