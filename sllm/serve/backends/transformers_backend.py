@@ -127,6 +127,7 @@ class TransformersBackend(SllmBackend):
         task_instruct = request_data.get("task_instruct", "")
         max_length = request_data.get("max_length", 4096)
         query = request_data.get("input", [])
+        query = request_data.get("input", [])
 
         if not query:
             return {"error": "Missing query in request data"}
@@ -173,7 +174,7 @@ class TransformersBackend(SllmBackend):
 
         # Combine messages to form the prompt
         prompt = self.tokenizer.apply_chat_template(
-            messages, add_generation_prompt=True, tokenize=False
+            messages, tokenize=False, add_generation_prompt=True
         )
 
         if not prompt:
@@ -187,9 +188,9 @@ class TransformersBackend(SllmBackend):
                 **inputs, max_new_tokens=max_tokens, temperature=temperature
             )
 
-        real_output = outputs[0][len(inputs.input_ids[0]) :]
+        real_outputs = outputs[0][len(inputs.input_ids[0]) :]
         output_text = self.tokenizer.decode(
-            real_output, skip_special_tokens=True
+            real_outputs, skip_special_tokens=True
         )
 
         # Simulate token counts for the response
