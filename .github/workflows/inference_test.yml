@@ -50,6 +50,8 @@ jobs:
       - name: Start and serve both head and worker
         env: 
           CUDA_VISIBLE_DEVICES: "0"
+          RAY_COMMON_INTERPRETER: "1"
+          RAY_PICKLE_VERBOSE_DEBUG: "1"
         run: |
           source /opt/conda/etc/profile.d/conda.sh
           conda activate sllm
