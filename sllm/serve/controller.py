@@ -22,8 +22,7 @@ import ray
 
 from sllm.serve.logger import init_logger
 
-# from sllm.serve.utils import AllocationPlan, MigrationPlan
-from sllm.serve.routers import RoundRobinRouter
+from sllm.serve.routers import MigrationRouter, RoundRobinRouter
 from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from sllm.serve.store_manager import StoreManager
 
@@ -71,10 +70,19 @@ class SllmController:
         else:
             ray_scheduler_cls = ray.remote(FcfsScheduler)
 
+        enable_migration = self.config.get("enable_migration", False)
+        if enable_migration:
+            self.router_cls = ray.remote(MigrationRouter)
+        else:
+            self.router_cls = ray.remote(RoundRobinRouter)
+
         self.scheduler = ray_scheduler_cls.options(
             name="model_loading_scheduler", resources={"control_node": 0.1}
-        ).remote()
-
+        ).remote(
+            scheduler_config={
+                "enable_migration": enable_migration,
+            }
+        )
         self.scheduler.start.remote()
 
     async def register(self, model_config):
@@ -87,6 +95,7 @@ class SllmController:
             logger.error(f"Backend not specified for model {model_name}")
             return
         backend_config = model_config.get("backend_config", {})
+        router_config = model_config.get("router_config", {})
         auto_scaling_config = model_config.get("auto_scaling_config", None)
         async with self.metadata_lock:
             if model_name in self.registered_models:
@@ -104,9 +113,12 @@ class SllmController:
             "num_cpus": 1,
             "num_gpus": model_config.get("num_gpus", 0),
         }
-        request_router = RoundRobinRouter.options(  # type:ignore
-            name=model_name, namespace="models"
-        ).remote(model_name, resource_requirements, backend, backend_config)
+        request_router = self.router_cls.options(
+            name=model_name,
+            namespace="models",
+            num_cpus=1,
+            resources={"control_node": 0.1},
+        ).remote(model_name, resource_requirements, backend, backend_config, router_config)
 
         async with self.metadata_lock:
             if model_name in self.request_routers:
