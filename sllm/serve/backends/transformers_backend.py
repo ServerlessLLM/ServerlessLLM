@@ -318,7 +318,8 @@ class TransformersBackend(SllmBackend):
     def resume_kv_cache(self, request_datas):
         logger.info(f"Resuming cache for {request_datas}")
         with torch.no_grad():
-            input_ids = torch.tensor(request_datas).reshape(1, -1).to("cuda")
+            device = self.model.device
+            input_ids = torch.tensor(request_datas).reshape(1, -1).to(device)
             output = self.model.generate(
                 input_ids,
                 past_key_values=self.past_key_values,
@@ -357,8 +358,9 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
+                device = self.model.device
                 current_output = (
-                    torch.tensor(current_output).reshape(1, -1).to("cuda")
+                    torch.tensor(current_output).reshape(1, -1).to(device)
                 )
                 outputs = self.model.generate(
                     current_output,
