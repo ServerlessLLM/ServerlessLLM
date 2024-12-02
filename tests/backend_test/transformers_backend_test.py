@@ -222,7 +222,10 @@ def test_resume_kv_cache(transformers_backend, model, tokenizer):
         except Exception as e:
             assert False, f"Failed to resume kv cache: {e}"
         assert transformers_backend.past_key_values
-        assert len(transformers_backend.past_key_values) == model.config.num_hidden_layers
+        assert (
+            len(transformers_backend.past_key_values)
+            == model.config.num_hidden_layers
+        )
         assert len(transformers_backend.past_key_values[0]) == 2
         assert transformers_backend.past_key_values[0][0].shape == (
             1,
@@ -258,9 +261,10 @@ def test_resume_generate(transformers_backend, model, tokenizer):
             transformers_backend.resume_kv_cache(intermediate_tokens)
         except Exception as e:
             assert False, f"Failed to resume kv cache: {e}"
-        
-        result = transformers_backend.resume_generate(input,
-                                                    intermediate_tokens)
+
+        result = transformers_backend.resume_generate(
+            input, intermediate_tokens
+        )
         assert result
         assert "error" not in result
 
