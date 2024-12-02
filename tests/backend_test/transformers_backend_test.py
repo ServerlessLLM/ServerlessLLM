@@ -206,6 +206,65 @@ def test_get_current_tokens(transformers_backend, model, tokenizer):
         thread.join()
 
 
+def test_resume_kv_cache(transformers_backend, model, tokenizer):
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize",
+        return_value=tokenizer,
+    ):
+        transformers_backend.init_backend()
+        inputs = transformers_backend._tokenize("")
+        intermediate_tokens = inputs["input_ids"].tolist()[0]
+        try:
+            transformers_backend.resume_kv_cache(intermediate_tokens)
+        except Exception as e:
+            assert False, f"Failed to resume kv cache: {e}"
+        assert transformers_backend.past_key_values
+        assert len(transformers_backend.past_key_values) == model.config.num_hidden_layers
+        assert len(transformers_backend.past_key_values[0]) == 2
+        assert transformers_backend.past_key_values[0][0].shape == (
+            1,
+            model.config.num_attention_heads,
+            len(intermediate_tokens),
+            model.config.hidden_size // model.config.num_attention_heads,
+        )
+
+
+def test_resume_generate(transformers_backend, model, tokenizer):
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize",
+        return_value=tokenizer,
+    ):
+        transformers_backend.init_backend()
+        input = {
+            "model": "facebook/opt-125m",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, how are you? I am fine, thank you!",
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 128,
+        }
+        intermediate_inputs = transformers_backend._tokenize("")
+        intermediate_tokens = intermediate_inputs["input_ids"].tolist()[0]
+        try:
+            transformers_backend.resume_kv_cache(intermediate_tokens)
+        except Exception as e:
+            assert False, f"Failed to resume kv cache: {e}"
+        
+        result = transformers_backend.resume_generate(input,
+                                                    intermediate_tokens)
+        assert result
+        assert "error" not in result
+
+
 def test_shutdown(transformers_backend, model, tokenizer):
     with patch(
         "sllm.serve.backends.transformers_backend.load_model",
