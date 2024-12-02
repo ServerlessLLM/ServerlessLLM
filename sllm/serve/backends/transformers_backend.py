@@ -328,6 +328,7 @@ class TransformersBackend(SllmBackend):
                 return_legacy_cache=True,
             )
             self.past_key_values = output.past_key_values
+            self.current_tokens = output.sequences
         logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
 
     def resume_generate(
@@ -362,6 +363,8 @@ class TransformersBackend(SllmBackend):
                 current_output = (
                     torch.tensor(current_output).reshape(1, -1).to(device)
                 )
+                if len(current_output[0]) < len(self.current_tokens[0]):
+                    current_output = self.current_tokens
                 outputs = self.model.generate(
                     current_output,
                     past_key_values=self.past_key_values,
