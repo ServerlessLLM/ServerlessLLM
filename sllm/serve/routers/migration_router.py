@@ -38,7 +38,11 @@ class MigrationRouter(RoundRobinRouter):
         router_config: Dict,
     ) -> None:
         super().__init__(
-            model_name, resource_requirements, backend, backend_config, router_config
+            model_name,
+            resource_requirements,
+            backend,
+            backend_config,
+            router_config,
         )
         self.migration_record = {}
         self.migration_delta = self.router_config.get("migration_delta", 20)

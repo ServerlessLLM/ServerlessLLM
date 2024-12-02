@@ -338,7 +338,9 @@ class StorageAwareScheduler(FcfsScheduler):
                 migratable_instances
             )  # Number of instances currently running
             gpu_shortage = int(gpu_shortage)
-            logger.info(f"Number of instances: {numInstances}, Required GPUs: {gpu_shortage}")
+            logger.info(
+                f"Number of instances: {numInstances}, Required GPUs: {gpu_shortage}"
+            )
             # Initialize the DP table with MigrationPlans objects
             dp = [
                 [MigrationPlans() for _ in range(gpu_shortage + 1)]
@@ -360,26 +362,33 @@ class StorageAwareScheduler(FcfsScheduler):
                     # Check if the current instance can fit into the current GPU capacity
                     if j >= n_gpus:
                         # Calculate total_latency when including the current instance
-                        logger.info(f"Instance {i} can fit into GPU capacity {j}")
-                        logger.info(f"Store info: {dp[i - 1][j - n_gpus].store_info}")
-                        target_node_id, loading_time = self._get_migration_target(
-                            current_instance.model_name,
-                            n_gpus,
-                            source_node_id,
-                            worker_nodes,
-                            model_info,
-                            copy.deepcopy(dp[i - 1][j - n_gpus].store_info),
-                            hardware_info,
+                        logger.info(
+                            f"Instance {i} can fit into GPU capacity {j}"
+                        )
+                        logger.info(
+                            f"Store info: {dp[i - 1][j - n_gpus].store_info}"
+                        )
+                        target_node_id, loading_time = (
+                            self._get_migration_target(
+                                current_instance.model_name,
+                                n_gpus,
+                                source_node_id,
+                                worker_nodes,
+                                model_info,
+                                copy.deepcopy(dp[i - 1][j - n_gpus].store_info),
+                                hardware_info,
+                            )
                         )
                         migration_latency = (
                             current_instance.resuming_latency + loading_time
                         )
                         plan = MigrationPlan(
                             target_node_id=target_node_id,
-                            source_instance=current_instance
+                            source_instance=current_instance,
                         )
                         total_latency = (
-                            migration_latency + dp[i - 1][j - n_gpus].total_latency
+                            migration_latency
+                            + dp[i - 1][j - n_gpus].total_latency
                         )
                         logger.info(
                             f"Total latency for instance {i} with {j} GPUs: {total_latency}"
@@ -388,13 +397,17 @@ class StorageAwareScheduler(FcfsScheduler):
                             # Copy the previous plan and include the current instance
                             dp[i][j] = copy.deepcopy(dp[i - 1][j - n_gpus])
                             dp[i][j].append(plan, total_latency)
-                            dp[i][j].store_info[target_node_id][2] += loading_time
+                            dp[i][j].store_info[target_node_id][2] += (
+                                loading_time
+                            )
                             logger.info(f"Store info: {dp[i][j].store_info}")
                         else:
                             # Copy the previous plan without including the current instance
                             dp[i][j] = copy.deepcopy(dp[i - 1][j])
                     else:
-                        logger.info(f"Instance {i} cannot fit into GPU capacity {j}")
+                        logger.info(
+                            f"Instance {i} cannot fit into GPU capacity {j}"
+                        )
                         # If the instance cannot fit, carry forward the previous plan
                         dp[i][j] = copy.deepcopy(dp[i - 1][j])
 
@@ -403,7 +416,10 @@ class StorageAwareScheduler(FcfsScheduler):
             optimal_plans = None
             for plans in dp[numInstances]:
                 logger.info(f"Total latency: {plans.total_latency}")
-                if plans.total_latency < minLatency and plans.evictedGPUs >= gpu_shortage:
+                if (
+                    plans.total_latency < minLatency
+                    and plans.evictedGPUs >= gpu_shortage
+                ):
                     minLatency = plans.total_latency
                     optimal_plans = plans
             logger.info(f"Migration plans: {optimal_plans}")
@@ -452,7 +468,7 @@ class StorageAwareScheduler(FcfsScheduler):
                 f"Loading model {model_name} will take {latency} seconds"
             )
         return latency
-    
+
     def _get_migration_target(
         self,
         model_name: str,
@@ -475,9 +491,7 @@ class StorageAwareScheduler(FcfsScheduler):
                     store_info[node_id][2],
                     store_info[node_id][1],
                 )
-                candidate_plans.append(
-                    (node_id, loading_time)
-                )
+                candidate_plans.append((node_id, loading_time))
         if not candidate_plans:
             return None
         candidate_plans.sort(key=lambda x: x[1])

@@ -21,7 +21,6 @@ from typing import Mapping, Optional
 import ray
 
 from sllm.serve.logger import init_logger
-
 from sllm.serve.routers import MigrationRouter, RoundRobinRouter
 from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from sllm.serve.store_manager import StoreManager
@@ -118,7 +117,13 @@ class SllmController:
             namespace="models",
             num_cpus=1,
             resources={"control_node": 0.1},
-        ).remote(model_name, resource_requirements, backend, backend_config, router_config)
+        ).remote(
+            model_name,
+            resource_requirements,
+            backend,
+            backend_config,
+            router_config,
+        )
 
         async with self.metadata_lock:
             if model_name in self.request_routers:
