@@ -318,12 +318,8 @@ class TransformersBackend(SllmBackend):
     def resume_kv_cache(self, request_datas):
         logger.info(f"Resuming cache for {request_datas}")
         with torch.no_grad():
-<<<<<<< HEAD
-            input_ids = torch.tensor(request_datas).reshape(1, -1).to("cuda")
-=======
             device = self.model.device
             input_ids = torch.tensor(request_datas).reshape(1, -1).to(device)
->>>>>>> main
             output = self.model.generate(
                 input_ids,
                 past_key_values=self.past_key_values,
@@ -332,10 +328,7 @@ class TransformersBackend(SllmBackend):
                 return_legacy_cache=True,
             )
             self.past_key_values = output.past_key_values
-<<<<<<< HEAD
-=======
             self.current_tokens = output.sequences
->>>>>>> main
         logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
 
     def resume_generate(
@@ -366,18 +359,12 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
-<<<<<<< HEAD
-                current_output = (
-                    torch.tensor(current_output).reshape(1, -1).to("cuda")
-                )
-=======
                 device = self.model.device
                 current_output = (
                     torch.tensor(current_output).reshape(1, -1).to(device)
                 )
                 if len(current_output[0]) < len(self.current_tokens[0]):
                     current_output = self.current_tokens
->>>>>>> main
                 outputs = self.model.generate(
                     current_output,
                     past_key_values=self.past_key_values,

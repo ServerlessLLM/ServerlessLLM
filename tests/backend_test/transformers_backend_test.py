@@ -206,8 +206,6 @@ def test_get_current_tokens(transformers_backend, model, tokenizer):
         thread.join()
 
 
-<<<<<<< HEAD
-=======
 def test_resume_kv_cache(transformers_backend, model, tokenizer):
     with patch(
         "sllm.serve.backends.transformers_backend.load_model",
@@ -271,7 +269,6 @@ def test_resume_generate(transformers_backend, model, tokenizer):
         assert "error" not in result
 
 
->>>>>>> main
 def test_shutdown(transformers_backend, model, tokenizer):
     with patch(
         "sllm.serve.backends.transformers_backend.load_model",
