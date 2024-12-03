@@ -710,6 +710,7 @@ L12
 IML
 RTX
 GeForce
+qwen
 WSL
 LTS
 npm

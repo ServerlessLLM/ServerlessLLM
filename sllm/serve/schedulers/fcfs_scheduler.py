@@ -38,6 +38,7 @@ class FcfsScheduler(SllmScheduler):
 
         self.metadata_lock = asyncio.Lock()
         self.worker_nodes = {}
+        self.model_instance = {}
 
         self.loop = asyncio.get_running_loop()
 
@@ -65,11 +66,11 @@ class FcfsScheduler(SllmScheduler):
             await self.loop_task
 
     async def allocate_resource(
-        self, model_name: str, resource_requirements: Mapping
+        self, model_name: str, instance_id: str, resources: Mapping
     ) -> int:
         logger.info(f"Model {model_name} requested")
         # TODO: consider other resources
-        num_gpus = resource_requirements.get("num_gpus", 0)
+        num_gpus = resources.get("num_gpus", 0)
         async with self.queue_lock:
             if model_name not in self.model_loading_queues:
                 self.model_loading_queues[model_name] = []
@@ -78,17 +79,33 @@ class FcfsScheduler(SllmScheduler):
                 (time.time(), num_gpus, allocation_result)
             )
         logger.info(f"Model {model_name} added to the loading queue")
-        return await allocation_result
+        node_id = await allocation_result
+        async with self.metadata_lock:
+            if model_name not in self.model_instance:
+                self.model_instance[model_name] = {}
+            self.model_instance[model_name][instance_id] = node_id
+        return node_id
 
-    async def deallocate_resource(self, node_id: int, resources: Mapping):
+    async def deallocate_resource(
+        self, model_name: str, instance_id: str, resources: Mapping
+    ):
+        logger.info(f"Deallocating model {model_name} instance {instance_id}")
         # TODO: consider other resources
         num_gpus = resources.get("num_gpus", 0)
-        logger.info(f"Node {node_id} deallocated {num_gpus} GPUs")
         async with self.metadata_lock:
+            if model_name not in self.model_instance:
+                logger.error(f"Model {model_name} not found")
+                return
+            if instance_id not in self.model_instance[model_name]:
+                logger.error(f"Instance {instance_id} not found")
+                return
+            node_id = self.model_instance[model_name].pop(instance_id)
+            logger.info(f"Node {node_id} deallocated {num_gpus} GPUs")
             if node_id not in self.worker_nodes:
                 logger.error(f"Node {node_id} not found")
                 return
             self.worker_nodes[node_id]["free_gpu"] += num_gpus
+        logger.info(f"Model {model_name} instance {instance_id} deallocated")
 
     async def _control_loop(self):
         logger.info("Starting control loop")
