@@ -722,3 +722,6 @@ Mem
 natively
 ProgrammingKnowledge
 inaccessible
+bashrc
+PowerShell
+Miniconda

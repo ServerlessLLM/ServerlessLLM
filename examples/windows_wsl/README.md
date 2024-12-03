@@ -61,8 +61,8 @@ Add the following:
 
 ```ini
 [wsl2]             # this line is a must-have
-memory=8GB         # Allocate 8 GB of memory
-swap=2GB           # Set swap file size
+memory=16GB         # Allocate 16 GB of memory
+swap=8GB           # Set swap file size
 ```
 
 3. Restart WSL to apply the changes:
@@ -121,7 +121,7 @@ nvcc --version
 
 Install Conda to manage dependencies for ServerlessLLM:
 1. Download and install Miniconda by following the [Miniconda installation guide](https://docs.anaconda.com/miniconda/install/).
-2. nsure you follow the **Linux instructions**, not the Windows ones.
+2. Ensure you follow the **Linux instructions**, not the Windows ones.
 
 ## 3. Installing ServerlessLLM
 
