@@ -15,22 +15,52 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import asyncio
 import json
 import os
+import threading
 import time
 import uuid
+from copy import deepcopy
 from typing import Any, Dict, Optional
 
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer
+from transformers.generation.streamers import BaseStreamer
 
-from sllm.serve.backends.backend_utils import SllmBackend
+from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
 from sllm_store.transformers import load_model
 
 logger = init_logger(__name__)
+
+
+class DeletingException(Exception):
+    pass
+
+
+class InferenceStatus(BaseStreamer):
+    def __init__(self, status: BackendStatus):
+        super().__init__()
+        self.status = status
+        self.intermediate = []
+
+    def put(self, value):
+        value = value.flatten().tolist()
+        self.intermediate.extend(value)
+        logger.warning(f"Intermediate output: {self.intermediate}")
+        if self.status == BackendStatus.DELETING:
+            raise DeletingException("Backend is deleting")
+
+    def end(self):
+        logger.error("Inference completed")
+
+    def get(self):
+        return deepcopy(self.intermediate)
+
+    def delete(self):
+        logger.info("Deleting intermediate output")
+        self.intermediate = []
 
 
 class TransformersBackend(SllmBackend):
@@ -39,11 +69,13 @@ class TransformersBackend(SllmBackend):
         logger.info(
             f"Initializing TransformersBackend with config: {backend_config}"
         )
+        self.status: BackendStatus = BackendStatus.UNINITIALIZED
+        self.inf_status = InferenceStatus(self.status)
+        self.status_lock = threading.Lock()
         self.model_name = backend_config.get("pretrained_model_name_or_path")
         self.model = None
-        self.model_initialized = False
-        self.model_status_lock = asyncio.Lock()
         self.tokenizer = None
+        self.past_key_values = None
 
     def convert_str_to_json(self, json_str):
         try:
@@ -54,9 +86,9 @@ class TransformersBackend(SllmBackend):
             logger.error(f"Failed to decode JSON string: {e}")
             return None
 
-    async def init_backend(self) -> None:
-        async with self.model_status_lock:
-            if self.model_initialized:
+    def init_backend(self) -> None:
+        with self.status_lock:
+            if self.status != BackendStatus.UNINITIALIZED:
                 return
             device_map = self.backend_config.get("device_map", "auto")
             torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
@@ -92,7 +124,7 @@ class TransformersBackend(SllmBackend):
             else:
                 # Fall back to load from system's cache
                 self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model_initialized = True
+            self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
@@ -106,9 +138,9 @@ class TransformersBackend(SllmBackend):
             return_tensors="pt",
         ).to("cuda:0")
 
-    async def encode(self, request_data: Optional[Dict[str, Any]]):
-        async with self.model_status_lock:
-            if not self.model_initialized:
+    def encode(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
         def last_token_pool(
@@ -169,10 +201,13 @@ class TransformersBackend(SllmBackend):
 
         return response
 
-    async def generate(self, request_data: Optional[Dict[str, Any]]):
-        async with self.model_status_lock:
-            if not self.model_initialized:
+    def generate(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
+
+        assert self.model is not None
+
         model_name = request_data.get("model", "dummy-model")
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
@@ -187,56 +222,204 @@ class TransformersBackend(SllmBackend):
             return {"error": "Missing prompt in request data"}
 
         inputs = self._tokenize(prompt)
+        prompt_tokens = inputs.input_ids.shape[1]
 
         # Generate response
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs, max_new_tokens=max_tokens, temperature=temperature
+        try:
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    streamer=self.inf_status,
+                )
+        except DeletingException:
+            logger.info("Backend is shutting down. Aborting request")
+            output_tokens = self.inf_status.get()
+            self.inf_status.delete()
+            return {
+                "preempted": "True",
+                "current_output": output_tokens,
+                "completed_tokens": len(output_tokens) - prompt_tokens,
+            }
+        except Exception as e:
+            logger.error(f"Failed to generate response: {e}")
+            raise e
+        else:
+            output_text = self.tokenizer.decode(
+                outputs[0][prompt_tokens:], skip_special_tokens=True
+            )
+            total_tokens = len(outputs[0])
+            completion_tokens = total_tokens - prompt_tokens
+            # FIXME: consider corner case when max_tokens is reached
+            finish_reason = (
+                "stop" if completion_tokens < max_tokens else "length"
             )
 
-        real_output = outputs[0][len(inputs.input_ids[0]) :]
-        output_text = self.tokenizer.decode(
-            real_output, skip_special_tokens=True
+            # Generate response compatible with OpenAI's API
+            response = {
+                "id": f"chatcmpl-{uuid.uuid4()}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": output_text,
+                        },
+                        "logprobs": None,
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
+
+            self.inf_status.delete()
+
+            return response
+
+    def shutdown(self):
+        """Abort all requests and shutdown the backend."""
+        with self.status_lock:
+            if self.status == BackendStatus.DELETING:
+                return
+            self.status = BackendStatus.DELETING
+            if self.inf_status:
+                self.inf_status.status = BackendStatus.DELETING
+
+        while self.inf_status and len(self.inf_status.get()) > 0:
+            logger.info("Waiting for all requests to finish")
+            time.sleep(1)
+
+        if self.model is not None:
+            del self.model
+
+    def stop(self) -> None:
+        """Wait for all requests to finish and shutdown the backend."""
+        with self.status_lock:
+            if self.status.value >= BackendStatus.STOPPING.value:
+                return
+            self.status = BackendStatus.STOPPING
+        while self.inf_status and len(self.inf_status.get()) > 0:
+            logger.info("Waiting for all requests to finish")
+            time.sleep(1)
+        logger.info("All requests finished. Shutting down the backend.")
+        self.shutdown()
+
+    def get_current_tokens(self):
+        """Return a list of all ongoing request tokens."""
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return []
+
+        status = self.inf_status.get()
+        logger.info(f"Current tokens: {status}")
+        return status
+
+    def resume_kv_cache(self, request_datas):
+        logger.info(f"Resuming cache for {request_datas}")
+        with torch.no_grad():
+            device = self.model.device
+            input_ids = torch.tensor(request_datas).reshape(1, -1).to(device)
+            output = self.model.generate(
+                input_ids,
+                past_key_values=self.past_key_values,
+                max_new_tokens=1,
+                return_dict_in_generate=True,
+                return_legacy_cache=True,
+            )
+            self.past_key_values = output.past_key_values
+            self.current_tokens = output.sequences
+        logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
+
+    def resume_generate(
+        self, request_data: Optional[Dict[str, Any]], current_output
+    ):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        assert self.model is not None
+
+        model_name = request_data.get("model", "dummy-model")
+        messages = request_data.get("messages", [])
+        temperature = request_data.get("temperature", 0.7)
+        max_tokens = request_data.get("max_tokens", 10)
+
+        # Combine messages to form the prompt
+        prompt = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=False
         )
 
-        # Simulate token counts for the response
-        prompt_tokens = len(self.tokenizer.tokenize(prompt))
-        completion_tokens = len(self.tokenizer.tokenize(output_text))
-        total_tokens = prompt_tokens + completion_tokens
+        if not prompt:
+            return {"error": "Missing prompt in request data"}
 
-        # Generate response compatible with OpenAI's API
-        response = {
-            "id": f"chatcmpl-{uuid.uuid4()}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": output_text},
-                    "logprobs": None,
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-            },
-        }
+        inputs = self._tokenize(prompt)
+        prompt_tokens = inputs.input_ids.shape[1]
 
-        return response
+        # Generate response
+        try:
+            with torch.no_grad():
+                device = self.model.device
+                current_output = (
+                    torch.tensor(current_output).reshape(1, -1).to(device)
+                )
+                if len(current_output[0]) < len(self.current_tokens[0]):
+                    current_output = self.current_tokens
+                outputs = self.model.generate(
+                    current_output,
+                    past_key_values=self.past_key_values,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    streamer=self.inf_status,
+                )
+        except DeletingException:
+            logger.error("Backend is shutting down. Aborting request")
+            raise DeletingException("Backend is shutting down")
+        except Exception as e:
+            logger.error(f"Failed to generate response: {e}")
+            raise e
+        else:
+            output_text = self.tokenizer.decode(
+                outputs[0][prompt_tokens:], skip_special_tokens=True
+            )
+            total_tokens = len(outputs[0])
+            completion_tokens = total_tokens - prompt_tokens
+            # FIXME: consider corner case when max_tokens is reached
+            finish_reason = (
+                "stop" if completion_tokens < max_tokens else "length"
+            )
 
-    async def shutdown(self):
-        pass
+            # Generate response compatible with OpenAI's API
+            response = {
+                "id": f"chatcmpl-{uuid.uuid4()}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": output_text,
+                        },
+                        "logprobs": None,
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
 
-    async def stop(self):
-        pass
+            self.inf_status.delete()
 
-    async def get_current_tokens(self):
-        logger.error("Not implemented")
-        raise NotImplementedError
-
-    async def resume_kv_cache(self, request_datas):
-        logger.error("Not implemented")
-        raise NotImplementedError
+            return response

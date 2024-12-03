@@ -279,6 +279,7 @@ class CheckpointStoreServer final : public storage::Storage::Service {
                          const storage::GetServerConfigRequest* request,
                          storage::GetServerConfigResponse* response) override {
     response->set_chunk_size(storage_->GetChunkSize());
+    response->set_mem_pool_size(storage_->GetMemPoolSize());
 
     return Status::OK;
   }
