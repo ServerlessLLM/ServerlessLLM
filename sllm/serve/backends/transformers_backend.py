@@ -116,7 +116,14 @@ class TransformersBackend(SllmBackend):
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            tokenizer_path = os.path.join(
+                storage_path, "transformers", self.model_name, "tokenizer"
+            )
+            if os.path.exists(tokenizer_path):
+                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+            else:
+                # Fall back to load from system's cache
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):
