@@ -126,7 +126,7 @@ Below is a description of all the fields in config.json.
 | backend | Inference engine, support `transformers` and `vllm` now. |
 | num_gpus | Number of GPUs used to deploy a model instance. |
 | auto_scaling_config | Config about auto scaling. |
-| auto_scaling_config.metric | Metic used to decide whether to scale up or down. |
+| auto_scaling_config.metric | Metric used to decide whether to scale up or down. |
 | auto_scaling_config.target | Target value of the metric. |
 | auto_scaling_config.min_instances | The minimum value for model instances. |
 | auto_scaling_config.max_instances | The maximum value for model instances. |
