@@ -49,6 +49,7 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    get_quantization_precision
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -121,6 +122,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    precision: Optional[str] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -131,6 +133,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
+            precision=precision,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -140,6 +143,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
+        precision=precision,
         storage_path=storage_path,
     )
 
@@ -149,6 +153,7 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    precision: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -188,11 +193,18 @@ def fully_parallel_load(
 
         logger.debug(f"load config takes {time.time() - start} seconds")
         start = time.time()
+
+        quantization_config = get_quantization_config(precision, config.torch_dtype)
+
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(config, trust_remote_code=True).to(
-                config.torch_dtype
+            model = _class.from_config(
+                config, 
+                trust_remote_code=True,
+                quantization_config=quantization_config["quantization_config"]
+            ).to(
+                quantization_config["torch_dtype"]
             )
 
         model.tie_weights()
@@ -222,6 +234,7 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    precision: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -249,11 +262,18 @@ def best_effort_load(
 
     logger.debug(f"load config takes {time.time() - start} seconds")
     start = time.time()
+
+    quantization_config = get_quantization_config(precision, config.torch_dtype)
+
     with init_empty_weights():
         module = importlib.import_module("transformers")
         _class = getattr(module, hf_model_class)
-        model = _class.from_config(config, trust_remote_code=True).to(
-            config.torch_dtype
+        model = _class.from_config(
+            config, 
+            trust_remote_code=True,
+            quantization_config=quantization_config["quantization_config"]
+        ).to(
+            quantization_config["torch_dtype"]
         )
 
     model.tie_weights()
