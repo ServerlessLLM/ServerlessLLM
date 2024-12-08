@@ -49,7 +49,7 @@ class EncodeCommand:
             "-p",
             "--precision",
             type=str,
-            choices=["fp32", "fp16", "bf16", "int8", "int4", "nf4"],
+            choices=["int8", "int4", "nf4"],
             default=None,
             help="Model precision for quantization."
         )

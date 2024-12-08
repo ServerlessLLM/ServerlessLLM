@@ -181,33 +181,17 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
 
 
-def get_quantization_config(
-        precision: str, 
-        original_dtype: torch.dtype
-) -> dict: 
-    if precision in ["int4", "nf4", "int8"]:
-        return {
-            "quantization_config": BitsAndBytesConfig(
-                load_in_4bit=(precision in ["int4", "nf4"]),
-                load_in_8bit=(precision == "int8"),
-                bnb_4bit_compute_dtype=compute_dtype,
-                bnb_8bit_compute_dtype=compute_dtype
-            ),
-            "torch_dtype": torch.bfloat16 if original_dtype == torch.bfloat16 else torch.float16
-        }
-
-    if precision is None:
-        return {
-            "torch_dtype": original_dtype,
-            "quantization_config": None
-        }
-
-    dtype_map = {
-        "fp16": torch.float16,
-        "bf16": torch.bfloat16,
-        "fp32": torch.float32
-    }
-    return {
-        "torch_dtype": dtype_map[precision],
-        "quantization_config": None
-    }
+def get_quantization_config(precision: str) -> BitsAndBytesConfig:
+        case "int4":
+            return BitsAndBytesConfig(
+                load_in_4bit=True
+            )
+        case "int8":
+            return BitsAndBytesConfig(
+                load_in_8bit=True
+            )
+        case "nf4":
+            return BitsAndBytesConfig(
+               load_in_4bit=True,
+               bnb_4bit_quant_type="nf4",
+            )

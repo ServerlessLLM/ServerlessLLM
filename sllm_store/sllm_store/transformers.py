@@ -49,7 +49,7 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
-    get_quantization_precision
+    get_quantization_config
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -185,26 +185,20 @@ def fully_parallel_load(
         )
 
         start = time.time()
+        quantization_config = get_quantization_config(precision)
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
+            f"{os.path.join(storage_path, model_path)}", trust_remote_code=True, quantization_config=quantization_config
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
 
         logger.debug(f"load config takes {time.time() - start} seconds")
         start = time.time()
-
-        quantization_config = get_quantization_config(precision, config.torch_dtype)
-
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(
-                config, 
-                trust_remote_code=True,
-                quantization_config=quantization_config["quantization_config"]
-            ).to(
-                quantization_config["torch_dtype"]
+            model = _class.from_config(config, trust_remote_code=True).to(
+                config.torch_dtype
             )
 
         model.tie_weights()
@@ -254,26 +248,20 @@ def best_effort_load(
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
     start = time.time()
+    quantization_config=get_quantization_config(precision)
     config = AutoConfig.from_pretrained(
-        f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
+        f"{os.path.join(storage_path, model_path)}", trust_remote_code=True, quantization_config=quantization_config
     )
     if torch_dtype is not None:
         config.torch_dtype = torch_dtype
 
     logger.debug(f"load config takes {time.time() - start} seconds")
     start = time.time()
-
-    quantization_config = get_quantization_config(precision, config.torch_dtype)
-
     with init_empty_weights():
         module = importlib.import_module("transformers")
         _class = getattr(module, hf_model_class)
-        model = _class.from_config(
-            config, 
-            trust_remote_code=True,
-            quantization_config=quantization_config["quantization_config"]
-        ).to(
-            quantization_config["torch_dtype"]
+        model = _class.from_config(config, trust_remote_code=True).to(
+            config.torch_dtype
         )
 
     model.tie_weights()
