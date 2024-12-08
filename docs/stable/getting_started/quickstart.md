@@ -67,6 +67,8 @@ conda activate sllm
 sllm-cli deploy --model facebook/opt-1.3b
 ```
 
+This will download the model from HuggingFace, if you want load the model from local path, you can use `config.json`, see [here](../cli/cli_api.md#example-configuration-file-configjson) for details.
+
 Now, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```bash
 curl http://127.0.0.1:8343/v1/chat/completions \

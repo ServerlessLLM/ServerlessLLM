@@ -29,6 +29,11 @@ from sllm.serve.backends.vllm_backend import (
 
 
 @pytest.fixture
+def model_name():
+    return "test-model"
+
+
+@pytest.fixture
 def backend_config():
     return {
         "pretrained_model_name_or_path": "test-model",
@@ -87,8 +92,8 @@ def async_llm_engine():
 
 
 @pytest.fixture
-def vllm_backend(backend_config, async_llm_engine):
-    yield VllmBackend(backend_config)
+def vllm_backend(model_name, backend_config, async_llm_engine):
+    yield VllmBackend(model_name, backend_config)
 
 
 def test_init(vllm_backend, backend_config):
@@ -140,10 +145,10 @@ async def test_generate(vllm_backend, async_llm_engine):
 
 
 @pytest.mark.asyncio
-async def test_shutdown(backend_config, async_llm_engine):
+async def test_shutdown(model_name, backend_config, async_llm_engine):
     # Open trace debug to avoid clean the finished request in record map
     backend_config["trace_debug"] = True
-    vllm_backend = VllmBackend(backend_config)
+    vllm_backend = VllmBackend(model_name, backend_config)
     request_data = {
         "model_name": "test-model",
         "prompt": "user: Hello",
@@ -187,10 +192,10 @@ async def test_stop(vllm_backend, async_llm_engine):
 
 
 @pytest.mark.asyncio
-async def test_get_current_tokens(backend_config, async_llm_engine):
+async def test_get_current_tokens(model_name, backend_config, async_llm_engine):
     # Open trace debug to avoid clean the finished request in record map
     backend_config["trace_debug"] = True
-    vllm_backend = VllmBackend(backend_config)
+    vllm_backend = VllmBackend(model_name, backend_config)
     request_data = [
         {
             "model_name": "test-model",

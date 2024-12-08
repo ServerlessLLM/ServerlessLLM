@@ -29,6 +29,16 @@ from sllm.serve.backends.transformers_backend import (
 
 
 @pytest.fixture
+def model_name():
+    return "facebook/opt-125m"
+
+
+@pytest.fixture
+def encoder_model_name():
+    return "BAAI/bge-small-en-v1.5"
+
+
+@pytest.fixture
 def backend_config():
     return {
         "pretrained_model_name_or_path": "facebook/opt-125m",
@@ -47,21 +57,23 @@ def encoder_config():
 
 
 @pytest.fixture
-def transformers_backend(backend_config):
-    yield TransformersBackend(backend_config)
+def transformers_backend(model_name, backend_config):
+    yield TransformersBackend(model_name, backend_config)
 
 
 @pytest.fixture
-def encoder_backend(encoder_config):
-    yield TransformersBackend(encoder_config)
+def encoder_backend(encoder_model_name, encoder_config):
+    yield TransformersBackend(encoder_model_name, encoder_config)
 
 
-def test_init(transformers_backend, backend_config):
+def test_init(transformers_backend, model_name, backend_config):
+    assert transformers_backend.model_name == model_name
     assert transformers_backend.backend_config == backend_config
     assert transformers_backend.status == BackendStatus.UNINITIALIZED
 
 
-def test_init_encoder(encoder_backend, encoder_config):
+def test_init_encoder(encoder_backend, encoder_model_name, encoder_config):
+    assert encoder_backend.encoder_model_name == encoder_model_name
     assert encoder_backend.backend_config == encoder_config
     assert encoder_backend.status == BackendStatus.UNINITIALIZED
 
