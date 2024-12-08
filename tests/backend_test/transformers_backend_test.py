@@ -73,7 +73,7 @@ def test_init(transformers_backend, model_name, backend_config):
 
 
 def test_init_encoder(encoder_backend, encoder_model_name, encoder_config):
-    assert encoder_backend.encoder_model_name == encoder_model_name
+    assert encoder_backend.model_name == encoder_model_name
     assert encoder_backend.backend_config == encoder_config
     assert encoder_backend.status == BackendStatus.UNINITIALIZED
 
