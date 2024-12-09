@@ -78,7 +78,6 @@ class TransformersBackend(SllmBackend):
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
         self.inf_status = InferenceStatus(self.status)
         self.status_lock = threading.Lock()
-        self.model_name = backend_config.get("pretrained_model_name_or_path")
         self.model = None
         self.tokenizer = None
         self.past_key_values = None
