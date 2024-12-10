@@ -44,6 +44,6 @@ def start_instance(
         logger.error(f"Unknown backend: {backend}")
         raise ValueError(f"Unknown backend: {backend}")
 
-    return model_backend_cls.options(name=instance_id, **startup_config).remote(
-        model_name, backend_config
-    )
+    return model_backend_cls.options(
+        name=instance_id, **startup_config, max_concurrency=10
+    ).remote(model_name, backend_config)
