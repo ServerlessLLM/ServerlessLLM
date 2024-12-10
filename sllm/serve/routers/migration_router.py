@@ -143,7 +143,13 @@ class MigrationRouter(RoundRobinRouter):
                 "worker_node": 0.1,
                 f"worker_id_{target_node_id}": 0.1,
             }
-        ).remote(instance_id, self.backend, self.model_name, self.backend_config, startup_config)
+        ).remote(
+            instance_id,
+            self.backend,
+            self.model_name,
+            self.backend_config,
+            startup_config,
+        )
         logger.info(
             f"Started instance {instance_id} for model {self.model_name}"
         )
