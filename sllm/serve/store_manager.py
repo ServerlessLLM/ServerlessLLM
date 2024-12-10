@@ -441,7 +441,9 @@ class StoreManager:
                 logger.info(f"{model_name} downloaded to node {node_id}")
                 if node_id in memory_pool:
                     # preload to memory pool
-                    await self.load_to_host(node_id, pretrained_model_name_or_path)
+                    await self.load_to_host(
+                        node_id, pretrained_model_name_or_path
+                    )
                     logger.info(f"{model_name} loaded to memory pool")
             self.model_info[model_name] = model_size
             logger.info(f"{model_name} registered")

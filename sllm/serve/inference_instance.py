@@ -46,6 +46,4 @@ def start_instance(
 
     return model_backend_cls.options(
         name=instance_id, **startup_config, max_concurrency=10
-    ).remote(
-        model_name, backend_config
-    )
+    ).remote(model_name, backend_config)
