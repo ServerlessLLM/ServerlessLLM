@@ -186,8 +186,8 @@ class MigrationRouter(RoundRobinRouter):
             n_previous_tokens = len(current_tokens)
             if not current_tokens or n_delta_tokens <= self.migration_delta:
                 logger.info(
-                    "Migration completed:"
-                    f"{None if not current_tokens else len(current_tokens)} tokens"
+                    "Migration completed: remained "
+                    f"{None if not current_tokens else n_delta_tokens} tokens"
                 )
                 break
             ray.get(

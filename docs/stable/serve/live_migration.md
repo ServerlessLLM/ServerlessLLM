@@ -177,8 +177,29 @@ According to the response, you should observe that `Qwen2.5-1.5B` completes ahea
 
 As shown in the log message, the ongoing inference instance of the model `Qwen/Qwen2.5-3B-Instruct` is live-migrated from node 0 to node 1. And model `Qwen/Qwen2.5-1.5B-Instruct` is allocated to node 0.
 
-```log
-TODO
+```bash
+(MigrationRouter pid=1724) INFO 12-10 22:05:02 migration_router.py:106] Executing migration plan: MigrationPlan(target_node_id='1', source_instance=InstanceStatus(instance_id='Qwen/Qwen2.5-3B-Instruct_dedb945f-74e5-403f-8677-35965453abab', node_id='0', num_gpu=1, concurrency=0, model_name='Qwen/Qwen2.5-3B-Instruct', num_current_tokens=0))
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:164] Initialized backend for instance Qwen/Qwen2.5-3B-Instruct_2c9ef57f-c432-45d6-a4a9-1bae9c792853 for model Qwen/Qwen2.5-3B-Instruct
+# Start multi-round live migration
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:178] Migration iteration 0
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:183] Number of tokens: 353, delta: 353
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:198] Migration iteration 0 completed
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:178] Migration iteration 1
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:183] Number of tokens: 14, delta: 14
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:188] Migration completed: remained 14 tokens
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:201] Migrated instance Qwen/Qwen2.5-3B-Instruct_dedb945f-74e5-403f-8677-35965453abab to Qwen/Qwen2.5-3B-Instruct_2c9ef57f-c432-45d6-a4a9-1bae9c792853
+# Finish multi-round live migration
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:215] Instance Qwen/Qwen2.5-3B-Instruct_dedb945f-74e5-403f-8677-35965453abab removed
+(MigrationRouter pid=1724) DEBUG 12-10 22:05:13 migration_router.py:77] Preempted request: ...
+# Resume the instance on target node
+(MigrationRouter pid=1724) INFO 12-10 22:05:13 migration_router.py:83] Resuming request on target instance: Qwen/Qwen2.5-3B-Instruct_2c9ef57f-c432-45d6-a4a9-1bae9c792853
+# Qwen/Qwen2.5-1.5B is allocated to node 0
+(StoreManager pid=1459) INFO 12-10 22:05:14 store_manager.py:344] Loading Qwen/Qwen2.5-1.5B-Instruct to node 0
+(StorageAwareScheduler pid=1574) INFO 12-10 22:05:14 fcfs_scheduler.py:92] Deallocating model Qwen/Qwen2.5-3B-Instruct instance Qwen/Qwen2.5-3B-Instruct_dedb945f-74e5-403f-8677-35965453abab
+(StorageAwareScheduler pid=1574) INFO 12-10 22:05:14 fcfs_scheduler.py:103] Node 0 deallocated 1 GPUs
+(StorageAwareScheduler pid=1574) INFO 12-10 22:05:14 fcfs_scheduler.py:108] Model Qwen/Qwen2.5-3B-Instruct instance Qwen/Qwen2.5-3B-Instruct_dedb945f-74e5-403f-8677-35965453abab deallocated
+(StorageAwareScheduler pid=1574) INFO 12-10 22:05:14 storage_aware_scheduler.py:188] Migrated instance Qwen/Qwen2.5-3B-Instruct to node 1 instance Qwen/Qwen2.5-3B-Instruct_2c9ef57f-c432-45d6-a4a9-1bae9c792853
+(StorageAwareScheduler pid=1574) INFO 12-10 22:05:14 storage_aware_scheduler.py:195] Allocated node 0 for model Qwen/Qwen2.5-1.5B-Instruct
 ```
 
 4. Clean up.
