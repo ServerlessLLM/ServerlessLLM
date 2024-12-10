@@ -189,8 +189,8 @@ class MigrationRouter(RoundRobinRouter):
                     current_tokens
                 )
             )
-            migration_iter += 1
             logger.info(f"Migration iteration {migration_iter} completed")
+            migration_iter += 1
 
         logger.info(f"Migrated instance {source_instance_id} to {instance_id}")
         async with self.instance_management_lock:
