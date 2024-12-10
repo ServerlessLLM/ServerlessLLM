@@ -74,7 +74,7 @@ class MigrationRouter(RoundRobinRouter):
                 request_data=request_data
             )
             if "preempted" in result:
-                logger.info(f"Preempted request: {result}")
+                logger.debug(f"Preempted request: {result}")
                 target_instance_id = self.migration_record.get(instance_id)
                 if not target_instance_id:
                     logger.error(f"No target instance found for {instance_id}")
@@ -175,7 +175,7 @@ class MigrationRouter(RoundRobinRouter):
             )
             n_delta_tokens = len(current_tokens) - n_previous_tokens
             logger.info(
-                f"Number of tokens: {current_tokens}, delta: {n_delta_tokens}"
+                f"Number of tokens: {n_delta_tokens}, delta: {n_delta_tokens}"
             )
             n_previous_tokens = len(current_tokens)
             if not current_tokens or n_delta_tokens <= self.migration_delta:
