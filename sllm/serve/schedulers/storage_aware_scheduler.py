@@ -19,7 +19,7 @@
 import asyncio
 import copy
 from dataclasses import dataclass
-from typing import List, Mapping, Optional
+from typing import List, Mapping, Optional, Tuple
 
 import ray
 
@@ -478,7 +478,7 @@ class StorageAwareScheduler(FcfsScheduler):
         model_info: Mapping,
         store_info: Mapping,
         hardware_info: Mapping,
-    ) -> Optional[MigrationPlan]:
+    ) -> Optional[Tuple[int, float]]:
         candidate_plans = []
         for node_id, node_info in worker_nodes.items():
             if node_id == source_node_id:
