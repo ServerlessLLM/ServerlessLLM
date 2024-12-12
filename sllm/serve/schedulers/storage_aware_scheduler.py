@@ -379,6 +379,11 @@ class StorageAwareScheduler(FcfsScheduler):
                                 hardware_info,
                             )
                         )
+                        if not current_instance.resuming_latency:
+                            logger.warn(
+                                f"Resuming latency not found for instance {i}"
+                            )
+                            current_instance.resuming_latency = 0
                         migration_latency = (
                             current_instance.resuming_latency + loading_time
                         )
@@ -436,7 +441,7 @@ class StorageAwareScheduler(FcfsScheduler):
             if model_name not in self.model_instance:
                 self.model_instance[model_name] = {}
             self.model_instance[model_name][instance_id] = node_id
-        return node_id
+        return True
 
     async def set_model_scheduler_config(
         self, model_name: str, scheduler_config: Mapping

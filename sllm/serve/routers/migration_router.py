@@ -21,9 +21,9 @@ import ray
 
 from sllm.serve.logger import init_logger
 
-from ..inference_instance import start_instance
-from ..utils import InstanceHandle, InstanceStatus
-from .roundrobin_router import RoundRobinRouter
+from sllm.serve.inference_instance import start_instance
+from sllm.serve.utils import InstanceHandle, InstanceStatus
+from sllm.serve.routers.roundrobin_router import RoundRobinRouter
 
 logger = init_logger(__name__)
 
@@ -181,7 +181,7 @@ class MigrationRouter(RoundRobinRouter):
             )
             n_delta_tokens = len(current_tokens) - n_previous_tokens
             logger.info(
-                f"Number of tokens: {n_delta_tokens}, delta: {n_delta_tokens}"
+                f"Number of tokens: {len(current_tokens)}, delta: {n_delta_tokens}"
             )
             n_previous_tokens = len(current_tokens)
             if not current_tokens or n_delta_tokens <= self.migration_delta:

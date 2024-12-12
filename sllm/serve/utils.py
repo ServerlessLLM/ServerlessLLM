@@ -59,6 +59,7 @@ class InstanceStatus:
 
     model_name: Optional[str] = None
     num_current_tokens: Optional[int] = None
+    resuming_latency: Optional[float] = None
 
 
 @dataclass
