@@ -29,7 +29,9 @@ class BackendStatus(Enum):
 
 class SllmBackend(ABC):
     @abstractmethod
-    def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         pass
 
     @abstractmethod
