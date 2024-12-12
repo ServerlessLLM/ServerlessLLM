@@ -36,7 +36,7 @@ def store_test(model: str, model_folder: str) -> Optional[str]:
                 return f"param {name} shape mismatch: {param.shape} vs {ground_truth_param.shape}"
 
             if not torch.allclose(
-                param.cpu(), ground_truth_param.cpu(), atol=1e-3
+                param.cpu(), ground_truth_param.cpu(), atol=1e-6
             ):
                 return f"param {name} value mismatch"
 
