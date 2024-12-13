@@ -49,7 +49,7 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
-    get_quantization_config
+    get_quantization_config,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -187,9 +187,9 @@ def fully_parallel_load(
         start = time.time()
         quantization_config = get_quantization_config(quantization)
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_path)}", 
-            trust_remote_code=True, 
-            quantization_config=quantization_config
+            f"{os.path.join(storage_path, model_path)}",
+            trust_remote_code=True,
+            quantization_config=quantization_config,
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
@@ -252,11 +252,11 @@ def best_effort_load(
 
     start = time.time()
 
-    quantization_config=get_quantization_config(quantization)
+    quantization_config = get_quantization_config(quantization)
     config = AutoConfig.from_pretrained(
-        f"{os.path.join(storage_path, model_path)}", 
-        trust_remote_code=True, 
-        quantization_config=quantization_config
+        f"{os.path.join(storage_path, model_path)}",
+        trust_remote_code=True,
+        quantization_config=quantization_config,
     )
     if torch_dtype is not None:
         config.torch_dtype = torch_dtype

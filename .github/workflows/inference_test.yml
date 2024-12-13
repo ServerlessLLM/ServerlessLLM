@@ -1,4 +1,4 @@
-name: Test Store and Inference 
+name: Test Store and Inference
 
 on:
   workflow_dispatch:

@@ -19,7 +19,7 @@ from functools import reduce
 
 import torch
 from torch import nn
-from from transformers import BitsAndBytesConfig
+from transformers import BitsAndBytesConfig
 from accelerate.utils import find_tied_parameters
 
 
@@ -182,16 +182,14 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
 
 
 def get_quantization_config(precision: str) -> BitsAndBytesConfig:
-        case "int4":
-            return BitsAndBytesConfig(
-                load_in_4bit=True
-            )
-        case "int8":
-            return BitsAndBytesConfig(
-                load_in_8bit=True
-            )
-        case "nf4":
-            return BitsAndBytesConfig(
-               load_in_4bit=True,
-               bnb_4bit_quant_type="nf4",
-            )
+    if precision == "int4":
+        return BitsAndBytesConfig(load_in_4bit=True)
+    elif precision == "int8":
+        return BitsAndBytesConfig(load_in_8bit=True)
+    elif precision == "nf4":
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+        )
+    else:
+        return None

@@ -51,7 +51,7 @@ class EncodeCommand:
             type=str,
             choices=["int8", "int4", "nf4"],
             default=None,
-            help="Model quantization for quantization."
+            help="Target precision for quantization.",
         )
         encode_parser.set_defaults(func=EncodeCommand)
 
@@ -92,7 +92,7 @@ class EncodeCommand:
 
     def encode(self, input_data: dict) -> dict:
         if self.quantization is not None:
-            input_data['quantization'] = self.quantization
+            input_data["quantization"] = self.quantization
 
         headers = {"Content-Type": "application/json"}
 

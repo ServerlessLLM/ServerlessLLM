@@ -49,7 +49,7 @@ class GenerateCommand:
             type=str,
             choices=["int8", "int4", "nf4"],
             default=None,
-            help="Model quantization for quantization."
+            help="Target precision for quantization.",
         )
 
         generate_parser.set_defaults(func=GenerateCommand)
@@ -89,7 +89,7 @@ class GenerateCommand:
 
     def generate(self, input_data: dict) -> dict:
         if self.quantization is not None:
-            input_data['quantization'] = self.quantization
+            input_data["quantization"] = self.quantization
 
         headers = {"Content-Type": "application/json"}
 
