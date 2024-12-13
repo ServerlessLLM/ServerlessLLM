@@ -46,19 +46,19 @@ class EncodeCommand:
             help="Number of parallel encoding processes.",
         )
         encode_parser.add_argument(
-            "-p",
-            "--precision",
+            "-q",
+            "--quantization",
             type=str,
             choices=["int8", "int4", "nf4"],
             default=None,
-            help="Model precision for quantization."
+            help="Model quantization for quantization."
         )
         encode_parser.set_defaults(func=EncodeCommand)
 
     def __init__(self, args: Namespace) -> None:
         self.input_path = args.input_path
         self.threads = args.threads
-        self.precision = args.precision
+        self.quantization = args.quantization
         self.endpoint = "v1/embeddings"  # TODO: as a argument
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
@@ -91,8 +91,8 @@ class EncodeCommand:
             logger.info(f"Embedding result: {result}")
 
     def encode(self, input_data: dict) -> dict:
-        if self.precision is not None:
-            input_data['precision'] = self.precision
+        if self.quantization is not None:
+            input_data['quantization'] = self.quantization
 
         headers = {"Content-Type": "application/json"}
 

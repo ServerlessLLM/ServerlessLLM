@@ -122,7 +122,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    precision: Optional[str] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -133,7 +133,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
-            precision=precision,
+            quantization=quantization,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -143,7 +143,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
-        precision=precision,
+        quantization=quantization,
         storage_path=storage_path,
     )
 
@@ -153,7 +153,7 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    precision: Optional[str] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -185,9 +185,11 @@ def fully_parallel_load(
         )
 
         start = time.time()
-        quantization_config = get_quantization_config(precision)
+        quantization_config = get_quantization_config(quantization)
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_path)}", trust_remote_code=True, quantization_config=quantization_config
+            f"{os.path.join(storage_path, model_path)}", 
+            trust_remote_code=True, 
+            quantization_config=quantization_config
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
@@ -228,7 +230,7 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    precision: Optional[str] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -247,10 +249,14 @@ def best_effort_load(
 
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
+
     start = time.time()
-    quantization_config=get_quantization_config(precision)
+
+    quantization_config=get_quantization_config(quantization)
     config = AutoConfig.from_pretrained(
-        f"{os.path.join(storage_path, model_path)}", trust_remote_code=True, quantization_config=quantization_config
+        f"{os.path.join(storage_path, model_path)}", 
+        trust_remote_code=True, 
+        quantization_config=quantization_config
     )
     if torch_dtype is not None:
         config.torch_dtype = torch_dtype
