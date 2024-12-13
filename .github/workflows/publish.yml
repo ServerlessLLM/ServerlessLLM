@@ -159,7 +159,6 @@ jobs:
           echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
           echo "asset_name=${asset_name}" >> $GITHUB_ENV
 
-
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
@@ -194,7 +193,7 @@ jobs:
         shell: bash
         run: |
           bash -x .github/workflows/scripts/free-disk-space.sh
-        
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
