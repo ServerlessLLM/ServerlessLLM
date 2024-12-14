@@ -14,6 +14,7 @@ class VllmModelDownloader:
         torch_dtype: str,
         tensor_parallel_size: int = 1,
         storage_path: str = "./models",
+        local_model_path: Optional[str] = None,
         pattern: Optional[str] = None,
         max_size: Optional[int] = None,
     ):
@@ -68,17 +69,19 @@ class VllmModelDownloader:
 
         try:
             with TemporaryDirectory() as cache_dir:
+                input_dir = local_model_path
                 # download from huggingface
-                input_dir = snapshot_download(
-                    model_name,
-                    cache_dir=cache_dir,
-                    allow_patterns=[
-                        "*.safetensors",
-                        "*.bin",
-                        "*.json",
-                        "*.txt",
-                    ],
-                )
+                if local_model_path is None:
+                    input_dir = snapshot_download(
+                        model_name,
+                        cache_dir=cache_dir,
+                        allow_patterns=[
+                            "*.safetensors",
+                            "*.bin",
+                            "*.json",
+                            "*.txt",
+                        ],
+                    )
                 _run_writer(input_dir, model_name)
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
@@ -99,16 +102,36 @@ parser.add_argument(
     help="Model name from HuggingFace model hub.",
 )
 parser.add_argument(
+    "--local_model_path",
+    type=str,
+    required=False,
+    help="Local path to the model snapshot.",
+)
+parser.add_argument(
     "--storage_path",
     type=str,
     default="./models",
     help="Local path to save the model.",
 )
+parser.add_argument(
+    "--tensor_parallel_size",
+    type=int,
+    default=1,
+    help="Tensor parallel size.",
+)
 
 args = parser.parse_args()
 
 model_name = args.model_name
+local_model_path = args.local_model_path
 storage_path = args.storage_path
+tensor_parallel_size = args.tensor_parallel_size
 
 downloader = VllmModelDownloader()
-downloader.download_vllm_model(model_name, "float16", storage_path=storage_path)
+downloader.download_vllm_model(
+    model_name,
+    "float16",
+    tensor_parallel_size=tensor_parallel_size,
+    storage_path=storage_path,
+    local_model_path=local_model_path,
+)
