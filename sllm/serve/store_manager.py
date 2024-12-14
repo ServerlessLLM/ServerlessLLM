@@ -363,22 +363,18 @@ class StoreManager:
             pretrained_model_name_or_path = backend_config.get(
                 "pretrained_model_name_or_path", None
             )
+            # 1. download this model to one worker using round-robin
+            worker_node_info = get_worker_nodes()
 
-            try:
-                # 1. download this model to one worker using round-robin
-                worker_node_info = get_worker_nodes()
+            n_nodes = len(worker_node_info)
+            assert n_nodes > 0, "No worker nodes found"
 
-                n_nodes = len(worker_node_info)
-                assert n_nodes > 0, "No worker nodes found"
-
-                for node_id, node_info in worker_node_info.items():
-                    node_address = node_info["address"]
-                    if node_id not in self.local_servers:
-                        self.local_servers[node_id] = SllmLocalStore(
-                            node_id, SllmStoreClient(f"{node_address}:8073"), 1
-                        )
-            except:
-                print("here")
+            for node_id, node_info in worker_node_info.items():
+                node_address = node_info["address"]
+                if node_id not in self.local_servers:
+                    self.local_servers[node_id] = SllmLocalStore(
+                        node_id, SllmStoreClient(f"{node_address}:8073"), 1
+                    )
 
             target_nodes = []
             if placement_config and "target_nodes" in placement_config:
