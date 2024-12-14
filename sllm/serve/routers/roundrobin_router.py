@@ -304,6 +304,11 @@ class RoundRobinRouter(SllmRouter):
         return instance_id
 
     async def _stop_instance(self, instance_id: Optional[str] = None):
+        
+        # check if the instance has not started
+        while len(self.ready_instances) == 0 and len(self.starting_instances) > 0:
+            await asyncio.sleep(1)
+        
         async with self.instance_management_lock:
             if instance_id is None:
                 instance_id, instance = self.ready_instances.popitem()
@@ -324,6 +329,11 @@ class RoundRobinRouter(SllmRouter):
                 logger.error(f"Instance {instance_id} not found")
                 return
             instance = self.deleting_instances.pop(instance_id)
+        
+        # ensure there's no requests being processed
+        while instance.queue_length > 0:
+            logger.info(f"going to wait, queue length is {instance.queue_length}")
+            await asyncio.sleep(1)
         async with instance.lock:
             instance.status = False
         await instance.backend_instance.stop.remote()
