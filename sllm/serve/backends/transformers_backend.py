@@ -64,15 +64,20 @@ class InferenceStatus(BaseStreamer):
 
 
 class TransformersBackend(SllmBackend):
-    def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         self.backend_config = backend_config
         logger.info(
-            f"Initializing TransformersBackend with config: {backend_config}"
+            f"Initializing TransformersBackend for {model_name} with config: {backend_config}"
+        )
+        self.model_name = model_name
+        self.pretrained_model_name_or_path = backend_config.get(
+            "pretrained_model_name_or_path"
         )
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
         self.inf_status = InferenceStatus(self.status)
         self.status_lock = threading.Lock()
-        self.model_name = backend_config.get("pretrained_model_name_or_path")
         self.model = None
         self.tokenizer = None
         self.past_key_values = None
@@ -123,7 +128,9 @@ class TransformersBackend(SllmBackend):
                 self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
             else:
                 # Fall back to load from system's cache
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                self.pretrained_model_name_or_path
+            )
             self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):

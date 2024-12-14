@@ -106,15 +106,36 @@ This file can be incomplete, and missing sections will be filled in by the defau
         "metric": "concurrency",
         "target": 1,
         "min_instances": 0,
-        "max_instances": 10
+        "max_instances": 10,
+        "keep_alive": 0
     },
     "backend_config": {
         "pretrained_model_name_or_path": "facebook/opt-1.3b",
         "device_map": "auto",
-        "torch_dtype": "float16"
+        "torch_dtype": "float16",
+        "hf_model_class": "AutoModelForCausalLM"
     }
 }
 ```
+
+Below is a description of all the fields in config.json.
+
+| Field | Description |
+| ----- | ----------- |
+| model | This should be a HuggingFace model name, used to identify model instance. |
+| backend | Inference engine, support `transformers` and `vllm` now. |
+| num_gpus | Number of GPUs used to deploy a model instance. |
+| auto_scaling_config | Config about auto scaling. |
+| auto_scaling_config.metric | Metric used to decide whether to scale up or down. |
+| auto_scaling_config.target | Target value of the metric. |
+| auto_scaling_config.min_instances | The minimum value for model instances. |
+| auto_scaling_config.max_instances | The maximum value for model instances. |
+| auto_scaling_config.keep_alive | How long a model instance lasts after inference ends. For example, if keep_alive is set to 30, it will wait 30 seconds after the inference ends to see if there is another request. |
+| backend_config | Config about inference backend. |
+| backend_config.pretrained_model_name_or_path | The path to load the model, this can be a HuggingFace model name or a local path. |
+| backend_config.device_map | Device map config used to load the model, `auto` is suitable for most scenarios. |
+| backend_config.torch_dtype | Torch dtype of the model. |
+| backend_config.hf_model_class | HuggingFace model class. |
 
 ### sllm-cli delete
 Delete deployed models by name.
