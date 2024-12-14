@@ -129,8 +129,8 @@ class TransformersBackend(SllmBackend):
             else:
                 # Fall back to load from system's cache
                 self.tokenizer = AutoTokenizer.from_pretrained(
-                self.pretrained_model_name_or_path
-            )
+                    self.pretrained_model_name_or_path
+                )
             self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):
