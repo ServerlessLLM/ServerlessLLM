@@ -372,9 +372,12 @@ class StoreManager:
             for node_id, node_info in worker_node_info.items():
                 node_address = node_info["address"]
                 if node_id not in self.local_servers:
-                    self.local_servers[node_id] = SllmLocalStore(
-                        node_id, SllmStoreClient(f"{node_address}:8073"), 1
-                    )
+                    if self.local_servers:
+                        first_node = next(iter(self.local_servers.values()))
+                        self.local_servers[node_id] = SllmLocalStore(
+                        node_id, SllmStoreClient(f"{node_address}:8073"), 1, first_node.chunk_size, first_node.hardware_info)
+                    else:
+                        logger.error("no nodes")
 
             target_nodes = []
             if placement_config and "target_nodes" in placement_config:
