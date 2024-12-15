@@ -185,37 +185,58 @@ def fully_parallel_load(
         )
 
         start = time.time()
-        quantization_config = get_quantization_config(quantization)
+
         config = AutoConfig.from_pretrained(
             f"{os.path.join(storage_path, model_path)}",
             trust_remote_code=True,
-            quantization_config=quantization_config,
         )
+
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
 
         logger.debug(f"load config takes {time.time() - start} seconds")
+
         start = time.time()
-        with init_empty_weights():
+
+        if quantization:
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(config, trust_remote_code=True).to(
-                config.torch_dtype
+            quantization_config = get_quantization_config(quantization)
+            logger.debug(f"loading model at {quantization} precision")
+            model = _class.from_pretrained(
+                f"{os.path.join(storage_path, model_path)}",
+                config=config,
+                quantization_config=quantization_config,
+                trust_remote_code=True,
+                device_map=device_map,
             )
+            logger.debug(f"load model takes {time.time() - start} seconds")
 
-        model.tie_weights()
-        logger.debug(f"load model takes {time.time() - start} seconds")
+            replica_uuid, _ = future.result()
 
-        replica_uuid, state_dict = future.result()
+        else:
+            with init_empty_weights():
+                module = importlib.import_module("transformers")
+                _class = getattr(module, hf_model_class)
+                model = _class.from_config(config, trust_remote_code=True).to(
+                    config.torch_dtype
+                )
 
-    with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(model, name, param.device, param)
-        send_module_buffers_to_device(model, device_map)
+            model.tie_weights()
+            logger.debug(f"load model takes {time.time() - start} seconds")
 
-    dispatch_model(
-        model, device_map, skip_keys=model._skip_keys_device_placement
-    )
+            replica_uuid, state_dict = future.result()
+
+            with torch.no_grad():
+                for name, param in state_dict.items():
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
+                send_module_buffers_to_device(model, device_map)
+
+            dispatch_model(
+                model, device_map, skip_keys=model._skip_keys_device_placement
+            )
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
