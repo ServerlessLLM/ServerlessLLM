@@ -188,7 +188,7 @@ def fully_parallel_load(
 
         config = AutoConfig.from_pretrained(
             f"{os.path.join(storage_path, model_path)}",
-            trust_remote_code=True,
+            trust_remote_code=True
         )
 
         if torch_dtype is not None:
@@ -199,16 +199,18 @@ def fully_parallel_load(
         start = time.time()
 
         if quantization:
-            module = importlib.import_module("transformers")
-            _class = getattr(module, hf_model_class)
             quantization_config = get_quantization_config(quantization)
+            with init_empty_weights():
+                module = importlib.import_module("transformers")
+                _class = getattr(module, hf_model_class)
+                model = _class.from_config(config, trust_remote_code=True)
+
             logger.debug(f"loading model at {quantization} precision")
             model = _class.from_pretrained(
                 f"{os.path.join(storage_path, model_path)}",
                 config=config,
                 quantization_config=quantization_config,
-                trust_remote_code=True,
-                device_map=device_map,
+                trust_remote_code=True
             )
             logger.debug(f"load model takes {time.time() - start} seconds")
 

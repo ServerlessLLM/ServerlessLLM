@@ -160,3 +160,71 @@ def load_dict_non_blocking(
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
     return replica_uuid, state_dict
+
+def load_dict_non_blocking_quantized(
+    model_path: Optional[Union[str, os.PathLike]],
+    quantization: str,
+    device_map: Dict[str, int],
+    storage_path: Optional[str] = None,
+):
+    client = SllmStoreClient("127.0.0.1:8073")
+    ret = client.load_into_cpu(model_path)
+    if not ret:
+        raise ValueError(f"Failed to load model {model_path} into CPU")
+
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+    with open(
+        os.path.join(storage_path, model_path, "tensor_index.json"), "r"
+    ) as f:
+        tensor_index = json.load(f)
+
+    tensor_meta_index = {}
+    tensor_data_index = {}
+    for name, (offset, size, shape, stride, dtype) in tensor_index.items():
+        tensor_meta_index[name] = (shape, stride, dtype)
+        tensor_data_index[name] = (offset, size)
+
+    start = time.time()
+    expanded_device_map = _expand_tensor_name(
+        device_map, list(tensor_index.keys())
+    )
+    device_memory = calculate_device_memory(
+        expanded_device_map, tensor_data_index
+    )
+    # logger.debug(f"calculate_device_memory {device_memory}")
+    cuda_memory_ptrs = allocate_cuda_memory(device_memory)
+    # cuda_memory_ptrs = { k: [v] for k,v in cuda_memory_ptrs.items()}
+    cuda_memory_handles = get_cuda_memory_handles(cuda_memory_ptrs)
+    device_uuid_map = get_device_uuid_map()
+    # logger.debug(f"determine device_uuid_map {device_uuid_map}")
+    tensor_device_offsets, tensor_copy_chunks = calculate_tensor_device_offsets(
+        expanded_device_map, tensor_data_index
+    )
+    logger.debug(f"allocate_cuda_memory takes {time.time() - start} seconds")
+
+    replica_uuid = _get_uuid()
+    ret = client.load_into_gpu(
+        model_path,
+        replica_uuid,
+        {
+            device_uuid_map[device_id]: v
+            for device_id, v in tensor_copy_chunks.items()
+        },
+        {
+            device_uuid_map[device_id]: [v]
+            for device_id, v in cuda_memory_handles.items()
+        },
+    )
+    if not ret:
+        raise ValueError(f"Failed to load model {model_path} into GPU")
+
+    # load model state_dict
+    start = time.time()
+    state_dict = restore_tensors(
+        tensor_meta_index, cuda_memory_ptrs, tensor_device_offsets
+    )
+    logger.info(f"restore state_dict takes {time.time() - start} seconds")
+
+    return replica_uuid, state_dict
+
