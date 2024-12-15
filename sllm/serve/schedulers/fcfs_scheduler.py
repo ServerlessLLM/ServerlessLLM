@@ -94,7 +94,7 @@ class FcfsScheduler(SllmScheduler):
         logger.info("Starting control loop")
         loading_requests = []
         try:
-            # first work on earlier requests left in the previou queue
+            # first work on earlier requests left in the previous queue
             # after loading_requests becomes empty, get new requests
             while self.running:
                 if len(loading_requests) == 0:
