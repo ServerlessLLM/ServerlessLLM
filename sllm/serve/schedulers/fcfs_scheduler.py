@@ -117,7 +117,7 @@ class FcfsScheduler(SllmScheduler):
                                         allocation_result,
                                     )
                                 )
-                    loading_requests.sort(key= lambda x: x[1])
+                    loading_requests.sort(key=lambda x: x[1])
                 # logger.info(f"Loading requests: {loading_requests}")
                 # first come first serve
                 else:
@@ -139,11 +139,19 @@ class FcfsScheduler(SllmScheduler):
                                     keep_going = True
                                     break
                                 try:
-                                    self.model_loading_queues[model_name].remove((request_time, num_gpus, allocation_result))
-                                except ValueError: 
+                                    self.model_loading_queues[
+                                        model_name
+                                    ].remove(
+                                        (
+                                            request_time,
+                                            num_gpus,
+                                            allocation_result,
+                                        )
+                                    )
+                                except ValueError:
                                     keep_going = True
                                     break
-                                async with self.queue_lock:                              
+                                async with self.queue_lock:
                                     allocation_result.set_result(node_id)
                                 allocated = True
                                 logger.info(
@@ -151,16 +159,22 @@ class FcfsScheduler(SllmScheduler):
                                 )
                                 node_info["free_gpu"] -= float(num_gpus)
                                 break
-                        if keep_going: # current request is already allocated, check next
+                        if (
+                            keep_going
+                        ):  # current request is already allocated, check next
                             continue
                         if not allocated:
-                            logger.info(f"No available node for model {model_name}")
+                            logger.info(
+                                f"No available node for model {model_name}"
+                            )
                     await self._update_worker_nodes(worker_nodes)
                     # remove the allocated requests from the `loading_requests` list
-                    loading_requests = [req for req in loading_requests if not req[4].done()] 
+                    loading_requests = [
+                        req for req in loading_requests if not req[4].done()
+                    ]
                 await asyncio.sleep(1)
         except Exception as e:
-            logger.error(f"Error: {e}",exc_info=True)
+            logger.error(f"Error: {e}", exc_info=True)
 
     async def _get_worker_nodes(self):
         worker_nodes = get_worker_nodes()

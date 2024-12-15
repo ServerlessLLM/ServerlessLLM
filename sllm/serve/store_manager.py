@@ -375,7 +375,12 @@ class StoreManager:
                     if self.local_servers:
                         first_node = next(iter(self.local_servers.values()))
                         self.local_servers[node_id] = SllmLocalStore(
-                        node_id, SllmStoreClient(f"{node_address}:8073"), 1, first_node.chunk_size, first_node.hardware_info)
+                            node_id,
+                            SllmStoreClient(f"{node_address}:8073"),
+                            1,
+                            first_node.chunk_size,
+                            first_node.hardware_info,
+                        )
                     else:
                         logger.error("no nodes")
 
