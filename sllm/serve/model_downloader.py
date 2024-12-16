@@ -126,7 +126,7 @@ class VllmModelDownloader:
                 # download from huggingface
                 input_dir = snapshot_download(
                     model_name,
-                    cache_dir=cache_dir,
+                    cache_dir=cache_dir.name,
                     allow_patterns=[
                         "*.safetensors",
                         "*.bin",
