@@ -268,7 +268,7 @@ def test_resume_generate(transformers_backend, model, tokenizer):
             "max_tokens": 128,
         }
         intermediate_inputs = transformers_backend._tokenize("")
-        intermediate_tokens = intermediate_inputs["input_ids"].tolist()[0]
+        intermediate_tokens = intermediate_inputs["input_ids"].tolist()
         try:
             transformers_backend.resume_kv_cache(intermediate_tokens)
         except Exception as e:
