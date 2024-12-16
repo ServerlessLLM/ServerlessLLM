@@ -21,7 +21,7 @@ import threading
 import time
 import uuid
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -46,8 +46,14 @@ class InferenceStatus(BaseStreamer):
         self.intermediate = []
 
     def put(self, value):
-        value = value.flatten().tolist()
-        self.intermediate.extend(value)
+        value = value.tolist()
+        if not self.intermediate:
+            self.intermediate = value
+        else:
+            # NOTE: This does not support in-flight batching
+            # or dynamic batch size
+            for i, v in enumerate(value):
+                self.intermediate[i].append(v)
         logger.warning(f"Intermediate output: {self.intermediate}")
         if self.status == BackendStatus.DELETING:
             raise DeletingException("Backend is deleting")
@@ -247,7 +253,7 @@ class TransformersBackend(SllmBackend):
             return {
                 "preempted": "True",
                 "current_output": output_tokens,
-                "completed_tokens": len(output_tokens) - prompt_tokens,
+                "completed_tokens": len(output_tokens[0]) - prompt_tokens,
             }
         except Exception as e:
             logger.error(f"Failed to generate response: {e}")
@@ -319,7 +325,7 @@ class TransformersBackend(SllmBackend):
         logger.info("All requests finished. Shutting down the backend.")
         self.shutdown()
 
-    def get_current_tokens(self):
+    def get_current_tokens(self) -> List[List[int]]:
         """Return a list of all ongoing request tokens."""
         with self.status_lock:
             if self.status != BackendStatus.RUNNING:
@@ -333,7 +339,8 @@ class TransformersBackend(SllmBackend):
         logger.info(f"Resuming cache for {request_datas}")
         with torch.no_grad():
             device = self.model.device
-            input_ids = torch.tensor(request_datas).reshape(1, -1).to(device)
+            input_ids = torch.tensor(request_datas).to(device)
+            logger.info(input_ids)
             output = self.model.generate(
                 input_ids,
                 past_key_values=self.past_key_values,
@@ -374,9 +381,7 @@ class TransformersBackend(SllmBackend):
         try:
             with torch.no_grad():
                 device = self.model.device
-                current_output = (
-                    torch.tensor(current_output).reshape(1, -1).to(device)
-                )
+                current_output = torch.tensor(current_output).to(device)
                 if len(current_output[0]) < len(self.current_tokens[0]):
                     current_output = self.current_tokens
                 outputs = self.model.generate(
