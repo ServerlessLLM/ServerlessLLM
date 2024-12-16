@@ -178,12 +178,16 @@ class MigrationRouter(RoundRobinRouter):
             current_tokens = ray.get(
                 source_instance.backend_instance.get_current_tokens.remote()
             )
-            n_delta_tokens = len(current_tokens) - n_previous_tokens
+            if not current_tokens:
+                logger.info("No tokens found")
+                break
+            n_current_tokens = len(current_tokens[0])
+            n_delta_tokens = n_current_tokens - n_previous_tokens
             logger.info(
-                f"Number of tokens: {len(current_tokens)}, delta: {n_delta_tokens}"
+                f"Number of tokens: {n_current_tokens}, delta: {n_delta_tokens}"
             )
-            n_previous_tokens = len(current_tokens)
-            if not current_tokens or n_delta_tokens <= self.migration_delta:
+            n_previous_tokens = n_current_tokens
+            if n_delta_tokens <= self.migration_delta:
                 logger.info(
                     "Migration completed: remained "
                     f"{None if not current_tokens else n_delta_tokens} tokens"
