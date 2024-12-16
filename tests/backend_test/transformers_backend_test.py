@@ -228,7 +228,7 @@ def test_resume_kv_cache(transformers_backend, model, tokenizer):
     ):
         transformers_backend.init_backend()
         inputs = transformers_backend._tokenize("")
-        intermediate_tokens = inputs["input_ids"].tolist()[0]
+        intermediate_tokens = inputs["input_ids"].tolist()
         try:
             transformers_backend.resume_kv_cache(intermediate_tokens)
         except Exception as e:
@@ -240,9 +240,9 @@ def test_resume_kv_cache(transformers_backend, model, tokenizer):
         )
         assert len(transformers_backend.past_key_values[0]) == 2
         assert transformers_backend.past_key_values[0][0].shape == (
-            1,
-            model.config.num_attention_heads,
             len(intermediate_tokens),
+            model.config.num_attention_heads,
+            len(intermediate_tokens[0]),
             model.config.hidden_size // model.config.num_attention_heads,
         )
 
