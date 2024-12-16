@@ -22,6 +22,7 @@ import shutil
 from typing import Optional
 
 import ray
+from transformers import AutoTokenizer
 
 logger = logging.getLogger("ray")
 
@@ -45,6 +46,9 @@ def download_transformers_model(
 ) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
+    tokenizer_path = os.path.join(
+        storage_path, "transformers", model_name, "tokenizer"
+    )
 
     if os.path.exists(model_path):
         logger.info(f"{model_path} already exists")
@@ -66,11 +70,14 @@ def download_transformers_model(
         trust_remote_code=True,
     )
 
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
     from sllm_store.transformers import save_model
 
     logger.info(f"Saving {model_path}")
     try:
         save_model(model, model_path)
+        tokenizer.save_pretrained(tokenizer_path)
     except Exception as e:
         logger.error(f"Failed to save {model_path}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
