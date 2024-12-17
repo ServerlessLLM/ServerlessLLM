@@ -49,6 +49,7 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    get_quantization_config,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -121,6 +122,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -131,6 +133,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
+            quantization=quantization,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -140,6 +143,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
+        quantization=quantization,
         storage_path=storage_path,
     )
 
@@ -149,6 +153,7 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -180,34 +185,60 @@ def fully_parallel_load(
         )
 
         start = time.time()
+
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
+            f"{os.path.join(storage_path, model_path)}",
+            trust_remote_code=True
         )
+
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
 
         logger.debug(f"load config takes {time.time() - start} seconds")
+
         start = time.time()
-        with init_empty_weights():
-            module = importlib.import_module("transformers")
-            _class = getattr(module, hf_model_class)
-            model = _class.from_config(config, trust_remote_code=True).to(
-                config.torch_dtype
+
+        if quantization:
+            quantization_config = get_quantization_config(quantization)
+            with init_empty_weights():
+                module = importlib.import_module("transformers")
+                _class = getattr(module, hf_model_class)
+                model = _class.from_config(config, trust_remote_code=True)
+
+            logger.debug(f"loading model at {quantization} precision")
+            model = _class.from_pretrained(
+                f"{os.path.join(storage_path, model_path)}",
+                config=config,
+                quantization_config=quantization_config,
+                trust_remote_code=True
             )
+            logger.debug(f"load model takes {time.time() - start} seconds")
 
-        model.tie_weights()
-        logger.debug(f"load model takes {time.time() - start} seconds")
+            replica_uuid, _ = future.result()
 
-        replica_uuid, state_dict = future.result()
+        else:
+            with init_empty_weights():
+                module = importlib.import_module("transformers")
+                _class = getattr(module, hf_model_class)
+                model = _class.from_config(config, trust_remote_code=True).to(
+                    config.torch_dtype
+                )
 
-    with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(model, name, param.device, param)
-        send_module_buffers_to_device(model, device_map)
+            model.tie_weights()
+            logger.debug(f"load model takes {time.time() - start} seconds")
 
-    dispatch_model(
-        model, device_map, skip_keys=model._skip_keys_device_placement
-    )
+            replica_uuid, state_dict = future.result()
+
+            with torch.no_grad():
+                for name, param in state_dict.items():
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
+                send_module_buffers_to_device(model, device_map)
+
+            dispatch_model(
+                model, device_map, skip_keys=model._skip_keys_device_placement
+            )
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
@@ -222,6 +253,7 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -240,9 +272,14 @@ def best_effort_load(
 
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
+
     start = time.time()
+
+    quantization_config = get_quantization_config(quantization)
     config = AutoConfig.from_pretrained(
-        f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
+        f"{os.path.join(storage_path, model_path)}",
+        trust_remote_code=True,
+        quantization_config=quantization_config,
     )
     if torch_dtype is not None:
         config.torch_dtype = torch_dtype

@@ -18,8 +18,9 @@
 from functools import reduce
 
 import torch
-from accelerate.utils import find_tied_parameters
 from torch import nn
+from transformers import BitsAndBytesConfig
+from accelerate.utils import find_tied_parameters
 
 
 def set_module_buffer_to_device(
@@ -178,3 +179,17 @@ def get_tied_no_split_modules(model, no_split_modules):
 
 def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
+
+
+def get_quantization_config(precision: str) -> BitsAndBytesConfig:
+    if precision == "int4":
+        return BitsAndBytesConfig(load_in_4bit=True)
+    elif precision == "int8":
+        return BitsAndBytesConfig(load_in_8bit=True)
+    elif precision == "nf4":
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+        )
+    else:
+        return None
