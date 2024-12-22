@@ -23,6 +23,7 @@ from typing import Dict, Optional
 import ray
 
 from sllm.serve.inference_instance import start_instance
+from sllm.serve.fine_tuning_instance import start_fine_tuning_instance
 
 from .router_utils import InstanceHandle, SllmRouter
 
@@ -145,6 +146,39 @@ class RoundRobinRouter(SllmRouter):
             )
         else:
             result = {"error": "Invalid action"}
+        logger.info(f"Finished processing request")
+        await instance.add_requests(-1)
+        async with self.request_count_lock:
+            self.request_count -= 1
+        return result
+
+    async def fine_tuning(self, request_data: dict):
+        logger.info("You are here in roundrobin_router")
+        async with self.running_lock:
+            if not self.running:
+                return {"error": "Instance stopped"}
+
+        async with self.request_count_lock:
+            self.request_count += 1
+
+        async with self.idle_time_lock:
+            self.idle_time = 0
+
+        instance_allocation = self.loop.create_future()
+        await self.request_queue.put(instance_allocation)
+        logger.info(f"Enqueued request for model {self.model_name}")
+
+        instance_id = await instance_allocation
+        logger.info(f"{request_data}, type: {type(request_data)}")
+        async with self.instance_management_lock:
+            if instance_id not in self.ready_instances:
+                logger.error(f"Instance {instance_id} not found")
+                return {"error": "Instance not found"}
+            instance = self.ready_instances[instance_id]
+        
+        result = await instance.backend_instance.fine_tuning.remote(
+                request_data=request_data
+        )
         logger.info(f"Finished processing request")
         await instance.add_requests(-1)
         async with self.request_count_lock:
