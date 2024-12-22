@@ -38,10 +38,12 @@ class SllmScheduler(ABC):
 
     @abstractmethod
     async def allocate_resource(
-        self, model_name: str, resource_requirements: Mapping
+        self, model_name: str, instance_id: str, resources: Mapping
     ):
         pass
 
     @abstractmethod
-    async def deallocate_resource(self, node_id: int, resources: Mapping):
+    async def deallocate_resource(
+        self, model_name: str, instance_id: str, resources: Mapping
+    ):
         pass
