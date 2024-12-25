@@ -22,6 +22,7 @@ import shutil
 from typing import Optional
 
 import ray
+from transformers import AutoTokenizer
 
 logger = logging.getLogger("ray")
 
@@ -45,6 +46,9 @@ def download_transformers_model(
 ) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
+    tokenizer_path = os.path.join(
+        storage_path, "transformers", model_name, "tokenizer"
+    )
 
     if os.path.exists(model_path):
         logger.info(f"{model_path} already exists")
@@ -66,11 +70,14 @@ def download_transformers_model(
         trust_remote_code=True,
     )
 
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
     from sllm_store.transformers import save_model
 
     logger.info(f"Saving {model_path}")
     try:
         save_model(model, model_path)
+        tokenizer.save_pretrained(tokenizer_path)
     except Exception as e:
         logger.error(f"Failed to save {model_path}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
@@ -111,23 +118,23 @@ class VllmModelDownloader:
             logger.info(f"{model_path} already exists")
             return
 
+        cache_dir = TemporaryDirectory()
         try:
             if os.path.exists(pretrained_model_name_or_path):
                 input_dir = pretrained_model_name_or_path
             else:
-                with TemporaryDirectory() as cache_dir:
-                    # download from huggingface
-                    input_dir = snapshot_download(
-                        model_name,
-                        cache_dir=cache_dir,
-                        allow_patterns=[
-                            "*.safetensors",
-                            "*.bin",
-                            "*.json",
-                            "*.txt",
-                        ],
-                    )
-            logger.info(input_dir)
+                # download from huggingface
+                input_dir = snapshot_download(
+                    model_name,
+                    cache_dir=cache_dir.name,
+                    allow_patterns=[
+                        "*.safetensors",
+                        "*.bin",
+                        "*.json",
+                        "*.txt",
+                    ],
+                )
+            logger.info(f"Loading model from {input_dir}")
 
             # load models from the input directory
             llm_writer = LLM(
@@ -166,9 +173,11 @@ class VllmModelDownloader:
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
         except Exception as e:
-            print(f"An error occurred while saving the model: {e}")
+            logger.info(f"An error occurred while saving the model: {e}")
             # remove the output dir
             shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
             raise RuntimeError(
                 f"Failed to save {model_name} for vllm backend: {e}"
             )
+        finally:
+            cache_dir.cleanup()

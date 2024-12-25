@@ -1,0 +1,27 @@
+{
+    "model": "Qwen/Qwen2.5-3B-Instruct",
+    "backend": "transformers",
+    "num_gpus": 1,
+    "auto_scaling_config": {
+        "metric": "concurrency",
+        "target": 1,
+        "min_instances": 0,
+        "max_instances": 10
+    },
+    "router_config": {
+        "migration_delta": 20
+    },
+    "placement_config": {
+        "local_disk": ["0", "1"],
+        "memory_pool": ["0", "1"]
+    },
+    "backend_config": {
+        "pretrained_model_name_or_path": "Qwen/Qwen2.5-3B-Instruct",
+        "device_map": "auto",
+        "torch_dtype": "float16"
+    },
+    "scheduler_config": {
+        "alpha": 0.01,
+        "beta": 0.1
+    }
+}
