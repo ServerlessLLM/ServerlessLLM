@@ -176,6 +176,8 @@ def fully_parallel_load(
             no_split_modules, tied_no_split_modules, device_map
         )
     # TODO: offload `load_dict_non_blocking` to c++ for real parallelism
+
+    # right now how it works is async load_dict_non_blocking function 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(
             load_dict_non_blocking, model_path, device_map, storage_path
@@ -185,60 +187,35 @@ def fully_parallel_load(
         )
 
         start = time.time()
-
         config = AutoConfig.from_pretrained(
-            f"{os.path.join(storage_path, model_path)}",
-            trust_remote_code=True
+            f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
         )
-
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
 
         logger.debug(f"load config takes {time.time() - start} seconds")
-
         start = time.time()
-
-        if quantization:
-            quantization_config = get_quantization_config(quantization)
-            with init_empty_weights():
-                module = importlib.import_module("transformers")
-                _class = getattr(module, hf_model_class)
-                model = _class.from_config(config, trust_remote_code=True)
-
-            logger.debug(f"loading model at {quantization} precision")
-            model = _class.from_pretrained(
-                f"{os.path.join(storage_path, model_path)}",
-                config=config,
-                quantization_config=quantization_config,
-                trust_remote_code=True
+        with init_empty_weights():
+            module = importlib.import_module("transformers")
+            _class = getattr(module, hf_model_class)
+            model = _class.from_config(config, trust_remote_code=True).to(
+                config.torch_dtype
             )
-            logger.debug(f"load model takes {time.time() - start} seconds")
 
-            replica_uuid, _ = future.result()
+        model.tie_weights()
+        logger.debug(f"load model takes {time.time() - start} seconds")
 
-        else:
-            with init_empty_weights():
-                module = importlib.import_module("transformers")
-                _class = getattr(module, hf_model_class)
-                model = _class.from_config(config, trust_remote_code=True).to(
-                    config.torch_dtype
-                )
+        replica_uuid, state_dict = future.result()
 
-            model.tie_weights()
-            logger.debug(f"load model takes {time.time() - start} seconds")
+    with torch.no_grad():
+        for name, param in state_dict.items():
+            set_module_tensor_to_device(model, name, param.device, param)
+        send_module_buffers_to_device(model, device_map)
 
-            replica_uuid, state_dict = future.result()
+    dispatch_model(
+        model, device_map, skip_keys=model._skip_keys_device_placement
+    )
 
-            with torch.no_grad():
-                for name, param in state_dict.items():
-                    set_module_tensor_to_device(
-                        model, name, param.device, param
-                    )
-                send_module_buffers_to_device(model, device_map)
-
-            dispatch_model(
-                model, device_map, skip_keys=model._skip_keys_device_placement
-            )
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
