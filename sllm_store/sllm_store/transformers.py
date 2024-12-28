@@ -201,6 +201,8 @@ def fully_parallel_load(
             logger.debug(f"loading model at {quantization} precision")
             replica_uuid = _get_uuid()
 
+            quantization_config = get_quantization_config(quantization)
+
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
             model = _class.from_pretrained(
