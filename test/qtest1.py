@@ -31,8 +31,6 @@ model_folder = os.getenv("MODEL_FOLDER")
 model_path = os.path.join(model_folder, model_name)
 # print(f"saving to {model_folder}")
 # save_model(model, model_path)
-
-save_model(model, model_path)
 #=======================================================================================================================
 torch.cuda.empty_cache()
 # warm up the GPU
@@ -42,14 +40,15 @@ for i in range(num_gpus):
         torch.cuda.synchronize()
 
 before_mem = torch.cuda.memory_allocated()
-# model = load_model(model_name, device_map="auto", storage_path=model_folder, fully_parallel=True)
+model = load_model(model_name, device_map="auto", storage_path=model_folder, fully_parallel=True)
 print(f"getting model from {model_folder}")
-model = load_model(model_name, device_map="auto", storage_path=model_folder, fully_parallel=True, quantization="int4")
+# model = load_model(model_name, device_map="auto", storage_path=model_folder, fully_parallel=True, quantization="int4")
 after_mem = torch.cuda.memory_allocated()
 print(f"Memory difference: {after_mem - before_mem}")
 print(f"memory footprint: {model.get_memory_footprint()}")
 print(f"memory allocated: {torch.cuda.memory_allocated()}")
 print(f"max memory allocated: {torch.cuda.max_memory_allocated()}")
+print(f"getting model from {model_folder}")
 # for name, param in model.named_parameters():
 #     print(f"{name}: {param.dtype}, {param.device}")
 #=======================================================================================================================
