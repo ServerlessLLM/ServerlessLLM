@@ -20,7 +20,7 @@ from functools import reduce
 import torch
 from torch import nn
 from accelerate.utils import find_tied_parameters
-import bitandbytes as bnb
+import bitsandbytes as bnb
 
 
 def set_module_buffer_to_device(
