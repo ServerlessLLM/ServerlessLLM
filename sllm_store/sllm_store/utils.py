@@ -19,8 +19,8 @@ from functools import reduce
 
 import torch
 from torch import nn
-from transformers import BitsAndBytesConfig
 from accelerate.utils import find_tied_parameters
+import bitandbytes as bnb
 
 
 def set_module_buffer_to_device(
@@ -181,15 +181,21 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
 
 
-def get_quantization_config(precision: str) -> BitsAndBytesConfig:
-    if precision == "int4":
-        return BitsAndBytesConfig(load_in_4bit=True)
+def get_quantization_fn(precision: str):
+    if precision in ["fp4", "nf4", "int4"]:
+        return bnb.functional.quantize_4bit
     elif precision == "int8":
-        return BitsAndBytesConfig(load_in_8bit=True)
-    elif precision == "nf4":
-        return BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-        )
+        return bnb.functional.int8_double_quant
     else:
-        return None
+        raise ValueError(f"Unsupported quantization type: {quantization}")
+
+
+def get_quant_type(quantization):
+    if quantization in ["int4", "int8"]:
+        return "nf4"  
+    elif quantization == "fp4":
+        return "fp4"
+    elif quantization == "nf4":
+        return "nf4"
+    else:
+        raise ValueError(f"Unsupported quantization type: {quantization}")

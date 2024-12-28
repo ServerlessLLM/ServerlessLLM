@@ -49,7 +49,7 @@ class EncodeCommand:
             "-q",
             "--quantization",
             type=str,
-            choices=["int8", "int4", "nf4"],
+            choices=["int8", "int4", "nf4", "fp4"],
             default=None,
             help="Target precision for quantization.",
         )
