@@ -187,15 +187,15 @@ def get_quantization_fn(precision: str):
     elif precision == "int8":
         return bnb.functional.int8_double_quant
     else:
-        raise ValueError(f"Unsupported quantization type: {quantization}")
+        raise ValueError(f"Unsupported precision: {precision}")
 
 
-def get_quant_type(quantization):
-    if quantization in ["int4", "int8"]:
-        return "nf4"  
-    elif quantization == "fp4":
+def get_quant_type(precision: str):
+    if precision in ["int4", "int8"]:
+        return "nf4"
+    elif precision == "fp4":
         return "fp4"
-    elif quantization == "nf4":
+    elif precision == "nf4":
         return "nf4"
     else:
-        raise ValueError(f"Unsupported quantization type: {quantization}")
+        raise ValueError(f"Unsupported quantization type: {precision}")

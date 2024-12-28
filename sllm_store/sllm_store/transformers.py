@@ -54,7 +54,6 @@ from sllm_store.utils import (
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
-import bitsandbytes as bnb
 import importlib
 
 logger = init_logger(__name__)
@@ -213,14 +212,24 @@ def fully_parallel_load(
             quant_type = get_quant_type(quantization)
 
             if quantization == "int8":
-                quantize = lambda x: quantization_fn(x)
+
+                def quantize(x):
+                    return quantization_fn(x)[0]
             else:
-                quantize = lambda x: quantization_fn(x, quant_type=quant_type, compress_statistics=True)
+
+                def quantize(x):
+                    return quantization_fn(
+                        x, quant_type=quant_type, compress_statistics=True
+                    )[0]
 
             for name, param in state_dict.items():
-                if param.dtype in [torch.bfloat16, torch.float16, torch.float32]:
+                if param.dtype in [
+                    torch.bfloat16,
+                    torch.float16,
+                    torch.float32,
+                ]:
                     quantized_weights = quantize(param.data)
-                    param.data = quantized_weights[0]
+                    param.data = quantized_weights
                 set_module_tensor_to_device(model, name, param.device, param)
             send_module_buffers_to_device(model, device_map)
 
