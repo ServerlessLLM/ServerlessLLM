@@ -32,7 +32,7 @@ model_path = os.path.join(model_folder, model_name)
 # print(f"saving to {model_folder}")
 # save_model(model, model_path)
 
-save_model(model, model_folder)
+save_model(model, model_path)
 #=======================================================================================================================
 torch.cuda.empty_cache()
 # warm up the GPU
