@@ -6,7 +6,7 @@ from sllm_store.transformers import save_model
 from sllm_store.transformers import load_model
 
 quantization_config = BitsAndBytesConfig(load_in_4bit=True)
-model_name = 'facebook/opt-1.3b'
+model_name = "Qwen/Qwen-2.5-1.5B"#'facebook/opt-1.3b'
 before_mem = torch.cuda.memory_allocated()
 model = AutoModelForCausalLM.from_pretrained(model_name)
 #=======================================================================================================================
@@ -42,6 +42,7 @@ for i in range(num_gpus):
 
 before_mem = torch.cuda.memory_allocated()
 # model = load_model(model_name, device_map="auto", storage_path=model_folder, fully_parallel=True)
+print(f"getting model from {model_folder}")
 model = load_model(model_name, device_map="auto", storage_path=model_folder, fully_parallel=True, quantization="int4")
 after_mem = torch.cuda.memory_allocated()
 print(f"Memory difference: {after_mem - before_mem}")
