@@ -214,13 +214,16 @@ def fully_parallel_load(
             if quantization == "int8":
 
                 def quantize(x):
-                    return quantization_fn(x)[0]
+                    x = x.to(torch.float16)
+                    quantized_weights, _, _ = quantization_fn(x)
+                    return quantized_weights
             else:
 
                 def quantize(x):
-                    return quantization_fn(
-                        x, quant_type=quant_type, compress_statistics=True
-                    )[0]
+                    quantized_weights, _ = quantization_fn(
+                        x, quant_type=quant_type
+                    )
+                    return quantized_weights.view_as(x)
 
             for name, param in state_dict.items():
                 if param.dtype in [
@@ -230,8 +233,8 @@ def fully_parallel_load(
                 ]:
                     quantized_weights = quantize(param.data)
                     print(param.data.shape)
-                    print(quantized_weights.shape)
                     param.data = quantized_weights
+                    print(param.data.shape)
                 set_module_tensor_to_device(model, name, param.device, param)
             send_module_buffers_to_device(model, device_map)
 

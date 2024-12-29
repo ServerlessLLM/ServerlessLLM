@@ -185,7 +185,7 @@ def get_quantization_fn(precision: str):
     if precision in ["fp4", "nf4", "int4"]:
         return bnb.functional.quantize_4bit
     elif precision == "int8":
-        return bnb.functional.int8_double_quant
+        return bnb.functional.int8_vectorwise_quant
     else:
         raise ValueError(f"Unsupported precision: {precision}")
 
