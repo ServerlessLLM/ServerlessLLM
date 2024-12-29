@@ -15,50 +15,51 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import argparse
-import asyncio
+import os
+from argparse import Namespace, _SubParsersAction
 
-from sllm.cli.delete import DeleteCommand
-from sllm.cli.deploy import DeployCommand
-from sllm.cli.encode import EncodeCommand
-from sllm.cli.generate import GenerateCommand
-from sllm.cli.replay import ReplayCommand
-from sllm.cli.showme import ShowmeCommand
-from sllm.cli.update import UpdateCommand
+import requests
+
+from sllm.cli._cli_utils import read_config
 from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        "sllm-cli", usage="sllm-cli <command> [<args>]"
-    )
-    commands_parser = parser.add_subparsers(help="sllm-cli command helpers")
+class ShowmeCommand:
+    @staticmethod
+    def register_subcommand(parser: _SubParsersAction):
+        status_parser = parser.add_parser(
+            "status", help="Query the status of registered models."
+        )
+        status_parser.set_defaults(func=ShowmeCommand)
 
-    # Register commands
-    DeployCommand.register_subcommand(commands_parser)
-    GenerateCommand.register_subcommand(commands_parser)
-    EncodeCommand.register_subcommand(commands_parser)
-    ReplayCommand.register_subcommand(commands_parser)
-    DeleteCommand.register_subcommand(commands_parser)
-    UpdateCommand.register_subcommand(commands_parser)
-    ShowmeCommand.register_subcommand(commands_parser)
+    def __init__(self, args: Namespace) -> None:
+        self.endpoint = "v1/models/status"  # TODO: as a argument
+        self.url = (
+            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
+            + self.endpoint
+        )
 
-    # Let's go
-    args = parser.parse_args()
+    def run(self) -> None:
+        status = self.query_status()
+        if status:
+            logger.info(f"Model status: {status}")
+        else:
+            logger.error("Failed to fetch model status.")
 
-    if not hasattr(args, "func"):
-        parser.print_help()
-        exit(1)
+    def query_status(self) -> dict:
+        headers = {"Content-Type": "application/json"}
 
-    # Run
-    service = args.func(args)
-    if asyncio.iscoroutinefunction(service.run):
-        asyncio.run(service.run())
-    else:
-        service.run()
+        # Send GET request to the status endpoint
+        response = requests.get(self.url, headers=headers)
 
-
-if __name__ == "__main__":
-    main()
+        if response.status_code == 200:
+            logger.info("Status query successful.")
+            return response.json()
+        else:
+            logger.error(
+                f"Failed to query status. Status code: {response.status_code}"
+            )
+            logger.error(f"Response: {response.text}")
+            return None
