@@ -224,7 +224,7 @@ def fully_parallel_load(
                     quantized_weights, _ = quantization_fn(
                         x, quant_type=quant_type
                     )
-                    quantized_weights = unpack__4bit(quantized_weights).view_as(x)
+                    quantized_weights = unpack_4bit(quantized_weights).view_as(x)
                     return quantized_weights.to(x.device)
 
             for name, param in state_dict.items():
