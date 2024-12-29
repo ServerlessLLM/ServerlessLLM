@@ -199,3 +199,9 @@ def get_quant_type(precision: str):
         return "nf4"
     else:
         raise ValueError(f"Unsupported quantization type: {precision}")
+
+def unpack_4bit(quantized_tensor: torch.Tensor) -> torch.Tensor:
+    unpacked = torch.zeros(quantized_tensor.shape[0] * 2, dtype=torch.uint8, device=quantized_tensor.device)
+    unpacked[0::2] = quantized_tensor & 0x0F  
+    unpacked[1::2] = (quantized_tensor >> 4) & 0x0F  
+    return unpacked

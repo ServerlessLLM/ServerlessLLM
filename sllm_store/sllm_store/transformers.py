@@ -51,6 +51,7 @@ from sllm_store.utils import (
     send_module_buffers_to_device,
     get_quantization_fn,
     get_quant_type,
+    unpack_4bit,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -216,14 +217,15 @@ def fully_parallel_load(
                 def quantize(x):
                     x = x.to(torch.float16)
                     quantized_weights, _, _ = quantization_fn(x)
-                    return quantized_weights
+                    return quantized_weights.to(x.device)
             else:
 
                 def quantize(x):
                     quantized_weights, _ = quantization_fn(
                         x, quant_type=quant_type
                     )
-                    return quantized_weights.view_as(x)
+                    quantized_weights = unpack__4bit(quantized_weights).view_as(x)
+                    return quantized_weights.to(x.device)
 
             for name, param in state_dict.items():
                 if param.dtype in [
@@ -232,9 +234,7 @@ def fully_parallel_load(
                     torch.float32,
                 ]:
                     quantized_weights = quantize(param.data)
-                    print(param.data.shape)
                     param.data = quantized_weights
-                    print(param.data.shape)
                 set_module_tensor_to_device(model, name, param.device, param)
             send_module_buffers_to_device(model, device_map)
 
