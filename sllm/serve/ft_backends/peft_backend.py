@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 import peft 
 import transformers
+from sllm.serve.ft_backends.ft_backend_utils import FTBackendStatus, SllmFTBackend
 from transformers import TrainingArguments, Trainer 
 from peft import LoraConfig, get_peft_model, PeftModel 
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -27,12 +28,12 @@ from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
-class PeftBackend:
+class PeftBackend(SllmFTBackend):
     def __init__(self, model_name: str, config: Optional[Dict[str, Any]] = None):
         self.model_name = model_name
         self.config = config
 
-    async def fine_tune(self, fine_tune_params: dict):
+    async def fine_tuning(self, fine_tuning_params: dict):
         logger.info(f"Starting fine-tuning for model {self.model_name} with params: {fine_tune_params}")
         
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
