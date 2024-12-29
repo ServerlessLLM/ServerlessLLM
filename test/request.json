@@ -1,0 +1,11 @@
+{
+    "model": "facebook/opt-1.3b",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Please introduce yourself."
+        }
+    ],
+    "temperature": 0.3,
+    "max_tokens": 50
+}
