@@ -215,6 +215,7 @@ def fully_parallel_load(
             if quantization == "int8":
 
                 def quantize(x):
+                    print(x.device)
                     x = x.to(torch.float16)
                     quantized_weights, _, _ = quantization_fn(x)
                     return quantized_weights.to(x.device)
