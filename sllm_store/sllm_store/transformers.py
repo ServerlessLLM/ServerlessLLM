@@ -229,6 +229,8 @@ def fully_parallel_load(
                     torch.float32,
                 ]:
                     quantized_weights = quantize(param.data)
+                    print(param.data.shape)
+                    print(quantized_weights.shape)
                     param.data = quantized_weights
                 set_module_tensor_to_device(model, name, param.device, param)
             send_module_buffers_to_device(model, device_map)
