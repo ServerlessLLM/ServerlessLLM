@@ -167,13 +167,13 @@ class SllmController:
         async with self.metadata_lock:
             return self.registered_models
     
-    async def showme(self):
+    async def status(self):
         async with self.metadata_lock:
             models = []
             for model_name, config in self.registered_models.items():
                 models.append(
                     {
-                        "id": model_name,
+                    "id": model_name,
                     "object": "model",
                     "created": int(datetime.datetime.now().timestamp()),  # Replace with actual creation time if available
                     "owned_by": "sllm",  # Replace with appropriate owner info

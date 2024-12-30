@@ -23,7 +23,7 @@ from sllm.cli.deploy import DeployCommand
 from sllm.cli.encode import EncodeCommand
 from sllm.cli.generate import GenerateCommand
 from sllm.cli.replay import ReplayCommand
-from sllm.cli.showme import ShowmeCommand
+from sllm.cli.status import StatusCommand
 from sllm.cli.update import UpdateCommand
 from sllm.serve.logger import init_logger
 
@@ -43,7 +43,7 @@ def main():
     ReplayCommand.register_subcommand(commands_parser)
     DeleteCommand.register_subcommand(commands_parser)
     UpdateCommand.register_subcommand(commands_parser)
-    ShowmeCommand.register_subcommand(commands_parser)
+    StatusCommand.register_subcommand(commands_parser)
 
     # Let's go
     args = parser.parse_args()

@@ -4,7 +4,7 @@ from argparse import Namespace
 import sys
 # import os
 # sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-from sllm.cli.showme import ShowmeCommand
+from sllm.cli.status import ShowmeCommand
 
 
 class TestShowmeCommand(unittest.TestCase):

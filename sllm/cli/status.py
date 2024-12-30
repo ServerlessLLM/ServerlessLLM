@@ -26,13 +26,13 @@ from sllm.serve.logger import init_logger
 logger = init_logger(__name__)
 
 
-class ShowmeCommand:
+class StatusCommand:
     @staticmethod
     def register_subcommand(parser: _SubParsersAction):
         status_parser = parser.add_parser(
-            "status", help="Query the status of registered models."
+            "status", help="Query the information of registered models."
         )
-        status_parser.set_defaults(func=ShowmeCommand)
+        status_parser.set_defaults(func=StatusCommand)
 
     def __init__(self, args: Namespace) -> None:
         self.endpoint = "v1/models"  # TODO: as a argument

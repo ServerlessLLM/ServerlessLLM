@@ -138,8 +138,8 @@ def create_app() -> FastAPI:
             )
         
         try:
-            # CAll the showme method on the controller
-            result = await controller.showme.remote()
+            # CAll the status method on the controller
+            result = await controller.status.remote()
             return result
         except Exception as e:
             logger.error(f"Error retrieving models: {str(e)}")
