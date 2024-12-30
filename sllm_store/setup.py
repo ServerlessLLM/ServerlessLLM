@@ -225,7 +225,7 @@ setup(
     version="0.6.0",
     ext_modules=[
         CMakeExtension(name="sllm_store._C"),
-        # CMakeExtension(name="sllm_store.sllm_store_server"),
+        CMakeExtension(name="sllm_store._checkpoint_store"),
     ],
     install_requires=install_requires,
     long_description=read_readme(),
