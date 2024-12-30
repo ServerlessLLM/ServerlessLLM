@@ -127,6 +127,7 @@ class VllmBackend(SllmBackend):
             k: v for k, v in backend_config.items() if k in async_engine_fields
         }
 
+        quantization = backend_config.get("quantization", None)
         load_format = backend_config.get("load_format")
         torch_dtype = backend_config.get("torch_dtype")
         if torch_dtype is not None:
@@ -142,6 +143,10 @@ class VllmBackend(SllmBackend):
             model_path = os.path.join(storage_path, "vllm", model)
             filtered_engine_config["model"] = model_path
             filtered_engine_config["load_format"] = "serverless_llm"
+
+        if quantization is not None:
+            filtered_engine_config["quantization"] = quantization
+            filtered_engine_config["load_format"] = "bitsandbytes"
 
         # NOTE: Automatic enable prefix cachinging
         filtered_engine_config["enable_prefix_caching"] = True

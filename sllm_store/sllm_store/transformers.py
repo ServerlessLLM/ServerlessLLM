@@ -49,6 +49,9 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    get_quantization_fn,
+    get_quant_type,
+    unpack_4bit,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -121,6 +124,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -131,6 +135,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
+            quantization=quantization,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -140,6 +145,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
+        quantization=quantization,
         storage_path=storage_path,
     )
 
@@ -149,6 +155,7 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -201,9 +208,41 @@ def fully_parallel_load(
         replica_uuid, state_dict = future.result()
 
     with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(model, name, param.device, param)
-        send_module_buffers_to_device(model, device_map)
+        if quantization:
+            quantization_fn = get_quantization_fn(quantization)
+            quant_type = get_quant_type(quantization)
+
+            if quantization == "int8":
+
+                def quantize(x):
+                    print(x.device)
+                    x = x.to(torch.float16)
+                    quantized_weights, _, _ = quantization_fn(x)
+                    return quantized_weights.to(x.device)
+            else:
+
+                def quantize(x):
+                    quantized_weights, _ = quantization_fn(
+                        x, quant_type=quant_type
+                    )
+                    quantized_weights = unpack_4bit(quantized_weights).view_as(x)
+                    return quantized_weights.to(x.device)
+
+            for name, param in state_dict.items():
+                if param.dtype in [
+                    torch.bfloat16,
+                    torch.float16,
+                    torch.float32,
+                ]:
+                    quantized_weights = quantize(param.data)
+                    param.data = quantized_weights
+                set_module_tensor_to_device(model, name, param.device, param)
+            send_module_buffers_to_device(model, device_map)
+
+        else:
+            for name, param in state_dict.items():
+                set_module_tensor_to_device(model, name, param.device, param)
+            send_module_buffers_to_device(model, device_map)
 
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
