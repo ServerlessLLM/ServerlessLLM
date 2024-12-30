@@ -23,11 +23,12 @@ from typing import Dict, Optional
 import ray
 
 from sllm.serve.inference_instance import start_instance
-from sllm.serve.fine_tuning_instance import start_fine_tuning_instance
+from sllm.serve.logger import init_logger
 
-from .router_utils import InstanceHandle, SllmRouter
+from ..utils import InstanceHandle
+from .router_utils import SllmRouter
 
-logger = logging.getLogger(__name__)
+logger = init_logger(__name__)
 
 
 async def auto_scaler(
@@ -53,7 +54,6 @@ async def auto_scaler(
     return desired_instances
 
 
-@ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class RoundRobinRouter(SllmRouter):
     def __init__(
         self,
@@ -61,11 +61,13 @@ class RoundRobinRouter(SllmRouter):
         resource_requirements: Dict[str, int],
         backend: str,
         backend_config: Dict,
+        router_config: Dict,
     ) -> None:
         self.model_name = model_name
         self.resource_requirements = resource_requirements
         self.backend = backend
         self.backend_config = backend_config
+        self.router_config = router_config
 
         self.loop_interval = 1
         self.loop = asyncio.get_running_loop()
@@ -88,7 +90,6 @@ class RoundRobinRouter(SllmRouter):
         self.idle_time_lock = asyncio.Lock()
 
         self.auto_scaler = None
-        self.auto_scaler_ft = None
         logger.info(f"Created new handler for model {self.model_name}")
 
     async def start(self, auto_scaling_config: Dict[str, int]):
@@ -96,7 +97,6 @@ class RoundRobinRouter(SllmRouter):
         async with self.auto_scaling_lock:
             self.auto_scaling_config = auto_scaling_config
         self.auto_scaler = asyncio.create_task(self._auto_scaler_loop())
-        self.auto_scaler_ft = asyncio.create_task(self._auto_scaler_loop_ft())
         self.load_balancer = asyncio.create_task(self._load_balancer_loop())
         async with self.running_lock:
             self.running = True
@@ -148,39 +148,6 @@ class RoundRobinRouter(SllmRouter):
             )
         else:
             result = {"error": "Invalid action"}
-        logger.info(f"Finished processing request")
-        await instance.add_requests(-1)
-        async with self.request_count_lock:
-            self.request_count -= 1
-        return result
-
-    async def fine_tuning(self, request_data: dict):
-        logger.info("You are here in roundrobin_router")
-        async with self.running_lock:
-            if not self.running:
-                return {"error": "Instance stopped"}
-
-        async with self.request_count_lock:
-            self.request_count += 1
-
-        async with self.idle_time_lock:
-            self.idle_time = 0
-
-        instance_allocation = self.loop.create_future()
-        await self.request_queue.put(instance_allocation)
-        logger.info(f"Enqueued request for model {self.model_name}")
-
-        instance_id = await instance_allocation
-        logger.info(f"{request_data}, type: {type(request_data)}")
-        async with self.instance_management_lock:
-            if instance_id not in self.ready_instances:
-                logger.error(f"Instance {instance_id} not found")
-                return {"error": "Instance not found"}
-            instance = self.ready_instances[instance_id]
-        
-        result = await instance.backend_instance.fine_tuning.remote(
-                request_data=request_data
-        )
         logger.info(f"Finished processing request")
         await instance.add_requests(-1)
         async with self.request_count_lock:
@@ -251,50 +218,12 @@ class RoundRobinRouter(SllmRouter):
                     self.ready_instances
                 )
             logger.info(
-                f"Auto-scaler: {num_running_instances} instances, need {desired_instances} instances"
+                f"{self.model_name}: {num_running_instances} instances,"
+                f"need {desired_instances} instances",
             )
             if desired_instances > num_running_instances:
                 logger.info("Creating new instance")
                 await self._create_instance()
-            elif desired_instances < num_running_instances:
-                keep_alive = auto_scaling_config.get("keep_alive", 0)
-                if self.idle_time >= keep_alive:
-                    logger.info(
-                        f"Stopping instance, idle_time: {self.idle_time}, keep_alive: {keep_alive}"
-                    )
-                    await self._stop_instance()
-                    async with self.idle_time_lock:
-                        self.idle_time = 0
-                else:
-                    logger.info(
-                        f"idle_time: {self.idle_time}, keep_alive: {keep_alive}"
-                    )
-                    async with self.idle_time_lock:
-                        self.idle_time += self.loop_interval
-            else:
-                # logger.info("No scaling needed")
-                pass
-            await asyncio.sleep(self.loop_interval)
-
-    async def _auto_scaler_loop_ft(self):
-        while True:
-            # logger.info(f"Auto-scaling for model {self.model_name}")
-            async with self.auto_scaling_lock:
-                auto_scaling_config = self.auto_scaling_config.copy()
-            auto_scaling_metrics = {"request_count": self.request_count}
-            desired_instances = await auto_scaler_ft(
-                auto_scaling_metrics, auto_scaling_config
-            )
-            async with self.instance_management_lock:
-                num_running_instances = len(self.starting_instances) + len(
-                    self.ready_instances
-                )
-            logger.info(
-                f"Auto-scaler: {num_running_instances} instances, need {desired_instances} instances"
-            )
-            if desired_instances > num_running_instances:
-                logger.info("Creating new instance")
-                await self._create_fine_tuning_instance()
             elif desired_instances < num_running_instances:
                 keep_alive = auto_scaling_config.get("keep_alive", 0)
                 if self.idle_time >= keep_alive:
@@ -321,23 +250,14 @@ class RoundRobinRouter(SllmRouter):
             f"Creating new instance {instance_id} for model {self.model_name}"
         )
         # TODO: Add max_queue_length to instance
-        instance = InstanceHandle(instance_id=instance_id, max_queue_length=10)
+        instance = InstanceHandle(
+            instance_id=instance_id,
+            max_queue_length=10,
+            num_gpu=self.resource_requirements["num_gpus"],
+        )
         async with self.instance_management_lock:
             self.starting_instances[instance_id] = instance
         self.loop.create_task(self._start_instance(instance_id))
-
-        return instance_id
-
-    async def _create_fine_tuning_instance(self):
-        instance_id = self._new_instance_id()
-        logger.info(
-            f"Creating new instance {instance_id} for model {self.model_name}"
-        )
-        # TODO: Add max_queue_length to instance
-        instance = InstanceHandle(instance_id=instance_id, max_queue_length=10)
-        async with self.instance_management_lock:
-            self.starting_instances[instance_id] = instance
-        self.loop.create_task(self._start_fine_tuning_instance(instance_id))
 
         return instance_id
 
@@ -353,7 +273,7 @@ class RoundRobinRouter(SllmRouter):
         )
         startup_node = (
             await self.model_loading_scheduler.allocate_resource.remote(
-                self.model_name, self.resource_requirements
+                self.model_name, instance_id, self.resource_requirements
             )
         )
         startup_config = {
@@ -367,56 +287,6 @@ class RoundRobinRouter(SllmRouter):
         logger.info(f"Startup config: {startup_config}, {self.backend_config}")
 
         await start_instance.options(
-            resources={
-                "worker_node": 0.1,
-                f"worker_id_{startup_node}": 0.1,
-            }
-        ).remote(
-            instance_id,
-            self.backend,
-            self.model_name,
-            self.backend_config,
-            startup_config,
-        )
-        logger.info(
-            f"Started instance {instance_id} for model {self.model_name}"
-        )
-        instance.backend_instance = ray.get_actor(instance_id)
-        async with instance.lock:
-            instance.ready = True
-            instance.node_id = startup_node
-        await instance.backend_instance.init_backend.remote()
-        async with self.instance_management_lock:
-            self.ready_instances[instance_id] = instance
-            self.starting_instances.pop(instance_id)
-        return instance_id
-
-    async def _start_fine_tuning_instance(self, instance_id):
-        async with self.instance_management_lock:
-            if instance_id not in self.starting_instances:
-                logger.error(f"Instance {instance_id} not found")
-                return
-            instance = self.starting_instances[instance_id]
-        # Now ask model loading scheduler to load the model
-        logger.info(
-            f"Allocating resources for model {self.model_name} on instance {instance_id}"
-        )
-        startup_node = (
-            await self.model_loading_scheduler.allocate_resource.remote(
-                self.model_name, self.resource_requirements
-            )
-        )
-        startup_config = {
-            "num_cpus": self.resource_requirements["num_cpus"],
-            "num_gpus": self.resource_requirements["num_gpus"],
-            "resources": {
-                "worker_node": 0.1,
-                f"worker_id_{startup_node}": 0.1,
-            },
-        }
-        logger.info(f"Startup config: {startup_config}, {self.backend_config}")
-
-        await start_fine_tuning_instance.options(
             resources={
                 "worker_node": 0.1,
                 f"worker_id_{startup_node}": 0.1,
@@ -467,7 +337,7 @@ class RoundRobinRouter(SllmRouter):
         await instance.backend_instance.stop.remote()
         ray.kill(instance.backend_instance)
         await self.model_loading_scheduler.deallocate_resource.remote(
-            instance.node_id, self.resource_requirements
+            self.model_name, instance_id, self.resource_requirements
         )
 
     async def _shutdown_instance(self, instance_id: str):
@@ -484,6 +354,6 @@ class RoundRobinRouter(SllmRouter):
         await instance.backend_instance.shutdown.remote()
         ray.kill(instance.backend_instance)
         await self.model_loading_scheduler.deallocate_resource.remote(
-            instance.node_id, self.resource_requirements
+            self.model_name, instance_id, self.resource_requirements
         )
         return
