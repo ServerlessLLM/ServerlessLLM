@@ -12,11 +12,6 @@ set(BUILD_TESTING OFF)
 
 include(FetchContent)
 FetchContent_Declare(
-  gflags
-  GIT_REPOSITORY https://github.com/gflags/gflags.git
-  GIT_TAG        v2.2.2
-)
-FetchContent_Declare(
   glog
   GIT_REPOSITORY https://github.com/google/glog.git
   GIT_TAG        v0.6.0
@@ -26,18 +21,7 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG        v1.13.0
 )
-FetchContent_Declare(
-  grpc
-  GIT_REPOSITORY https://github.com/grpc/grpc
-  GIT_TAG        v1.48.3
-)
 set(FETCHCONTENT_QUIET OFF)
-
-FetchContent_GetProperties(gflags)
-if(NOT gflags_POPULATED)
-  FetchContent_Populate(gflags)
-  add_subdirectory(${gflags_SOURCE_DIR} ${gflags_BINARY_DIR} EXCLUDE_FROM_ALL)
-endif()
 
 FetchContent_GetProperties(glog)
 if(NOT glog_POPULATED)
@@ -46,36 +30,7 @@ if(NOT glog_POPULATED)
   add_subdirectory(${glog_SOURCE_DIR} ${glog_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
-FetchContent_MakeAvailable(googletest grpc)
-
-# Protobuf and gRPC libraries
-set(_PROTOBUF_LIBPROTOBUF libprotobuf)
-set(_PROTOBUF_PROTOC $<TARGET_FILE:protoc>)
-set(_GRPC_GRPCPP grpc++)
-set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:grpc_cpp_plugin>)
-
-# Proto file
-get_filename_component(hw_proto "proto/storage.proto" ABSOLUTE)
-get_filename_component(hw_proto_path "${hw_proto}" PATH)
-
-# Generated sources
-set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/storage.pb.cc")
-set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/storage.pb.h")
-set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/storage.grpc.pb.cc")
-set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/storage.grpc.pb.h")
-
-add_custom_command(
-      OUTPUT "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}"
-      COMMAND ${_PROTOBUF_PROTOC}
-      ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
-        --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
-        -I "${hw_proto_path}"
-        --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-        "${hw_proto}"
-      DEPENDS "${hw_proto}")
-
-# Include generated *.pb.h files
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+FetchContent_MakeAvailable(googletest)
 
 find_package(CUDAToolkit QUIET)
 find_package(HIP QUIET)
@@ -105,9 +60,6 @@ if (CUDAToolkit_FOUND)
   set_target_properties(sllm_store PROPERTIES CUDA_ARCHITECTURES "{$CUDA_SUPPORTED_ARCHS}")
   target_link_libraries(sllm_store PUBLIC CUDA::cudart Threads::Threads glog::glog)
   target_include_directories(sllm_store PUBLIC "csrc/sllm_store" ${CUDA_INCLUDE_DIRS})
-  add_executable(sllm_store_server "csrc/server.cpp" ${hw_proto_srcs} ${hw_grpc_srcs})
-  target_link_libraries(sllm_store_server PRIVATE sllm_store grpc++ grpc++_reflection libprotobuf gflags::gflags glog::glog)
-  target_include_directories(sllm_store_server PRIVATE "csrc/sllm_store")
 elseif (HIP_FOUND)
 # Execute customized hipify script to convert CUDA code to HIP code
   execute_process(
@@ -117,10 +69,6 @@ elseif (HIP_FOUND)
   set_target_properties(sllm_store PROPERTIES HIP_ARCHITECTURES "${HIP_SUPPORTED_ARCHS}")
   target_link_libraries(sllm_store PUBLIC hip::host Threads::Threads glog::glog)
   target_include_directories(sllm_store PUBLIC "csrc/hip" ${HIP_INCLUDE_DIRS})
-  add_executable(sllm_store_server "csrc/server.cpp" ${hw_proto_srcs} ${hw_grpc_srcs})
-  target_compile_definitions(sllm_store_server PRIVATE USE_HIP)
-  target_link_libraries(sllm_store_server PRIVATE sllm_store grpc++ grpc++_reflection libprotobuf gflags::gflags glog::glog)
-  target_include_directories(sllm_store_server PRIVATE "csrc/hip")
 else()
   message(FATAL_ERROR "Neither CUDA nor HIP found")
 endif()
