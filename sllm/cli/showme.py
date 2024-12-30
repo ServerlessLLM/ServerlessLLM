@@ -35,7 +35,7 @@ class ShowmeCommand:
         status_parser.set_defaults(func=ShowmeCommand)
 
     def __init__(self, args: Namespace) -> None:
-        self.endpoint = "v1/models/status"  # TODO: as a argument
+        self.endpoint = "v1/models"  # TODO: as a argument
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
             + self.endpoint
@@ -50,16 +50,23 @@ class ShowmeCommand:
 
     def query_status(self) -> dict:
         headers = {"Content-Type": "application/json"}
+        try:
+            # Send GET request to the status endpoint
+            response = requests.get(self.url, headers=headers)
 
-        # Send GET request to the status endpoint
-        response = requests.get(self.url, headers=headers)
-
-        if response.status_code == 200:
-            logger.info("Status query successful.")
-            return response.json()
-        else:
-            logger.error(
-                f"Failed to query status. Status code: {response.status_code}"
-            )
-            logger.error(f"Response: {response.text}")
+            if response.status_code == 200:
+                logger.info("Status query successful.")
+                try:
+                    return response.json()
+                except ValueError:
+                    logger.error("Invalid JSON response received.")
+                    return None
+            else:
+                logger.error(
+                    f"Failed to query status. Status code: {response.status_code}"
+                )
+                logger.error(f"Response: {response.text}")
+                return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed:{str(e)}")
             return None

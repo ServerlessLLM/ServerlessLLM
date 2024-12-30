@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 import asyncio
 from typing import Mapping, Optional
+import datetime
 
 import ray
 
@@ -165,6 +166,39 @@ class SllmController:
     async def get_models(self):
         async with self.metadata_lock:
             return self.registered_models
+    
+    async def showme(self):
+        async with self.metadata_lock:
+            models = []
+            for model_name, config in self.registered_models.items():
+                models.append(
+                    {
+                        "id": model_name,
+                    "object": "model",
+                    "created": int(datetime.datetime.now().timestamp()),  # Replace with actual creation time if available
+                    "owned_by": "sllm",  # Replace with appropriate owner info
+                    "permission": [
+                        {
+                            "id": f"modelperm-{model_name}",
+                            "object": "model_permission",
+                            "created": int(datetime.datetime.now().timestamp()),  # Replace with actual creation time
+                            "allow_create_engine": True,
+                            "allow_sampling": True,
+                            "allow_logprobs": True,
+                            "allow_search_indices": False,
+                            "allow_view": True,
+                            "allow_fine_tuning": False,
+                            "organization": "*",
+                            "group": None,
+                            "is_blocking": False
+                        }
+                        ],
+                    "root": model_name,
+                    "parent": None
+                    })
+            return self.registered_models
+
+
 
     async def shutdown(self):
         # stop the control loop
