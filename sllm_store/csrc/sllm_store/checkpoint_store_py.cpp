@@ -15,13 +15,29 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
+#include <pybind11/stl.h>
+#include <pybind11/stl_bind.h>
 #include <torch/extension.h>
 
 #include "checkpoint_store.h"
+#include "types_and_defs.h"
 
 namespace py = pybind11;
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+  // Binding for MemCopyChunk
+  py::class_<MemCopyChunk>(m, "MemCopyChunk")
+      .def(py::init<>())
+      .def_readwrite("src_offset", &MemCopyChunk::src_offset_)
+      .def_readwrite("size", &MemCopyChunk::size_)
+      .def_readwrite("dst_offset", &MemCopyChunk::dst_offset_)
+      .def_readwrite("handle_idx", &MemCopyChunk::handle_idx_);
+
+  // Binding for MemCopyHandle
+  py::class_<MemCopyHandle>(m, "MemCopyHandle")
+      .def(py::init<>())
+      .def_readwrite("cuda_ipc_handle", &MemCopyHandle::cuda_ipc_handle_);
+
   py::class_<CheckpointStore>(m, "CheckpointStore")
       .def(py::init<const std::string&, size_t, int, size_t>(),
            py::arg("storage_path"), py::arg("memory_pool_size"),
@@ -29,15 +45,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def("register_model_info", &CheckpointStore::RegisterModelInfo,
            py::arg("model_path"),
            "Register the model information and return its size.")
-      .def("load_model_from_disk", &CheckpointStore::LoadModelFromDisk,
-           py::arg("model_path"), "Load a model from disk synchronously.")
       .def("load_model_from_disk_async",
            &CheckpointStore::LoadModelFromDiskAsync, py::arg("model_path"),
            "Load a model from disk asynchronously.")
-      .def("load_model_from_mem", &CheckpointStore::LoadModelFromMem,
-           py::arg("model_path"), py::arg("replica_uuid"),
-           py::arg("gpu_memory_handles"), py::arg("mem_copy_chunks"),
-           "Load a model from memory synchronously.")
       .def("load_model_from_mem_async", &CheckpointStore::LoadModelFromMemAsync,
            py::arg("model_path"), py::arg("replica_uuid"),
            py::arg("gpu_memory_handles"), py::arg("mem_copy_chunks"),
