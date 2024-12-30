@@ -2,6 +2,10 @@ import asyncio
 import grpc
 from sllm_store.proto import storage_pb2, storage_pb2_grpc
 from sllm_store.logger import init_logger
+
+# this is necessary to avoid libtorch.so not found error
+import torch  # noqa: F401
+
 from sllm_store._checkpoint_store import (
     CheckpointStore,
     MemCopyChunk,
