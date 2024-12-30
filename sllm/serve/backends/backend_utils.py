@@ -47,6 +47,10 @@ class SllmBackend(ABC):
         pass
 
     @abstractmethod
+    async def fine_tuning(self, request_data: Dict[str, Any]):
+        pass
+
+    @abstractmethod
     async def shutdown(self):
         pass
 

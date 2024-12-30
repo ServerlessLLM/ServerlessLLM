@@ -146,6 +146,10 @@ class RoundRobinRouter(SllmRouter):
             result = await instance.backend_instance.encode.remote(
                 request_data=request_data
             )
+        elif action == "fine_tuning":
+            result = await instance.backend_instance.fine_tuning.remote(
+                request_data=request_data
+            )
         else:
             result = {"error": "Invalid action"}
         logger.info(f"Finished processing request")

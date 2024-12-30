@@ -131,17 +131,5 @@ def create_app() -> FastAPI:
 
     @app.post("/fine-tuning")
     async def fine_tuning(request: Request):
-        body = await request.json()
-        base_model_name = body.get("base_model")
-        logger.info(f"Received request for model {base_model_name}")
-        if not base_model_name:
-            raise HTTPException(
-                status_code=400, detail="Missing base_model in request body"
-            )
-        request_router = ray.get_actor(base_model_name, namespace="models")
-        logger.info(f"Got request router for {base_model_name}")
-
-        result = request_router.fine_tuning.remote(body)
-        
-        return await result
+        return await inference_handler(request, "fine_tuning")
     return app

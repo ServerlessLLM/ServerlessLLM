@@ -1,5 +1,5 @@
 {
-    "base_model": "bigscience/bloomz-560m",
+    "model": "bigscience/bloomz-560m",
     "ft_backend": "peft",
     "ft_backend_config": {
         "pretrained_model_name_or_path": "bigscience/bloomz-560m",
