@@ -23,10 +23,16 @@ import os
 import time
 import uuid
 from dataclasses import fields
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 import torch
-from vllm import AsyncEngineArgs, AsyncLLMEngine, RequestOutput, SamplingParams
+from vllm import (
+    AsyncEngineArgs,
+    AsyncLLMEngine,
+    EmbeddingRequestOutput,
+    RequestOutput,
+    SamplingParams,
+)
 from vllm.inputs import TokensPrompt
 
 from sllm.serve.backends.backend_utils import (
@@ -68,6 +74,29 @@ def process_output(output: RequestOutput, model_name: str) -> Dict[str, Any]:
             ),
             "total_tokens": len(output.prompt_token_ids)
             + sum(len(result.token_ids) for result in output.outputs),
+        },
+    }
+    return api_response
+
+
+def process_embedding_output(
+    outputs: AsyncIterator[EmbeddingRequestOutput], model_name: str
+) -> Dict[str, Any]:
+    query_tokens = sum(len(output.prompt_token_ids) for output in outputs)
+    api_response = {
+        "object": "list",
+        "data": [
+            {
+                "object": "embedding",
+                "index": i,
+                "embedding": output.outputs.embedding,
+            }
+            for i, output in enumerate(outputs)
+        ],
+        "model": model_name,
+        "usage": {
+            "query_tokens": query_tokens,
+            "total_tokens": query_tokens,
         },
     }
     return api_response
@@ -281,5 +310,7 @@ class VllmBackend(SllmBackend):
         await asyncio.gather(*tasks)
 
     async def encode(self, request_data: Dict[str, Any]):
-        # TODO: Implement this method on vLLM
-        pass
+        model_name = request_data.get("model", "dummy-model")
+        query = request_data.get("input", [])
+        res = self.engine.encode(query)
+        return process_embedding_output(res, model_name)
