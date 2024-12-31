@@ -29,6 +29,7 @@ import torch.nn.functional as F
 from datasets import load_dataset
 from peft import LoraConfig, PeftModel, get_peft_model
 
+import transformers
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
 from sllm_store.transformers import load_model
@@ -332,6 +333,7 @@ class TransformersBackend(SllmBackend):
         epochs = request_data.get("epochs", 1)
         learning_rate = request_data.get("learning_rate", 0.001)
         batch_size = request_data.get("batch_size", 32)
+        output_directory = request_data.get("output_dir", "./saved_lora_model")
 
         peft_model = get_peft_model(foundation_model, lora_config)
 
@@ -356,7 +358,9 @@ class TransformersBackend(SllmBackend):
         # save the model, use save_lora(), in sllm_store/transformers.py
         lora_save_path = request_data.get("output_dir", "./saved_lora_model")
         # save_lora(peft_model, save_path)
-        logger.info(f"Fine-tuning completed. LoRA model saved to {save_path}")
+        logger.info(
+            f"Fine-tuning completed. LoRA model saved to {lora_save_path}"
+        )
 
         response = {
             "model": base_model_name,
