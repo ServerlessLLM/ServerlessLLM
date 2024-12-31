@@ -32,6 +32,13 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             logger.error("mem_pool_size must be greater than 0")
             raise ValueError("Invalid mem_pool_size")
 
+        logger.info(
+            f"StorageServicer: storage_path={storage_path}, "
+            f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
+            f"chunk_size={chunk_size}, "
+            f"registration_required={registration_required}"
+        )
+
         self.storage = CheckpointStore(
             storage_path, mem_pool_size, num_thread, chunk_size
         )
@@ -188,10 +195,25 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
         )
 
 
-async def serve(host="0.0.0.0", port=50051, **kwargs):
+async def serve(
+    host,
+    port,
+    storage_path,
+    num_thread,
+    chunk_size,
+    mem_pool_size,
+    registration_required,
+):
     server = grpc.aio.server()
     storage_pb2_grpc.add_StorageServicer_to_server(
-        StorageServicer(**kwargs), server
+        StorageServicer(
+            storage_path,
+            mem_pool_size,
+            num_thread,
+            chunk_size,
+            registration_required,
+        ),
+        server,
     )
     listen_addr = f"{host}:{port}"
     server.add_insecure_port(listen_addr)
