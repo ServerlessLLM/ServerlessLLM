@@ -37,24 +37,6 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             f"chunk_size={chunk_size}, "
             f"registration_required={registration_required}"
         )
-        logger.debug(
-            f"StorageServicer: storage_path={storage_path}, "
-            f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
-            f"chunk_size={chunk_size}, "
-            f"registration_required={registration_required}"
-        )
-        logger.warning(
-            f"StorageServicer: storage_path={storage_path}, "
-            f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
-            f"chunk_size={chunk_size}, "
-            f"registration_required={registration_required}"
-        )
-        logger.error(
-            f"StorageServicer: storage_path={storage_path}, "
-            f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
-            f"chunk_size={chunk_size}, "
-            f"registration_required={registration_required}"
-        )
 
         self.storage = CheckpointStore(
             storage_path, mem_pool_size, num_thread, chunk_size
