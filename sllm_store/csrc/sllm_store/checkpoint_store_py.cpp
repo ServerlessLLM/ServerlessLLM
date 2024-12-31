@@ -33,11 +33,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def_readwrite("dst_offset", &MemCopyChunk::dst_offset_)
       .def_readwrite("handle_idx", &MemCopyChunk::handle_idx_);
 
-  // Binding for MemCopyHandle
-  py::class_<MemCopyHandle>(m, "MemCopyHandle")
-      .def(py::init<>())
-      .def_readwrite("cuda_ipc_handle", &MemCopyHandle::cuda_ipc_handle_);
-
   py::class_<CheckpointStore>(m, "CheckpointStore")
       .def(py::init<const std::string&, size_t, int, size_t>(),
            py::arg("storage_path"), py::arg("memory_pool_size"),
@@ -48,10 +43,30 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def("load_model_from_disk_async",
            &CheckpointStore::LoadModelFromDiskAsync, py::arg("model_path"),
            "Load a model from disk asynchronously.")
-      .def("load_model_from_mem_async", &CheckpointStore::LoadModelFromMemAsync,
-           py::arg("model_path"), py::arg("replica_uuid"),
-           py::arg("gpu_memory_handles"), py::arg("mem_copy_chunks"),
-           "Load a model from memory asynchronously.")
+      .def(
+          "load_model_from_mem_async",
+          [](CheckpointStore& cs, const std::string& model_path,
+             const std::string& replica_uuid,
+             const std::unordered_map<std::string, std::vector<py::bytes>>&
+                 gpu_memory_handles,
+             const MemCopyChunkListMap& mem_copy_chunks) {
+            // Convert memory handles to MemCopyHandleListMap
+            MemCopyHandleListMap gpu_memory_handles_map;
+            for (const auto& [device_id, handles] : gpu_memory_handles) {
+              MemCopyHandleList handle_list;
+              for (const auto& handle : handles) {
+                handle_list.push_back(
+                    MemCopyHandle{handle.cast<std::string>()});
+              }
+              gpu_memory_handles_map[device_id] = handle_list;
+            }
+            return cs.LoadModelFromMemAsync(model_path, replica_uuid,
+                                            gpu_memory_handles_map,
+                                            mem_copy_chunks);
+          },
+          py::arg("model_path"), py::arg("replica_uuid"),
+          py::arg("gpu_memory_handles"), py::arg("mem_copy_chunks"),
+          "Load a model from memory asynchronously.")
       .def("wait_model_in_gpu", &CheckpointStore::WaitModelInGpu,
            py::arg("model_path"), py::arg("replica_uuid"),
            "Wait for a model to be available in GPU memory.")

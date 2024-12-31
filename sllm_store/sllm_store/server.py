@@ -9,7 +9,6 @@ import torch  # noqa: F401
 from sllm_store._checkpoint_store import (
     CheckpointStore,
     MemCopyChunk,
-    MemCopyHandle,
 )
 
 logger = init_logger(__name__)
@@ -33,6 +32,24 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             raise ValueError("Invalid mem_pool_size")
 
         logger.info(
+            f"StorageServicer: storage_path={storage_path}, "
+            f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
+            f"chunk_size={chunk_size}, "
+            f"registration_required={registration_required}"
+        )
+        logger.debug(
+            f"StorageServicer: storage_path={storage_path}, "
+            f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
+            f"chunk_size={chunk_size}, "
+            f"registration_required={registration_required}"
+        )
+        logger.warning(
+            f"StorageServicer: storage_path={storage_path}, "
+            f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
+            f"chunk_size={chunk_size}, "
+            f"registration_required={registration_required}"
+        )
+        logger.error(
             f"StorageServicer: storage_path={storage_path}, "
             f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
             f"chunk_size={chunk_size}, "
@@ -70,23 +87,29 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
 
             gpu_memory_handles = {
                 device_uuid: [
-                    MemCopyHandle(cuda_ipc_handle=handle.cuda_ipc_handle)
-                    for handle in handle_list.handles
+                    handle.cuda_ipc_handle for handle in handle_list.handles
                 ]
                 for device_uuid, handle_list in request.handles.items()
             }
+
+            def create_mem_copy_chunk(chunk):
+                mem_copy_chunk = MemCopyChunk()
+                mem_copy_chunk.src_offset = chunk.src_offset
+                mem_copy_chunk.size = chunk.size
+                mem_copy_chunk.dst_offset = chunk.dst_offset
+                mem_copy_chunk.handle_idx = chunk.handle_idx
+                return mem_copy_chunk
+
             mem_copy_chunks = {
                 device_uuid: [
-                    MemCopyChunk(
-                        src_offset=chunk.src_offset,
-                        size=chunk.size,
-                        dst_offset=chunk.dst_offset,
-                        handle_idx=chunk.handle_idx,
-                    )
-                    for chunk in chunk_list.chunks
+                    create_mem_copy_chunk(chunk) for chunk in chunk_list.chunks
                 ]
                 for device_uuid, chunk_list in request.chunks.items()
             }
+            logger.debug(
+                f"LoadModelAsync: {model_path}, {replica_uuid}, "
+                f"{gpu_memory_handles}, {mem_copy_chunks}"
+            )
             ret = self.storage.load_model_from_mem_async(
                 model_path, replica_uuid, gpu_memory_handles, mem_copy_chunks
             )
