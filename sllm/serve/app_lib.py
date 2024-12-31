@@ -132,4 +132,5 @@ def create_app() -> FastAPI:
     @app.post("/fine-tuning")
     async def fine_tuning(request: Request):
         return await inference_handler(request, "fine_tuning")
+
     return app

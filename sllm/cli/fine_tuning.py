@@ -37,8 +37,12 @@ class FineTuningCommand:
             "--base_model", type=str, help="base_model name"
         )
         fine_tuning_parser.add_argument(
-            "--config", type=str, help="fine-tuning configuration", 
-            default=os.path.join(os.path.dirname(__file__), "default_ft_config.json")
+            "--config",
+            type=str,
+            help="fine-tuning configuration",
+            default=os.path.join(
+                os.path.dirname(__file__), "default_ft_config.json"
+            ),
         )
         fine_tuning_parser.set_defaults(func=FineTuningCommand)
 
