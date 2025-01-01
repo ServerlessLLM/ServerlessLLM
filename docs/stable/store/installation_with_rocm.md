@@ -42,12 +42,34 @@ Start the ServerlessLLM services using docker compose:
 docker compose -f docker-compose-amd.yml up -d --build
 ```
 
-This command will start a container defined in `docker-compose-amd.yml` file. The `sllm-store-server` has already been started in the container.
+This command will start a container defined in `docker-compose-amd.yml` file. The `sllm-store-server` has already been started in the container with model storage path set to `$STORAGE_PATH`. The `$STORAGE_PATH` is mounted to the host machine's `$MODEL_FOLDER`.
 
-### Step 4: Login the container and test ServerlessLLM Store
+### Step 4: Enter the container and use ServerlessLLM Store
 
 ```bash
 docker exec -it sllm_store_rocm bash
+```
+
+After entering the container, you can use our scripts to save and load models. For example, you can save and load the model in huggingface's transformers library:
+
+``` bash
+python3 examples/sllm_store/save_transformers_model.py --model_name facebook/opt-1.3b --storage_path $MODEL_FOLDER
+python3 examples/sllm_store/load_transformers_model.py --model_name facebook/opt-1.3b --storage_path $MODEL_FOLDER
+```
+
+Or you can also try to use our integration with vLLM:
+:::tip
+In the `Dockerfile.rocm`, we have already built the vLLM v0.5.0.post1 from source and applied our patch to the installed vLLM library. If you face any issues, you may change the dockerfile's content to better build the vLLM from source.
+
+For users with gfx1100 (Radeon RDNA3) GPUs, you may need to set the environment variable `VLLM_USE_TRITON_FLASH_ATTN=0` to avoid the issue that vLLM cannot be loaded. This issue is because the flash attention support for AMD GPUs currently does not support gfx1100 GPUs. For more information, you may check this [issue](https://github.com/vllm-project/vllm/issues/4514).
+``` bash
+export VLLM_USE_TRITON_FLASH_ATTN=0
+```
+:::
+
+``` bash
+python3 examples/sllm_store/save_vllm_model.py --model_name facebook/opt-1.3b --storage_path ./models
+python3 examples/sllm_store/load_vllm_model.py --model_name facebook/opt-1.3b --storage_path ./models
 ```
 
 ## Option 2: Build the wheel from source and install

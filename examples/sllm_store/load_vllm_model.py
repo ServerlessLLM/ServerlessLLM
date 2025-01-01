@@ -23,7 +23,7 @@ args = parser.parse_args()
 
 model_name = args.model_name
 storage_path = args.storage_path
-model_path = os.path.join(storage_path, model_name)
+model_path = os.path.join(storage_path, "vllm", model_name)
 
 llm = LLM(model=model_path, load_format="serverless_llm", dtype="float16")
 

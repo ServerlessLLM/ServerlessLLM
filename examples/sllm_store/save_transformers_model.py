@@ -33,5 +33,5 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 # Save the model to the local path.
-model_path = os.path.join(storage_path, model_name)
+model_path = os.path.join(storage_path, "transformers", model_name)
 save_model(model, model_path)

@@ -1,4 +1,5 @@
 import argparse
+import os
 import time
 
 import torch
@@ -20,7 +21,7 @@ args = parser.parse_args()
 
 model_name = args.model_name
 storage_path = args.storage_path
-
+model_path = os.path.join("transformers", model_name)
 
 # warm up the GPU
 num_gpus = torch.cuda.device_count()
@@ -30,7 +31,7 @@ for i in range(num_gpus):
 
 start = time.time()
 model = load_model(
-    model_name,
+    model_path,
     device_map="auto",
     torch_dtype=torch.float16,
     storage_path=storage_path,
