@@ -73,7 +73,7 @@ initialize_worker_node() {
 
   # Start sllm-store with any additional arguments passed to the script
   STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
-  echo "Starting sllm-store with arguments: -storage-path=$STORAGE_PATH $@"
+  echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH $@"
   exec sllm-store start --storage-path=$STORAGE_PATH "$@"
 }
 
