@@ -50,7 +50,7 @@ This command will start a container defined in `docker-compose-amd.yml` file. Th
 docker exec -it sllm_store_rocm bash
 ```
 
-After entering the container, you can use our scripts to save and load models. For example, you can save and load the model in huggingface's transformers library:
+After entering the container, you can use our scripts to save and load models. For example, you can save and load the model in transformers library:
 
 ``` bash
 python3 examples/sllm_store/save_transformers_model.py --model_name facebook/opt-1.3b --storage_path $MODEL_FOLDER
@@ -59,7 +59,7 @@ python3 examples/sllm_store/load_transformers_model.py --model_name facebook/opt
 
 Or you can also try to use our integration with vLLM:
 :::tip
-In the `Dockerfile.rocm`, we have already built the vLLM v0.5.0.post1 from source and applied our patch to the installed vLLM library. If you face any issues, you may change the dockerfile's content to better build the vLLM from source.
+In the `Dockerfile.rocm`, we have already built the vLLM v0.5.0.post1 from source and applied our patch to the installed vLLM library. If you face any issues, you may change the content to better build the vLLM from source.
 
 For users with gfx1100 (Radeon RDNA3) GPUs, you may need to set the environment variable `VLLM_USE_TRITON_FLASH_ATTN=0` to avoid the issue that vLLM cannot be loaded. This issue is because the flash attention support for AMD GPUs currently does not support gfx1100 GPUs. For more information, you may check this [issue](https://github.com/vllm-project/vllm/issues/4514).
 ``` bash
