@@ -12,7 +12,5 @@ services:
       - "seccomp=unconfined"
     environment:
       - STORAGE_PATH=/models
-    networks:
-      - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
