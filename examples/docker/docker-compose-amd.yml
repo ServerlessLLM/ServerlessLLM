@@ -1,10 +1,10 @@
 services:
-  sllm_store_amd:
+  sllm_store_rocm:
     build:
       context: ../../
       dockerfile: Dockerfile.rocm # Ensure this points to your worker Dockerfile
-    image: serverlessllm/sllm-store
-    container_name: sllm_store
+    image: serverlessllm/sllm-store-rocm
+    container_name: sllm_store_rocm
     devices:
       - "/dev/kfd:/dev/kfd"
       - "/dev/dri:/dev/dri"
@@ -16,9 +16,3 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-
-
-networks:
-  sllm_network:
-    driver: bridge
-    name: sllm

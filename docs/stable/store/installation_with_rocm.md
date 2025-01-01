@@ -15,6 +15,40 @@ sidebar_position: 1
 
 ## Option 1: Build and run with docker compose (recommended)
 
+### Step 1: Clone the ServerlessLLM Repository
+
+If you haven't already, clone the ServerlessLLM repository:
+
+```bash
+git clone https://github.com/ServerlessLLM/ServerlessLLM.git
+cd ServerlessLLM/examples/docker/
+```
+
+### Step 2:  Configuration
+
+Create a directory on your host machine where models will be stored and set the MODEL_FOLDER environment variable to point to this directory:
+
+```bash
+export MODEL_FOLDER=/path/to/your/models
+```
+
+Replace /path/to/your/models with the actual path where you want to store the models.
+
+### Step 3: Start the Services
+
+Start the ServerlessLLM services using docker compose:
+
+```bash
+docker compose -f docker-compose-amd.yml up -d --build
+```
+
+This command will start a container defined in `docker-compose-amd.yml` file. The `sllm-store-server` has already been started in the container.
+
+### Step 4: Login the container and test ServerlessLLM Store
+
+```bash
+docker exec -it sllm_store_rocm bash
+```
 
 ## Option 2: Build the wheel from source and install
 ServerlessLLM Store (`sllm-store`) currently provides experimental support for ROCm platform. Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
