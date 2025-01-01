@@ -65,7 +65,7 @@ The random load test emulates **model serving scenarios** (such as Serverless LL
 Start the ServerlessLLM Store server with a 18GB memory pool:
 
 ```bash
-sllm-store-server -chunk_size=16 -mem_pool_size=18 -num_thread=4 -storage_path=./models
+sllm-store start --chunk-size=16MB --mem-pool-size=18GB --num-thread=4 -storage-path=./models
 ```
 
 In a separate terminal, run the following commands to benchmark the loading performance of several small models. We repeat each test 30 times to ensure statistical stability:
@@ -92,7 +92,7 @@ Here is an example of the output visualization:
 Restart the ServerlessLLM Store server with an increased memory pool size to accommodate large models. Please note that the server startup can be lengthy due to the initialization of a 140GB memory pool:
 
 ```bash
-sllm-store-server -chunk_size=16 -mem_pool_size=140 -num_thread=4 -storage_path=./models
+sllm-store start --chunk-size=16MB --mem-pool-size=140GB --num-thread=4 -storage-path=./models
 ```
 
 To benchmark the loading performance of several large models, run the following commands. We limit the number of repeats to 10 to manage disk capacity efficiently

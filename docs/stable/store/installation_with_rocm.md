@@ -61,7 +61,7 @@ python3 examples/sllm_store/save_transformers_model.py --model_name facebook/opt
 2. Start the `sllm-store` server
 
 ``` bash
-sllm-store-server
+sllm-store start
 ```
 
 3. Load the model and run the inference in another terminal
@@ -107,7 +107,7 @@ python3 examples/sllm_store/save_vllm_model.py --model_name facebook/opt-1.3b --
 2. Start the `sllm-store` server
 
 ``` bash
-sllm-store-server
+sllm-store start
 ```
 
 3. Load the model and run the inference in another terminal
