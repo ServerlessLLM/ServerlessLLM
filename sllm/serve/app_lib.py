@@ -129,4 +129,8 @@ def create_app() -> FastAPI:
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
 
+    @app.post("/fine-tuning")
+    async def fine_tuning(request: Request):
+        return await inference_handler(request, "fine_tuning")
+
     return app

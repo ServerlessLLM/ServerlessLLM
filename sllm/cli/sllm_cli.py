@@ -21,6 +21,7 @@ import asyncio
 from sllm.cli.delete import DeleteCommand
 from sllm.cli.deploy import DeployCommand
 from sllm.cli.encode import EncodeCommand
+from sllm.cli.fine_tuning import FineTuningCommand
 from sllm.cli.generate import GenerateCommand
 from sllm.cli.replay import ReplayCommand
 from sllm.cli.update import UpdateCommand
@@ -42,6 +43,7 @@ def main():
     ReplayCommand.register_subcommand(commands_parser)
     DeleteCommand.register_subcommand(commands_parser)
     UpdateCommand.register_subcommand(commands_parser)
+    FineTuningCommand.register_subcommand(commands_parser)
 
     # Let's go
     args = parser.parse_args()

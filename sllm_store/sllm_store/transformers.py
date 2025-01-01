@@ -53,6 +53,7 @@ from sllm_store.utils import (
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
 import importlib
+from peft import get_peft_model_state_dict
 
 logger = init_logger(__name__)
 
@@ -115,6 +116,19 @@ def save_model(model: nn.Module, model_path: str):
     tied_no_split_modules = get_tied_no_split_modules(model, no_split_modules)
     with open(os.path.join(model_path, "tied_no_split_modules.json"), "w") as f:
         json.dump(tied_no_split_modules, f)
+
+
+def save_lora(lora: nn.Module, lora_path: str):
+    if not os.path.exists(lora_path):
+        os.makedirs(lora_path, exist_ok=True)
+
+    model = lora.cpu()
+
+    lora_state_dict = get_peft_model_state_dict(model)
+
+    save_dict(lora_state_dict, lora_path)
+
+    # save the config
 
 
 def load_model(

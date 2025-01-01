@@ -23,14 +23,23 @@ import uuid
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
+import peft
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer
-from transformers.generation.streamers import BaseStreamer
+from datasets import load_dataset
+from peft import LoraConfig, PeftModel, get_peft_model
 
+import transformers
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
 from sllm_store.transformers import load_model
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    Trainer,
+    TrainingArguments,
+)
+from transformers.generation.streamers import BaseStreamer
 
 logger = init_logger(__name__)
 
@@ -296,6 +305,71 @@ class TransformersBackend(SllmBackend):
             self.inf_status.delete()
 
             return response
+
+    def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        assert self.model is not None
+        base_model_name = request_data.get("model")
+        tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+        foundation_model = AutoModelForCausalLM.from_pretrained(base_model_name)
+        dataset_path = request_data.get("dataset")
+        dataset = load_dataset(dataset_path)
+
+        # for test, use sample data. delete later
+        data = dataset.map(
+            lambda samples: tokenizer(samples["prompt"]), batched=True
+        )
+        train_sample = data["train"].select(range(50))
+
+        train_sample = train_sample.remove_columns("act")
+
+        lora_config = request_data.get("lora_config")
+
+        lora_config = LoraConfig(**lora_config)
+
+        epochs = request_data.get("epochs", 1)
+        learning_rate = request_data.get("learning_rate", 0.001)
+        batch_size = request_data.get("batch_size", 32)
+        output_directory = request_data.get("output_dir", "./saved_lora_model")
+
+        peft_model = get_peft_model(foundation_model, lora_config)
+
+        training_args = TrainingArguments(
+            output_dir=output_directory,
+            auto_find_batch_size=True,  # Find a correct batch size that fits the size of Data.
+            learning_rate=learning_rate,
+            num_train_epochs=epochs,
+            use_cpu=True,
+        )
+
+        trainer = Trainer(
+            model=peft_model,
+            args=training_args,
+            train_dataset=train_sample,
+            data_collator=transformers.DataCollatorForLanguageModeling(
+                tokenizer, mlm=False
+            ),
+        )
+        trainer.train()
+
+        # save the model, use save_lora(), in sllm_store/transformers.py
+        lora_save_path = request_data.get("output_dir", "./saved_lora_model")
+        # save_lora(peft_model, save_path)
+        logger.info(
+            f"Fine-tuning completed. LoRA model saved to {lora_save_path}"
+        )
+
+        response = {
+            "model": base_model_name,
+            "lora_save_path": lora_save_path,
+        }
+
+        self.inf_status.delete()
+
+        return response
 
     def shutdown(self):
         """Abort all requests and shutdown the backend."""
