@@ -88,10 +88,10 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
                 ]
                 for device_uuid, chunk_list in request.chunks.items()
             }
-            logger.debug(
-                f"LoadModelAsync: {model_path}, {replica_uuid}, "
-                f"{gpu_memory_handles}, {mem_copy_chunks}"
-            )
+            # logger.debug(
+            #     f"LoadModelAsync: {model_path}, {replica_uuid}, "
+            #     f"{gpu_memory_handles}, {mem_copy_chunks}"
+            # )
             ret = self.storage.load_model_from_mem_async(
                 model_path, replica_uuid, gpu_memory_handles, mem_copy_chunks
             )
