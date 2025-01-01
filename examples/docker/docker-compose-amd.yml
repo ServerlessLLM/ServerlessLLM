@@ -1,0 +1,24 @@
+services:
+  sllm_store_amd:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.rocm # Ensure this points to your worker Dockerfile
+    image: serverlessllm/sllm-store
+    container_name: sllm_store
+    devices:
+      - "/dev/kfd:/dev/kfd"
+      - "/dev/dri:/dev/dri"
+    security_opt:
+      - "seccomp=unconfined"
+    environment:
+      - STORAGE_PATH=/models
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+
+
+networks:
+  sllm_network:
+    driver: bridge
+    name: sllm

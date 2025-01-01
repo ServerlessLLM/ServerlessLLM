@@ -2,18 +2,21 @@
 sidebar_position: 1
 ---
 
-# Installation with ROCm (Experimental)
+# Installation with ROCm
 
 ## Latest Tested Version
-+ v0.5.1
++ v0.6.0
 
 ## Tested Hardware
 + OS: Ubuntu 22.04
 + ROCm: 6.2
 + PyTorch: 2.3.0
-+ GPU: MI100s (gfx908), MI200s (gfx90a)
++ GPU: MI100s (gfx908), MI200s (gfx90a), Radeon RX 7900 XTX (gfx1100)
 
-## Build the wheel from source and install
+## Option 1: Build and run with docker compose (recommended)
+
+
+## Option 2: Build the wheel from source and install
 ServerlessLLM Store (`sllm-store`) currently provides experimental support for ROCm platform. Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
 
 Currently, `pip install .` does not work with ROCm. We suggest you build `sllm-store` wheel and manually install it in your environment.
