@@ -1,4 +1,4 @@
-name:  
+name:
 
 on:
   pull_request:
@@ -34,14 +34,14 @@ jobs:
         run: |
             pip install -r requirements-build-rocm.txt
             python setup.py sdist bdist_wheel
-      
+
       - name: Install ServerlessLLM
         working-directory: sllm_store
         run: |
             grep -v "torch" requirements.txt > requirements-rocm.txt
             pip install -r requirements-rocm.txt
             pip install --no-deps dist/*.whl
-      
+
       - name: Run Python tests
         working-directory: sllm_store/tests/python
         # Only run transformer tests
@@ -60,4 +60,3 @@ jobs:
         working-directory: sllm_store/build
         run: |
             ctest --output-on-failure
- 
