@@ -4,9 +4,6 @@ sidebar_position: 1
 
 # Installation with ROCm
 
-## Latest Tested Version
-+ v0.6.0
-
 ## Tested Hardware
 + OS: Ubuntu 22.04
 + ROCm: 6.2
