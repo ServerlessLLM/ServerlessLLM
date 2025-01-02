@@ -25,12 +25,13 @@ RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
 # Install other parts listed in requirement-build
 COPY requirements-build-rocm.txt .
 RUN pip install -r requirements-build-rocm.txt
 
-# Add your library files
-WORKDIR /app
+# Add the rest of the files
 COPY cmake ./cmake
 COPY CMakeLists.txt .
 COPY csrc ./csrc
