@@ -26,6 +26,3 @@ cd ServerlessLLM/sllm_store
 rm -rf build
 pip install .
 ```
-
-## Usage
-Refer to our [quick start guide](https://serverlessllm.github.io/docs/stable/store/quickstart) for detailed usage instructions.
