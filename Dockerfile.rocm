@@ -1,0 +1,106 @@
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#                                                                              #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+# ---------------------------------------------------------------------------- #
+
+# Stage 1: Builder
+FROM rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0 AS builder
+
+# Set non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Install necessary packages for wget and HTTPS
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        wget \
+        bzip2 \
+        ca-certificates \
+        git \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN pip install -U pip
+RUN pip uninstall -y torch torchvision && \
+  pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 -f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.2/
+
+
+# Set the working directory
+WORKDIR /app
+
+# Build checkpoint store
+ENV PYTORCH_ROCM_ARCH="gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
+COPY sllm_store/cmake /app/sllm_store/cmake
+COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
+COPY sllm_store/csrc /app/sllm_store/csrc
+COPY sllm_store/sllm_store /app/sllm_store/sllm_store
+COPY sllm_store/setup.py /app/sllm_store/setup.py
+COPY sllm_store/pyproject.toml /app/sllm_store/pyproject.toml
+COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
+COPY sllm_store/setup.cfg /app/sllm_store/setup.cfg
+COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
+COPY sllm_store/requirements-build-rocm.txt /app/sllm_store/requirements-build-rocm.txt
+COPY sllm_store/README.md /app/sllm_store/README.md
+COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
+RUN cd sllm_store && \
+  pip install -r requirements-build-rocm.txt && \
+  pip install setuptools wheel  && \
+  python setup.py sdist bdist_wheel
+
+# Download vLLM
+RUN git clone --branch v0.5.0.post1 --single-branch https://github.com/vllm-project/vllm.git
+# Build vLLM
+RUN cd vllm && \
+  curl -L https://github.com/vllm-project/vllm/commit/9984605412de1171a72d955cfcb954725edd4d6f.patch | git apply &&\
+  python setup.py sdist bdist_wheel
+
+# Stage 2: Runner
+FROM rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0
+
+# Set non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Set the working directory
+WORKDIR /app
+
+RUN pip install -U pip
+RUN pip uninstall -y torch torchvision && \
+  pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 -f https://repo.radeon.com/rocm/manylinux/rocm-rel-6.2/
+
+COPY examples /app/examples
+COPY sllm_store/vllm_patch /app/vllm_patch
+
+# Copy the built wheels from the builder
+COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
+COPY --from=builder /app/vllm/dist /app/vllm/dist
+
+# Install the built wheels
+RUN pip install /app/sllm_store/dist/*.whl
+RUN pip install /app/vllm/dist/*.whl
+
+# apply patch
+RUN /app/vllm_patch/patch.sh
+
+# Copy the entrypoint
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+ENV MODE=STORE
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]

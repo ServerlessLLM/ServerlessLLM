@@ -46,6 +46,14 @@ initialize_head_node() {
   exec /opt/conda/bin/sllm-serve start "$@"
 }
 
+# Function to initialize the sllm store server
+initialize_sllm_store() {
+  # Start sllm-store-server with any additional arguments passed to the script
+  STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
+  echo "Starting sllm-store-server with arguments: -storage_path=$STORAGE_PATH $@"
+  exec sllm-store-server -storage_path=$STORAGE_PATH "$@"
+}
+
 # Function to initialize the worker node
 initialize_worker_node() {
   echo "Initializing worker node..."
@@ -71,10 +79,7 @@ initialize_worker_node() {
   echo "Executing: $CMD"
   eval "$CMD"
 
-  # Start sllm-store-server with any additional arguments passed to the script
-  STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
-  echo "Starting sllm-store-server with arguments: -storage_path=$STORAGE_PATH $@"
-  exec sllm-store-server -storage_path=$STORAGE_PATH "$@"
+  initialize_sllm_store "$@"
 }
 
 # Determine the node type and call the appropriate initialization function
@@ -82,6 +87,8 @@ if [ "$MODE" == "HEAD" ]; then
   initialize_head_node "$@"
 elif [ "$MODE" == "WORKER" ]; then
   initialize_worker_node "$@"
+elif [ "$MODE" == "STORE" ]; then
+  initialize_sllm_store "$@"
 else
   echo "MODE must be set to either HEAD or WORKER"
   exit 1
