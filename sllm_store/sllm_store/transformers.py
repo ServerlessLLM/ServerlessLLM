@@ -204,10 +204,16 @@ def fully_parallel_load(
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(
-                config,
-                trust_remote_code=True,
-            ).to(config.torch_dtype)
+            if quantization:
+                model = _class.from_config(
+                    config,
+                    trust_remote_code=True,
+                )
+            else:
+                model = _class.from_config(
+                    config,
+                    trust_remote_code=True,
+                ).to(config.torch_dtype)
 
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
@@ -242,16 +248,22 @@ def fully_parallel_load(
                     quantized_weights, scales_or_state = quantize(param_fp16)
 
                     module = get_module_from_name(model, name)
-                    if isinstance(module, bnb.nn.Linear4bit):
+                    if isinstance(
+                        module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                    ):
+                        param_fp16 = param.data.to(torch.float16)
+                        quantized_weights, scales_or_state = quantize(
+                            param_fp16
+                        )
+
                         set_module_tensor_to_device(
                             model, name, param.device, quantized_weights
                         )
-                        module.weight_state = scales_or_state
-                    elif isinstance(module, bnb.nn.Linear8bitLt):
-                        set_module_tensor_to_device(
-                            model, name, param.device, quantized_weights
-                        )
-                        module.weight_scale.data = scales_or_state
+
+                        if isinstance(module, bnb.nn.Linear4bit):
+                            module.weight_state = scales_or_state
+                        else:
+                            module.weight_scale.data = scales_or_state
                 else:
                     set_module_tensor_to_device(
                         model, name, param.device, param
@@ -261,6 +273,12 @@ def fully_parallel_load(
                 set_module_tensor_to_device(model, name, param.device, param)
 
         send_module_buffers_to_device(model, device_map)
+
+    remaining_meta = [
+        name for name, param in model.named_parameters() if param.is_meta
+    ]
+    if remaining_meta:
+        logger.warning(f"Found remaining meta tensors: {remaining_meta}")
 
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
