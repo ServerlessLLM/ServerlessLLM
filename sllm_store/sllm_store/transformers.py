@@ -206,7 +206,6 @@ def fully_parallel_load(
             _class = getattr(module, hf_model_class)
             model = _class.from_config(
                 config,
-                quantization_config=quantization_config,
                 trust_remote_code=True,
             ).to(config.torch_dtype)
 
