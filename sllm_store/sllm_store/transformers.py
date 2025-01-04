@@ -54,7 +54,7 @@ from sllm_store.utils import (
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
-from transformers.utils.quantization_utils import get_module_from_name
+from transformers.quantizers.quantizers_utils import get_module_from_name
 import bitsandbytes as bnb
 import importlib
 
@@ -261,7 +261,7 @@ def fully_parallel_load(
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
 
-    send_module_buffers_to_device(model, device_map)
+        send_module_buffers_to_device(model, device_map)
 
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
