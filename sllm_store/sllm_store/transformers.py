@@ -49,12 +49,13 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    get_quantization_config_and_type,
     get_quantization_fn,
-    get_quant_type,
-    unpack_4bit,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
+from transformers.utils.quantization_utils import get_module_from_name
+import bitsandbytes as bnb
 import importlib
 
 logger = init_logger(__name__)
@@ -193,14 +194,21 @@ def fully_parallel_load(
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
 
+        if quantization:
+            quantization_config, quant_type = get_quantization_config_and_type(
+                quantization
+            )
+
         logger.debug(f"load config takes {time.time() - start} seconds")
         start = time.time()
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(config, trust_remote_code=True).to(
-                config.torch_dtype
-            )
+            model = _class.from_config(
+                config,
+                quantization_config=quantization_config,
+                trust_remote_code=True,
+            ).to(config.torch_dtype)
 
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
@@ -210,23 +218,20 @@ def fully_parallel_load(
     with torch.no_grad():
         if quantization:
             quantization_fn = get_quantization_fn(quantization)
-            quant_type = get_quant_type(quantization)
 
             if quantization == "int8":
 
                 def quantize(x):
-                    print(x.device)
-                    x = x.to(torch.float16)
-                    quantized_weights, _, _ = quantization_fn(x)
-                    return quantized_weights.to(x.device)
+                    quantized_weights, scales, _ = quantization_fn(x)
+                    return quantized_weights, scales
+
             else:
 
                 def quantize(x):
-                    quantized_weights, _ = quantization_fn(
+                    quantized_weights, quant_state = quantization_fn(
                         x, quant_type=quant_type
                     )
-                    quantized_weights = unpack_4bit(quantized_weights).view_as(x)
-                    return quantized_weights.to(x.device)
+                    return quantized_weights, quant_state
 
             for name, param in state_dict.items():
                 if param.dtype in [
@@ -234,20 +239,33 @@ def fully_parallel_load(
                     torch.float16,
                     torch.float32,
                 ]:
-                    quantized_weights = quantize(param.data)
-                    param.data = quantized_weights
-                set_module_tensor_to_device(model, name, param.device, param)
-            send_module_buffers_to_device(model, device_map)
+                    param_fp16 = param.data.to(torch.float16)
+                    quantized_weights, scales_or_state = quantize(param_fp16)
 
+                    module = get_module_from_name(model, name)
+                    if isinstance(module, bnb.nn.Linear4bit):
+                        set_module_tensor_to_device(
+                            model, name, param.device, quantized_weights
+                        )
+                        module.weight_state = scales_or_state
+                    elif isinstance(module, bnb.nn.Linear8bitLt):
+                        set_module_tensor_to_device(
+                            model, name, param.device, quantized_weights
+                        )
+                        module.weight_scale.data = scales_or_state
+                else:
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
-            send_module_buffers_to_device(model, device_map)
+
+    send_module_buffers_to_device(model, device_map)
 
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
-
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()

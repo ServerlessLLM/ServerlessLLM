@@ -21,6 +21,7 @@ import torch
 from torch import nn
 from accelerate.utils import find_tied_parameters
 import bitsandbytes as bnb
+from transformers import BitsAndBytesConfig
 
 
 def set_module_buffer_to_device(
@@ -181,6 +182,19 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
 
 
+def get_quantization_config_and_type(precision: str):
+    if precision == "int4":
+        return BitsAndBytesConfig(load_in_4bit=True), "nf4"
+    elif precision == "fp4":
+        return BitsAndBytesConfig(load_in_4bit=True), "fp4"
+    elif precision == "nf4":
+        return BitsAndBytesConfig(load_in_4bit=True), "nf4"
+    elif precision == "int8":
+        return BitsAndBytesConfig(load_in_8bit=True), "nf4"
+    else:
+        raise ValueError(f"Unsupported quantization type: {precision}")
+
+
 def get_quantization_fn(precision: str):
     if precision in ["fp4", "nf4", "int4"]:
         return bnb.functional.quantize_4bit
@@ -188,20 +202,3 @@ def get_quantization_fn(precision: str):
         return bnb.functional.int8_vectorwise_quant
     else:
         raise ValueError(f"Unsupported precision: {precision}")
-
-
-def get_quant_type(precision: str):
-    if precision in ["int4", "int8"]:
-        return "nf4"
-    elif precision == "fp4":
-        return "fp4"
-    elif precision == "nf4":
-        return "nf4"
-    else:
-        raise ValueError(f"Unsupported quantization type: {precision}")
-
-def unpack_4bit(quantized_tensor: torch.Tensor) -> torch.Tensor:
-    unpacked = torch.zeros(quantized_tensor.shape[0] * 2, dtype=torch.uint8, device=quantized_tensor.device)
-    unpacked[0::2] = quantized_tensor & 0x0F  
-    unpacked[1::2] = (quantized_tensor >> 4) & 0x0F  
-    return unpacked
