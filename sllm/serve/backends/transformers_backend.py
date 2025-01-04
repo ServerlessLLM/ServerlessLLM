@@ -32,7 +32,7 @@ from peft import LoraConfig, PeftModel, get_peft_model
 import transformers
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
-from sllm_store.transformers import load_model
+from sllm_store.transformers import load_model, save_lora
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -356,8 +356,11 @@ class TransformersBackend(SllmBackend):
         trainer.train()
 
         # save the model, use save_lora(), in sllm_store/transformers.py
-        lora_save_path = request_data.get("output_dir", "./saved_lora_model")
-        # save_lora(peft_model, save_path)
+        storage_path = os.getenv("MODEL_FOLDER", "./models")
+        lora_save_path = os.path.join(
+            storage_path, "transformers", base_model_name, "lora_adapter"
+        )
+        save_lora(peft_model, lora_save_path)
         logger.info(
             f"Fine-tuning completed. LoRA model saved to {lora_save_path}"
         )
