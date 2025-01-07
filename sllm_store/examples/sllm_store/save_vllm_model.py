@@ -19,13 +19,11 @@ class VllmModelDownloader:
         max_size: Optional[int] = None,
     ):
         import gc
-        import shutil
         from tempfile import TemporaryDirectory
 
         import torch
         from huggingface_hub import snapshot_download
         from vllm import LLM
-        from vllm.config import LoadFormat
 
         # set the model storage path
         storage_path = os.getenv("STORAGE_PATH", storage_path)
@@ -41,7 +39,7 @@ class VllmModelDownloader:
                 enforce_eager=True,
                 max_model_len=1,
             )
-            model_path = os.path.join(storage_path, model_name)
+            model_path = os.path.join(storage_path, "vllm", model_name)
             model_executer = llm_writer.llm_engine.model_executor
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
@@ -89,7 +87,7 @@ class VllmModelDownloader:
             shutil.rmtree(os.path.join(storage_path, model_name))
             raise RuntimeError(
                 f"Failed to save {model_name} for vllm backend: {e}"
-            )
+            ) from e
 
 
 parser = argparse.ArgumentParser(

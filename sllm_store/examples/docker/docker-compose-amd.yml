@@ -1,0 +1,16 @@
+services:
+  sllm_store_rocm:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.rocm # Ensure this points to your worker Dockerfile
+    image: serverlessllm/sllm-store-rocm
+    container_name: sllm_store_rocm
+    devices:
+      - "/dev/kfd:/dev/kfd"
+      - "/dev/dri:/dev/dri"
+    security_opt:
+      - "seccomp=unconfined"
+    environment:
+      - STORAGE_PATH=/models
+    volumes:
+      - ${MODEL_FOLDER}:/models

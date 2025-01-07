@@ -738,3 +738,6 @@ StorageAwareScheduler
 StoreManager
 deallocated
 fcfs
+Radeon
+XTX
+RDNA
