@@ -31,7 +31,7 @@ from vllm import (
     AsyncLLMEngine,
     EmbeddingRequestOutput,
     PoolingParams,
-    PromptStrictInputs,
+    PromptType,
     RequestOutput,
     SamplingParams,
 )
@@ -340,7 +340,7 @@ class VllmBackend(SllmBackend):
             return {"error": "No inputs provided"}
 
         inputs = cast(
-            Union[PromptStrictInputs, Sequence[PromptStrictInputs]], query
+            Union[PromptType, Sequence[PromptType]], query
         )
 
         async def process_input(input_data) -> List[EmbeddingRequestOutput]:
