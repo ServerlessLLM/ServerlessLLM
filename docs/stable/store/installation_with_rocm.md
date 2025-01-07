@@ -18,7 +18,7 @@ If you haven't already, clone the ServerlessLLM repository:
 
 ```bash
 git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/examples/docker/
+cd ServerlessLLM/sllm_store/docker/
 ```
 
 ### Step 2:  Configuration
@@ -85,15 +85,15 @@ git clone https://github.com/ServerlessLLM/ServerlessLLM.git
 cd ServerlessLLM/sllm_store
 ```
 
-2. Build the Docker image from `Dockerfile.rocm`. The `Dockerfile.rocm` is build on top of `rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0` image.
+2. Build the Docker image from `Dockerfile.builder.rocm`. The `Dockerfile.builder.rocm` is build on top of `rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0` image.
 
 ``` bash
-docker build -t sllm_store_rocm -f Dockerfile.rocm .
+docker build -t sllm_store_rocm_builder -f Dockerfile.builder.rocm .
 ```
 
 3. Build the package inside the ROCm docker container
 ``` bash
-docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_rocm /bin/bash
+docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_rocm_builder /bin/bash
 rm -rf /app/dist/* # remove the existing built files
 python setup.py sdist bdist_wheel
 ```
