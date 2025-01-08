@@ -158,6 +158,7 @@ class VllmBackend(SllmBackend):
         self.enable_prefix_caching = backend_config.get(
             "enable_prefix_caching", True
         )
+        self.task = backend_config.get("task", "auto")
 
         async_engine_fields = {f.name for f in fields(AsyncEngineArgs)}
         filtered_engine_config = {
@@ -185,6 +186,7 @@ class VllmBackend(SllmBackend):
         filtered_engine_config["enable_prefix_caching"] = (
             self.enable_prefix_caching
         )
+        filtered_engine_config["task"] = self.task
 
         logger.info(
             f"Creating new VLLM engine with config: {filtered_engine_config}"
