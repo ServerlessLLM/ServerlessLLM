@@ -341,9 +341,7 @@ class VllmBackend(SllmBackend):
         if not query:
             return {"error": "No inputs provided"}
 
-        inputs = cast(
-            Union[PromptType, Sequence[PromptType]], query
-        )
+        inputs = cast(Union[PromptType, Sequence[PromptType]], query)
 
         async def process_input(input_data) -> List[EmbeddingRequestOutput]:
             request_id = str(next(request_counter))
