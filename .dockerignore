@@ -94,7 +94,3 @@ venv/
 */*.swp
 */*/*.swp
 */*/*/*.swp
-
-# Generated protobuf files
-sllm_store/proto/*.py
-sllm_store/sllm_store/proto/*.py

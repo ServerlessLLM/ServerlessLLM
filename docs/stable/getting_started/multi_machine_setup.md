@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Multi-Machine Setup Guide
 
-This guide will help you get started with running ServerlessLLM on multiple machines by adding worker nodes on different machines, connecting them to the head node, and starting the `sllm-store-server` on the worker nodes. You can extend this setup to use as many nodes as you need. Please make sure you have installed the ServerlessLLM following the [installation guide](./installation.md) on all machines.
+This guide will help you get started with running ServerlessLLM on multiple machines by adding worker nodes on different machines, connecting them to the head node, and starting the `sllm-store` on the worker nodes. You can extend this setup to use as many nodes as you need. Please make sure you have installed the ServerlessLLM following the [installation guide](./installation.md) on all machines.
 
 ## Multi-Machine Setup
 
@@ -64,24 +64,25 @@ You can continue adding more worker nodes by repeating the above steps on additi
 
 ```bash
 conda activate sllm-worker
-sllm-store-server
+sllm-store start
 ```
 
 Expected output:
 
 ```bash
-TODO Run server...
+INFO 12-31 17:09:35 cli.py:58] Starting gRPC server
+INFO 12-31 17:09:35 server.py:34] StorageServicer: storage_path=./models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
 WARNING: Logging before InitGoogleLogging() is written to STDERR
-I20240724 06:46:25.054241 1337444 server.cpp:290] Log directory already exists.
-I20240724 06:46:25.199916 1337444 checkpoint_store.cpp:29] Number of GPUs: 4
-I20240724 06:46:25.200362 1337444 checkpoint_store.cpp:31] I/O threads: 4, chunk size: 32MB
-I20240724 06:46:25.326860 1337444 checkpoint_store.cpp:52] GPU 0 UUID: c9938b31-33b0-e02f-24c5-88bd6fbe19ad
-I20240724 06:46:25.472143 1337444 checkpoint_store.cpp:52] GPU 1 UUID: 3f4f72ef-ed7f-2ddb-e454-abcc6c0330b0
-I20240724 06:46:25.637110 1337444 checkpoint_store.cpp:52] GPU 2 UUID: 99b39a1b-5fdd-1acb-398a-426672ebc1a8
-I20240724 06:46:25.795079 1337444 checkpoint_store.cpp:52] GPU 3 UUID: c164f9d9-f157-daeb-d7be-5c98029c2a2b
-I20240724 06:46:25.795164 1337444 pinned_memory_pool.cpp:12] Creating PinnedMemoryPool with 1024 buffers of 33554432 bytes
-I20240724 06:46:40.843920 1337444 checkpoint_store.cpp:63] Memory pool created with 32GB
-I20240724 06:46:40.845937 1337444 server.cpp:262] Server listening on 0.0.0.0:8073
+I20241231 17:09:35.480175 2164266 checkpoint_store.cpp:41] Number of GPUs: 4
+I20241231 17:09:35.480214 2164266 checkpoint_store.cpp:43] I/O threads: 4, chunk size: 32MB
+I20241231 17:09:35.480228 2164266 checkpoint_store.cpp:45] Storage path: "./models"
+I20241231 17:09:35.662346 2164266 checkpoint_store.cpp:71] GPU 0 UUID: c9938b31-33b0-e02f-24c5-88bd6fbe19ad
+I20241231 17:09:35.838738 2164266 checkpoint_store.cpp:71] GPU 1 UUID: 3f4f72ef-ed7f-2ddb-e454-abcc6c0330b0
+I20241231 17:09:36.020437 2164266 checkpoint_store.cpp:71] GPU 2 UUID: 99b39a1b-5fdd-1acb-398a-426672ebc1a8
+I20241231 17:09:36.262537 2164266 checkpoint_store.cpp:71] GPU 3 UUID: c164f9d9-f157-daeb-d7be-5c98029c2a2b
+I20241231 17:09:36.262609 2164266 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
+I20241231 17:09:38.241055 2164266 checkpoint_store.cpp:83] Memory pool created with 4GB
+INFO 12-31 17:09:38 server.py:243] Starting gRPC server on 0.0.0.0:8073
 ```
 
 ### Step 4: Start ServerlessLLM Serve on the Head Node

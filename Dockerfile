@@ -49,7 +49,6 @@ COPY sllm_store/sllm_store /app/sllm_store/sllm_store
 COPY sllm_store/setup.py /app/sllm_store/setup.py
 COPY sllm_store/pyproject.toml /app/sllm_store/pyproject.toml
 COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
-COPY sllm_store/setup.cfg /app/sllm_store/setup.cfg
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
@@ -59,7 +58,7 @@ RUN cd sllm_store && \
   python setup.py sdist bdist_wheel
 
 COPY requirements.txt requirements-worker.txt /app/
-COPY pyproject.toml setup.py setup.cfg py.typed /app/
+COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/serve /app/sllm/serve
 COPY sllm/cli /app/sllm/cli
 COPY README.md /app/
