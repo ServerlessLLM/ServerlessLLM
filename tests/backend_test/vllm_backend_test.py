@@ -20,7 +20,12 @@ from typing import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from vllm import CompletionOutput, RequestOutput
+from vllm import (
+    CompletionOutput,
+    EmbeddingOutput,
+    EmbeddingRequestOutput,
+    RequestOutput,
+)
 
 from sllm.serve.backends.vllm_backend import (
     BackendStatus,
@@ -77,6 +82,26 @@ async def generate(
     )
 
 
+# Mock the encode method
+async def encode(
+    inputs, pooling_params, request_id
+) -> AsyncIterator[EmbeddingRequestOutput]:
+    # Simulate the behavior of real encode with multiple embeddings
+    yield EmbeddingRequestOutput(
+        request_id=request_id,
+        outputs=EmbeddingOutput(embedding=[0.1, 0.2, 0.3]),
+        prompt_token_ids=[101, 102, 103],
+        finished=True,
+    )
+    await asyncio.sleep(1)
+    yield EmbeddingRequestOutput(
+        request_id=request_id,
+        outputs=EmbeddingOutput(embedding=[0.4, 0.5, 0.6]),
+        prompt_token_ids=[104, 105, 106],
+        finished=True,
+    )
+
+
 @pytest.fixture
 def async_llm_engine():
     with patch(
@@ -88,6 +113,7 @@ def async_llm_engine():
         )
         async_llm_engine_obj.abort = AsyncMock()
         async_llm_engine_obj.generate.side_effect = generate
+        async_llm_engine_obj.encode.side_effect = encode
         yield async_llm_engine_obj
 
 
@@ -114,7 +140,7 @@ async def test_init_backend(vllm_backend, async_llm_engine):
 @pytest.mark.asyncio
 async def test_generate_without_init(vllm_backend):
     request_data = {
-        "model_name": "test-model",
+        "model": "test-model",
         "prompt": "user: Hello",
         "request_id": "test-request-id",
     }
@@ -129,7 +155,7 @@ async def test_generate_without_init(vllm_backend):
 @pytest.mark.asyncio
 async def test_generate(vllm_backend, async_llm_engine):
     request_data = {
-        "model_name": "test-model",
+        "model": "test-model",
         "prompt": "user: Hello",
         "request_id": "test-request-id",
     }
@@ -150,7 +176,7 @@ async def test_shutdown(model_name, backend_config, async_llm_engine):
     backend_config["trace_debug"] = True
     vllm_backend = VllmBackend(model_name, backend_config)
     request_data = {
-        "model_name": "test-model",
+        "model": "test-model",
         "prompt": "user: Hello",
         "request_id": "test-request-id",
     }
@@ -169,7 +195,7 @@ async def test_shutdown(model_name, backend_config, async_llm_engine):
 @pytest.mark.asyncio
 async def test_stop(vllm_backend, async_llm_engine):
     request_data = {
-        "model_name": "test-model",
+        "model": "test-model",
         "prompt": "user: Hello",
         "request_id": "test-request-id",
     }
@@ -198,7 +224,7 @@ async def test_get_current_tokens(model_name, backend_config, async_llm_engine):
     vllm_backend = VllmBackend(model_name, backend_config)
     request_data = [
         {
-            "model_name": "test-model",
+            "model": "test-model",
             "prompt": "user: Hello",
             "request_id": f"test-request-id{i}",
         }
@@ -226,3 +252,24 @@ async def test_resume_kv_cache(vllm_backend):
     request_datas = [[1, 2, 3], [4, 5, 6]]
     await vllm_backend.resume_kv_cache(request_datas)
     assert vllm_backend.generate.call_count == len(request_datas)
+
+
+@pytest.mark.asyncio
+async def test_encode(backend_config, async_llm_engine, model_name):
+    backend_config["enforce_eager"] = True
+    backend_config["enable_prefix_caching"] = False
+    vllm_backend = VllmBackend(model_name, backend_config)
+
+    request_data = {"model": "test-model", "input": ["Hi, How are you?"]}
+
+    with patch(
+        "sllm.serve.backends.vllm_backend.AsyncLLMEngine.from_engine_args",
+        return_value=async_llm_engine,
+    ):
+        await vllm_backend.init_backend()
+
+    result = await vllm_backend.encode(request_data)
+
+    assert "error" not in result
+    assert "data" in result
+    assert len(result["data"]) == 2

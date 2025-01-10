@@ -1,7 +1,7 @@
 # ServerlessLLM Example Scripts
 Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/getting_started/installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
-This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using ServerlessLLM.
+This example shows deploying and calling [e5-mistral-7b-instruct](https://huggingface.co/intfloat/e5-mistral-7b-instruct) using vllm backend of ServerlessLLM.
 
 ### 1. Environment and Service Setup
 First and foremost, enter the folder where docker compose file is located:
@@ -12,7 +12,7 @@ Set the Model Directory `MODEL_FOLDER` where models will be stored:
 ```bash
 export MODEL_FOLDER=/path/to/your/models
 ```
-Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `all-MiniLM-L12-v2` is approximately 0.12GB in size (float32), so you'll need to configure the store server with a memory pool of at least 0.12GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is set to 4GB by default. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
+Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `e5-mistral-7b-instruct` is approximately 14GB in size (float16), so you'll need to configure the store server with a memory pool of at least 14GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is set to 4GB by default. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
 
 ```yaml
 command: ["-mem_pool_size", "32", "-registration_required", "true"]
@@ -32,23 +32,27 @@ Now let's deploy the embedding model.
 First, write your deployment configuration `my_config.json`:
 ```json
 {
-    "model": "sentence-transformers/all-MiniLM-L12-v2",
-    "backend": "transformers",
+    "model": "intfloat/e5-mistral-7b-instruct",
+    "backend": "vllm",
     "num_gpus": 1,
     "auto_scaling_config": {
         "metric": "concurrency",
         "target": 1,
         "min_instances": 0,
-        "max_instances": 10
+        "max_instances": 10,
+        "keep_alive": 0
     },
     "backend_config": {
-        "pretrained_model_name_or_path": "",
+        "pretrained_model_name_or_path": "intfloat/e5-mistral-7b-instruct",
+        "enforce_eager": true,
+        "enable_prefix_caching": false,
         "device_map": "auto",
-        "torch_dtype": "float32",
-        "hf_model_class": "AutoModel"
+        "torch_dtype": "float16"
     }
 }
 ```
+**NOTE:** `enable_prefix_caching: false` and `enforce_eager: true` are necessary for current vLLM version.
+
 Next, set the ServerlessLLM Server URL `LLM_SERVER_URL` and deploy this model with the configuration:
 ```bash
 conda activate sllm
@@ -62,7 +66,7 @@ Post a request by:
 curl http://127.0.0.1:8343/v1/embeddings \
 -H "Content-Type: application/json" \
 -d '{
-        "model": "sentence-transformers/all-MiniLM-L12-v2",
+        "model": "intfloat/e5-mistral-7b-instruct",
         "input": [
            "Hi, How are you?"
         ]
@@ -77,23 +81,22 @@ You will finally receive the response like:
             "object": "embedding",
             "index": 0,
             "embedding": [
-                0.03510047867894173,
-                0.0419340543448925,
-                0.005905449856072664，
+                0.01345062255859375,
+                0.003925323486328125,
+                -0.0057220458984375,
                 ... # (omit for spacing)
-                0.08812830597162247,
-                0.03634589537978172,
-                0.0021678076591342688,
-                0.051571957767009735,
-                0.029966454952955246,
-                0.02055398002266884
+                -0.011810302734375,
+                0.032135009765625,
+                -0.0028438568115234375,
+                -0.0107421875,
+                0.01003265380859375
             ]
         }
     ],
-    "model": "sentence-transformers/all-MiniLM-L12-v2",
+    "model": "intfloat/e5-mistral-7b-instruct",
     "usage": {
-        "query_tokens": 11,
-        "total_tokens": 11
+        "query_tokens": 8,
+        "total_tokens": 8
     }
 }
 ```
@@ -101,7 +104,7 @@ You will finally receive the response like:
 ### 4. Clean Up
 In the end, if you would like to delete the model, please run:
 ```bash
-sllm-cli delete sentence-transformers/all-MiniLM-L12-v2
+sllm-cli delete intfloat/e5-mistral-7b-instruct
 ```
 
 To stop the ServerlessLLM services, please run:
