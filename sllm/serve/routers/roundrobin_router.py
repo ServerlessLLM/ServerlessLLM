@@ -312,6 +312,9 @@ class RoundRobinRouter(SllmRouter):
         return instance_id
 
     async def _stop_instance(self, instance_id: Optional[str] = None):
+        while len(self.ready_instances) <= 0:
+            await asyncio.sleep(1)
+
         async with self.instance_management_lock:
             if instance_id is None:
                 instance_id, instance = self.ready_instances.popitem()
