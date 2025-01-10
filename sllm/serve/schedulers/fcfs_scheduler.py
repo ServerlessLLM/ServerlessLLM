@@ -146,22 +146,30 @@ class FcfsScheduler(SllmScheduler):
                     allocated = False
                     keep_going = False
                     for node_id, node_info in worker_nodes.items():
-                        async with self.queue_lock:
-                            if node_info["free_gpu"] >= num_gpus:
+                        if node_info["free_gpu"] >= num_gpus:
+                            async with self.queue_lock:
                                 if allocation_result.done():
                                     keep_going = True
                                     break
                                 try:
-                                    self.model_loading_queues[model_name].remove((request_time, num_gpus, allocation_result))
-                                except ValueError: 
+                                    self.model_loading_queues[
+                                        model_name
+                                    ].remove(
+                                        (
+                                            request_time,
+                                            num_gpus,
+                                            allocation_result,
+                                        )
+                                    )
+                                    allocation_result.set_result(node_id)
+                                except ValueError:
                                     keep_going = True
-                                    break                       
-                                allocation_result.set_result(node_id)
-                                allocated = True
-                                logger.info(
-                                    f"Allocated node {node_id} for model {model_name}"
-                                )
-                                node_info["free_gpu"] -= num_gpus
+                                    break
+                            allocated = True
+                            logger.info(
+                                f"Allocated node {node_id} for model {model_name}"
+                            )
+                            node_info["free_gpu"] -= num_gpus
                             break
                     if keep_going:
                         continue
