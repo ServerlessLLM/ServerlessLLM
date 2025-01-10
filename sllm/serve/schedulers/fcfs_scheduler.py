@@ -148,6 +148,7 @@ class FcfsScheduler(SllmScheduler):
                     for node_id, node_info in worker_nodes.items():
                         if node_info["free_gpu"] >= num_gpus:
                             async with self.queue_lock:
+                                # allocation_result was set
                                 if allocation_result.done():
                                     keep_going = True
                                     break
@@ -171,6 +172,7 @@ class FcfsScheduler(SllmScheduler):
                             )
                             node_info["free_gpu"] -= num_gpus
                             break
+                    # skip current request if removal fails or allocation_result is already set
                     if keep_going:
                         continue
                     if not allocated:
