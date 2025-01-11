@@ -3,5 +3,5 @@ grpcio==1.49.1
 grpcio-tools==1.49.1
 ninja
 setuptools
-torch==2.3.0
+torch==2.5.1
 wheel
