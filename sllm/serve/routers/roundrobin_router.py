@@ -197,10 +197,15 @@ class RoundRobinRouter(SllmRouter):
                     if instance_id not in self.ready_instances:
                         continue
                     instance = self.ready_instances[instance_id]
-                    allocated = await instance.add_requests(1)
-                    if allocated:
-                        instance_allocation.set_result(instance_id)
-
+                    # check if the request queue reaches max length
+                    if await instance.check_request_queue():
+                        allocated = await instance.add_requests(1)
+                        if allocated:
+                            instance_allocation.set_result(instance_id)
+                    else:
+                        logger.info(
+                            f"Instance {instance_id} cannot add another request"
+                        )
                 if not allocated:
                     await asyncio.sleep(self.loop_interval)
 
@@ -249,10 +254,17 @@ class RoundRobinRouter(SllmRouter):
         logger.info(
             f"Creating new instance {instance_id} for model {self.model_name}"
         )
-        # TODO: Add max_queue_length to instance
+        # get max_queue_length from auto_scaling_config
+        if self.auto_scaling_config.get("metric", "") == "concurrency":
+            max_request_length = self.auto_scaling_config.get("target", 1)
+        else:
+            max_request_length = 1
+        logger.info(
+            f"Creating new instance {instance_id} for model {self.model_name}, max queue length is {max_request_length}"
+        )
         instance = InstanceHandle(
             instance_id=instance_id,
-            max_queue_length=10,
+            max_queue_length=max_request_length,
             num_gpu=self.resource_requirements["num_gpus"],
         )
         async with self.instance_management_lock:
