@@ -49,9 +49,13 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    get_quantization_config_and_type,
+    get_quantization_fn,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
+from transformers.quantizers.quantizers_utils import get_module_from_name
+import bitsandbytes as bnb
 import importlib
 
 logger = init_logger(__name__)
@@ -121,6 +125,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -131,6 +136,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
+            quantization=quantization,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -140,6 +146,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
+        quantization=quantization,
         storage_path=storage_path,
     )
 
@@ -149,6 +156,7 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -186,14 +194,26 @@ def fully_parallel_load(
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
 
+        if quantization:
+            quantization_config, quant_type = get_quantization_config_and_type(
+                quantization
+            )
+
         logger.debug(f"load config takes {time.time() - start} seconds")
         start = time.time()
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(config, trust_remote_code=True).to(
-                config.torch_dtype
-            )
+            if quantization:
+                model = _class.from_config(
+                    config,
+                    trust_remote_code=True,
+                )
+            else:
+                model = _class.from_config(
+                    config,
+                    trust_remote_code=True,
+                ).to(config.torch_dtype)
 
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
@@ -201,14 +221,72 @@ def fully_parallel_load(
         replica_uuid, state_dict = future.result()
 
     with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(model, name, param.device, param)
+        if quantization:
+            quantization_fn = get_quantization_fn(quantization)
+
+            if quantization == "int8":
+
+                def quantize(x):
+                    quantized_weights, scales, _ = quantization_fn(x)
+                    return quantized_weights, scales
+
+            else:
+
+                def quantize(x):
+                    quantized_weights, quant_state = quantization_fn(
+                        x, quant_type=quant_type
+                    )
+                    return quantized_weights, quant_state
+
+            for name, param in state_dict.items():
+                if param.dtype in [
+                    torch.bfloat16,
+                    torch.float16,
+                    torch.float32,
+                ]:
+                    print(f"yep {param.dtype}")
+                    module = get_module_from_name(model, name)
+                    if isinstance(
+                        module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                    ):
+                        print("weight was quantized")
+                        param_fp16 = param.data.to(torch.float16)
+                        quantized_weights, scales_or_state = quantize(
+                            param_fp16
+                        )
+                        module._parameters["weight"] = quantized_weights
+                        print(module._parameters["weight"])
+
+                        if isinstance(module, bnb.nn.Linear4bit):
+                            module.weight_state = scales_or_state
+                        else:
+                            module.weight_scale.data = scales_or_state
+
+                        print(f"quantized {quantized_weights.dtype}")
+                        set_module_tensor_to_device(
+                            model, name, quantized_weights.device, quantized_weights
+                        )
+
+                else:
+                    print(f"nope {param.dtype}")
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
+        else:
+            for name, param in state_dict.items():
+                set_module_tensor_to_device(model, name, param.device, param)
+
         send_module_buffers_to_device(model, device_map)
+
+    remaining_meta = [
+        name for name, param in model.named_parameters() if param.is_meta
+    ]
+    if remaining_meta:
+        logger.warning(f"Found remaining meta tensors: {remaining_meta}")
 
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
-
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()

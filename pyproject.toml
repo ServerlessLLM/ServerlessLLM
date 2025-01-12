@@ -6,6 +6,7 @@ requires = [
     "ninja",
     "grpcio==1.49.1",
     "grpcio-tools==1.49.1",
+    "bitsandbytes"
 ]
 build-backend = "setuptools.build_meta"
 
