@@ -244,6 +244,7 @@ def fully_parallel_load(
                     torch.float16,
                     torch.float32,
                 ]:
+                    print(f"yep {param.dtype}")
                     module = get_module_from_name(model, name)
                     if isinstance(
                         module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
@@ -261,8 +262,9 @@ def fully_parallel_load(
                         else:
                             module.weight_scale.data = scales_or_state
 
+                        print(f"quantized {quantized_weights.dtype}")
                         set_module_tensor_to_device(
-                            model, name, param.device, quantized_weights
+                            model, name, quantized_weights.device, quantized_weights
                         )
 
                 else:
