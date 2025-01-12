@@ -266,6 +266,7 @@ def fully_parallel_load(
                         )
 
                 else:
+                    print(f"nope {param.dtype}")
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )

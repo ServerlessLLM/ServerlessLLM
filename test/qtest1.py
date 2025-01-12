@@ -6,7 +6,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from sllm_store.transformers import load_model, save_model
 
 quantization_config = BitsAndBytesConfig(load_in_4bit=True)
-model_name = "Qwen/Qwen2.5-1.5B"  #'facebook/opt-1.3b'
+model_name = 'facebook/opt-1.3b'
 before_mem = torch.cuda.memory_allocated()
 model = AutoModelForCausalLM.from_pretrained(model_name)
 # =======================================================================================================================
