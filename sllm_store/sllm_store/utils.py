@@ -22,6 +22,7 @@ from torch import nn
 from accelerate.utils import find_tied_parameters
 import bitsandbytes as bnb
 from transformers import BitsAndBytesConfig
+from transformers.quantizers.quantizers_utils import get_module_from_name
 
 
 def set_module_buffer_to_device(
@@ -202,3 +203,35 @@ def get_quantization_fn(precision: str):
         return bnb.functional.int8_vectorwise_quant
     else:
         raise ValueError(f"Unsupported precision: {precision}")
+
+
+def replace_linear_with_quantized(model, name, quantization):
+    module = get_module_from_name(model, name)
+    parent_name, child_name = name.rsplit(".", 1)
+    parent = get_module_from_name(model, parent_name)
+
+    if isinstance(module, torch.nn.Linear):
+        in_features = module.in_features
+        out_features = module.out_features
+        bias = module.bias is not None
+
+        if quantization == "int8":
+            new_layer = bnb.nn.Linear8bitLt(
+                in_features,
+                out_features,
+                bias=bias,
+                has_fp16_weights=True,
+                threshold=6.0,
+            )
+        else:  # 4bit (fp4, nf4, int4)
+            new_layer = bnb.nn.Linear4bit(
+                in_features,
+                out_features,
+                bias=bias,
+                compute_dtype=torch.float16,
+                quant_type=quantization,
+            )
+
+        setattr(parent, child_name, new_layer)
+        return new_layer
+    return module

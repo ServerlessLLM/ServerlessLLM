@@ -51,6 +51,7 @@ from sllm_store.utils import (
     send_module_buffers_to_device,
     get_quantization_config_and_type,
     get_quantization_fn,
+    replace_linear_with_quantized,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -204,16 +205,10 @@ def fully_parallel_load(
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            if quantization:
-                model = _class.from_config(
-                    config,
-                    trust_remote_code=True,
-                )
-            else:
-                model = _class.from_config(
-                    config,
-                    trust_remote_code=True,
-                ).to(config.torch_dtype)
+            model = _class.from_config(
+                config,
+                trust_remote_code=True,
+            ).to(config.torch_dtype)
 
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
@@ -239,17 +234,25 @@ def fully_parallel_load(
                     return quantized_weights, quant_state
 
             for name, param in state_dict.items():
+                module = get_module_from_name(model, name)
+                if isinstance(module, torch.nn.Linear) and name.endswith(
+                    ".weight"
+                ):
+                    module = replace_linear_with_quantized(
+                        model, name, quantization
+                    )
+
                 if param.dtype in [
                     torch.bfloat16,
                     torch.float16,
                     torch.float32,
                 ]:
                     print(f"yep {param.dtype}")
-                    module = get_module_from_name(model, name)
                     if isinstance(
                         module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                     ):
                         print("weight was quantized")
+
                         param_fp16 = param.data.to(torch.float16)
                         quantized_weights, scales_or_state = quantize(
                             param_fp16
@@ -264,7 +267,10 @@ def fully_parallel_load(
 
                         print(f"quantized {quantized_weights.dtype}")
                         set_module_tensor_to_device(
-                            model, name, quantized_weights.device, quantized_weights
+                            model,
+                            name,
+                            quantized_weights.device,
+                            quantized_weights,
                         )
 
                 else:
@@ -279,7 +285,9 @@ def fully_parallel_load(
         send_module_buffers_to_device(model, device_map)
 
     remaining_meta = [
-        name for name, param in model.named_parameters() if param.is_meta
+        (name, param)
+        for name, param in model.named_parameters()
+        if param.is_meta
     ]
     if remaining_meta:
         logger.warning(f"Found remaining meta tensors: {remaining_meta}")
