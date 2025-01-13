@@ -53,7 +53,7 @@ from sllm_store.utils import (
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
 import importlib
-from peft import PeftModel, get_peft_model_state_dict
+from peft import PeftModel, get_peft_model_state_dict, PeftConfig
 
 logger = init_logger(__name__)
 
@@ -129,14 +129,14 @@ def save_lora(lora: PeftModel, lora_path: str):
     save_dict(lora_state_dict, lora_path)
 
     # save the config
-    if hasattr(model, "peft_config") and model.peft_config is not None:
-        config_dict = model.peft_config.to_dict()
-        with open(
-            os.path.join(lora_path, "adapter_config.json"),
-            "w",
-            encoding="utf-8",
-        ) as f:
-            json.dump(config_dict, f, ensure_ascii=False, indent=2)
+    if (
+        hasattr(model, "peft_config")
+        and model.peft_config is not None
+        and isinstance(model.peft_config, PeftConfig)
+    ):
+        logger.info(f"{model.peft_config}")
+        config_save_path = os.path.join(lora_path, "adapter_config.json")
+        model.peft_config.save_pretrained(config_save_path)
 
 
 def load_model(
