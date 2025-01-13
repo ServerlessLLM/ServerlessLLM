@@ -235,23 +235,21 @@ def fully_parallel_load(
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)
-                print(type(module[0]))
                 if isinstance(module[0], torch.nn.Linear) and name.endswith(
                     ".weight"
                 ):
-                    print("converted")
                     module = replace_linear_with_quantized(
                         model, name, quantization
                     )
+                    
 
                 if param.dtype in [
                     torch.bfloat16,
                     torch.float16,
                     torch.float32,
                 ]:
-                    print(f"yep {param.dtype}")
                     if isinstance(
-                        module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                        module[0], (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                     ):
                         print("weight was quantized")
 
@@ -262,7 +260,7 @@ def fully_parallel_load(
                         module._parameters["weight"] = quantized_weights
                         print(module._parameters["weight"])
 
-                        if isinstance(module, bnb.nn.Linear4bit):
+                        if isinstance(module[0], bnb.nn.Linear4bit):
                             module.weight_state = scales_or_state
                         else:
                             module.weight_scale.data = scales_or_state
