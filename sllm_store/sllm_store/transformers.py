@@ -235,9 +235,7 @@ def fully_parallel_load(
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)
-                print(
-                    f"Name: {name}, type: {type(module)}, islinear? {isinstance(module, torch.nn.Linear)}"
-                )
+                print(type(module))
                 if isinstance(module, torch.nn.Linear) and name.endswith(
                     ".weight"
                 ):
