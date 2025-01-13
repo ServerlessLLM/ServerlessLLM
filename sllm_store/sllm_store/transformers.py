@@ -235,6 +235,7 @@ def fully_parallel_load(
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)
+                print(module.type)
                 if isinstance(module, torch.nn.Linear) and name.endswith(
                     ".weight"
                 ):
@@ -285,9 +286,7 @@ def fully_parallel_load(
         send_module_buffers_to_device(model, device_map)
 
     remaining_meta = [
-        (name, param)
-        for name, param in model.named_parameters()
-        if param.is_meta
+        name for name, param in model.named_parameters() if param.is_meta
     ]
     if remaining_meta:
         logger.warning(f"Found remaining meta tensors: {remaining_meta}")
