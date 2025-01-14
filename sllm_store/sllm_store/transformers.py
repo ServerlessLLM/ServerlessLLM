@@ -248,13 +248,20 @@ def fully_parallel_load(
                     setattr(parent, layer_name, replace_linear_with_quantized(model, name, quantization))
                     module = get_module_from_name(model, name)
 
+                print(type(module))
+                print(param.dtype)
+                print(name)
+
                 if param.dtype in [
                     torch.bfloat16,
                     torch.float16,
                     torch.float32,
-                ]:
+                ] and name.endswith(".weight")
+                :
+
+                    module_layer = module[0]
                     if isinstance(
-                        module[0], (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                        module_layer, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                     ):
                         print("weight was quantized")
 
@@ -262,13 +269,14 @@ def fully_parallel_load(
                         quantized_weights, scales_or_state = quantize(
                             param_fp16
                         )
-                        module._parameters["weight"] = quantized_weights
-                        print(module._parameters["weight"])
 
-                        if isinstance(module[0], bnb.nn.Linear4bit):
-                            module.weight_state = scales_or_state
+                        module_layer._parameters["weight"] = quantized_weights
+                        print(module_layer._parameters["weight"])
+
+                        if isinstance(module_layer, bnb.nn.Linear4bit):
+                            module_layer.weight_state = scales_or_state
                         else:
-                            module.weight_scale.data = scales_or_state
+                            module_layer.weight_scale.data = scales_or_state
 
                         print(f"quantized {quantized_weights.dtype}")
                         set_module_tensor_to_device(
@@ -279,7 +287,6 @@ def fully_parallel_load(
                         )
 
                 else:
-                    print(f"nope {param.dtype}")
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )
