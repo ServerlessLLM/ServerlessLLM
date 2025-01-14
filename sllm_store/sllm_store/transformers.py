@@ -238,13 +238,15 @@ def fully_parallel_load(
                 if isinstance(module[0], torch.nn.Linear) and name.endswith(
                     ".weight"
                 ):
-                    module[0] = replace_linear_with_quantized(
-                        model, name, quantization
-                    )
-                    
-                print(type(module))
-                print(type(module[0]))
-                print(type(module[1]))
+                    parent_name = '.'.join(name.split('.')[:-1]) 
+                    layer_name = name.split('.')[-1].replace('.weight', '')
+
+                    parent = get_module_from_name(model, parent_name)
+                    if isinstance(parent, tuple):
+                        parent = parent[0]
+
+                    setattr(parent, layer_name, replace_linear_with_quantized(model, name, quantization))
+                    module = get_module_from_name(model, name)
 
                 if param.dtype in [
                     torch.bfloat16,
