@@ -249,6 +249,7 @@ def fully_parallel_load(
                     module = get_module_from_name(model, name)
 
                 print(type(module))
+                print(type(module[0]))
                 print(param.dtype)
                 print(name)
 
@@ -284,8 +285,15 @@ def fully_parallel_load(
                             quantized_weights.device,
                             quantized_weights,
                         )
+                    else: 
+                        print("skipped 2")
+                        set_module_tensor_to_device(
+                            model, name, param.device, param
+                        )
+
 
                 else:
+                    print("skipped")
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )
