@@ -256,8 +256,7 @@ def fully_parallel_load(
                     torch.bfloat16,
                     torch.float16,
                     torch.float32,
-                ] and name.endswith(".weight")
-                :
+                ] and name.endswith(".weight"):
 
                     module_layer = module[0]
                     if isinstance(
