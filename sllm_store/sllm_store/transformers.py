@@ -234,34 +234,24 @@ def fully_parallel_load(
                     return quantized_weights, quant_state
 
             for name, param in state_dict.items():
-                module = get_module_from_name(model, name)
+                module = get_module_from_name(
+                    model, name
+                )  # gets the specific layer from the model
                 if isinstance(module[0], torch.nn.Linear) and name.endswith(
                     ".weight"
                 ):
-                    parent_name = '.'.join(name.split('.')[:-1]) 
-                    layer_name = name.split('.')[-1].replace('.weight', '')
-
-                    parent = get_module_from_name(model, parent_name)
-                    if isinstance(parent, tuple):
-                        parent = parent[0]
-
-                    setattr(parent, layer_name, replace_linear_with_quantized(model, name, quantization))
-                    module = get_module_from_name(model, name)
+                    replace_linear_with_quantized(model, name, quantization)
+                    module, _ = get_module_from_name(model, name)
 
                 print(type(module))
-                print(type(module[0]))
-                print(param.dtype)
-                print(name)
 
                 if param.dtype in [
                     torch.bfloat16,
                     torch.float16,
                     torch.float32,
                 ] and name.endswith(".weight"):
-
-                    module_layer = module[0]
                     if isinstance(
-                        module_layer, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                        module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                     ):
                         print("weight was quantized")
 
@@ -270,13 +260,13 @@ def fully_parallel_load(
                             param_fp16
                         )
 
-                        module_layer._parameters["weight"] = quantized_weights
-                        print(module_layer._parameters["weight"])
+                        module._parameters["weight"] = quantized_weights
+                        print(module._parameters["weight"])
 
-                        if isinstance(module_layer, bnb.nn.Linear4bit):
-                            module_layer.weight_state = scales_or_state
+                        if isinstance(module, bnb.nn.Linear4bit):
+                            module.weight_state = scales_or_state
                         else:
-                            module_layer.weight_scale.data = scales_or_state
+                            module.weight_scale.data = scales_or_state
 
                         print(f"quantized {quantized_weights.dtype}")
                         set_module_tensor_to_device(
@@ -285,12 +275,11 @@ def fully_parallel_load(
                             quantized_weights.device,
                             quantized_weights,
                         )
-                    else: 
+                    else:
                         print("skipped 2")
                         set_module_tensor_to_device(
                             model, name, param.device, param
                         )
-
 
                 else:
                     print("skipped")
