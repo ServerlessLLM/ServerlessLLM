@@ -1,7 +1,7 @@
 # ServerlessLLM Example Scripts
 Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/getting_started/installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
-This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using ServerlessLLM.
+This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using transformers backend of ServerlessLLM.
 
 ### 1. Environment and Service Setup
 First and foremost, enter the folder where docker compose file is located:
