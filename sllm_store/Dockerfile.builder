@@ -15,46 +15,37 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-FROM nvcr.io/nvidia/cuda:12.3.1-devel-ubuntu20.04
 
-# Set non-interactive installation
+# Adapted from https://github.com/vllm-project/vllm/blob/23c1b10a4c8cd77c5b13afa9242d67ffd055296b/Dockerfile
+ARG CUDA_VERSION=12.1.1
+#################### BASE BUILD IMAGE ####################
+# prepare basic build environment
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
+ARG CUDA_VERSION=12.1.1
+ARG PYTHON_VERSION=3.10
+ARG TARGETPLATFORM
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install necessary packages for wget and HTTPS
-RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Install Python and other dependencies
+RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
+    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
+    && apt-get update -y \
+    && apt-get install -y ccache software-properties-common git curl sudo \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update -y \
+    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
+    && ln -sf /usr/bin/python${PYTHON_VERSION}-config /usr/bin/python3-config \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
+    && python3 --version && python3 -m pip --version
 
-# Set the Miniconda version to install
-ENV MINICONDA_VERSION 24.3.0-0
-ENV MINICONDA_SHA256 def595b1b182749df0974cddb5c8befe70664ace16403d7a7bf54467be5ea48b
-
-# Download the Miniconda installer
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py310_${MINICONDA_VERSION}-Linux-x86_64.sh -O /tmp/miniconda.sh
-
-# Validate the installer with md5sum
-RUN echo "${MINICONDA_SHA256} /tmp/miniconda.sh" | sha256sum -c -
-
-# Install Miniconda
-RUN /bin/bash /tmp/miniconda.sh -b -p /opt/conda
-
-# Clean up the installer script
-RUN rm /tmp/miniconda.sh
-
-# Initialize Conda for all shell types
-RUN /opt/conda/bin/conda init
-
-# Add /opt/conda/bin to PATH
-ENV PATH /opt/conda/bin:$PATH
+WORKDIR /app
 
 COPY requirements-build.txt .
+RUN python3 -m pip install --no-cache-dir -r requirements-build.txt
 
-# Optional: Install any other dependencies or setup the environment
-RUN conda create -n py310 python=3.10
-RUN /opt/conda/envs/py310/bin/pip install -r requirements-build.txt
-
-# Add your library files
-WORKDIR /app
+# Add the rest of the source code
 COPY cmake ./cmake
 COPY CMakeLists.txt .
 COPY csrc ./csrc
