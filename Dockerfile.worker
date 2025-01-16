@@ -16,32 +16,40 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-# Stage 1: Builder
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel AS builder
+# Adapted from https://github.com/vllm-project/vllm/blob/23c1b10a4c8cd77c5b13afa9242d67ffd055296b/Dockerfile
+ARG CUDA_VERSION=12.1.1
+#################### BASE BUILD IMAGE ####################
+# prepare basic build environment
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
+ARG CUDA_VERSION=12.1.1
+ARG PYTHON_VERSION=3.10
+ARG TARGETPLATFORM
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Set non-interactive installation
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-
-# Install necessary packages for wget and HTTPS
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
-        wget \
-        bzip2 \
-        ca-certificates \
-        git \
-        && rm -rf /var/lib/apt/lists/*
+# Install Python and other dependencies
+RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
+    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
+    && apt-get update -y \
+    && apt-get install -y ccache software-properties-common git curl sudo \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update -y \
+    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
+    && ln -sf /usr/bin/python${PYTHON_VERSION}-config /usr/bin/python3-config \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
+    && python3 --version && python3 -m pip --version
 
 # Set the working directory
 WORKDIR /app
 
-RUN conda install python=3.10
-RUN pip install -U pip
-
 # Build checkpoint store
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
+COPY sllm_store/requirements-build.txt /app/sllm_store/requirements-build.txt
+RUN cd sllm_store && \
+  pip install -r requirements-build.txt && \
+  pip install setuptools wheel
+
 COPY sllm_store/cmake /app/sllm_store/cmake
 COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
 COPY sllm_store/csrc /app/sllm_store/csrc
@@ -52,17 +60,14 @@ COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
-RUN cd sllm_store && \
-  pip install -r requirements.txt && \
-  pip install setuptools wheel  && \
-  python setup.py sdist bdist_wheel
+RUN cd sllm_store && python3 setup.py sdist bdist_wheel
 
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/serve /app/sllm/serve
 COPY sllm/cli /app/sllm/cli
 COPY README.md /app/
-RUN python setup.py sdist bdist_wheel
+RUN python3 setup.py sdist bdist_wheel
 
 # Stage 2: Runner
 FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
