@@ -206,7 +206,9 @@ def get_quantization_fn(precision: str):
 
 
 def replace_linear_with_quantized(model, name, quantization):
-    parent_name, child_name = name.rsplit(".", 1)
+    module_name = name[:-7] if name.endswith(".weight") else name
+
+    parent_name, child_name = module_name.rsplit(".", 1)
     parent_module, _ = get_module_from_name(model, parent_name)
     module = getattr(parent_module, child_name)
 
@@ -235,7 +237,6 @@ def replace_linear_with_quantized(model, name, quantization):
         setattr(parent_module, child_name, new_layer)
         return new_layer
 
-    if not isinstance(module, torch.nn.Linear):
-        print(f"Module {child_name} is type {type(module)}, not Linear")
-        print("not quantized")
+    print(f"Module {module_name} is type {type(module)}, not Linear")
+    print("not quantized")
     return module
