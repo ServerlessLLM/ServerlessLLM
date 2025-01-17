@@ -261,7 +261,7 @@ def fully_parallel_load(
                         )
 
                         module._parameters["weight"] = quantized_weights
-                        print(f"weights {module._parameters["weight"]}")
+                        print(f"weights {module._parameters['weight']}")
 
                         if isinstance(module, bnb.nn.Linear4bit):
                             module.weight_state = scales_or_state
