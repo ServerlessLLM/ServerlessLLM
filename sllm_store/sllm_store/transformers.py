@@ -247,7 +247,8 @@ def fully_parallel_load(
                     replace_linear_with_quantized(
                         model, name, module, quantization
                     )
-                    module, _ = get_module_from_name(model, name)
+                    module_name = name[:-7]
+                    module, _ = get_module_from_name(model, module_name)
                     print(
                         f"module after replacement: {module} | type: {type(module)}"
                     )
