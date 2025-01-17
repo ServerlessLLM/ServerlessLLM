@@ -276,7 +276,9 @@ def fully_parallel_load(
                             quantized_weights,
                         )
                     else:
-                        print(f"skipped 2, module is {type(module))} and {module}")
+                        print(
+                            f"skipped 2, module is {type(module)} and {module}"
+                        )
                         set_module_tensor_to_device(
                             model, name, param.device, param
                         )

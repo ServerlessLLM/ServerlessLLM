@@ -206,8 +206,8 @@ def get_quantization_fn(precision: str):
 
 
 def replace_linear_with_quantized(model, name, quantization):
-    module_name = name[:-7] if name.endswith('.weight') else name
-    
+    module_name = name[:-7] if name.endswith(".weight") else name
+
     # Get the full module directly
     module, _ = get_module_from_name(model, module_name)
     print(module)
