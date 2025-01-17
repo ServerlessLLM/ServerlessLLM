@@ -210,8 +210,9 @@ def replace_linear_with_quantized(model, name, quantization):
 
     # Get the full module directly
     module, _ = get_module_from_name(model, module_name)
-    print(module)
-    print(type(module))
+    print(
+        f"module inside the replacement function: {module} | type: {type(module)}"
+    )
 
     if isinstance(module, torch.nn.Linear):
         in_features = module.in_features

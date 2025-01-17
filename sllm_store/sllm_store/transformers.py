@@ -234,6 +234,7 @@ def fully_parallel_load(
                     return quantized_weights, quant_state
 
             for name, param in state_dict.items():
+                print("=================================================")
                 module = get_module_from_name(
                     model, name
                 )  # gets the specific layer from the model
@@ -242,8 +243,9 @@ def fully_parallel_load(
                 ):
                     replace_linear_with_quantized(model, name, quantization)
                     module, _ = get_module_from_name(model, name)
-
-                print(module)
+                    print(
+                        f"module when it should've been replaced: {module} | type: {type(module)}"
+                    )
 
                 if param.dtype in [
                     torch.bfloat16,
@@ -253,8 +255,6 @@ def fully_parallel_load(
                     if isinstance(
                         module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                     ):
-                        print("weight was quantized")
-
                         param_fp16 = param.data.to(torch.float16)
                         quantized_weights, scales_or_state = quantize(
                             param_fp16
@@ -277,14 +277,13 @@ def fully_parallel_load(
                         )
                     else:
                         print(
-                            f"skipped 2, module is {type(module)} and {module}"
+                            f"did not quantize, module is {type(module)} and {module}"
                         )
                         set_module_tensor_to_device(
                             model, name, param.device, param
                         )
 
                 else:
-                    print("skipped")
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )
