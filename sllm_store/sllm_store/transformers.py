@@ -234,17 +234,20 @@ def fully_parallel_load(
                     return quantized_weights, quant_state
 
             for name, param in state_dict.items():
-                print("=================================================")
                 module = get_module_from_name(
                     model, name
                 )  # gets the specific layer from the model
                 if isinstance(module[0], torch.nn.Linear) and name.endswith(
                     ".weight"
                 ):
+                    print("=================================================")
+                    print(
+                        f"module before replacing layer: {module} | type: {type(module)}"
+                    )
                     replace_linear_with_quantized(model, name, quantization)
                     module, _ = get_module_from_name(model, name)
                     print(
-                        f"module when it should've been replaced: {module} | type: {type(module)}"
+                        f"module after replacement: {module} | type: {type(module)}"
                     )
 
                 if param.dtype in [

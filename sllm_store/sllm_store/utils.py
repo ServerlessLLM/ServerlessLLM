@@ -205,42 +205,35 @@ def get_quantization_fn(precision: str):
         raise ValueError(f"Unsupported precision: {precision}")
 
 
-def replace_linear_with_quantized(model, name, quantization):
+def replace_linear_with_quantized(model, name, module_tuple, quantization):
+    module, module_name = module_tuple
+    print(f"inside the replacement function: {module} | {module_name}")
+
+    in_features = module.in_features
+    out_features = module.out_features
+    bias = module.bias is not None
+
+    if quantization == "int8":
+        new_layer = bnb.nn.Linear8bitLt(
+            in_features,
+            out_features,
+            bias=bias,
+            has_fp16_weights=True,
+            threshold=6.0,
+        )
+    else:  # 4bit (fp4, nf4, int4)
+        new_layer = bnb.nn.Linear4bit(
+            in_features,
+            out_features,
+            bias=bias,
+            compute_dtype=torch.float16,
+            quant_type=quantization,
+        )
+
+    # Get parent module and child name for setting
     module_name = name[:-7] if name.endswith(".weight") else name
+    parent_path, child_name = module_name.rsplit(".", 1)
+    parent_module, _ = get_module_from_name(model, parent_path)
 
-    # Get the full module directly
-    module, _ = get_module_from_name(model, module_name)
-    print(
-        f"module inside the replacement function: {module} | type: {type(module)}"
-    )
-
-    if isinstance(module, torch.nn.Linear):
-        in_features = module.in_features
-        out_features = module.out_features
-        bias = module.bias is not None
-
-        if quantization == "int8":
-            new_layer = bnb.nn.Linear8bitLt(
-                in_features,
-                out_features,
-                bias=bias,
-                has_fp16_weights=True,
-                threshold=6.0,
-            )
-        else:  # 4bit (fp4, nf4, int4)
-            new_layer = bnb.nn.Linear4bit(
-                in_features,
-                out_features,
-                bias=bias,
-                compute_dtype=torch.float16,
-                quant_type=quantization,
-            )
-
-        # Get parent module and child name for setting
-        parent_path, child_name = module_name.rsplit(".", 1)
-        parent_module, _ = get_module_from_name(model, parent_path)
-        setattr(parent_module, child_name, new_layer)
-        return new_layer
-
-    print(f"Module {module_name} is type {type(module)}, not Linear")
-    return module
+    setattr(parent_module, child_name, new_layer)
+    return new_layer
