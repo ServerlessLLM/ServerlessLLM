@@ -206,8 +206,8 @@ def get_quantization_fn(precision: str):
 
 
 def replace_linear_with_quantized(model, name, module_tuple, quantization):
-    module, module_name = module_tuple
-    print(f"inside the replacement function: {module} | {module_name}")
+    module, _ = module_tuple
+    print(f"inside the replacement function: {module} | name {name}")
 
     in_features = module.in_features
     out_features = module.out_features
