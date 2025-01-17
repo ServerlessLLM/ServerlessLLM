@@ -244,7 +244,9 @@ def fully_parallel_load(
                     print(
                         f"module before replacing layer: {module} | type: {type(module)}"
                     )
-                    replace_linear_with_quantized(model, name, module, quantization)
+                    replace_linear_with_quantized(
+                        model, name, module, quantization
+                    )
                     module, _ = get_module_from_name(model, name)
                     print(
                         f"module after replacement: {module} | type: {type(module)}"
