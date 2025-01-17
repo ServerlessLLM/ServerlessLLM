@@ -268,14 +268,21 @@ def fully_parallel_load(
                         quantized_weights, scales_or_state = quantize(
                             param_fp16
                         )
+                        if isinstance(module, bnb.nn.Linear4bit):
+                            module.weight_state = scales_or_state
+                            original_shape = module._parameters[
+                                "weight"
+                            ].shape  # (2048, 2048)
+                            packed_numel = (
+                                original_shape[0] * original_shape[1] + 1
+                            ) // 2
+                            module._parameters["weight"].shape = (
+                                packed_numel,
+                                1,
+                            )
 
                         module._parameters["weight"] = quantized_weights
                         print(f"weights {module._parameters['weight']}")
-
-                        if isinstance(module, bnb.nn.Linear4bit):
-                            module.weight_state = scales_or_state
-                        else:
-                            module.weight_scale.data = scales_or_state
 
                         print(f"quantized {quantized_weights.dtype}")
                         set_module_tensor_to_device(
