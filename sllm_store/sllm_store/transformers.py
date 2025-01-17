@@ -241,6 +241,8 @@ def fully_parallel_load(
                 if isinstance(module[0], torch.nn.Linear) and name.endswith(
                     ".weight"
                 ):
+                    if "lm_head" in name:  # Skip LM head quantization
+                        continue
                     print(
                         f"module before replacing layer: {module} | type: {type(module)}"
                     )
@@ -276,10 +278,7 @@ def fully_parallel_load(
                             packed_numel = (
                                 original_shape[0] * original_shape[1] + 1
                             ) // 2
-                            module._parameters["weight"].shape = (
-                                packed_numel,
-                                1,
-                            )
+                            setattr(module._parameters["weight"], "shape", (packed_numel, 1))                           )
 
                         module._parameters["weight"] = quantized_weights
                         print(f"weights {module._parameters['weight']}")
