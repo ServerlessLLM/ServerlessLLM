@@ -243,7 +243,7 @@ def fully_parallel_load(
                     replace_linear_with_quantized(model, name, quantization)
                     module, _ = get_module_from_name(model, name)
 
-                print(name, type(module[0]))
+                print(module)
 
                 if param.dtype in [
                     torch.bfloat16,
