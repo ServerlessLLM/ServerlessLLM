@@ -261,7 +261,7 @@ def fully_parallel_load(
                         )
 
                         module._parameters["weight"] = quantized_weights
-                        print(module._parameters["weight"])
+                        print(f"weights {module._parameters["weight"]}")
 
                         if isinstance(module, bnb.nn.Linear4bit):
                             module.weight_state = scales_or_state
@@ -276,7 +276,7 @@ def fully_parallel_load(
                             quantized_weights,
                         )
                     else:
-                        print("skipped 2")
+                        print(f"skipped 2, module is {type(module))} and {module}")
                         set_module_tensor_to_device(
                             model, name, param.device, param
                         )
