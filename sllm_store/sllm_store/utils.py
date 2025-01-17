@@ -235,21 +235,15 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization):
     # Get parent module and child name for setting
     module_name = name[:-7] if name.endswith(".weight") else name
     parent_path, child_name = module_name.rsplit(".", 1)
-    try:
-        parent_path, child_name = module_name.rsplit(".", 1)
-    except ValueError:
-        # Handle case where there's no dot
-        parent_path = ""
-        child_name = module_name
-
     parent_module, _ = get_module_from_name(model, parent_path)
     print(
         f"parent module: {parent_module} | parent path: {parent_path} | child name: {child_name}"
     )
-    print(f"new layer should be: {new_layer}")
 
     setattr(parent_module, child_name, new_layer)
     print(
-        f"Immediately after setattr, parent_module.{child_name} is now: {getattr(parent_module, child_name)}"
+        f"Immediately after setattr, {parent_module}.{child_name} is now: {getattr(parent_module, child_name)}"
     )
-    return new_layer
+    new_module = get_module_from_name(model, name)
+    print(f"module in the model: {new_module} | type: {type(new_module[0])}")
+    return getattr(parent_module, child_name)

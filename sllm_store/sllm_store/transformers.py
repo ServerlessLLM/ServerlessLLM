@@ -244,11 +244,14 @@ def fully_parallel_load(
                     print(
                         f"module before replacing layer: {module} | type: {type(module)}"
                     )
-                    replace_linear_with_quantized(
+                    module = replace_linear_with_quantized(
                         model, name, module, quantization
                     )
-                    module_name = name[:-7]
-                    module, _ = get_module_from_name(model, module_name)
+                    # module_name = name[:-7]
+                    # parent_path, child_name = module_name.rsplit(".", 1)
+                    # parent_module, _ = get_module_from_name(model, parent_path)
+                    # module, _ = get_module_from_name(model, parent_path)
+
                     print(
                         f"module after replacement: {module} | type: {type(module)}"
                     )
@@ -283,7 +286,7 @@ def fully_parallel_load(
                         )
                     else:
                         print(
-                            f"did not quantize, module is {type(module)} and {module}"
+                            f"did not quantize, module is {type(module)} and module is {module}"
                         )
                         set_module_tensor_to_device(
                             model, name, param.device, param
