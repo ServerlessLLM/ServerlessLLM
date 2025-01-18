@@ -266,7 +266,10 @@ def fully_parallel_load(
                             packed_numel = (
                                 original_shape[0] * original_shape[1] + 1
                             ) // 2
-                            new_tensor = torch.as_strided(module._parameters["weight"], size=(packed_numel, 1), stride=(1,))
+                            new_tensor = torch.as_strided(
+                                module._parameters["weight"],
+                                size=(packed_numel, 1),
+                            )
                             module._parameters["weight"] = new_tensor
 
                         module._parameters["weight"] = quantized_weights
