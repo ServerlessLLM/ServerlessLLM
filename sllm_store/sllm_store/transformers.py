@@ -239,10 +239,8 @@ def fully_parallel_load(
                     model, name
                 )  # gets the specific layer from the model
                 if isinstance(module[0], torch.nn.Linear) and name.endswith(
-                    ".weight"
+                    ".weight" and "lm_head" not in name
                 ):
-                    if "lm_head" in name:  # Skip LM head quantization
-                        continue
                     print(
                         f"module before replacing layer: {module} | type: {type(module)}"
                     )
@@ -270,17 +268,15 @@ def fully_parallel_load(
                         quantized_weights, scales_or_state = quantize(
                             param_fp16
                         )
-                        if isinstance(module, bnb.nn.Linear4bit):
+                        if isinstance(
+                            module, bnb.nn.Linear4bit
+                        ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
                             module.weight_state = scales_or_state
-                            original_shape = module._parameters[
-                                "weight"
-                            ].shape  # (2048, 2048)
+                            original_shape = module._parameters["weight"].shape
                             packed_numel = (
                                 original_shape[0] * original_shape[1] + 1
                             ) // 2
-                            module._parameters["weight"] = module._parameters[
-                                "weight"
-                            ].reshape(packed_numel, 1)
+                            module._parameters["weight"].shape = packed_numel, 1
 
                         module._parameters["weight"] = quantized_weights
                         print(f"weights {module._parameters['weight']}")
