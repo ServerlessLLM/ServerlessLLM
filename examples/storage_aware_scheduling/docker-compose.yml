@@ -36,7 +36,7 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "32", "-registration_required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "32GB", "--registration-required", "true"] # Customize the memory pool size here
 
   # Worker Node 1
   sllm_worker_1:
@@ -59,7 +59,7 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "32", "-registration_required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "32GB", "--registration-required", "true"] # Customize the memory pool size here
 
 networks:
   sllm_network:
