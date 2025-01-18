@@ -269,6 +269,7 @@ def fully_parallel_load(
                             new_tensor = torch.as_strided(
                                 module._parameters["weight"],
                                 size=(packed_numel, 1),
+                                stride=(1, 1)
                             )
                             module._parameters["weight"] = new_tensor
 
