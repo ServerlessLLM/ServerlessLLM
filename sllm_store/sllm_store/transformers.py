@@ -239,8 +239,8 @@ def fully_parallel_load(
                     model, name
                 )  # gets the specific layer from the model
                 if isinstance(module[0], torch.nn.Linear) and name.endswith(
-                    ".weight" and "lm_head" not in name
-                ):
+                    ".weight") and ("lm_head" not in name)
+                :
                     print(
                         f"module before replacing layer: {module} | type: {type(module)}"
                     )
