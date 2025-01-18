@@ -207,9 +207,6 @@ def get_quantization_fn(precision: str):
 
 def replace_linear_with_quantized(model, name, module_tuple, quantization):
     module, _ = module_tuple
-    print(
-        f"inside the replacement function: {module} | name {name} | quantization: {quantization}"
-    )
 
     in_features = module.in_features
     out_features = module.out_features
@@ -236,14 +233,7 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization):
     module_name = name[:-7] if name.endswith(".weight") else name
     parent_path, child_name = module_name.rsplit(".", 1)
     parent_module, _ = get_module_from_name(model, parent_path)
-    print(
-        f"parent module: {parent_module} | parent path: {parent_path} | child name: {child_name}"
-    )
 
     setattr(parent_module, child_name, new_layer)
-    print(
-        f"Immediately after setattr, {parent_module}.{child_name} is now: {getattr(parent_module, child_name)}"
-    )
     new_module = get_module_from_name(model, name)
-    print(f"module in the model: {new_module} | type: {type(new_module[0])}")
     return getattr(parent_module, child_name)
