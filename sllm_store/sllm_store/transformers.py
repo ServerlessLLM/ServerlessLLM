@@ -234,7 +234,6 @@ def fully_parallel_load(
                     return quantized_weights, quant_state
 
             for name, param in state_dict.items():
-                print("=================================================")
                 module = get_module_from_name(
                     model, name
                 )  # gets the specific layer from the model
@@ -243,19 +242,8 @@ def fully_parallel_load(
                     and name.endswith(".weight")
                     and ("lm_head" not in name)
                 ):
-                    print(
-                        f"module before replacing layer: {module} | type: {type(module)}"
-                    )
                     module = replace_linear_with_quantized(
                         model, name, module, quantization
-                    )
-                    # module_name = name[:-7]
-                    # parent_path, child_name = module_name.rsplit(".", 1)
-                    # parent_module, _ = get_module_from_name(model, parent_path)
-                    # module, _ = get_module_from_name(model, parent_path)
-
-                    print(
-                        f"module after replacement: {module} | type: {type(module)}"
                     )
 
                 if param.dtype in [
@@ -278,7 +266,8 @@ def fully_parallel_load(
                             packed_numel = (
                                 original_shape[0] * original_shape[1] + 1
                             ) // 2
-                            setattr(module._parameters["weight"], "shape", (packed_numel, 1))
+                            new_tensor = torch.as_strided(module._parameters["weight"], size=(packed_numel, 1), stride=(1,))
+                            module._parameters["weight"] = new_tensor
 
                         module._parameters["weight"] = quantized_weights
                         print(f"weights {module._parameters['weight']}")
@@ -291,9 +280,6 @@ def fully_parallel_load(
                             quantized_weights,
                         )
                     else:
-                        print(
-                            f"did not quantize, module is {type(module)} and module is {module}"
-                        )
                         set_module_tensor_to_device(
                             model, name, param.device, param
                         )
