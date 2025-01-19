@@ -29,7 +29,7 @@ docker compose up -d --build
 ### 2. Model Deployment
 Now let's deploy the embedding model.
 
-First, write your deployment configuration `my_config.json`:
+First, create a deployment configuration and save it as a `json` file:
 ```json
 {
     "model": "sentence-transformers/all-MiniLM-L12-v2",
@@ -49,11 +49,13 @@ First, write your deployment configuration `my_config.json`:
     }
 }
 ```
+The file `transformers_embed_config.json` is available in the `ServerlessLLM/examples/embedding` directory. Feel free use it. You can also modify it as necessary, or create a new file to suit your requirements.
+
 Next, set the ServerlessLLM Server URL `LLM_SERVER_URL` and deploy this model with the configuration:
 ```bash
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343/
-sllm-cli deploy --config /path/to/my_config.json
+sllm-cli deploy --config ServerlessLLM/examples/embedding/transformers_embed_config.json
 ```
 
 ### 3. Service Request
