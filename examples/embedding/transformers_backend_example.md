@@ -1,24 +1,18 @@
 # ServerlessLLM Example Scripts
 Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/getting_started/installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
-This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using ServerlessLLM.
+This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using transformers backend of ServerlessLLM.
 
 ### 1. Environment and Service Setup
-First and foremost, enter the folder where docker compose file is located:
-```bash
-cd ServerlessLLM/examples/docker/
-```
-Set the Model Directory `MODEL_FOLDER` where models will be stored:
+First and foremost, set the Model Directory `MODEL_FOLDER` where models will be stored:
 ```bash
 export MODEL_FOLDER=/path/to/your/models
 ```
 Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `all-MiniLM-L12-v2` is approximately 0.12GB in size (float32), so you'll need to configure the store server with a memory pool of at least 0.12GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is set to 4GB by default. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
 
 ```yaml
-command: ["-mem_pool_size", "32", "-registration_required", "true"]
+command: ["-mem_pool_size", "32", "-registration_required", "true"] # This command line option will set a memory pool size of 32GB for each worker node.
 ```
-
-This command line option will set a memory pool size of 32GB for each worker node.
 
 Afterwards, run docker compose to start the service.
 
@@ -29,7 +23,7 @@ docker compose up -d --build
 ### 2. Model Deployment
 Now let's deploy the embedding model.
 
-First, write your deployment configuration `my_config.json`:
+First, create a deployment configuration and save it as a `json` file:
 ```json
 {
     "model": "sentence-transformers/all-MiniLM-L12-v2",
@@ -49,11 +43,14 @@ First, write your deployment configuration `my_config.json`:
     }
 }
 ```
+
+We have created the file `transformers_embed_config.json`. Feel free use it. You can also modify it as necessary, or create a new file to suit your requirements.
+
 Next, set the ServerlessLLM Server URL `LLM_SERVER_URL` and deploy this model with the configuration:
 ```bash
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343/
-sllm-cli deploy --config /path/to/my_config.json
+sllm-cli deploy --config transformers_embed_config.json
 ```
 
 ### 3. Service Request
