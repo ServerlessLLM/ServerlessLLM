@@ -1,0 +1,44 @@
+services:
+  # Head Node
+  sllm_head:
+    build:
+      context: ../../
+      dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
+    image: serverlessllm/sllm-serve
+    container_name: sllm_head
+    environment:
+      - MODEL_FOLDER=${MODEL_FOLDER}
+    ports:
+      - "6379:6379"    # Redis port
+      - "8343:8343"    # ServerlessLLM port
+    networks:
+      - sllm_network
+    command: []
+
+  # Worker Node 0
+  sllm_worker_0:
+    build:
+      context: ../../
+      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
+    image: serverlessllm/sllm-serve-worker
+    container_name: sllm_worker_0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              device_ids: ["0"] # Assigns GPU 0 to the worker
+    environment:
+      - WORKER_ID=0
+      - STORAGE_PATH=/models
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+    command: ["-mem_pool_size", "16", "-registration_required", "true"] # Customize the memory pool size here
+
+networks:
+  sllm_network:
+    driver: bridge
+    name: sllm

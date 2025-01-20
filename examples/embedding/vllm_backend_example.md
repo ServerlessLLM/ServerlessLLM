@@ -4,21 +4,15 @@ Please follow the [Installation instructions](https://serverlessllm.github.io/do
 This example shows deploying and calling [e5-mistral-7b-instruct](https://huggingface.co/intfloat/e5-mistral-7b-instruct) using vllm backend of ServerlessLLM.
 
 ### 1. Environment and Service Setup
-First and foremost, enter the folder where docker compose file is located:
-```bash
-cd ServerlessLLM/examples/docker/
-```
-Set the Model Directory `MODEL_FOLDER` where models will be stored:
+First and foremost, set the Model Directory `MODEL_FOLDER` where models will be stored:
 ```bash
 export MODEL_FOLDER=/path/to/your/models
 ```
 Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `e5-mistral-7b-instruct` is approximately 14GB in size (float16), so you'll need to configure the store server with a memory pool of at least 14GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is set to 4GB by default. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
 
 ```yaml
-command: ["-mem_pool_size", "32", "-registration_required", "true"]
+command: ["-mem_pool_size", "32", "-registration_required", "true"] # This command line option will set a memory pool size of 32GB for each worker node.
 ```
-
-This command line option will set a memory pool size of 32GB for each worker node.
 
 Afterwards, run docker compose to start the service.
 
@@ -53,13 +47,13 @@ First, create a deployment configuration and save it as a `json` file:
 ```
 **NOTE:** `enable_prefix_caching: false` and `enforce_eager: true` are necessary for current vLLM version.
 
-The file `vllm_embed_config.json` is available in the `ServerlessLLM/examples/embedding` directory. Feel free use it. You can also modify it as necessary, or create a new file to suit your requirements.
+We have created the file `vllm_embed_config.json`. Feel free use it. You can also modify it as necessary, or create a new file to suit your requirements.
 
 Next, set the ServerlessLLM Server URL `LLM_SERVER_URL` and deploy this model with the configuration:
 ```bash
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343/
-sllm-cli deploy --config ServerlessLLM/examples/embedding/vllm_embed_config.json
+sllm-cli deploy --config vllm_embed_config.json
 ```
 
 ### 3. Service Request
