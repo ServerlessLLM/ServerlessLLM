@@ -15,9 +15,9 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
-#include "cuda_memory.h"
-
 #include <glog/logging.h>
+
+#include "cuda_memory.h"
 
 CudaMemory::CudaMemory() : data_(nullptr), size_(0), device_(-1) {}
 

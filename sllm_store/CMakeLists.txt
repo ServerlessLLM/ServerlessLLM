@@ -165,7 +165,18 @@ find_package(Threads REQUIRED)
 #   message(FATAL_ERROR "Neither CUDA nor HIP found")
 # endif()
 
-file(GLOB CHECKPOINT_STORE_SOURCES "csrc/sllm_store/*.cpp")
+set(CHECKPOINT_STORE_SOURCES
+  "csrc/sllm_store/binary_utils.cpp"
+  "csrc/sllm_store/checkpoint_store.cu"
+  "csrc/sllm_store/checkpoint_store_py.cu"
+  "csrc/sllm_store/cuda_memory.cu"
+  "csrc/sllm_store/cuda_memory_pool.cu"
+  "csrc/sllm_store/gpu_replica.cu"
+  "csrc/sllm_store/memory_state.cpp"
+  "csrc/sllm_store/model.cu"
+  "csrc/sllm_store/pinned_memory.cpp"
+  "csrc/sllm_store/pinned_memory_pool.cu"
+)
 
 set(CHECKPOINT_STORE_LIBRARIES
   Threads::Threads

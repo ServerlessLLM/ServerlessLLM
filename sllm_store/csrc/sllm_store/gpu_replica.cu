@@ -15,10 +15,10 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
-#include "gpu_replica.h"
-
 #include <cuda_runtime.h>
 #include <glog/logging.h>
+
+#include "gpu_replica.h"
 
 void GpuReplica::Clear() {
   for (auto& [device_id, device_ptr] : device_ptrs_) {
