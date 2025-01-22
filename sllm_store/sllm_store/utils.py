@@ -235,5 +235,4 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization):
     parent_module, _ = get_module_from_name(model, parent_path)
 
     setattr(parent_module, child_name, new_layer)
-    new_module = get_module_from_name(model, name)
     return getattr(parent_module, child_name)

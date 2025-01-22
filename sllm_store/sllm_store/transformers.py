@@ -219,11 +219,12 @@ def fully_parallel_load(
         if quantization:
             quantization_fn = get_quantization_fn(quantization)
 
+            print(f"quantizing at {quantization}")
             if quantization == "int8":
 
                 def quantize(x):
-                    quantized_weights, scales, _ = quantization_fn(x)
-                    return quantized_weights, scales
+                    quantized_weights, _, _ = quantization_fn(x)
+                    return quantized_weights, None
 
             else:
 
@@ -261,7 +262,6 @@ def fully_parallel_load(
                         if isinstance(
                             module, bnb.nn.Linear4bit
                         ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
-                            print(quantized_weights.shape)
                             module.weight_state = scales_or_state
                             original_shape = module._parameters["weight"].shape
                             packed_numel = (
@@ -270,15 +270,14 @@ def fully_parallel_load(
                             new_tensor = torch.as_strided(
                                 module._parameters["weight"],
                                 size=(packed_numel, 1),
-                                stride=(1, 1)
+                                stride=(1, 1),
                             )
                             module._parameters["weight"] = new_tensor
-                            print(module._parameters["weight"].shape)
+                        else:
+                            module._parameters["weight"] = quantized_weights
 
-                        module._parameters["weight"] = quantized_weights
-                        print(f"weights {module._parameters['weight']}")
+                        print(f"quantized {module._parameters['weight'].dtype}")
 
-                        print(f"quantized {quantized_weights.dtype}")
                         set_module_tensor_to_device(
                             model,
                             name,
