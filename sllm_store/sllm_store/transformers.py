@@ -219,7 +219,6 @@ def fully_parallel_load(
         if quantization:
             quantization_fn = get_quantization_fn(quantization)
 
-            print(f"quantizing at {quantization}")
             if quantization == "int8":
 
                 def quantize(x):
@@ -259,6 +258,8 @@ def fully_parallel_load(
                         quantized_weights, scales_or_state = quantize(
                             param_fp16
                         )
+                        print(f"quantized weights {type(quantized_weights)}")
+
                         if isinstance(
                             module, bnb.nn.Linear4bit
                         ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
