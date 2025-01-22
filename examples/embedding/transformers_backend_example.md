@@ -17,7 +17,7 @@ command: ["-mem_pool_size", "32", "-registration_required", "true"] # This comma
 Afterwards, run docker compose to start the service.
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 ### 2. Model Deployment
