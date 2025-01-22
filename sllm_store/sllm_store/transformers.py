@@ -261,6 +261,7 @@ def fully_parallel_load(
                         if isinstance(
                             module, bnb.nn.Linear4bit
                         ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
+                            print(quantized_weights.shape)
                             module.weight_state = scales_or_state
                             original_shape = module._parameters["weight"].shape
                             packed_numel = (
@@ -271,6 +272,7 @@ def fully_parallel_load(
                                 size=(packed_numel, 1),
                             )
                             module._parameters["weight"] = new_tensor
+                            print(module._parameters["weight"].shape)
 
                         module._parameters["weight"] = quantized_weights
                         print(f"weights {module._parameters['weight']}")
