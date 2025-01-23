@@ -49,7 +49,7 @@ The Docker Compose configuration is already located in the `examples/live_migrat
 1. **Start the ServerlessLLM Services Using Docker Compose**
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
@@ -122,7 +122,7 @@ docker compose down
 Use the following command to start the ServerlessLLM services with live migration enabled. This configuration includes the `enable-migration.yml` file:
 
 ```bash
-docker compose -f docker-compose.yml -f enable-migration.yml up -d --build
+docker compose -f docker-compose.yml -f enable-migration.yml up -d
 ```
 
 This command will start the Ray head node and two worker nodes, enabling the live migration feature.
