@@ -2,9 +2,9 @@ import argparse
 import os
 
 import torch
-from transformers import AutoModelForCausalLM
 
 from sllm_store.transformers import save_model
+from transformers import AutoModelForCausalLM
 
 parser = argparse.ArgumentParser(
     description="Save a model from HuggingFace model hub."

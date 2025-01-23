@@ -20,12 +20,12 @@ from unittest.mock import patch
 
 import pytest
 import torch
-from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 from sllm.serve.backends.backend_utils import BackendStatus
 from sllm.serve.backends.transformers_backend import (
     TransformersBackend,
 )
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 
 @pytest.fixture

@@ -20,9 +20,9 @@ import os
 
 import torch
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from sllm_store.transformers import save_model
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def get_args():

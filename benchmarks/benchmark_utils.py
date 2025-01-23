@@ -22,9 +22,9 @@ import time
 import torch
 from torch import nn
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from sllm_store.transformers import load_model
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def _warmup_cuda():

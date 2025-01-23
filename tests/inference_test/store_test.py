@@ -5,9 +5,9 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import torch
-from transformers import AutoModelForCausalLM
 
 from sllm_store.transformers import load_model, save_model
+from transformers import AutoModelForCausalLM
 
 
 def store_test(model: str, model_folder: str) -> Optional[str]:
