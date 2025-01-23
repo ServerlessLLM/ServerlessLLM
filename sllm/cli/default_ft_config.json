@@ -1,5 +1,5 @@
 {
-    "model": "bigscience/bloomz-560m",
+    "model": "",
     "ft_backend": "peft",
     "ft_backend_config": {
         "pretrained_model_name_or_path": "bigscience/bloomz-560m",
@@ -10,7 +10,7 @@
     "epochs": 2,
     "batch_size": 32,
     "learning_rate": 0.0001,
-    "dataset": "fka/awesome-chatgpt-prompts",
+    "dataset": "",
     "lora_config": {
         "r": 4,
         "lora_alpha": 1,
@@ -18,6 +18,5 @@
         "lora_dropout": 0.05,
         "bias": "lora_only",
         "task_type": "CAUSAL_LM"
-    },
-    "output_dir": "./saved_lora_model"
+    }
 }

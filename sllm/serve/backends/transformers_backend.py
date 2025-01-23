@@ -26,12 +26,19 @@ from typing import Any, Dict, List, Optional
 import peft
 import torch
 import torch.nn.functional as F
+from datasets import load_dataset
+from peft import LoraConfig, PeftModel, get_peft_model
 
 import transformers
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
-from sllm_store.transformers import load_model
-from transformers import AutoTokenizer
+from sllm_store.transformers import load_model, save_lora
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    Trainer,
+    TrainingArguments,
+)
 from transformers.generation.streamers import BaseStreamer
 
 logger = init_logger(__name__)
@@ -326,12 +333,11 @@ class TransformersBackend(SllmBackend):
         epochs = request_data.get("epochs", 1)
         learning_rate = request_data.get("learning_rate", 0.001)
         batch_size = request_data.get("batch_size", 32)
-        storage_path = os.getenv("MODEL_FOLDER", "./models")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
         lora_save_path = os.path.join(
             storage_path,
             "transformers",
             f"ft_{base_model_name}",
-            "lora_adapter",
         )
 
         peft_model = get_peft_model(foundation_model, lora_config)
