@@ -258,7 +258,7 @@ def fully_parallel_load(
                         quantized_weights, scales_or_state = quantize(
                             param_fp16
                         )
-                        print(f"quantized weights {type(quantized_weights)}")
+                        print(f"quantized weights {quantized_weights.dtype}")
 
                         if isinstance(
                             module, bnb.nn.Linear4bit
