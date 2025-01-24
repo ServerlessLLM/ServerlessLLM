@@ -264,7 +264,7 @@ def fully_parallel_load(
                         ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
                             params_4bit = bnb.nn.Params4bit(
                                 data=quantized_weights,
-                                requires_grads=False, # will need to adjust later if doing quantized training
+                                requires_grad=False, # will need to adjust later if doing quantized training
                                 quant_state=quant_state,
                                 quant_type=quantization,
                             )
