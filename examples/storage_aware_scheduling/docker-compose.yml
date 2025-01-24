@@ -13,7 +13,7 @@ services:
       - "8343:8343"    # ServerlessLLM port
     networks:
       - sllm_network
-    command: ["--enable_storage_aware"]  # Enable storage-aware scheduling
+    command: ["--enable-storage-aware"]  # Enable storage-aware scheduling
 
   # Worker Node 0
   sllm_worker_0:
