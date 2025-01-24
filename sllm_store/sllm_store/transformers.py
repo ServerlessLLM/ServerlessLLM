@@ -255,26 +255,23 @@ def fully_parallel_load(
                         module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                     ):
                         param_fp16 = param.data.to(torch.float16)
-                        quantized_weights, scales_or_state = quantize(
+                        quantized_weights, quant_state = quantize(
                             param_fp16
                         )
-                        print(f"quantized weights {quantized_weights.dtype}")
 
                         if isinstance(
                             module, bnb.nn.Linear4bit
                         ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
-                            print(f"module: {module}, module type: {type(module)}")
-                            module.weight_state = scales_or_state
-                            original_shape = module._parameters["weight"].shape
-                            packed_numel = (
-                                original_shape[0] * original_shape[1] + 1
-                            ) // 2
-                            new_tensor = torch.as_strided(
-                                module._parameters["weight"],
-                                size=(packed_numel, 1),
-                                stride=(1, 1),
+                            params_4bit = bnb.nn.Params4bit(
+                                data=quantized_weights,
+                                requires_grads=False, # will need to adjust later if doing quantized training
+                                quant_state=quant_state,
+                                quant_type=quantization,
                             )
-                            module._parameters["weight"] = new_tensor
+
+                            module.weight = params_4bit
+                            module.quant_state = quant_state
+
                         else:
                             module._parameters["weight"] = quantized_weights
 
