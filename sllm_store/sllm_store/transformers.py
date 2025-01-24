@@ -263,6 +263,7 @@ def fully_parallel_load(
                         if isinstance(
                             module, bnb.nn.Linear4bit
                         ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
+                            print(f"module: {module}, module type: {type(module)}")
                             module.weight_state = scales_or_state
                             original_shape = module._parameters["weight"].shape
                             packed_numel = (
