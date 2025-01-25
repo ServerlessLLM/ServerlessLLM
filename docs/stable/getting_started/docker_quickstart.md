@@ -43,7 +43,7 @@ Replace /path/to/your/models with the actual path where you want to store the mo
 Start the ServerlessLLM services using docker compose:
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
