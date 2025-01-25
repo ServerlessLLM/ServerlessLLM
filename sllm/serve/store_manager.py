@@ -369,8 +369,18 @@ class StoreManager:
             for node_id, node_info in worker_node_info.items():
                 node_address = node_info["address"]
                 if node_id not in self.local_servers:
-                    logger.error(f"Node {node_id} not found")
-                    raise ValueError(f"Node {node_id} not found")
+                    if self.local_servers:
+                        first_node = next(iter(self.local_servers.values()))
+                        self.local_servers[node_id] = SllmLocalStore(
+                            node_id,
+                            SllmStoreClient(f"{node_address}:8073"),
+                            1,
+                            first_node.chunk_size,
+                            first_node.hardware_info,
+                        )
+                    else:
+                        logger.error(f"Node {node_id} not found")
+                        raise ValueError(f"Node {node_id} not found")
 
             local_disk = []
             if placement_config and "local_disk" in placement_config:

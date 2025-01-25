@@ -87,6 +87,10 @@ class InstanceHandle:
             self.concurrency += num_requests
             return True
 
+    async def check_request_queue(self):
+        async with self.lock:
+            return self.concurrency + 1 <= self.max_queue_length
+
     async def get_status(self):
         async with self.lock:
             return InstanceStatus(

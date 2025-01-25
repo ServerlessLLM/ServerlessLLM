@@ -4,7 +4,7 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
-    image: serverlessllm/sllm-serve
+    image: serverlessllm/sllm-head:latest
     container_name: sllm_head
     environment:
       - MODEL_FOLDER=${MODEL_FOLDER}
@@ -20,7 +20,7 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
-    image: serverlessllm/sllm-serve-worker
+    image: serverlessllm/sllm-worker:latest
     container_name: sllm_worker_0
     deploy:
       resources:
@@ -43,7 +43,7 @@ services:
   #   build:
   #     context: ../../
   #     dockerfile: Dockerfile.worker
-  #   image: serverlessllm/sllm-serve-worker
+  #   image: serverlessllm/sllm-worker:latest
   #   container_name: sllm_worker_1
   #   deploy:
   #     resources:
