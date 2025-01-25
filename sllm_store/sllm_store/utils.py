@@ -21,7 +21,6 @@ import torch
 from torch import nn
 from accelerate.utils import find_tied_parameters
 import bitsandbytes as bnb
-from transformers import BitsAndBytesConfig
 from transformers.quantizers.quantizers_utils import get_module_from_name
 
 
@@ -181,28 +180,6 @@ def get_tied_no_split_modules(model, no_split_modules):
 
 def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
-
-
-def get_quantization_config_and_type(precision: str):
-    if precision == "int4":
-        return BitsAndBytesConfig(load_in_4bit=True), "nf4"
-    elif precision == "fp4":
-        return BitsAndBytesConfig(load_in_4bit=True), "fp4"
-    elif precision == "nf4":
-        return BitsAndBytesConfig(load_in_4bit=True), "nf4"
-    elif precision == "int8":
-        return BitsAndBytesConfig(load_in_8bit=True), "nf4"
-    else:
-        raise ValueError(f"Unsupported quantization type: {precision}")
-
-
-def get_quantization_fn(precision: str):
-    if precision in ["fp4", "nf4", "int4"]:
-        return bnb.functional.quantize_4bit
-    elif precision == "int8":
-        return bnb.functional.int8_vectorwise_quant
-    else:
-        raise ValueError(f"Unsupported precision: {precision}")
 
 
 def replace_linear_with_quantized(model, name, module_tuple, quantization):

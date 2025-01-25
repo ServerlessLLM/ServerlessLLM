@@ -49,8 +49,6 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
-    get_quantization_config_and_type,
-    get_quantization_fn,
     replace_linear_with_quantized,
 )
 from torch import nn
@@ -195,11 +193,6 @@ def fully_parallel_load(
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
 
-        if quantization:
-            quantization_config, quant_type = get_quantization_config_and_type(
-                quantization
-            )
-
         logger.debug(f"load config takes {time.time() - start} seconds")
         start = time.time()
         with init_empty_weights():
@@ -217,26 +210,13 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization:
-            quantization_fn = get_quantization_fn(quantization)
-
-            if quantization == "int8":
-
-                def quantize(x):
-                    quantized_weights, _, _ = quantization_fn(x)
-                    return quantized_weights, None
-
-            else:
-
-                def quantize(x):
-                    quantized_weights, quant_state = quantization_fn(
-                        x, quant_type=quant_type
-                    )
-                    return quantized_weights, quant_state
+            if quantization not in ["nf4", "fp4", "int8"]:
+                raise ValueError(
+                    f"Unsupported quantization type: {quantization}"
+                )
 
             for name, param in state_dict.items():
-                module = get_module_from_name(
-                    model, name
-                )  # gets the specific layer from the model
+                module = get_module_from_name(model, name)
                 if (
                     isinstance(module[0], torch.nn.Linear)
                     and name.endswith(".weight")
@@ -251,38 +231,46 @@ def fully_parallel_load(
                     torch.float16,
                     torch.float32,
                 ] and name.endswith(".weight"):
-                    if isinstance(
-                        module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
-                    ):
-                        param_fp16 = param.data.to(torch.float16)
-                        quantized_weights, quant_state = quantize(
+                    param_fp16 = param.data.to(torch.float16)
+
+                    if isinstance(module, bnb.nn.Linear4bit):
+                        # 4-bit quantization (supports "nf4" or "fp4")
+                        quantized_weights, quant_state = (
+                            bnb.functional.quantize_4bit(
+                                param_fp16,
+                                quant_type=quantization,
+                            )
+                        )
+
+                        # will need to adjust requires_grad later if training
+                        params_4bit = bnb.nn.Params4bit(
+                            data=quantized_weights,
+                            requires_grad=False,
+                            quant_state=quant_state,
+                            quant_type=quantization,
+                        )
+
+                        module.weight = params_4bit
+                        module.quant_state = quant_state
+
+                    elif isinstance(module, bnb.nn.Linear8bitLt):
+                        # 8-bit quantization
+                        CB, SCB, _ = bnb.functional.int8_vectorwise_quant(
                             param_fp16
                         )
 
-                        if isinstance(
-                            module, bnb.nn.Linear4bit
-                        ):  # prepare to take 1/2 the no. parameters because it's a packed tensor
-                            params_4bit = bnb.nn.Params4bit(
-                                data=quantized_weights,
-                                requires_grad=False, # will need to adjust later if doing quantized training
-                                quant_state=quant_state,
-                                quant_type=quantization,
-                            )
-
-                            module.weight = params_4bit
-                            module.quant_state = quant_state
-
-                        else:
-                            module._parameters["weight"] = quantized_weights
-
-                        print(f"quantized {module._parameters['weight'].dtype}")
-
-                        set_module_tensor_to_device(
-                            model,
-                            name,
-                            quantized_weights.device,
-                            quantized_weights,
+                        # will need to adjust requires_grad later if training
+                        params_8bit = bnb.nn.Int8Params(
+                            data=CB,
+                            requires_grad=False,
+                            has_fp16_weights=False,
+                            CB=CB,
+                            SCB=SCB,
                         )
+
+                        module.weight = params_8bit
+                        module.SCB = SCB
+
                     else:
                         set_module_tensor_to_device(
                             model, name, param.device, param
