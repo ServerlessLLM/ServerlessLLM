@@ -224,7 +224,7 @@ def fully_parallel_load(
                     and ("lm_head" not in name)
                 ):
                     module = replace_linear_with_quantized(
-                        model, name, module, quantization
+                        model, name, module, quantization, device_map
                     )
 
             for name, param in state_dict.items():

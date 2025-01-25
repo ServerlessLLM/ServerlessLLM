@@ -182,7 +182,7 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
 
 
-def replace_linear_with_quantized(model, name, module_tuple, quantization):
+def replace_linear_with_quantized(model, name, module_tuple, quantization, device_map):
     module, _ = module_tuple
 
     in_features = module.in_features
