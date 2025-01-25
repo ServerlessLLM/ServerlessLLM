@@ -282,6 +282,13 @@ def fully_parallel_load(
                 module = get_module_from_name(model, name)[0]
                 device = device_map.get(name.rsplit(".", 1)[0], "cpu")
                 buffer.data = buffer.data.to(device)
+
+            for module_name in device_map:
+                module = get_module_from_name(model, module_name)[0]
+                if isinstance(module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)):
+                    device = device_map[module_name]
+                    module.to(device)
+
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
@@ -306,7 +313,6 @@ def fully_parallel_load(
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
-    model.eval()
     model.hf_device_map = device_map
 
     return model

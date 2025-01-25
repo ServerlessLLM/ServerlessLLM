@@ -206,6 +206,9 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization):
             quant_type=quantization,
         )
 
+    device = next(iter(device_map.values())) if isinstance(device_map, dict) else "cpu"
+    new_layer.to(device)
+
     # Get parent module and child name for setting
     module_name = name[:-7] if name.endswith(".weight") else name
     parent_path, child_name = module_name.rsplit(".", 1)
