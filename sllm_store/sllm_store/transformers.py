@@ -160,6 +160,7 @@ def fully_parallel_load(
 ):
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
+
     start = time.time()
     device_map = _transform_device_map_to_dict(device_map)
     with open(
@@ -177,6 +178,7 @@ def fully_parallel_load(
         device_map = _compute_device_placement_from_map_fast(
             no_split_modules, tied_no_split_modules, device_map
         )
+
     # TODO: offload `load_dict_non_blocking` to c++ for real parallelism
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(
@@ -192,8 +194,8 @@ def fully_parallel_load(
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
-
         logger.debug(f"load config takes {time.time() - start} seconds")
+
         start = time.time()
         with init_empty_weights():
             module = importlib.import_module("transformers")
@@ -202,7 +204,6 @@ def fully_parallel_load(
                 config,
                 trust_remote_code=True,
             ).to(config.torch_dtype)
-
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
 
@@ -226,60 +227,61 @@ def fully_parallel_load(
                         model, name, module, quantization
                     )
 
-                if param.dtype in [
-                    torch.bfloat16,
-                    torch.float16,
-                    torch.float32,
-                ] and name.endswith(".weight"):
-                    param_fp16 = param.data.to(torch.float16)
+            for name, param in state_dict.items():
+                module = get_module_from_name(model, name)[0]
+                device = device_map.get(name.split(".weight")[0], "cpu")
+
+                if name.endswith(".weight") and isinstance(
+                    module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                ):
+                    param = param.to(torch.float16).to(device)
 
                     if isinstance(module, bnb.nn.Linear4bit):
-                        # 4-bit quantization (supports "nf4" or "fp4")
+                        # 4-bit (nf4/fp4) quantization
                         quantized_weights, quant_state = (
                             bnb.functional.quantize_4bit(
-                                param_fp16,
-                                quant_type=quantization,
+                                param, quant_type=quantization
                             )
                         )
-
-                        # will need to adjust requires_grad later if training
-                        params_4bit = bnb.nn.Params4bit(
-                            data=quantized_weights,
+                        module.weight = bnb.nn.Params4bit(
+                            quantized_weights.to(device),
                             requires_grad=False,
                             quant_state=quant_state,
                             quant_type=quantization,
                         )
 
-                        module.weight = params_4bit
-                        module.quant_state = quant_state
+                        if quant_state:
+                            moved_quant_state = []
+                            for item in quant_state:
+                                if isinstance(item, torch.Tensor):
+                                    moved_quant_state.append(item.to(device))
+                                else:
+                                    moved_quant_state.append(item)
+                            module.quant_state = moved_quant_state
 
                     elif isinstance(module, bnb.nn.Linear8bitLt):
                         # 8-bit quantization
-                        CB, SCB, _ = bnb.functional.int8_vectorwise_quant(
-                            param_fp16
-                        )
-
-                        # will need to adjust requires_grad later if training
-                        params_8bit = bnb.nn.Int8Params(
-                            data=CB,
+                        CB, SCB, _ = bnb.functional.quantize_blockwise(param)
+                        module.weight = bnb.nn.Int8Params(
+                            CB.to(device),
                             requires_grad=False,
                             has_fp16_weights=False,
-                            CB=CB,
-                            SCB=SCB,
+                            SCB=SCB.to(device),
                         )
+                        module.SCB = SCB.to(device)
 
-                        module.weight = params_8bit
-                        module.SCB = SCB
-
+                elif isinstance(module, torch.nn.Module):
+                    # Handle non-quantized parameters
+                    param = param.to(device)
+                    if name.endswith(".bias"):
+                        module.bias = torch.nn.Parameter(param)
                     else:
-                        set_module_tensor_to_device(
-                            model, name, param.device, param
-                        )
+                        module.weight = torch.nn.Parameter(param)
 
-                else:
-                    set_module_tensor_to_device(
-                        model, name, param.device, param
-                    )
+            for name, buffer in model.named_buffers():
+                module = get_module_from_name(model, name)[0]
+                device = device_map.get(name.rsplit(".", 1)[0], "cpu")
+                buffer.data = buffer.data.to(device)
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
@@ -295,6 +297,13 @@ def fully_parallel_load(
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
+    model.eval()
+
+    for name, param in model.named_parameters():
+        expected_device = device_map.get(".".join(name.split(".")[:-1]), "cpu")
+        if param.device != torch.device(expected_device):
+            param.data = param.data.to(expected_device)
+
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()

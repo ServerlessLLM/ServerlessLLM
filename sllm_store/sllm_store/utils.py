@@ -194,10 +194,10 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization):
             in_features,
             out_features,
             bias=bias,
-            has_fp16_weights=True,
+            has_fp16_weights=False,
             threshold=6.0,
         )
-    else:  # 4bit (fp4, nf4, int4)
+    else:  # 4bit (fp4, nf4)
         new_layer = bnb.nn.Linear4bit(
             in_features,
             out_features,
