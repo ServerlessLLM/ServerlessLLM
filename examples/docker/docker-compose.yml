@@ -5,12 +5,12 @@ services:
       context: ../../
       dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
     image: serverlessllm/sllm-serve
-    container_name: sllm_head
+    container_name: sllm_head_jy
     environment:
       - MODEL_FOLDER=${MODEL_FOLDER}
     ports:
-      - "6379:6379"    # Redis port
-      - "8343:8343"    # ServerlessLLM port
+      - "6482:6379"    # Redis port
+      - "8199:8343"    # ServerlessLLM port
     networks:
       - sllm_network
     command: []
@@ -21,7 +21,7 @@ services:
       context: ../../
       dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
     image: serverlessllm/sllm-serve-worker
-    container_name: sllm_worker_0
+    container_name: sllm_worker_0_jy
     deploy:
       resources:
         reservations:
