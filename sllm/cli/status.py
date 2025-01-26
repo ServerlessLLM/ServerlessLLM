@@ -30,7 +30,8 @@ class StatusCommand:
     @staticmethod
     def register_subcommand(parser: _SubParsersAction):
         status_parser = parser.add_parser(
-            "status", help="Query the information of registered models."
+            "status",
+            help="Query the information of registered models. (changes)",
         )
         status_parser.set_defaults(func=StatusCommand)
 
