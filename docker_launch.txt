@@ -1,0 +1,23 @@
+cd ServerlessLLM/examples/docker/
+export MODEL_FOLDER=~/models
+
+docker compose up -d
+
+conda activate sllm
+export LLM_SERVER_URL=http://127.0.0.1:8199/
+
+sllm-cli deploy --model facebook/opt-1.3b
+
+curl http://127.0.0.1:8199/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{
+        "model": "facebook/opt-1.3b",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What is your name?"}
+        ]
+    }'
+
+sllm-cli delete facebook/opt-1.3b
+
+docker compose down
