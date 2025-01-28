@@ -276,8 +276,8 @@ def fully_parallel_load(
                     # non-quantized parameters
                     print(name)
                     param = param.to(device)
-                    name = name.rsplit(".", 1)[0]
-                    setattr(model, name, torch.nn.Parameter(param))
+                    param_name = name.split(".")[-1]
+                    setattr(model, param_name, torch.nn.Parameter(param))
 
             for name, buffer in model.named_buffers():
                 module = get_module_from_name(model, name)[0]
