@@ -274,10 +274,7 @@ def fully_parallel_load(
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
-                    print(name)
-                    param = param.to(device)
-                    param_name = name.split(".")[-1]
-                    setattr(model, param_name, torch.nn.Parameter(param))
+                    set_module_tensor_to_device(model, name, param.device, param)
 
             for name, buffer in model.named_buffers():
                 module = get_module_from_name(model, name)[0]
