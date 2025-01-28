@@ -266,14 +266,14 @@ def fully_parallel_load(
                         cb, scb, _ = bnb.functional.quantize_blockwise(param)
                         module.weight = bnb.nn.int8params(
                             cb.to(device),
-                            requires_grad=false,
-                            has_fp16_weights=false,
+                            requires_grad=False,
+                            has_fp16_weights=False,
                             scb=scb.to(device),
                         )
                         module.scb = scb.to(device)
 
-                elif isinstance(module, torch.nn.module):
-                    # handle non-quantized parameters
+                elif isinstance(module, torch.nn.Module):
+                    # non-quantized parameters
                     param = param.to(device)
                     if name.endswith(".bias"):
                         module.bias = torch.nn.parameter(param)

@@ -182,7 +182,9 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
 
 
-def replace_linear_with_quantized(model, name, module_tuple, quantization, device_map):
+def replace_linear_with_quantized(
+    model, name, module_tuple, quantization, device_map
+):
     module, _ = module_tuple
 
     in_features = module.in_features
@@ -206,7 +208,11 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization, devic
             quant_type=quantization,
         )
 
-    device = next(iter(device_map.values())) if isinstance(device_map, dict) else "cpu"
+    device = (
+        next(iter(device_map.values()))
+        if isinstance(device_map, dict)
+        else "cpu"
+    )
     new_layer.to(device)
 
     # Get parent module and child name for setting
