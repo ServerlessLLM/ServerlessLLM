@@ -50,6 +50,7 @@ from sllm_store.utils import (
     get_tied_no_split_modules,
     send_module_buffers_to_device,
     replace_linear_with_quantized,
+    forward_hook,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -240,6 +241,7 @@ def fully_parallel_load(
 
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
+                        print(param.dtype)
                         quantized_weights, quant_state = (
                             bnb.functional.quantize_4bit(
                                 param, quant_type=quantization
@@ -261,10 +263,10 @@ def fully_parallel_load(
                                     moved_quant_state.append(item)
                             module.quant_state = moved_quant_state
 
-                    elif isinstance(module, bnb.nn.linear8bitlt):
+                    elif isinstance(module, bnb.nn.Linear8bitLt):
                         # 8-bit quantization
-                        cb, scb, _ = bnb.functional.quantize_blockwise(param)
-                        module.weight = bnb.nn.int8params(
+                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(param)
+                        module.weight = bnb.nn.Int8Params(
                             cb.to(device),
                             requires_grad=False,
                             has_fp16_weights=False,
@@ -312,6 +314,10 @@ def fully_parallel_load(
         expected_device = device_map.get(".".join(name.split(".")[:-1]), "cpu")
         if param.device != torch.device(expected_device):
             param = param.to(expected_device)
+
+    for module in model.modules():
+        if isinstance((module := module[0]), bnb.nn.Linear8bitLt):
+            module._forward_hook = types.MethodType(forward_hook, module)
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)

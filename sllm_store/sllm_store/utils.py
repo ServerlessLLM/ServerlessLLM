@@ -222,3 +222,8 @@ def replace_linear_with_quantized(
 
     setattr(parent_module, child_name, new_layer)
     return getattr(parent_module, child_name)
+
+
+def forward_hook(module, args, kwargs):
+    kwargs.pop('attention_mask', None)
+    return module._old_forward(*args, **kwargs)
