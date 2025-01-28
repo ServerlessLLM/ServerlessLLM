@@ -227,6 +227,8 @@ def fully_parallel_load(
                         model, name, module, quantization, device_map
                     )
 
+            device_map = infer_auto_device_map(model, max_memory=max_memory)
+
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
                 device = device_map.get(name.split(".weight")[0], "cpu")
@@ -259,24 +261,24 @@ def fully_parallel_load(
                                     moved_quant_state.append(item)
                             module.quant_state = moved_quant_state
 
-                    elif isinstance(module, bnb.nn.Linear8bitLt):
+                    elif isinstance(module, bnb.nn.linear8bitlt):
                         # 8-bit quantization
-                        CB, SCB, _ = bnb.functional.quantize_blockwise(param)
-                        module.weight = bnb.nn.Int8Params(
-                            CB.to(device),
-                            requires_grad=False,
-                            has_fp16_weights=False,
-                            SCB=SCB.to(device),
+                        cb, scb, _ = bnb.functional.quantize_blockwise(param)
+                        module.weight = bnb.nn.int8params(
+                            cb.to(device),
+                            requires_grad=false,
+                            has_fp16_weights=false,
+                            scb=scb.to(device),
                         )
-                        module.SCB = SCB.to(device)
+                        module.scb = scb.to(device)
 
-                elif isinstance(module, torch.nn.Module):
-                    # Handle non-quantized parameters
+                elif isinstance(module, torch.nn.module):
+                    # handle non-quantized parameters
                     param = param.to(device)
                     if name.endswith(".bias"):
-                        module.bias = torch.nn.Parameter(param)
+                        module.bias = torch.nn.parameter(param)
                     else:
-                        module.weight = torch.nn.Parameter(param)
+                        module.weight = torch.nn.parameter(param)
 
             for name, buffer in model.named_buffers():
                 module = get_module_from_name(model, name)[0]
