@@ -216,7 +216,7 @@ def fully_parallel_load(
                     f"Unsupported quantization type: {quantization}"
                 )
 
-            for name, param in state_dict.items():
+            for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
                     isinstance(module[0], torch.nn.Linear)
@@ -275,10 +275,7 @@ def fully_parallel_load(
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
                     param = param.to(device)
-                    if name.endswith(".bias"):
-                        module.bias = torch.nn.parameter(param)
-                    else:
-                        module.weight = torch.nn.parameter(param)
+                    setattr(model, name, torch.nn.Parameter(param))
 
             for name, buffer in model.named_buffers():
                 module = get_module_from_name(model, name)[0]
