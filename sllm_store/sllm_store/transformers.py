@@ -274,7 +274,9 @@ def fully_parallel_load(
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
-                    set_module_tensor_to_device(model, name, param.device, param)
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
 
             for name, buffer in model.named_buffers():
                 module = get_module_from_name(model, name)[0]
@@ -306,8 +308,9 @@ def fully_parallel_load(
 
     for name, param in model.named_parameters():
         expected_device = device_map.get(".".join(name.split(".")[:-1]), "cpu")
+        print(expected_device)
         if param.device != torch.device(expected_device):
-            param.data = param.data.to(expected_device)
+            param = param.to(expected_device)
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
