@@ -227,7 +227,7 @@ def fully_parallel_load(
                         model, name, module, quantization, device_map
                     )
 
-            device_map = infer_auto_device_map(model, max_memory=max_memory)
+            device_map = infer_auto_device_map(model)
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
