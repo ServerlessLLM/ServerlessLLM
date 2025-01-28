@@ -48,7 +48,6 @@ model = load_model(
     fully_parallel=True,
     quantization="int8",
 )
-model = load_model(model_name, device_map="auto", storage_path=model_folder, fully_parallel=True, quantization="int4")
 after_mem = torch.cuda.memory_allocated()
 print(f"Memory difference: {after_mem - before_mem}")
 print(f"memory footprint: {model.get_memory_footprint()}")
