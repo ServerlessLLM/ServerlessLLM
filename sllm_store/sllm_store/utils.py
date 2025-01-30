@@ -225,10 +225,11 @@ def replace_linear_with_quantized(
 
 
 def forward_hook(self, x, attention_mask=None, *args, **kwargs):
+    attention_mask = kwargs.pop('attention_mask', None)
     if attention_mask is not None:
         x = x.masked_fill(~attention_mask.unsqueeze(-1), 0.0)
     
-    out = self.old_forward(x)
+    out = self.old_forward(x, *args, **kwargs)
     
     if attention_mask is not None:
         out = out.masked_fill(~attention_mask.unsqueeze(-1), 0.0)
