@@ -300,14 +300,7 @@ def fully_parallel_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    # remaining_meta = [
-    #     name for name, param in model.named_parameters() if param.is_meta
-    # ]
-    # if remaining_meta:
-    #     logger.warning(f"Found remaining meta tensors: {remaining_meta}")
-
-
-    model._skip_keys_device_placement.update(quantized_keys)
+    model._skip_keys_device_placement.append(quantized_keys)
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
