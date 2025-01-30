@@ -277,6 +277,9 @@ def fully_parallel_load(
                         )
                         module.scb = scb.to(device)
 
+                        module.old_forward = module.forward
+                        module.forward = types.MethodType(forward_hook, module)
+
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
                     set_module_tensor_to_device(
