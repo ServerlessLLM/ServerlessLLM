@@ -315,10 +315,6 @@ def fully_parallel_load(
         if param.device != torch.device(expected_device):
             param = param.to(expected_device)
 
-    for module in model.model.modules():
-        if isinstance(module[0], bnb.nn.Linear8bitLt):
-            module._forward_hook = types.MethodType(forward_hook, module)
-
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.hf_device_map = device_map
