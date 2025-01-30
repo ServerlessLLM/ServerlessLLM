@@ -22,7 +22,6 @@ import shutil
 from typing import Optional
 
 import ray
-
 from transformers import AutoTokenizer
 
 logger = logging.getLogger("ray")
