@@ -225,5 +225,5 @@ def replace_linear_with_quantized(
 
 
 def forward_hook(module, args, kwargs):
-    kwargs.pop('attention_mask', None)
+    kwargs.pop("attention_mask", None)
     return module._old_forward(*args, **kwargs)

@@ -50,7 +50,6 @@ from sllm_store.utils import (
     get_tied_no_split_modules,
     send_module_buffers_to_device,
     replace_linear_with_quantized,
-    forward_hook,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -218,6 +217,7 @@ def fully_parallel_load(
                 )
 
             quantized_keys = set()
+            model._skip_keys_device_placement = []
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
