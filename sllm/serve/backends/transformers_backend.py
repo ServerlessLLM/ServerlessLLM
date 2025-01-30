@@ -26,9 +26,13 @@ from typing import Any, Dict, List, Optional
 import peft
 import torch
 import torch.nn.functional as F
-import transformers
 from datasets import load_dataset
 from peft import LoraConfig, PeftModel, get_peft_model
+
+import transformers
+from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
+from sllm.serve.logger import init_logger
+from sllm_store.transformers import load_model, save_lora
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -36,10 +40,6 @@ from transformers import (
     TrainingArguments,
 )
 from transformers.generation.streamers import BaseStreamer
-
-from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
-from sllm.serve.logger import init_logger
-from sllm_store.transformers import load_model, save_lora
 
 logger = init_logger(__name__)
 
@@ -306,25 +306,34 @@ class TransformersBackend(SllmBackend):
 
             return response
 
+    def _load_dataset(self, dataset_config: Optional[Dict[str, Any]]):
+        dataset_source = dataset_config.get("dataset_source")
+        hf_dataset_name = dataset_config.get("hf_dataset_name")
+        split = dataset_config.get("split", None)
+        data_files = dataset_config.get("data_files", None)
+        extension_type = dataset_config.get("extension_type")
+
+        if not dataset_source:
+            raise ValueError(
+                "dataset_source must be provided in the dataset configuration."
+            )
+
+        if dataset_source == "hf_hub":
+            return load_dataset(hf_dataset_name, split=split)
+        elif dataset_source == "local":
+            return load_dataset(extension_type, data_files=data_files)
+        else:
+            raise ValueError(f"Unsupported data source: {dataset_source}")
+
     def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
         with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
-        assert self.model is not None
-        base_model_name = request_data.get("model")
-        tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-        foundation_model = AutoModelForCausalLM.from_pretrained(base_model_name)
-        dataset_path = request_data.get("dataset")
-        dataset = load_dataset(dataset_path)
+        dataset_config = request_data.get("dataset_config")
+        dataset = self._load_dataset(dataset_config)
 
-        # for test, use sample data. delete later
-        data = dataset.map(
-            lambda samples: tokenizer(samples["prompt"]), batched=True
-        )
-        train_sample = data["train"].select(range(50))
-
-        train_sample = train_sample.remove_columns("act")
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         lora_config = request_data.get("lora_config")
 
@@ -337,23 +346,23 @@ class TransformersBackend(SllmBackend):
         lora_save_path = os.path.join(
             storage_path,
             "transformers",
-            f"ft_{base_model_name}",
+            f"ft_{self.model_name}",
         )
 
-        peft_model = get_peft_model(foundation_model, lora_config)
+        peft_model = get_peft_model(self.model, lora_config)
 
         training_args = TrainingArguments(
             output_dir=lora_save_path,
             auto_find_batch_size=True,  # Find a correct batch size that fits the size of Data.
             learning_rate=learning_rate,
             num_train_epochs=epochs,
-            use_cpu=True,
+            use_cpu=False,
         )
 
         trainer = Trainer(
             model=peft_model,
             args=training_args,
-            train_dataset=train_sample,
+            train_dataset=dataset,
             data_collator=transformers.DataCollatorForLanguageModeling(
                 tokenizer, mlm=False
             ),
@@ -366,11 +375,9 @@ class TransformersBackend(SllmBackend):
         )
 
         response = {
-            "model": base_model_name,
+            "model": self.model_name,
             "lora_save_path": lora_save_path,
         }
-
-        self.inf_status.delete()
 
         return response
 

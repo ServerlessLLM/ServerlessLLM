@@ -1,16 +1,16 @@
 {
-    "model": "",
+    "model": "bigscience/bloomz-560m",
     "ft_backend": "peft",
-    "ft_backend_config": {
-        "pretrained_model_name_or_path": "bigscience/bloomz-560m",
-        "device_map": "auto",
-        "torch_dtype": "float16",
-        "hf_model_class": "AutoModelForCausalLM"
-    },
     "epochs": 2,
     "batch_size": 32,
     "learning_rate": 0.0001,
-    "dataset": "",
+    "dataset_config": {
+        "dataset_source": "hf_hub",
+        "hf_dataset_name": "fka/awesome-chatgpt-prompts",
+        "split": "train",
+        "data_files": "",
+        "extension_type": ""
+    },
     "lora_config": {
         "r": 4,
         "lora_alpha": 1,

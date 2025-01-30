@@ -6,9 +6,9 @@ from typing import Any, Dict, List, Optional
 
 import requests
 import torch
-from transformers import AutoTokenizer
 
 from sllm_store.transformers import load_model
+from transformers import AutoTokenizer
 
 
 def cleanup_models(models: List[str]) -> None:

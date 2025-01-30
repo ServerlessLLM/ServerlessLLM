@@ -265,3 +265,67 @@ sllm-cli update [OPTIONS]
 sllm-cli update --model facebook/opt-1.3b
 sllm-cli update --config /path/to/config.json
 ```
+
+### sllm-cli fine-tuning
+Fine-tuning the deployed model.
+
+##### Usage
+```bash
+sllm-cli fine-tuning [OPTIONS]
+```
+
+##### Options
+- `--base_model <model_name>`
+  - Base model name to be fine-tuned
+- `--config <config_path>`
+  - Path to the JSON configuration file.
+
+##### Example
+```bash
+sllm-cli fine-tuning --base_model <model_name>
+```
+
+##### Example Configuration File (`ft_config.json`)
+```json
+{
+    "model": "bigscience/bloomz-560m",
+    "ft_backend": "peft",
+    "epochs": 2,
+    "batch_size": 32,
+    "learning_rate": 0.0001,
+    "dataset_config": {
+        "dataset_source": "hf_hub",
+        "dataset_path": "fka/awesome-chatgpt-prompts",
+        "split": "train",
+        "data_files": "",
+        "extension_type": ""
+    },
+    "lora_config": {
+        "r": 4,
+        "lora_alpha": 1,
+        "target_modules": ["query_key_value"],
+        "lora_dropout": 0.05,
+        "bias": "lora_only",
+        "task_type": "CAUSAL_LM"
+    }
+}
+```
+
+Below is a description of all the fields in ft_config.json.
+
+| Field | Description |
+| ----- | ----------- |
+| model | This should be a HuggingFace model name, used to identify model instance. |
+| backend | Inference engine, support `transformers` and `vllm` now. |
+| num_gpus | Number of GPUs used to deploy a model instance. |
+| auto_scaling_config | Config about auto scaling. |
+| auto_scaling_config.metric | Metric used to decide whether to scale up or down. |
+| auto_scaling_config.target | Target value of the metric. |
+| auto_scaling_config.min_instances | The minimum value for model instances. |
+| auto_scaling_config.max_instances | The maximum value for model instances. |
+| auto_scaling_config.keep_alive | How long a model instance lasts after inference ends. For example, if keep_alive is set to 30, it will wait 30 seconds after the inference ends to see if there is another request. |
+| backend_config | Config about inference backend. |
+| backend_config.pretrained_model_name_or_path | The path to load the model, this can be a HuggingFace model name or a local path. |
+| backend_config.device_map | Device map config used to load the model, `auto` is suitable for most scenarios. |
+| backend_config.torch_dtype | Torch dtype of the model. |
+| backend_config.hf_model_class | HuggingFace model class. |
