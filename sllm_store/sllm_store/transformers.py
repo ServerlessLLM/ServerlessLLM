@@ -217,6 +217,7 @@ def fully_parallel_load(
                     f"Unsupported quantization type: {quantization}"
                 )
 
+            quantized_keys = set()
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
@@ -227,6 +228,8 @@ def fully_parallel_load(
                     module = replace_linear_with_quantized(
                         model, name, module, quantization, device_map
                     )
+                    base_name = name.split(".weight")[0]
+                    quantized_keys.add(base_name)
 
             device_map = infer_auto_device_map(model)
 
@@ -297,12 +300,14 @@ def fully_parallel_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    remaining_meta = [
-        name for name, param in model.named_parameters() if param.is_meta
-    ]
-    if remaining_meta:
-        logger.warning(f"Found remaining meta tensors: {remaining_meta}")
+    # remaining_meta = [
+    #     name for name, param in model.named_parameters() if param.is_meta
+    # ]
+    # if remaining_meta:
+    #     logger.warning(f"Found remaining meta tensors: {remaining_meta}")
 
+
+    model._skip_keys_device_placement.update(quantized_keys)
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
