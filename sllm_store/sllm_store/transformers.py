@@ -313,13 +313,6 @@ def fully_parallel_load(
     )
     model.eval()
 
-    for name, param in model.named_parameters():
-        if param.is_meta:
-            continue
-        expected_device = device_map.get(".".join(name.split(".")[:-1]), "cpu")
-        if param.device != torch.device(expected_device):
-            param = param.to(expected_device)
-
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.hf_device_map = device_map
