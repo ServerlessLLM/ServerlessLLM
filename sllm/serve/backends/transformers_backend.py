@@ -32,6 +32,7 @@ from peft import LoraConfig, PeftModel, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    PreTrainedTokenizerBase,
     Trainer,
     TrainingArguments,
 )
@@ -306,9 +307,14 @@ class TransformersBackend(SllmBackend):
 
             return response
 
-    def _load_dataset(self, dataset_config: Optional[Dict[str, Any]]):
+    def _load_dataset(
+        self,
+        dataset_config: Optional[Dict[str, Any]],
+        tokenizer: PreTrainedTokenizerBase,
+    ):
         dataset_source = dataset_config.get("dataset_source")
         hf_dataset_name = dataset_config.get("hf_dataset_name")
+        tokenization_field = dataset_config.get("tokenization_field")
         split = dataset_config.get("split", None)
         data_files = dataset_config.get("data_files", None)
         extension_type = dataset_config.get("extension_type")
@@ -319,9 +325,19 @@ class TransformersBackend(SllmBackend):
             )
 
         if dataset_source == "hf_hub":
-            return load_dataset(hf_dataset_name, split=split)
+            data = load_dataset(hf_dataset_name, split=split)
+            data = data.map(
+                lambda samples: tokenizer(samples[tokenization_field]),
+                batched=True,
+            )
+            return data
         elif dataset_source == "local":
-            return load_dataset(extension_type, data_files=data_files)
+            data = load_dataset(extension_type, data_files=data_files)
+            data = data.map(
+                lambda samples: tokenizer(samples[tokenization_field]),
+                batched=True,
+            )
+            return data
         else:
             raise ValueError(f"Unsupported data source: {dataset_source}")
 
@@ -330,35 +346,24 @@ class TransformersBackend(SllmBackend):
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
-        dataset_config = request_data.get("dataset_config")
-        dataset = self._load_dataset(dataset_config)
-
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        dataset_config = request_data.get("dataset_config")
+        dataset = self._load_dataset(dataset_config, tokenizer)
 
         lora_config = request_data.get("lora_config")
-
         lora_config = LoraConfig(**lora_config)
+        peft_model = get_peft_model(self.model, lora_config)
 
-        epochs = request_data.get("epochs", 1)
-        learning_rate = request_data.get("learning_rate", 0.001)
-        batch_size = request_data.get("batch_size", 32)
+        training_config = request_data.get("training_config")
         storage_path = os.getenv("STORAGE_PATH", "./models")
         lora_save_path = os.path.join(
             storage_path,
             "transformers",
             f"ft_{self.model_name}",
         )
-
-        peft_model = get_peft_model(self.model, lora_config)
-
         training_args = TrainingArguments(
-            output_dir=lora_save_path,
-            auto_find_batch_size=True,  # Find a correct batch size that fits the size of Data.
-            learning_rate=learning_rate,
-            num_train_epochs=epochs,
-            use_cpu=False,
+            output_dir=lora_save_path, **training_config
         )
-
         trainer = Trainer(
             model=peft_model,
             args=training_args,

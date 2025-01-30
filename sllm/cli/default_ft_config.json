@@ -1,12 +1,17 @@
 {
     "model": "bigscience/bloomz-560m",
     "ft_backend": "peft",
-    "epochs": 2,
-    "batch_size": 32,
-    "learning_rate": 0.0001,
+    "training_config": {
+        "auto_find_batch_size": "True",
+        "num_train_epochs": 2,
+        "learning_rate": 0.0001,
+        "optim": "",
+        "use_cpu": "False"
+    },
     "dataset_config": {
         "dataset_source": "hf_hub",
         "hf_dataset_name": "fka/awesome-chatgpt-prompts",
+        "tokenization_field": "prompt",
         "split": "train",
         "data_files": "",
         "extension_type": ""
