@@ -276,7 +276,6 @@ def fully_parallel_load(
                             scb=scb.to(device),
                         )
                         module.scb = scb.to(device)
-
                         module.old_forward = module.forward
                         module.forward = types.MethodType(forward_hook, module)
 
