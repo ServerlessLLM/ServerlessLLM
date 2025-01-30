@@ -318,27 +318,27 @@ sllm-cli fine-tuning --base_model <model_name>
 
 Below is a description of all the fields in ft_config.json.
 
-| Field | Description |
-| ----- | ----------- |
-| model | This should be a deployed model name, used to identify model instance. |
-| ft_backend | fine-tuning engine, only support `peft` now. |
-| training_config | Config about training parameters |
-| training_config.auto_find_batch_size | Find a correct batch size that fits the size of Data. |
-| training_config.num_train_epochs | Total number of training rounds |
-| training_config.learning_rate | learning rate |
-| training_config.optim | select an optimiser |
-| training_config.use_cpu | if use cpu to train |
-| dataset_config | Config about the fine-tuning dataset |
-| dataset_config.dataset_source | dataset is from hf_hub (huggingface_hub) or local file|
-| dataset_config.hf_dataset_name | dataset name on huggingface_hub |
-| dataset_config.tokenization_field | the field to tokenize |
-| dataset_config.split | Partitioning of the dataset (`train`, `validation` and `test`) |
-| dataset_config.data_files | data files that will be loaded from local|
-| dataset_config.extension_type | extension type of data files |
-| lora_config | Config about lora |
-| lora_config.r | r defines how many parameters will be trained.|
-| lora_config.lora_alpha | |
-| lora_config.target_modules | a list of the target_modules available on the [Hugging Face Documentation](https://github.com/huggingface/peft/blob/39ef2546d5d9b8f5f8a7016ec10657887a867041/src/peft/utils/other.py#L220)|
-| lora_config.lora_dropout | used to avoid overfitting |
-| lora_config.bias | use `none` or `lora_only` |
-| lora_config.task_type | Indicates the task the model is beign trained for |
+| Field | Description                                                                                                                                                                                |
+| ----- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| model | This should be a deployed model name, used to identify model instance.                                                                                                                     |
+| ft_backend | fine-tuning engine, only support `peft` now.                                                                                                                                               |
+| training_config | Config about training parameters                                                                                                                                                           |
+| training_config.auto_find_batch_size | Find a correct batch size that fits the size of Data.                                                                                                                                      |
+| training_config.num_train_epochs | Total number of training rounds                                                                                                                                                            |
+| training_config.learning_rate | learning rate                                                                                                                                                                              |
+| training_config.optim | select an optimiser                                                                                                                                                                        |
+| training_config.use_cpu | if use cpu to train                                                                                                                                                                        |
+| dataset_config | Config about the fine-tuning dataset                                                                                                                                                       |
+| dataset_config.dataset_source | dataset is from hf_hub (huggingface_hub) or local file                                                                                                                                     |
+| dataset_config.hf_dataset_name | dataset name on huggingface_hub                                                                                                                                                            |
+| dataset_config.tokenization_field | the field to tokenize                                                                                                                                                                      |
+| dataset_config.split | Partitioning of the dataset (`train`, `validation` and `test`)                                                                                                                             |
+| dataset_config.data_files | data files that will be loaded from local                                                                                                                                                  |
+| dataset_config.extension_type | extension type of data files                                                                                                                                                               |
+| lora_config | Config about lora                                                                                                                                                                          |
+| lora_config.r | r defines how many parameters will be trained.                                                                                                                                             |
+| lora_config.lora_alpha |                                                                                                                                                                                            |
+| lora_config.target_modules | a list of the target_modules available on the [Hugging Face Documentation](https://github.com/huggingface/peft/blob/39ef2546d5d9b8f5f8a7016ec10657887a867041/src/peft/utils/other.py#L220) |
+| lora_config.lora_dropout | used to avoid overfitting                                                                                                                                                                  |
+| lora_config.bias | use `none` or `lora_only`                                                                                                                                                                  |
+| lora_config.task_type | Indicates the task the model is begin trained for                                                                                                                                           |

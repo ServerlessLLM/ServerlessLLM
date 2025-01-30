@@ -40,7 +40,6 @@ baseurl
 bc
 benchmarking
 Benchmarking
-begin
 bgrot
 bindSocket
 booktitle
