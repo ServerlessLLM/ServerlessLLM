@@ -225,8 +225,6 @@ def replace_linear_with_quantized(
 
 
 def forward_hook(self, *args, **kwargs):
-    print(args)
-    print(kwargs)
     if 'attention_mask' in kwargs:
         attention_mask = kwargs.pop('attention_mask')
     else:

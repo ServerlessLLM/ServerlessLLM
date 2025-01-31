@@ -255,6 +255,7 @@ def fully_parallel_load(
                             requires_grad=False,
                             quant_state=quant_state,
                             quant_type=quantization,
+                            bnb_quantized=True,
                         )
 
                         if quant_state:
