@@ -217,7 +217,9 @@ def fully_parallel_load(
                 )
 
             quantized_keys = set()
-            model._skip_keys_device_placement = []
+            if not hasattr(model, "_skip_keys_device_placement"):
+                model._skip_keys_device_placement = []
+
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
@@ -244,41 +246,22 @@ def fully_parallel_load(
 
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
-                        print(param.dtype)
-                        quantized_weights, quant_state = (
-                            bnb.functional.quantize_4bit(
-                                param, quant_type=quantization
-                            )
-                        )
                         module.weight = bnb.nn.Params4bit(
-                            quantized_weights.to(device),
-                            requires_grad=False,
-                            quant_state=quant_state,
+                            data=param,
                             quant_type=quantization,
                             bnb_quantized=True,
                         )
 
-                        if quant_state:
-                            moved_quant_state = []
-                            for item in quant_state:
-                                if isinstance(item, torch.Tensor):
-                                    moved_quant_state.append(item.to(device))
-                                else:
-                                    moved_quant_state.append(item)
-                            module.quant_state = moved_quant_state
-
                     elif isinstance(module, bnb.nn.Linear8bitLt):
                         # 8-bit quantization
-                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(param)
                         module.weight = bnb.nn.Int8Params(
-                            cb.to(device),
+                            data=param,
                             requires_grad=False,
                             has_fp16_weights=False,
-                            scb=scb.to(device),
                         )
-                        module.scb = scb.to(device)
-                        module.old_forward = module.forward
-                        module.forward = types.MethodType(forward_hook, module)
+                        # module.scb = scb.to(device)
+                        # module.old_forward = module.forward
+                        # module.forward = types.MethodType(forward_hook, module)
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
@@ -303,7 +286,7 @@ def fully_parallel_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    model._skip_keys_device_placement.append(quantized_keys)
+    model._skip_keys_device_placement.extend(quantized_keys)
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
