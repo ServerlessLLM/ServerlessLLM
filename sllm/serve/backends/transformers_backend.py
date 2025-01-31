@@ -319,12 +319,22 @@ class TransformersBackend(SllmBackend):
         data_files = dataset_config.get("data_files", None)
         extension_type = dataset_config.get("extension_type")
 
-        if not dataset_source:
+        if dataset_source not in {"hf_hub", "local"}:
+            logger.error(
+                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
+            )
             raise ValueError(
-                "dataset_source must be provided in the dataset configuration."
+                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
             )
 
         if dataset_source == "hf_hub":
+            if not hf_dataset_name:
+                logger.error(
+                    "hf_dataset_name must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "hf_dataset_name must be provided in the dataset configuration."
+                )
             data = load_dataset(hf_dataset_name, split=split)
             data = data.map(
                 lambda samples: tokenizer(samples[tokenization_field]),
@@ -332,14 +342,28 @@ class TransformersBackend(SllmBackend):
             )
             return data
         elif dataset_source == "local":
-            data = load_dataset(extension_type, data_files=data_files)
+            if not extension_type:
+                logger.error(
+                    "extension_type must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "extension_type must be provided in the dataset configuration."
+                )
+            if not data_files:
+                logger.error(
+                    "data_files must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "data_files must be provided in the dataset configuration."
+                )
+            data = load_dataset(
+                extension_type, data_files=data_files, split=split
+            )
             data = data.map(
                 lambda samples: tokenizer(samples[tokenization_field]),
                 batched=True,
             )
             return data
-        else:
-            raise ValueError(f"Unsupported data source: {dataset_source}")
 
     def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
         with self.status_lock:
@@ -348,10 +372,18 @@ class TransformersBackend(SllmBackend):
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         dataset_config = request_data.get("dataset_config")
-        dataset = self._load_dataset(dataset_config, tokenizer)
+        try:
+            dataset = self._load_dataset(dataset_config, tokenizer)
+        except ValueError as e:
+            logger.error(f"Failed to load dataset: {e}")
+            return {"error": str(e)}
 
         lora_config = request_data.get("lora_config")
-        lora_config = LoraConfig(**lora_config)
+        try:
+            lora_config = LoraConfig(**lora_config)
+        except TypeError as e:
+            logger.error(f"Failed to load lora_config: {e}")
+            raise e
         peft_model = get_peft_model(self.model, lora_config)
 
         training_config = request_data.get("training_config")
@@ -361,9 +393,13 @@ class TransformersBackend(SllmBackend):
             "transformers",
             f"ft_{self.model_name}",
         )
-        training_args = TrainingArguments(
-            output_dir=lora_save_path, **training_config
-        )
+        try:
+            training_args = TrainingArguments(
+                output_dir=lora_save_path, **training_config
+            )
+        except TypeError as e:
+            logger.error(f"Failed to load training_config: {e}")
+            raise e
         trainer = Trainer(
             model=peft_model,
             args=training_args,
