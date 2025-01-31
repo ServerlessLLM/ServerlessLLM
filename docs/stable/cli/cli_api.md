@@ -283,6 +283,7 @@ sllm-cli fine-tuning [OPTIONS]
 ##### Example
 ```bash
 sllm-cli fine-tuning --base_model <model_name>
+sllm-cli fine-tuning --base_model <model_name> --config <path_to_ft_config_file>
 ```
 
 ##### Example Configuration File (`ft_config.json`)
