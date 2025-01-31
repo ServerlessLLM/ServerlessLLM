@@ -20,6 +20,7 @@ import json
 import os
 import time
 import uuid
+import types
 from typing import Optional, Union
 
 import torch
@@ -50,6 +51,7 @@ from sllm_store.utils import (
     get_tied_no_split_modules,
     send_module_buffers_to_device,
     replace_linear_with_quantized,
+    forward_hook,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -217,7 +219,10 @@ def fully_parallel_load(
                 )
 
             quantized_keys = set()
-            if not hasattr(model, "_skip_keys_device_placement") or model._skip_keys_device_placement is None:
+            if (
+                not hasattr(model, "_skip_keys_device_placement")
+                or model._skip_keys_device_placement is None
+            ):
                 model._skip_keys_device_placement = []
 
             for name, _param in state_dict.items():
@@ -246,20 +251,37 @@ def fully_parallel_load(
 
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
-                        module.weight = bnb.nn.Params4bit(
-                            data=param,
-                            quant_type=quantization,
-                            bnb_quantized=True,
+                        quantized_weights, quant_state = (
+                            bnb.functional.quantize_4bit(
+                                data=param.to(torch.float16),
+                                quant_type=quantization,
+                                blocksize=64,
+                                compress_statistics=True,
+                            )
+                        )
+
+                        module.weight = bnb.nn.Params4bit.from_prequantized(
+                            data=quantized_weights,
+                            quantized_stats=quant_state.to_dict(),
+                            device=device,
+                            module=module,
                         )
 
                     elif isinstance(module, bnb.nn.Linear8bitLt):
                         # 8-bit quantization
+                        param_cpu = param.to("cpu").float()
+                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(
+                            param_cpu
+                        )
                         module.weight = bnb.nn.Int8Params(
-                            data=param,
+                            data=cb.to(device),
                             requires_grad=False,
                             has_fp16_weights=False,
+                            CB=cb.to(device),
+                            SCB=scb.to(device),
                         )
-                        module.old_forward = module.forward
+
+                        module._old_forward = module.forward
                         module.forward = types.MethodType(forward_hook, module)
 
                 elif isinstance(module, torch.nn.Module):
