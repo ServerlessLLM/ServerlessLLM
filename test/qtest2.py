@@ -1,48 +1,44 @@
 import os
 
-# Load a model from HuggingFace model hub.
 import torch
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from sllm_store.transformers import save_model
+from sllm_store.transformers import load_model, save_model
 
-model = AutoModelForCausalLM.from_pretrained(
-    "facebook/opt-1.3b", torch_dtype=torch.float32
-)
-
+quantization_config = BitsAndBytesConfig(load_in_4bit=True)
 model_name = "facebook/opt-1.3b"
-PATH = os.getenv("MODEL_FOLDER")
-MODEL_PATH = os.path.join(PATH, model_name)
-
-# Replace './models' with your local path.
-save_model(model, MODEL_PATH)
-
-import time
-
-import torch
-
-from sllm_store.transformers import load_model
-
+model_folder = os.getenv("MODEL_FOLDER")
+model_path = os.path.join(model_folder, model_name)
+# =======================================================================================================================
+torch.cuda.empty_cache()
 # warm up the GPU
 num_gpus = torch.cuda.device_count()
 for i in range(num_gpus):
     torch.ones(1).to(f"cuda:{i}")
     torch.cuda.synchronize()
 
-start = time.time()
+before_mem = torch.cuda.memory_allocated()
+print(f"getting model from {model_folder}")
 model = load_model(
-    "facebook/opt-1.3b",
+    model_name,
     device_map="auto",
-    torch_dtype=torch.float32,
-    storage_path=PATH,
+    storage_path=model_folder,
     fully_parallel=True,
+    quantization="fp4",
 )
-# Please note the loading time depends on the model size and the hardware bandwidth.
-print(f"Model loading time: {time.time() - start:.2f}s")
-
-from transformers import AutoTokenizer
-
-tokenizer = AutoTokenizer.from_pretrained("facebook/opt-1.3b")
+after_mem = torch.cuda.memory_allocated()
+print(f"Memory difference: {after_mem - before_mem}")
+print(f"memory footprint: {model.get_memory_footprint()}")
+print(f"memory allocated: {torch.cuda.memory_allocated()}")
+print(f"max memory allocated: {torch.cuda.max_memory_allocated()}")
+print(f"getting model from {model_folder}")
+# for name, param in model.named_parameters():
+#     print(f"{name}: {param.dtype}, {param.device}")
+# =======================================================================================================================
+tokenizer = AutoTokenizer.from_pretrained(model_name)
 inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to("cuda")
 outputs = model.generate(**inputs)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
+for name, param in model.named_parameters():
+    print(f"{name}: shape={param.shape}, dtype={param.dtype}")
