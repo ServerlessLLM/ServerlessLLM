@@ -217,7 +217,7 @@ def fully_parallel_load(
                 )
 
             quantized_keys = set()
-            if not hasattr(model, "_skip_keys_device_placement"):
+            if not hasattr(model, "_skip_keys_device_placement") or model._skip_keys_device_placement is None:
                 model._skip_keys_device_placement = []
 
             for name, _param in state_dict.items():
