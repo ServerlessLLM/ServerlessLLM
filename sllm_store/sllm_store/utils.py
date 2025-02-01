@@ -20,6 +20,7 @@ from functools import reduce
 import torch
 from torch import nn
 from accelerate.utils import find_tied_parameters
+from accelerate.hooks import ModelHook
 import bitsandbytes as bnb
 from transformers.quantizers.quantizers_utils import get_module_from_name
 
@@ -224,6 +225,8 @@ def replace_linear_with_quantized(
     return getattr(parent_module, child_name)
 
 
-def forward_hook(self, input, *args, **kwargs):
-    kwargs.pop("attention_mask", None)
-    return self._old_forward(input, *args, **kwargs)
+class QuantizationSanitizerHook(ModelHook):
+    def pre_forward(self, module, *args, **kwargs):
+        # Remove attention_mask from all quantized layers
+        kwargs.pop("attention_mask", None)
+        return args, kwargs
