@@ -20,7 +20,6 @@ from functools import reduce
 import torch
 from torch import nn
 from accelerate.utils import find_tied_parameters
-from accelerate.hooks import ModelHook
 import bitsandbytes as bnb
 from transformers.quantizers.quantizers_utils import get_module_from_name
 
@@ -225,25 +224,13 @@ def replace_linear_with_quantized(
     return getattr(parent_module, child_name)
 
 
-class QuantizationSanitizerHook(ModelHook):
-    def pre_forward(self, module, *args, **kwargs):
-        print(f"Pre-forward args: {args}")
-        print(f"Pre-forward kwargs: {kwargs}")
+def forward_hook(module, *args, **kwargs):
+    kwargs.pop("attention_mask", None)
 
-        def remove_attention_mask(obj):
-            if isinstance(obj, dict):
-                return {k: v for k, v in obj.items() if k != "attention_mask"}
-            elif isinstance(obj, (list, tuple)):
-                return type(obj)(remove_attention_mask(item) for item in obj)
-            elif isinstance(obj, torch.Tensor):
-                return obj
-            return obj
+    new_args = []
+    for arg in args:
+        if isinstance(arg, dict) and "attention_mask" in arg:
+            arg = {k: v for k, v in arg.items() if k != "attention_mask"}
+        new_args.append(arg)
 
-        kwargs.pop("attention_mask", None)
-
-        cleaned_args = tuple(remove_attention_mask(arg) for arg in args)
-
-        print(f"Post-clean args: {cleaned_args}")
-        print(f"Post-clean kwargs: {kwargs}")
-
-        return cleaned_args, kwargs
+    return module._old_forward(*new_args, **kwargs)

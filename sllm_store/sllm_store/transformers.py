@@ -20,11 +20,11 @@ import json
 import os
 import time
 import uuid
+import types
 from typing import Optional, Union
 
 import torch
 from accelerate import dispatch_model, init_empty_weights, infer_auto_device_map
-from accelerate.hooks import add_hook_to_module
 
 # from accelerate.hooks import add_hook_to_module
 from accelerate.utils import set_module_tensor_to_device
@@ -51,7 +51,7 @@ from sllm_store.utils import (
     get_tied_no_split_modules,
     send_module_buffers_to_device,
     replace_linear_with_quantized,
-    QuantizationSanitizerHook,
+    forward_hook,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -281,12 +281,10 @@ def fully_parallel_load(
                             SCB=scb.to(device),
                         )
 
-                    add_hook_to_module(
-                        module,
-                        QuantizationSanitizerHook(),
-                        append=False,
-                    )
-                    logger.debug(f"Applied quantization hook to {name}")
+                    if not hasattr(module, "_old_forward"):
+                        module._old_forward = module.forward
+                        module.forward = types.MethodType(forward_hook, module)
+                    logger.debug(f"Applied forward hook to: {name}")
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
