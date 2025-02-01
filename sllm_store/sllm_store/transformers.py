@@ -279,15 +279,6 @@ def fully_parallel_load(
                             SCB=scb.to(device),
                         )
 
-                    def print_args(*args, **kwargs):
-                        print(f"Inputs to {name}:")
-                        print("Args:", args)
-                        print("Kwargs:", kwargs.keys())
-                        return module._original_forward(*args, **kwargs)
-
-                    module._original_forward = module.forward
-                    module.forward = print_args
-
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
                     set_module_tensor_to_device(
