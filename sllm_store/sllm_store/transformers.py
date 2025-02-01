@@ -286,6 +286,7 @@ def fully_parallel_load(
                         QuantizationSanitizerHook(),
                         append=False,
                     )
+                    logger.debug(f"Applied quantization hook to {name}")
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters

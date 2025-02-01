@@ -227,6 +227,23 @@ def replace_linear_with_quantized(
 
 class QuantizationSanitizerHook(ModelHook):
     def pre_forward(self, module, *args, **kwargs):
-        # Remove attention_mask from all quantized layers
+        print(f"Pre-forward args: {args}")
+        print(f"Pre-forward kwargs: {kwargs}")
+
+        def remove_attention_mask(obj):
+            if isinstance(obj, dict):
+                return {k: v for k, v in obj.items() if k != "attention_mask"}
+            elif isinstance(obj, (list, tuple)):
+                return type(obj)(remove_attention_mask(item) for item in obj)
+            elif isinstance(obj, torch.Tensor):
+                return obj
+            return obj
+
         kwargs.pop("attention_mask", None)
-        return args, kwargs
+
+        cleaned_args = tuple(remove_attention_mask(arg) for arg in args)
+
+        print(f"Post-clean args: {cleaned_args}")
+        print(f"Post-clean kwargs: {kwargs}")
+
+        return cleaned_args, kwargs
