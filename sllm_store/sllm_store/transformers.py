@@ -20,7 +20,6 @@ import json
 import os
 import time
 import uuid
-import types
 from typing import Optional, Union
 
 import torch
@@ -51,7 +50,6 @@ from sllm_store.utils import (
     get_tied_no_split_modules,
     send_module_buffers_to_device,
     replace_linear_with_quantized,
-    forward_hook,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
@@ -281,10 +279,14 @@ def fully_parallel_load(
                             SCB=scb.to(device),
                         )
 
-                    if not hasattr(module, "_old_forward"):
-                        module._old_forward = module.forward
-                        module.forward = types.MethodType(forward_hook, module)
-                    logger.debug(f"Applied forward hook to: {name}")
+                    def print_args(*args, **kwargs):
+                        print(f"Inputs to {name}:")
+                        print("Args:", args)
+                        print("Kwargs:", kwargs.keys())
+                        return module._original_forward(*args, **kwargs)
+
+                    module._original_forward = module.forward
+                    module.forward = print_args
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
