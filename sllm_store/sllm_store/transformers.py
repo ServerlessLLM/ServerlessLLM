@@ -211,6 +211,7 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization:
+            logger.debug(f"using quantization: {quantization}")
             if quantization not in ["nf4", "fp4", "int8"]:
                 raise ValueError(
                     f"Unsupported quantization type: {quantization}"
@@ -281,7 +282,14 @@ def fully_parallel_load(
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )
-            # add_hook_to_module(model, forward_hook, append=True)
+            try:
+                print(f"name: {name} | module: {module} | type: {type(module)}")
+                print(f"weights: {module.weight}")
+                print(f"param: {param}")
+                print(f"device: {module.device}")
+            except:
+                pass
+
             model.tie_weights()
             device_map = infer_auto_device_map(model)
 
