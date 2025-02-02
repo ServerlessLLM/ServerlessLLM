@@ -284,18 +284,6 @@ def fully_parallel_load(
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )
-
-            for name, buffer in model.named_buffers():
-                module = get_module_from_name(model, name)[0]
-                device = device_map.get(name.rsplit(".", 1)[0], "cpu")
-                buffer.data = buffer.data.to(device)
-
-            for module_name in device_map:
-                module = get_module_from_name(model, module_name)[0]
-                if isinstance(module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)):
-                    device = device_map[module_name]
-                    module.to(device)
-
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
