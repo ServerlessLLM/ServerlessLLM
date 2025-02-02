@@ -230,7 +230,6 @@ def fully_parallel_load(
                     and name.endswith(".weight")
                     and ("lm_head" not in name)
                 ):
-                    print(f"{name}: {module}")
                     replace_linear_with_quantized(
                         model, name, module, quantization
                     )
@@ -283,6 +282,7 @@ def fully_parallel_load(
                         model, name, param.device, param
                     )
             # add_hook_to_module(model, forward_hook, append=True)
+            model.tie_weights() 
             device_map = infer_auto_device_map(model)
 
         else:
