@@ -231,7 +231,7 @@ def fully_parallel_load(
                     and ("lm_head" not in name)
                 ):
                     replace_linear_with_quantized(
-                        model, name, module, quantization
+                        model, name, module, quantization, device_map
                     )
                     base_name = name.split(".weight")[0]
                     quantized_keys.add(base_name)
@@ -282,7 +282,7 @@ def fully_parallel_load(
                         model, name, param.device, param
                     )
             # add_hook_to_module(model, forward_hook, append=True)
-            model.tie_weights() 
+            model.tie_weights()
             device_map = infer_auto_device_map(model)
 
         else:
@@ -292,9 +292,7 @@ def fully_parallel_load(
         send_module_buffers_to_device(model, device_map)
 
     # model._skip_keys_device_placement.extend(quantized_keys)
-    dispatch_model(
-        model, device_map
-    )
+    dispatch_model(model, device_map)
     model.eval()
 
     client = SllmStoreClient("127.0.0.1:8073")
