@@ -219,15 +219,3 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization):
     parent_module, _ = get_module_from_name(model, parent_path)
 
     setattr(parent_module, child_name, new_layer)
-
-
-def forward_hook(module, *args, **kwargs):
-    kwargs.pop("attention_mask", None)
-
-    new_args = []
-    for arg in args:
-        if isinstance(arg, dict) and "attention_mask" in arg:
-            arg = {k: v for k, v in arg.items() if k != "attention_mask"}
-        new_args.append(arg)
-
-    return module._old_forward(*new_args, **kwargs)

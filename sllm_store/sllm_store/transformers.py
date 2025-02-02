@@ -291,9 +291,9 @@ def fully_parallel_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    model._skip_keys_device_placement.extend(quantized_keys)
+    # model._skip_keys_device_placement.extend(quantized_keys)
     dispatch_model(
-        model, device_map, skip_keys=model._skip_keys_device_placement
+        model, device_map
     )
     model.eval()
 
