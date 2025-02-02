@@ -223,22 +223,20 @@ def fully_parallel_load(
             ):
                 model._skip_keys_device_placement = []
 
-            for name, _param in state_dict.items():
+            for name, param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
                     isinstance(module[0], torch.nn.Linear)
                     and name.endswith(".weight")
                     and ("lm_head" not in name)
                 ):
-                    module = replace_linear_with_quantized(
+                    print(f"{name}: {module}")
+                    replace_linear_with_quantized(
                         model, name, module, quantization
                     )
                     base_name = name.split(".weight")[0]
                     quantized_keys.add(base_name)
 
-            device_map = infer_auto_device_map(model)
-
-            for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
                 device = device_map.get(name.split(".weight")[0], "cpu")
 
@@ -284,6 +282,9 @@ def fully_parallel_load(
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )
+            # add_hook_to_module(model, forward_hook, append=True)
+            device_map = infer_auto_device_map(model)
+
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)

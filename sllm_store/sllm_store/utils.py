@@ -206,13 +206,16 @@ def replace_linear_with_quantized(model, name, module_tuple, quantization):
             quant_type=quantization,
         )
 
+    # ignore kwargs
+    core_forward = new_layer.forward
+    new_layer.forward = lambda x, *args, **kwargs: core_forward(x)
+
     # Get parent module and child name for setting
     module_name = name[:-7] if name.endswith(".weight") else name
     parent_path, child_name = module_name.rsplit(".", 1)
     parent_module, _ = get_module_from_name(model, parent_path)
 
     setattr(parent_module, child_name, new_layer)
-    return getattr(parent_module, child_name)
 
 
 def forward_hook(module, *args, **kwargs):
