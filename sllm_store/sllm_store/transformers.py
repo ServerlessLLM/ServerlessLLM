@@ -235,8 +235,12 @@ def fully_parallel_load(
                         model, name, module, quantization, device_map
                     )
                     base_name = name.split(".weight")[0]
+                    print(f"replaced {base_name} with quantized layer")
                     quantized_keys.add(base_name)
 
+            print(f"state dict: {state_dict}")
+            print("=====================================================================")
+            for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
                 device = device_map.get(name.split(".weight")[0], "cpu")
 
@@ -262,8 +266,9 @@ def fully_parallel_load(
                             device=device,
                             module=module,
                         )
+                        print(f"quantized module, and its weight: {module}\n{module.weight}")
 
-                    elif isinstance(module, bnb.nn.Linear8bitLt):
+                    else: 
                         # 8-bit quantization
                         param_cpu = param.to("cpu").float()
                         cb, scb, _ = bnb.functional.int8_vectorwise_quant(
@@ -276,22 +281,28 @@ def fully_parallel_load(
                             CB=cb.to(device),
                             SCB=scb.to(device),
                         )
+                        print(f"quantized module, and its weight: {module}\n{module.weight}")
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
                     set_module_tensor_to_device(
                         model, name, param.device, param
                     )
-            try:
-                print(f"name: {name} | module: {module} | type: {type(module)}")
-                print(f"weights: {module.weight}")
-                print(f"param: {param}")
-                print(f"device: {module.device}")
-            except Exception as e:
-                print(e)
+                else:
+                    return ValueError(
+                        "Layer is not nn.Linear, bnb.nn.Linear4bit or bnb.nn.Linear8bit."
+                    )
+
+                try:
+                    print(f"name: {name} | module: {module} | type: {type(module)}")
+                    print(f"weights: {module.weight}")
+                    print(f"param: {param}")
+                except Exception as e:
+                    print(e)
 
             model.tie_weights()
             device_map = infer_auto_device_map(model)
+
 
         else:
             for name, param in state_dict.items():
