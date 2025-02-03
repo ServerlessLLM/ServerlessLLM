@@ -287,8 +287,8 @@ def fully_parallel_load(
                 print(f"weights: {module.weight}")
                 print(f"param: {param}")
                 print(f"device: {module.device}")
-            except:
-                pass
+            except Exception as e:
+                print(e)
 
             model.tie_weights()
             device_map = infer_auto_device_map(model)

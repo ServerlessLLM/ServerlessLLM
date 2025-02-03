@@ -216,11 +216,8 @@ def replace_linear_with_quantized(
 
     # ignore kwargs
     core_forward = new_layer.forward
-
     def wrapped_forward(hidden_states, *args, **kwargs):
-        # Keep the original input handling but ignore extra kwargs
         return core_forward(hidden_states)
-
     new_layer.forward = wrapped_forward
 
     # Get parent module and child name for setting
