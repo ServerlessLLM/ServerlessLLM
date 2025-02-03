@@ -291,18 +291,11 @@ sllm-cli fine-tuning --base_model <model_name> --config <path_to_ft_config_file>
 {
     "model": "bigscience/bloomz-560m",
     "ft_backend": "peft",
-    "training_config": {
-        "auto_find_batch_size": "True",
-        "num_train_epochs": 2,
-        "learning_rate": 0.0001,
-        "optim": "",
-        "use_cpu": "False"
-    },
     "dataset_config": {
         "dataset_source": "hf_hub",
         "hf_dataset_name": "fka/awesome-chatgpt-prompts",
         "tokenization_field": "prompt",
-        "split": "train",
+        "split": "train[:10%]",
         "data_files": "",
         "extension_type": ""
     },
@@ -313,6 +306,12 @@ sllm-cli fine-tuning --base_model <model_name> --config <path_to_ft_config_file>
         "lora_dropout": 0.05,
         "bias": "lora_only",
         "task_type": "CAUSAL_LM"
+    },
+    "training_config": {
+        "auto_find_batch_size": true,
+        "num_train_epochs": 2,
+        "learning_rate": 0.0001,
+        "use_cpu": false
     }
 }
 ```

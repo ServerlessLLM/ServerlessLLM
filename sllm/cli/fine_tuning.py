@@ -31,7 +31,7 @@ class FineTuningCommand:
     @staticmethod
     def register_subcommand(parser: _SubParsersAction):
         fine_tuning_parser = parser.add_parser(
-            "fine-tuning", help="Fine-tuning base model."
+            "fine-tuning", help="fine-tuning base model."
         )
         fine_tuning_parser.add_argument(
             "--base_model", type=str, help="base_model name"
@@ -39,7 +39,7 @@ class FineTuningCommand:
         fine_tuning_parser.add_argument(
             "--config",
             type=str,
-            help="fine-tuning configuration",
+            help="path to fine-tuning configuration JSON file",
             default=os.path.join(
                 os.path.dirname(__file__), "default_ft_config.json"
             ),
@@ -48,16 +48,32 @@ class FineTuningCommand:
 
     def __init__(self, args: Namespace) -> None:
         self.base_model = args.base_model
-        self.config = args.config
+        self.config_path = args.config
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
             + "fine-tuning"
         )
 
+    def validate_config(self, config_data: dict) -> None:
+        """Validate the provided configuration data to ensure correctness."""
+        try:
+            model = config_data["model"]
+            ft_backend = config_data["ft_backend"]
+            dataset_source = config_data["dataset_config"]["dataset_source"]
+            tokenization_field = config_data["dataset_config"][
+                "tokenization_field"
+            ]
+        except KeyError as e:
+            raise ValueError(f"Missing key in ft_config_data: {e}")
+
+        if dataset_source not in ["hf_hub", "local"]:
+            raise ValueError("dataset_source only supports hf_hub or local")
+
     def run(self) -> None:
-        config = read_config(self.config)
+        config_data = read_config(self.config_path)
+        self.validate_config(config_data)
         logger.info(f"Start fine-tuning base model {self.base_model}")
-        result = self.fine_tuning(config)
+        result = self.fine_tuning(config_data)
         logger.info(f"{result}")
 
     def fine_tuning(self, config: dict) -> dict:
