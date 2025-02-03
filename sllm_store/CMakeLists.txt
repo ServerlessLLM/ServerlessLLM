@@ -23,13 +23,6 @@ FetchContent_Declare(
 )
 set(FETCHCONTENT_QUIET OFF)
 
-# FetchContent_GetProperties(glog)
-# if(NOT glog_POPULATED)
-#   FetchContent_Populate(glog)
-#   set(WITH_GFLAGS OFF CACHE BOOL "" FORCE)
-#   add_subdirectory(${glog_SOURCE_DIR} ${glog_BINARY_DIR} EXCLUDE_FROM_ALL)
-# endif()
-
 FetchContent_MakeAvailable(glog)
 FetchContent_MakeAvailable(googletest)
 
@@ -145,25 +138,6 @@ define_gpu_extension_target(
 
 # pthread
 find_package(Threads REQUIRED)
-
-# if (CUDAToolkit_FOUND)
-#   file(GLOB SOURCES "csrc/sllm_store/*.cpp")
-#   add_library(sllm_store SHARED ${SOURCES})
-#   set_target_properties(sllm_store PROPERTIES CUDA_ARCHITECTURES "{$CUDA_SUPPORTED_ARCHS}")
-#   target_link_libraries(sllm_store PUBLIC CUDA::cudart Threads::Threads glog::glog)
-#   target_include_directories(sllm_store PUBLIC "csrc/sllm_store" ${CUDA_INCLUDE_DIRS})
-# elseif (HIP_FOUND)
-# # Execute customized hipify script to convert CUDA code to HIP code
-#   execute_process(
-#     COMMAND ${CMAKE_SOURCE_DIR}/cmake/hipify.py -p ${CMAKE_SOURCE_DIR}/csrc/sllm_store -o ${CMAKE_SOURCE_DIR}/csrc/hip -s)
-#   file(GLOB SOURCES "csrc/hip/*.cpp")
-#   add_library(sllm_store SHARED ${SOURCES})
-#   set_target_properties(sllm_store PROPERTIES HIP_ARCHITECTURES "${HIP_SUPPORTED_ARCHS}")
-#   target_link_libraries(sllm_store PUBLIC hip::host Threads::Threads glog::glog)
-#   target_include_directories(sllm_store PUBLIC "csrc/hip" ${HIP_INCLUDE_DIRS})
-# else()
-#   message(FATAL_ERROR "Neither CUDA nor HIP found")
-# endif()
 
 set(CHECKPOINT_STORE_SOURCES
   "csrc/sllm_store/binary_utils.cpp"
