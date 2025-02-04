@@ -226,6 +226,8 @@ def replace_linear_with_quantized(
     parent_path = ".".join(parent_parts)
     parent_module, _ = get_module_from_name(model, parent_path)
 
+    print(f"original name: {module} | full path: {full_path} | new parent: {parent_module} | new child: {child_name}")
+
     # remove previous
     if hasattr(parent_module, child_name):
         delattr(parent_module, child_name)
