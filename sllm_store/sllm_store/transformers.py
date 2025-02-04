@@ -261,7 +261,7 @@ def fully_parallel_load(
 
                         module.weight = bnb.nn.Params4bit.from_prequantized(
                             quantized_weights,
-                            quantized_stats=quant_state.to_dict(),
+                            quantized_stats=quant_state.as_dict(),
                             module=module,
                         )
 
