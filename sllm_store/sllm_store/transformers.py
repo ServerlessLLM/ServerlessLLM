@@ -253,7 +253,7 @@ def fully_parallel_load(
                         # 4-bit (nf4/fp4) quantization
                         quantized_weights, quant_state = (
                             bnb.functional.quantize_4bit(
-                                data=param.to(torch.float16),
+                                param.to(torch.float16),
                                 quant_type=quantization,
                                 blocksize=64,
                                 compress_statistics=True,
@@ -261,7 +261,7 @@ def fully_parallel_load(
                         )
 
                         module.weight = bnb.nn.Params4bit.from_prequantized(
-                            data=quantized_weights,
+                            quantized_weights,
                             quantized_stats=quant_state.to_dict(),
                             device=device,
                             module=module,
@@ -274,7 +274,7 @@ def fully_parallel_load(
                             param_cpu
                         )
                         module.weight = bnb.nn.Int8Params(
-                            data=cb.to(device),
+                            cb.to(device),
                             requires_grad=False,
                             has_fp16_weights=False,
                             CB=cb.to(device),
