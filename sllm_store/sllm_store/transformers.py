@@ -238,12 +238,11 @@ def fully_parallel_load(
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
-                param = param.to(torch.float16).to('cuda')
+                param = param.to(torch.float16).to("cuda")
 
                 if name.endswith(".weight") and isinstance(
                     module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                 ):
-
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
                         module.weight = bnb.nn.Params4bit(
@@ -252,14 +251,12 @@ def fully_parallel_load(
                             blocksize=64,
                             compress_statistics=True,
                             quant_type=quantization,
-                            module=module
-                        )._quantize('cuda')
+                            module=module,
+                        )._quantize("cuda")
 
-                    else: 
+                    else:
                         # 8-bit quantization
-                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(
-                            param
-                        )
+                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(param)
                         module.weight = bnb.nn.Int8Params(
                             cb,
                             requires_grad=False,
@@ -433,12 +430,11 @@ def best_effort_load(
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
-                param = param.to(torch.float16).to('cuda')
+                param = param.to(torch.float16).to("cuda")
 
                 if name.endswith(".weight") and isinstance(
                     module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                 ):
-
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
                         module.weight = bnb.nn.Params4bit(
@@ -447,14 +443,12 @@ def best_effort_load(
                             blocksize=64,
                             compress_statistics=True,
                             quant_type=quantization,
-                            module=module
-                        )._quantize('cuda')
+                            module=module,
+                        )._quantize("cuda")
 
-                    else: 
+                    else:
                         # 8-bit quantization
-                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(
-                            param
-                        )
+                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(param)
                         module.weight = bnb.nn.Int8Params(
                             cb,
                             requires_grad=False,
@@ -480,8 +474,10 @@ def best_effort_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    if hasattr(model, '_skip_keys_device_placement'):
-        model._skip_keys_device_placement = list(set(model._skip_keys_device_placement) | quantized_keys)
+    if hasattr(model, "_skip_keys_device_placement"):
+        model._skip_keys_device_placement = list(
+            set(model._skip_keys_device_placement) | quantized_keys
+        )
     else:
         model._skip_keys_device_placement = list(quantized_keys)
 
