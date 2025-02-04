@@ -238,6 +238,9 @@ def fully_parallel_load(
                     print(f"replaced {base_name} with quantized layer")
                     quantized_keys.add(base_name)
 
+                elif name.endswith(".bias"):
+                    param = param.to(torch.float16)
+
             print(f"state dict: {state_dict}")
             print("=====================================================================")
             for name, param in state_dict.items():
@@ -266,7 +269,6 @@ def fully_parallel_load(
                             device=device,
                             module=module,
                         )
-                        print(f"quantized module, and its weight: {module}\n{module.weight}")
 
                     else: 
                         # 8-bit quantization
@@ -293,12 +295,12 @@ def fully_parallel_load(
                         "Layer is not nn.Linear, bnb.nn.Linear4bit or bnb.nn.Linear8bit."
                     )
 
-                try:
-                    print(f"name: {name} | module: {module} | type: {type(module)}")
-                    print(f"weights: {module.weight}")
-                    print(f"param: {param}")
-                except Exception as e:
-                    print(e)
+                # try:
+                #     print(f"name: {name} | module: {module} | type: {type(module)}")
+                #     print(f"weights: {module.weight}")
+                #     print(f"param: {param}")
+                # except Exception as e:
+                #     print(e)
 
             model.tie_weights()
             device_map = infer_auto_device_map(model)
