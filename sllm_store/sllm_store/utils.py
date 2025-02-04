@@ -185,7 +185,7 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
 def replace_linear_with_quantized(
     model, name, module_tuple, quantization, device_map
 ):
-    module, _ = module_tuple
+    module, name = module_tuple # module is just nn.Linear()
 
     in_features = module.in_features
     out_features = module.out_features
@@ -226,7 +226,7 @@ def replace_linear_with_quantized(
     parent_path = ".".join(parent_parts)
     parent_module, _ = get_module_from_name(model, parent_path)
 
-    print(f"original name: {module} | full path: {full_path} | new parent: {parent_module} | new child: {child_name}")
+    print(f"original name: {module} | full path: {full_path} | parent path: {parent_path} | new child: {child_name}")
 
     # remove previous
     if hasattr(parent_module, child_name):
