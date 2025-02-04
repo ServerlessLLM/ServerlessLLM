@@ -242,18 +242,17 @@ def fully_parallel_load(
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
-                device = device_map.get(name.split(".weight")[0], "cpu")
 
                 if name.endswith(".weight") and isinstance(
                     module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                 ):
-                    param = param.to(torch.float16).to(device)
+                    param = param.to(torch.float16).to('cuda')
 
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
                         quantized_weights, quant_state = (
                             bnb.functional.quantize_4bit(
-                                param.to(torch.float16),
+                                param,
                                 quant_type=quantization,
                                 blocksize=64,
                                 compress_statistics=True,
@@ -263,22 +262,20 @@ def fully_parallel_load(
                         module.weight = bnb.nn.Params4bit.from_prequantized(
                             quantized_weights,
                             quantized_stats=quant_state.to_dict(),
-                            device=device,
                             module=module,
                         )
 
                     else: 
                         # 8-bit quantization
-                        param_cpu = param.to("cpu").float()
                         cb, scb, _ = bnb.functional.int8_vectorwise_quant(
-                            param_cpu
+                            param
                         )
                         module.weight = bnb.nn.Int8Params(
-                            cb.to(device),
+                            cb,
                             requires_grad=False,
                             has_fp16_weights=False,
-                            CB=cb.to(device),
-                            SCB=scb.to(device),
+                            CB=cb,
+                            SCB=scb,
                         )
 
                 elif isinstance(module, torch.nn.Module):
@@ -291,16 +288,8 @@ def fully_parallel_load(
                         "Layer is not nn.Linear, bnb.nn.Linear4bit or bnb.nn.Linear8bit."
                     )
 
-                # try:
-                #     print(f"name: {name} | module: {module} | type: {type(module)}")
-                #     print(f"weights: {module.weight}")
-                #     print(f"param: {param}")
-                # except Exception as e:
-                #     print(e)
-
             model.tie_weights()
             device_map = infer_auto_device_map(model)
-
 
         else:
             for name, param in state_dict.items():
@@ -308,7 +297,7 @@ def fully_parallel_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    # model._skip_keys_device_placement.extend(quantized_keys)
+    model._skip_keys_device_placement = list(quantized_keys)
     dispatch_model(model, device_map)
     model.eval()
 
