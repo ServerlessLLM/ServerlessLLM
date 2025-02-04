@@ -40,5 +40,5 @@ inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to("cuda")
 outputs = model.generate(**inputs)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
-for name, param in model.named_parameters():
-    print(f"{name}: shape={param.shape}, dtype={param.dtype}")
+# for name, param in model.named_parameters():
+#     print(f"{name}: shape={param.shape}, dtype={param.dtype}")
