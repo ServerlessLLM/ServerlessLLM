@@ -241,8 +241,6 @@ def fully_parallel_load(
                 elif name.endswith(".bias"):
                     param = param.to(torch.float16)
 
-            print(f"state dict: {state_dict}")
-            print("=====================================================================")
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
                 device = device_map.get(name.split(".weight")[0], "cpu")
@@ -283,7 +281,6 @@ def fully_parallel_load(
                             CB=cb.to(device),
                             SCB=scb.to(device),
                         )
-                        print(f"quantized module, and its weight: {module}\n{module.weight}")
 
                 elif isinstance(module, torch.nn.Module):
                     # non-quantized parameters
