@@ -1,5 +1,5 @@
 import os
-
+import gc
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
@@ -28,6 +28,8 @@ inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to("cuda")
 outputs = model.generate(**inputs)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 # =======================================================================================================================
+del model
+gc.collect()
 model_folder = os.getenv("MODEL_FOLDER")
 model_path = os.path.join(model_folder, model_name)
 # print(f"saving to {model_folder}")

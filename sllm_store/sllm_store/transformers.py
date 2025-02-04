@@ -236,10 +236,7 @@ def fully_parallel_load(
                     )
                     quantized_keys.add(name)
 
-                else:
-                    param = param.to(torch.float16)
 
-            for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
                 param = param.to(torch.float16).to('cuda')
 
