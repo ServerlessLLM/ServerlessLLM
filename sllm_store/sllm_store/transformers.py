@@ -250,20 +250,14 @@ def fully_parallel_load(
 
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
-                        quantized_weights, quant_state = (
-                            bnb.functional.quantize_4bit(
-                                param,
-                                quant_type=quantization,
-                                blocksize=64,
-                                compress_statistics=True,
-                            )
-                        )
-
                         module.weight = bnb.nn.Params4bit.from_prequantized(
-                            quantized_weights,
-                            quantized_stats=quant_state.as_dict(),
-                            module=module,
-                        )
+                            param,
+                            requires_grad=False,
+                            blocksize=64,
+                            compress_statistics=True,
+                            quant_type=quantization,
+                            module=module
+                        )._quantize('cuda')
 
                     else: 
                         # 8-bit quantization
