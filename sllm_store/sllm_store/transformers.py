@@ -234,8 +234,7 @@ def fully_parallel_load(
                     replace_linear_with_quantized(
                         model, name, module, quantization, device_map
                     )
-                    base_name = name.split(".weight")[0]
-                    quantized_keys.add(base_name)
+                    quantized_keys.add(name)
 
                 else:
                     param = param.to(torch.float16)
@@ -272,14 +271,10 @@ def fully_parallel_load(
                             SCB=scb,
                         )
 
-                elif isinstance(module, torch.nn.Module):
+                else:
                     # non-quantized parameters
                     set_module_tensor_to_device(
                         model, name, param.device, param
-                    )
-                else:
-                    return ValueError(
-                        "Layer is not nn.Linear, bnb.nn.Linear4bit or bnb.nn.Linear8bit."
                     )
 
             model.tie_weights()
