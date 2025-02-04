@@ -70,7 +70,7 @@ save_model(model, './models/facebook/opt-1.3b')
 2. Launch the checkpoint store server in a separate process:
 ```bash
 # 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.
-sllm-store-server --storage_path $PWD/models --mem_pool_size 4
+sllm-store start --storage-path $PWD/models --mem-pool-size 4GB
 ```
 
 <!-- Running the server using a container:
@@ -145,7 +145,7 @@ After downloading the model, you can launch the checkpoint store server and load
 2. Launch the checkpoint store server in a separate process:
 ```bash
 # 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.
-sllm-store-server --storage_path $PWD/models --mem_pool_size 4
+sllm-store start --storage-path $PWD/models --mem-pool-size 4GB
 ```
 
 3. Load the model in vLLM:

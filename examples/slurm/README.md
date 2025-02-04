@@ -16,12 +16,12 @@ which nvcc # if you can see the CUDA compiler's path, it means CUDA is available
 However, we **strongly recommend that you read the documentation for the HPC you are using** to find out how to check if the CUDA driver is available.
 
 ## Job Nodes Assignment for Head, Worker, Store and Serve
-Let's start a head on the main job node (```JobNode01```) and add the worker on other job node (```JobNode02```). The head and the worker should be on different job nodes to avoid resource contention. The ```sllm-store-server``` should be started on the job node that runs worker (```JobNode02```), for passing the model weights, and the ```sllm-serve``` should be started on the main job node (```JobNode01```), finally you can use ```sllm-cli``` to manage the models on the login node.
+Let's start a head on the main job node (```JobNode01```) and add the worker on other job node (```JobNode02```). The head and the worker should be on different job nodes to avoid resource contention. The ```sllm-store``` should be started on the job node that runs worker (```JobNode02```), for passing the model weights, and the ```sllm-serve``` should be started on the main job node (```JobNode01```), finally you can use ```sllm-cli``` to manage the models on the login node.
 
 Note: ```JobNode02``` requires GPU, but ```JobNode01``` does not.
 - **Head**: JobNode01
 - **Worker**: JobNode02
-- **sllm-store-server**: JobNode02
+- **sllm-store**: JobNode02
 - **sllm-serve**: JobNode01
 - **sllm-cli**: Login Node
 
@@ -103,7 +103,7 @@ We will start the worker node and store in the same script. Because the server l
    ray start --address=$HEAD_NODE_IP:6379 --num-cpus=4 --num-gpus=2 \
    --resources='{"worker_node": 1, "worker_id_0": 1}' --block &
 
-   sllm-store-server &
+   sllm-store start &
 
    wait
    ```
