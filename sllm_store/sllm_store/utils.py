@@ -221,8 +221,9 @@ def replace_linear_with_quantized(
     new_layer.forward = wrapped_forward
 
     # Get parent module and child name for setting
-    module_name = name[:-7] if name.endswith(".weight") else name
-    parent_path, child_name = module_name.rsplit(".", 1)
+    full_path = name[:-7] if name.endswith(".weight") else name
+    *parent_parts, child_name = full_path.split(".")
+    parent_path = ".".join(parent_parts)
     parent_module, _ = get_module_from_name(model, parent_path)
 
     # remove previous
