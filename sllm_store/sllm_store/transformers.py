@@ -241,11 +241,11 @@ def fully_parallel_load(
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
+                param = param.to(torch.float16).to('cuda')
 
                 if name.endswith(".weight") and isinstance(
                     module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
                 ):
-                    param = param.to(torch.float16).to('cuda')
 
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
