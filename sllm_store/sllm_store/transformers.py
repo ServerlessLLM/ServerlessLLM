@@ -237,7 +237,7 @@ def fully_parallel_load(
                     base_name = name.split(".weight")[0]
                     quantized_keys.add(base_name)
 
-                elif name.endswith(".bias"):
+                else:
                     param = param.to(torch.float16)
 
             for name, param in state_dict.items():

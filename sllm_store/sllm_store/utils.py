@@ -221,14 +221,12 @@ def replace_linear_with_quantized(
     new_layer.forward = wrapped_forward
 
     # Get parent module and child name for setting
-    full_path = name[:-7] if name.endswith(".weight") else name
-    *parent_parts, child_name = full_path.split(".")
-    parent_path = ".".join(parent_parts)
-    parent_module, _ = get_module_from_name(model, parent_path)
+    parent_module, child_name = get_module_from_name(model, full_path)
 
-    print(f"original name: {module} | full path: {full_path} | parent path: {parent_path} | new child: {child_name}")
+    print(f"original name: {module} | full path: {full_path} | child: {child_name}")
 
-    # remove previous
+    # remove existing layer 
     if hasattr(parent_module, child_name):
         delattr(parent_module, child_name)
+        print("deleted existing attr")
     setattr(parent_module, child_name, new_layer)
