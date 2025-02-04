@@ -235,7 +235,6 @@ def fully_parallel_load(
                         model, name, module, quantization, device_map
                     )
                     base_name = name.split(".weight")[0]
-                    print(f"replaced {base_name} with quantized layer")
                     quantized_keys.add(base_name)
 
                 elif name.endswith(".bias"):

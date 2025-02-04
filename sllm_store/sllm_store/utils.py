@@ -225,4 +225,7 @@ def replace_linear_with_quantized(
     parent_path, child_name = module_name.rsplit(".", 1)
     parent_module, _ = get_module_from_name(model, parent_path)
 
+    # remove previous
+    if hasattr(parent_module, child_name):
+        delattr(parent_module, child_name)
     setattr(parent_module, child_name, new_layer)
