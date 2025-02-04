@@ -250,7 +250,7 @@ def fully_parallel_load(
 
                     if isinstance(module, bnb.nn.Linear4bit):
                         # 4-bit (nf4/fp4) quantization
-                        module.weight = bnb.nn.Params4bit.from_prequantized(
+                        module.weight = bnb.nn.Params4bit(
                             param,
                             requires_grad=False,
                             blocksize=64,
