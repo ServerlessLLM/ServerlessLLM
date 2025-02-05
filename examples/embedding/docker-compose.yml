@@ -36,7 +36,7 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "16", "-registration_required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "16GB", "--registration-required", "true"] # Customize the memory pool size here
 
 networks:
   sllm_network:

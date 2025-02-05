@@ -22,11 +22,9 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-from setuptools import Command, Extension, setup
+from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.install import install
-from setuptools.command.sdist import sdist
-from wheel.bdist_wheel import bdist_wheel
 
 try:
     torch_available = True
@@ -77,35 +75,6 @@ else:
     check_hipcc_installed()
 
 
-class BuildPackageProtos(Command):
-    """Command to generate project *_pb2.py modules from proto files."""
-
-    description = "build grpc protobuf modules"
-    user_options = []
-
-    def initialize_options(self):
-        self.strict_mode = False
-
-    def finalize_options(self):
-        pass
-
-    def _build_package_proto(self, root: str, proto_file: str) -> None:
-        from grpc_tools import protoc
-
-        command = [
-            "grpc_tools.protoc",
-            "-I",
-            "./",
-            f"--python_out={root}",
-            f"--grpc_python_out={root}",
-        ] + [proto_file]
-        if protoc.main(command) != 0:
-            raise RuntimeError("error: {} failed".format(command))
-
-    def run(self):
-        self._build_package_proto(".", "sllm_store/proto/storage.proto")
-
-
 def is_ninja_available() -> bool:
     try:
         subprocess.run(["ninja", "--version"], stdout=subprocess.PIPE)
@@ -120,7 +89,6 @@ class CustomInstall(install):
 
     def run(self):
         self.run_command("build_ext")
-        self.run_command("build_package_protos")
         super().run()
 
 
@@ -247,28 +215,9 @@ class cmake_build_ext(build_ext):
             print(self.build_temp, ext_target_name)
 
 
-class CustomBuild(sdist):
-    """Custom build command to run build_package_protos."""
-
-    def run(self):
-        self.run_command("build_package_protos")
-        super().run()
-
-
-class CustomBdistWheel(bdist_wheel):
-    """Custom bdist_wheel command to run build_package_protos."""
-
-    def run(self):
-        self.run_command("build_package_protos")
-        super().run()
-
-
 cmdclass = {
     "build_ext": cmake_build_ext,
-    "build_package_protos": BuildPackageProtos,
     "install": CustomInstall,
-    "sdist": CustomBuild,
-    "bdist_wheel": CustomBdistWheel,
 }
 
 setup(
@@ -276,22 +225,21 @@ setup(
     version="0.6.0",
     ext_modules=[
         CMakeExtension(name="sllm_store._C"),
-        CMakeExtension(name="sllm_store.sllm_store_server"),
+        CMakeExtension(name="sllm_store._checkpoint_store"),
     ],
     install_requires=install_requires,
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     extras_require=extras,
     entry_points={
-        "console_scripts": ["sllm-store-server=sllm_store.server.server:main"],
+        "console_scripts": ["sllm-store=sllm_store.cli:main"],
     },
     package_data={
-        "sllm_store": ["py.typed", "*.so", "sllm_store_server"],
+        "sllm_store": ["py.typed", "*.so"],
     },
     packages=[
         "sllm_store",
         "sllm_store.proto",
-        "sllm_store.server",
     ],
     cmdclass=cmdclass,
 )

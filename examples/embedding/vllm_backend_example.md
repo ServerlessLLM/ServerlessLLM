@@ -11,7 +11,7 @@ export MODEL_FOLDER=/path/to/your/models
 Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `e5-mistral-7b-instruct` is approximately 14GB in size (float16), so you'll need to configure the store server with a memory pool of at least 14GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is set to 4GB by default. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
 
 ```yaml
-command: ["-mem_pool_size", "32", "-registration_required", "true"] # This command line option will set a memory pool size of 32GB for each worker node.
+command: ["--mem-pool-size", "32GB", "--registration-required", "true"] # This command line option will set a memory pool size of 32GB for each worker node.
 ```
 
 Afterwards, run docker compose to start the service.
