@@ -1,3 +1,4 @@
+bitsandbytes==0.45.1
 fastapi==0.108.0
 GPUtil==1.4.0
 grpcio==1.49.1
@@ -11,4 +12,3 @@ serverless-llm-store
 speedtest-cli==2.1.3
 types-requests==2.31.0.20240125
 uvicorn[standard]==0.23.1
-bitsandbytes==0.45.1

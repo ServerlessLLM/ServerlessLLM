@@ -183,56 +183,6 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
 
 
-<<<<<<< HEAD
-def replace_linear_with_quantized(
-    model, name, module_tuple, quantization, device_map
-):
-    module, _ = module_tuple
-
-    in_features = module.in_features
-    out_features = module.out_features
-    bias = module.bias is not None
-
-    if quantization == "int8":
-        new_layer = bnb.nn.Linear8bitLt(
-            in_features,
-            out_features,
-            bias=bias,
-            has_fp16_weights=False,
-            threshold=6.0,
-        )
-    else:  # 4bit (fp4, nf4)
-        new_layer = bnb.nn.Linear4bit(
-            in_features,
-            out_features,
-            bias=bias,
-            compute_dtype=torch.float16,
-            quant_type=quantization,
-        )
-    device = (
-        next(iter(device_map.values()))
-        if isinstance(device_map, dict)
-        else "cpu"
-    )
-    new_layer.to(device)
-
-    # ignore kwargs
-    core_forward = new_layer.forward
-
-    def wrapped_forward(hidden_states, *args, **kwargs):
-        return core_forward(hidden_states)
-
-    new_layer.forward = wrapped_forward
-
-    # Get parent module and child name for setting
-    full_path = name[:-7] if name.endswith(".weight") else name
-    parent_module, child_name = get_module_from_name(model, full_path)
-
-    # remove existing layer
-    if hasattr(parent_module, child_name):
-        delattr(parent_module, child_name)
-    setattr(parent_module, child_name, new_layer)
-=======
 def to_num_bytes(value: str) -> int:
     """
     Convert a string representing a data size to its equivalent number of bytes.
@@ -290,4 +240,56 @@ def to_num_bytes(value: str) -> int:
 
     bytes_value = number * unit_multipliers[unit]
     return bytes_value
->>>>>>> 58992d130831f03fd3fe977195e312087a13145d
+
+
+def replace_linear_with_quantized(
+    model, name, module_tuple, quantization, device_map
+):
+    module, _ = module_tuple
+
+    in_features = module.in_features
+    out_features = module.out_features
+    bias = module.bias is not None
+
+    # create new layer
+    if quantization == "int8":  # int8
+        new_layer = bnb.nn.Linear8bitLt(
+            in_features,
+            out_features,
+            bias=bias,
+            has_fp16_weights=False,
+            threshold=6.0,
+        )
+    else:  # 4bit (fp4, nf4)
+        new_layer = bnb.nn.Linear4bit(
+            in_features,
+            out_features,
+            bias=bias,
+            compute_dtype=torch.float16,
+            quant_type=quantization,
+        )
+
+    # move it to cpu (quantization occurs during tensor moving from CPU to GPU)
+    device = (
+        next(iter(device_map.values()))
+        if isinstance(device_map, dict)
+        else "cpu"
+    )
+    new_layer.to(device)
+
+    # ignore kwargs
+    core_forward = new_layer.forward
+
+    def wrapped_forward(hidden_states, *args, **kwargs):
+        return core_forward(hidden_states)
+
+    new_layer.forward = wrapped_forward
+
+    # Get parent module and child name for setting
+    full_path = name[:-7] if name.endswith(".weight") else name
+    parent_module, child_name = get_module_from_name(model, full_path)
+
+    # remove existing layer
+    if hasattr(parent_module, child_name):
+        delattr(parent_module, child_name)
+    setattr(parent_module, child_name, new_layer)
