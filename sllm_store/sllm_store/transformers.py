@@ -404,6 +404,7 @@ def best_effort_load(
     )
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
+    quantized_keys = set()
     with torch.no_grad():
         if quantization:
             logger.debug(f"using quantization: {quantization}")
@@ -412,7 +413,6 @@ def best_effort_load(
                     f"Unsupported quantization type: {quantization}"
                 )
 
-            quantized_keys = set()
             if (
                 not hasattr(model, "_skip_keys_device_placement")
                 or model._skip_keys_device_placement is None
