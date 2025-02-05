@@ -189,11 +189,11 @@ To quantize your model, simply pass in the precision as a parameter in `load_mod
 
 ```
 model = load_model(
-    "facebook/opt-1.3b", 
-    device_map="auto", 
-    torch_dtype=torch.float16, 
-    storage_path="./models/", 
-    fully_parallel=True, 
+    "facebook/opt-1.3b",
+    device_map="auto",
+    torch_dtype=torch.float16,
+    storage_path="./models/",
+    fully_parallel=True,
     quantization="fp4"
 )
 ```
