@@ -209,6 +209,7 @@ def fully_parallel_load(
 
         replica_uuid, state_dict = future.result()
 
+    quantized_keys = set()
     with torch.no_grad():
         if quantization:
             logger.debug(f"using quantization: {quantization}")
@@ -217,7 +218,6 @@ def fully_parallel_load(
                     f"Unsupported quantization type: {quantization}"
                 )
 
-            quantized_keys = set()
             if (
                 not hasattr(model, "_skip_keys_device_placement")
                 or model._skip_keys_device_placement is None
