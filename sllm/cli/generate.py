@@ -43,21 +43,11 @@ class GenerateCommand:
             default=1,
             help="Number of parallel generation processes.",
         )
-        generate_parser.add_argument(
-            "-q",
-            "--quantization",
-            type=str,
-            choices=["int8", "nf4", "fp4"],
-            default=None,
-            help="Target precision for quantization.",
-        )
-
         generate_parser.set_defaults(func=GenerateCommand)
 
     def __init__(self, args: Namespace) -> None:
         self.input_path = args.input_path
         self.threads = args.threads
-        self.quantization = args.quantization
         self.endpoint = "v1/chat/completions"  # TODO: as a argument
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
@@ -88,9 +78,6 @@ class GenerateCommand:
             logger.info(f"Generation result: {result}")
 
     def generate(self, input_data: dict) -> dict:
-        if self.quantization is not None:
-            input_data["quantization"] = self.quantization
-
         headers = {"Content-Type": "application/json"}
 
         # Send POST request to the /v1/chat/completions endpoint
