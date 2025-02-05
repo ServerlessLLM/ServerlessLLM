@@ -180,3 +180,13 @@ for output in outputs:
     generated_text = output.outputs[0].text
     print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
 ```
+
+## Quantization
+
+ServerlessLLM currently supports bitsandbytes quantization to `nf4`, `fp4`, and `int8` with transformers.
+
+To quantize your model, simply pass in the precision as a parameter in `load_model()` as such:
+
+```
+model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path="./models/", fully_parallel=True, quantization="fp4")
+```
