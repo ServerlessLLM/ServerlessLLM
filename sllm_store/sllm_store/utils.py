@@ -19,9 +19,13 @@ from functools import reduce
 
 import torch
 from torch import nn
+<<<<<<< HEAD
 from accelerate.utils import find_tied_parameters
 import bitsandbytes as bnb
 from transformers.quantizers.quantizers_utils import get_module_from_name
+=======
+import re
+>>>>>>> 58992d130831f03fd3fe977195e312087a13145d
 
 
 def set_module_buffer_to_device(
@@ -182,6 +186,7 @@ def dtype_byte_size(dtype: torch.dtype) -> int:
     return torch.finfo(dtype).bits // 8
 
 
+<<<<<<< HEAD
 def replace_linear_with_quantized(
     model, name, module_tuple, quantization, device_map
 ):
@@ -230,3 +235,62 @@ def replace_linear_with_quantized(
     if hasattr(parent_module, child_name):
         delattr(parent_module, child_name)
     setattr(parent_module, child_name, new_layer)
+=======
+def to_num_bytes(value: str) -> int:
+    """
+    Convert a string representing a data size to its equivalent number of bytes.
+
+    The input must strictly follow the format:
+        <number><unit>
+
+    - <number>: A positive integer.
+    - <unit>: One of the following case-sensitive units:
+        B, KB, MB, GB, TB, PB, EB, ZB, YB
+
+    No leading, trailing, or middle spaces or other characters are allowed.
+
+    Examples:
+        "1GB"  -> 1073741824
+        "512MB" -> 536870912
+
+    Args:
+        value (str): The string to convert.
+
+    Returns:
+        int: The equivalent number of bytes.
+
+    Raises:
+        ValueError: If the input format is incorrect.
+    """
+    # Define the regular expression pattern for validation
+    pattern = r"^(\d+)(B|KB|MB|GB|TB|PB|EB|ZB|YB)$"
+    match = re.fullmatch(pattern, value)
+
+    if not match:
+        error_message = (
+            "Invalid format. The input must be a positive integer "
+            "followed immediately by a unit "
+            "(B, KB, MB, GB, TB, PB, EB, ZB, YB), case sensitive, "
+            "with no spaces or other characters."
+        )
+        raise ValueError(error_message)
+
+    number_str, unit = match.groups()
+    number = int(number_str)
+
+    # Define the multiplier for each unit
+    unit_multipliers = {
+        "B": 1,
+        "KB": 1024,
+        "MB": 1024**2,
+        "GB": 1024**3,
+        "TB": 1024**4,
+        "PB": 1024**5,
+        "EB": 1024**6,
+        "ZB": 1024**7,
+        "YB": 1024**8,
+    }
+
+    bytes_value = number * unit_multipliers[unit]
+    return bytes_value
+>>>>>>> 58992d130831f03fd3fe977195e312087a13145d

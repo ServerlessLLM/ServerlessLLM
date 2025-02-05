@@ -13,7 +13,7 @@ services:
       - "8343:8343"    # ServerlessLLM port
     networks:
       - sllm_network
-    command: ["--enable_storage_aware"]
+    command: ["--enable-storage-aware"]
 
   # Worker Node 0
   sllm_worker_0:
@@ -36,7 +36,7 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "10"]
+    command: ["--mem-pool-size", "10GB"]
 
   # Worker Node 1
   sllm_worker_1:
@@ -59,7 +59,7 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "10"]
+    command: ["--mem-pool-size", "10GB"]
 
 networks:
   sllm_network:

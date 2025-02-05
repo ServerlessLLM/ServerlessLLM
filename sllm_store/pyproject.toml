@@ -14,7 +14,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 80
-exclude = []
+exclude = [
+    "sllm_store/proto",
+]
 
 [tool.ruff.lint]
 select = [

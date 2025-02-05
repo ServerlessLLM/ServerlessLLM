@@ -15,8 +15,6 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
-#include "model.h"
-
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -30,6 +28,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "model.h"
 
 // Third-party library headers
 #include <cuda_runtime.h>
