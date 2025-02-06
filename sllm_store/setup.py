@@ -95,7 +95,7 @@ class BuildPackageProtos(Command):
         command = [
             "grpc_tools.protoc",
             "-I",
-            "./",
+            f"{root}",
             f"--python_out={root}",
             f"--grpc_python_out={root}",
         ] + [proto_file]
@@ -103,7 +103,9 @@ class BuildPackageProtos(Command):
             raise RuntimeError("error: {} failed".format(command))
 
     def run(self):
-        self._build_package_proto(".", "sllm_store/proto/storage.proto")
+        this_file_path = os.path.dirname(os.path.realpath(__file__))
+        proto_path = os.path.join(this_file_path, "proto")
+        self._build_package_proto(proto_path, "storage.proto")
 
 
 def is_ninja_available() -> bool:
