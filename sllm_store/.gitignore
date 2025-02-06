@@ -164,6 +164,3 @@ cython_debug/
 
 # CMake
 build/
-
-# protobuf
-*_pb2*.py

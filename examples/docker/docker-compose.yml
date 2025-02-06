@@ -4,7 +4,7 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
-    image: serverlessllm/sllm-serve
+    image: serverlessllm/sllm-head:latest
     container_name: sllm_head
     environment:
       - MODEL_FOLDER=${MODEL_FOLDER}
@@ -20,7 +20,7 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
-    image: serverlessllm/sllm-serve-worker
+    image: serverlessllm/sllm-worker:latest
     container_name: sllm_worker_0
     deploy:
       resources:
@@ -36,30 +36,7 @@ services:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "4", "-registration_required", "true"] # Customize the memory pool size here
-
-  # # Worker Node 1
-  # sllm_worker_1:
-  #   build:
-  #     context: ../../
-  #     dockerfile: Dockerfile.worker
-  #   image: serverlessllm/sllm-serve-worker
-  #   container_name: sllm_worker_1
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities: ["gpu"]
-  #             device_ids: ["1"] # Assigns GPU 1 to the worker
-  #   environment:
-  #     - WORKER_ID=1
-  #     - MODEL_FOLDER=${MODEL_FOLDER}
-  #   networks:
-  #     - sllm_network
-  #   volumes:
-  #     - ${MODEL_FOLDER}:/models
-  #   command: ["-mem_pool_size", "4", "-registration_required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "4GB", "--registration-required", "true"] # Customize the memory pool size here
 
 networks:
   sllm_network:

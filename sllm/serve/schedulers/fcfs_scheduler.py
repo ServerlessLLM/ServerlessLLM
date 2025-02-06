@@ -147,8 +147,24 @@ class FcfsScheduler(SllmScheduler):
                     for node_id, node_info in worker_nodes.items():
                         if node_info["free_gpu"] >= num_gpus:
                             async with self.queue_lock:
-                                self.model_loading_queues[model_name].pop(idx)
-                                allocation_result.set_result(node_id)
+                                # allocation_result was set
+                                if allocation_result.done():
+                                    allocated = True
+                                    # skip current instance
+                                    break
+                                try:
+                                    self.model_loading_queues[
+                                        model_name
+                                    ].remove(
+                                        (
+                                            request_time,
+                                            num_gpus,
+                                            allocation_result,
+                                        )
+                                    )
+                                    allocation_result.set_result(node_id)
+                                except ValueError:
+                                    break
                             allocated = True
                             logger.info(
                                 f"Allocated node {node_id} for model {model_name}"
