@@ -10,7 +10,7 @@ on:
 
 jobs:
   sllm_store_tests:
-    runs-on: self-hosted
+    runs-on: [self-hosted, nvidia]
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
     container:
       image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
