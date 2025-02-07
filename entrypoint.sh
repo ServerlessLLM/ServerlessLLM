@@ -71,10 +71,10 @@ initialize_worker_node() {
   echo "Executing: $CMD"
   eval "$CMD"
 
-  # Start sllm-store-server with any additional arguments passed to the script
+  # Start sllm-store with any additional arguments passed to the script
   STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
-  echo "Starting sllm-store-server with arguments: -storage_path=$STORAGE_PATH $@"
-  exec sllm-store-server -storage_path=$STORAGE_PATH "$@"
+  echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH $@"
+  exec sllm-store start --storage-path=$STORAGE_PATH "$@"
 }
 
 # Determine the node type and call the appropriate initialization function

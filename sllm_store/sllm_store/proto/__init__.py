@@ -15,35 +15,3 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-FROM rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0
-
-# Set non-interactive installation
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install necessary packages for wget and HTTPS
-RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Install other parts listed in requirement-build
-COPY requirements-build-rocm.txt .
-RUN pip install -r requirements-build-rocm.txt
-
-# Add the rest of the files
-COPY cmake ./cmake
-COPY CMakeLists.txt .
-COPY csrc ./csrc
-COPY sllm_store ./sllm_store
-COPY setup.py .
-COPY pyproject.toml .
-COPY MANIFEST.in .
-COPY requirements.txt .
-COPY README.md .
-COPY proto ./proto
-
-# enable compile without AMD GPU
-ENV PYTORCH_ROCM_ARCH="gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
-
-# ENTRYPOINT [ "/bin/bash", "-c" ]

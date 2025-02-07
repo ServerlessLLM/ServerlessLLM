@@ -58,10 +58,6 @@ class CheckpointStore {
                      const std::string& replica_uuid);
   int UnloadModelFromHost(const std::string& model_path);
   int ClearMem();
-  void DeleteModelInfo(const std::string& model_path);
-  void ClearModelMem(const std::string& model_path);
-  void ClearModelGpuMem(const std::string& model_path,
-                        const std::string& replica_uuid);
 
  public:
   // Get methods
