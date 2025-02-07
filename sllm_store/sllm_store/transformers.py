@@ -23,7 +23,7 @@ import uuid
 from typing import Optional, Union
 
 import torch
-from accelerate import dispatch_model, init_empty_weights
+from accelerate import dispatch_model, init_empty_weights, infer_auto_device_map
 
 # from accelerate.hooks import add_hook_to_module
 from accelerate.utils import set_module_tensor_to_device
@@ -49,9 +49,12 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    replace_linear_with_quantized,
 )
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
+from transformers.quantizers.quantizers_utils import get_module_from_name
+import bitsandbytes as bnb
 import importlib
 
 logger = init_logger(__name__)
@@ -121,6 +124,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -131,6 +135,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
+            quantization=quantization,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -140,6 +145,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
+        quantization=quantization,
         storage_path=storage_path,
     )
 
@@ -149,10 +155,12 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
+
     start = time.time()
     device_map = _transform_device_map_to_dict(device_map)
     with open(
@@ -170,6 +178,7 @@ def fully_parallel_load(
         device_map = _compute_device_placement_from_map_fast(
             no_split_modules, tied_no_split_modules, device_map
         )
+
     # TODO: offload `load_dict_non_blocking` to c++ for real parallelism
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(
@@ -185,33 +194,98 @@ def fully_parallel_load(
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
-
         logger.debug(f"load config takes {time.time() - start} seconds")
+
         start = time.time()
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(config, trust_remote_code=True).to(
-                config.torch_dtype
-            )
-
+            model = _class.from_config(
+                config,
+                trust_remote_code=True,
+            ).to(config.torch_dtype)
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
 
         replica_uuid, state_dict = future.result()
 
+    quantized_keys = set()
     with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(model, name, param.device, param)
+        if quantization:
+            logger.debug(f"using quantization: {quantization}")
+            if quantization not in ["nf4", "fp4", "int8"]:
+                raise ValueError(
+                    f"Unsupported quantization type: {quantization}"
+                )
+
+            if (
+                not hasattr(model, "_skip_keys_device_placement")
+                or model._skip_keys_device_placement is None
+            ):
+                model._skip_keys_device_placement = []
+
+            for name, _param in state_dict.items():
+                module = get_module_from_name(model, name)
+                if (
+                    isinstance(module[0], torch.nn.Linear)
+                    and name.endswith(".weight")
+                    and ("lm_head" not in name)
+                ):
+                    replace_linear_with_quantized(
+                        model, name, module, quantization, device_map
+                    )
+                    quantized_keys.add(name)
+
+            for name, param in state_dict.items():
+                module = get_module_from_name(model, name)[0]
+                param = param.to(torch.float16).to("cuda")
+
+                if name.endswith(".weight") and isinstance(
+                    module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                ):
+                    if isinstance(module, bnb.nn.Linear4bit):
+                        # 4-bit (nf4/fp4) quantization
+                        module.weight = bnb.nn.Params4bit(
+                            param,
+                            requires_grad=False,
+                            blocksize=64,
+                            compress_statistics=True,
+                            quant_type=quantization,
+                            module=module,
+                        )._quantize("cuda")
+
+                    else:
+                        # 8-bit quantization
+                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(param)
+                        module.weight = bnb.nn.Int8Params(
+                            cb,
+                            requires_grad=False,
+                            has_fp16_weights=False,
+                            CB=cb,
+                            SCB=scb,
+                        )
+
+                else:
+                    # non-quantized parameters
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
+
+            model.tie_weights()
+            device_map = infer_auto_device_map(model)
+
+        else:
+            for name, param in state_dict.items():
+                set_module_tensor_to_device(model, name, param.device, param)
+
         send_module_buffers_to_device(model, device_map)
 
-    dispatch_model(
-        model, device_map, skip_keys=model._skip_keys_device_placement
-    )
+    model._skip_keys_device_placement = list(quantized_keys)
+    dispatch_model(model, device_map)
+    model.eval()
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
-    model.eval()
     model.hf_device_map = device_map
 
     return model
@@ -222,6 +296,7 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization: Optional[str] = None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -326,12 +401,85 @@ def best_effort_load(
     )
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
+    quantized_keys = set()
     with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(
-                model, name, expanded_device_map[name], param
-            )
+        if quantization:
+            logger.debug(f"using quantization: {quantization}")
+            if quantization not in ["nf4", "fp4", "int8"]:
+                raise ValueError(
+                    f"Unsupported quantization type: {quantization}"
+                )
+
+            if (
+                not hasattr(model, "_skip_keys_device_placement")
+                or model._skip_keys_device_placement is None
+            ):
+                model._skip_keys_device_placement = []
+
+            for name, _param in state_dict.items():
+                module = get_module_from_name(model, name)
+                if (
+                    isinstance(module[0], torch.nn.Linear)
+                    and name.endswith(".weight")
+                    and ("lm_head" not in name)
+                ):
+                    replace_linear_with_quantized(
+                        model, name, module, quantization, device_map
+                    )
+                    quantized_keys.add(name)
+
+            for name, param in state_dict.items():
+                module = get_module_from_name(model, name)[0]
+                param = param.to(torch.float16).to("cuda")
+
+                if name.endswith(".weight") and isinstance(
+                    module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
+                ):
+                    if isinstance(module, bnb.nn.Linear4bit):
+                        # 4-bit (nf4/fp4) quantization
+                        module.weight = bnb.nn.Params4bit(
+                            param,
+                            requires_grad=False,
+                            blocksize=64,
+                            compress_statistics=True,
+                            quant_type=quantization,
+                            module=module,
+                        )._quantize("cuda")
+
+                    else:
+                        # 8-bit quantization
+                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(param)
+                        module.weight = bnb.nn.Int8Params(
+                            cb,
+                            requires_grad=False,
+                            has_fp16_weights=False,
+                            CB=cb,
+                            SCB=scb,
+                        )
+
+                else:
+                    # non-quantized parameters
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
+
+            model.tie_weights()
+            device_map = infer_auto_device_map(model)
+
+        else:
+            for name, param in state_dict.items():
+                set_module_tensor_to_device(
+                    model, name, expanded_device_map[name], param
+                )
+
         send_module_buffers_to_device(model, device_map)
+
+    if hasattr(model, "_skip_keys_device_placement"):
+        model._skip_keys_device_placement = list(
+            set(model._skip_keys_device_placement) | quantized_keys
+        )
+    else:
+        model._skip_keys_device_placement = list(quantized_keys)
 
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
