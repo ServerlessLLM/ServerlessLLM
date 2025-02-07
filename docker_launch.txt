@@ -1,4 +1,4 @@
-cd ServerlessLLM/examples/docker/
+cd ~/projects/sllm_development/examples/docker/
 export MODEL_FOLDER=~/models
 
 docker compose up -d
