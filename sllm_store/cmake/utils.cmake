@@ -59,11 +59,9 @@ function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS CXX_SRCS)
   #
   set(SRCS ${ORIG_SRCS})
 
-  list(FILTER SRCS EXCLUDE REGEX "\.(cc)|(cpp)$")
-
   # remove CXX_SRCS from the list of SRCS
   foreach(CXX_SRC ${CXX_SRCS})
-    list(REMOVE_ITEM SRCS ${CXX_SRC})  
+    list(REMOVE_ITEM SRCS ${CXX_SRC})
   endforeach(CXX_SRC ${CXX_SRCS})
 
   #
