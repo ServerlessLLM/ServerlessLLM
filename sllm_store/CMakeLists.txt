@@ -118,8 +118,14 @@ get_torch_gpu_compiler_flags(SLLM_STORE_GPU_FLAGS ${SLLM_STORE_GPU_LANG})
 
 set(SLLM_STORE_EXT_SRC
   "csrc/checkpoint/aligned_buffer.cpp"
-  "csrc/checkpoint/checkpoint.cu"
+  "csrc/checkpoint/checkpoint.cpp"
   "csrc/checkpoint/checkpoint_py.cpp"
+  "csrc/checkpoint/tensor_writer.cpp"
+)
+
+set(SLLM_STORE_CXX_EXT_SRC
+  "csrc/checkpoint/aligned_buffer.cpp"
+  "csrc/checkpoint/checkpoint.cpp"
   "csrc/checkpoint/tensor_writer.cpp"
 )
 
@@ -128,6 +134,7 @@ define_gpu_extension_target(
   DESTINATION sllm_store
   LANGUAGE ${SLLM_STORE_GPU_LANG}
   SOURCES ${SLLM_STORE_EXT_SRC}
+  CXX_SRCS ${SLLM_STORE_CXX_EXT_SRC}
   COMPILE_FLAGS ${SLLM_STORE_GPU_FLAGS}
   ARCHITECTURES ${SLLM_STORE_GPU_ARCHES}
   WITH_SOABI)
@@ -141,15 +148,21 @@ find_package(Threads REQUIRED)
 
 set(CHECKPOINT_STORE_SOURCES
   "csrc/sllm_store/binary_utils.cpp"
-  "csrc/sllm_store/checkpoint_store.cu"
-  "csrc/sllm_store/checkpoint_store_py.cu"
-  "csrc/sllm_store/cuda_memory.cu"
-  "csrc/sllm_store/cuda_memory_pool.cu"
-  "csrc/sllm_store/gpu_replica.cu"
+  "csrc/sllm_store/checkpoint_store.cpp"
+  "csrc/sllm_store/checkpoint_store_py.cpp"
+  "csrc/sllm_store/cuda_memory.cpp"
+  "csrc/sllm_store/cuda_memory_pool.cpp"
+  "csrc/sllm_store/gpu_replica.cpp"
   "csrc/sllm_store/memory_state.cpp"
-  "csrc/sllm_store/model.cu"
+  "csrc/sllm_store/model.cpp"
   "csrc/sllm_store/pinned_memory.cpp"
-  "csrc/sllm_store/pinned_memory_pool.cu"
+  "csrc/sllm_store/pinned_memory_pool.cpp"
+)
+
+set(CHECKPOINT_STORE_CXX_SOURCES
+  "csrc/sllm_store/binary_utils.cpp"
+  "csrc/sllm_store/memory_state.cpp"
+  "csrc/sllm_store/pinned_memory.cpp"
 )
 
 set(CHECKPOINT_STORE_LIBRARIES
@@ -161,6 +174,7 @@ define_gpu_extension_target(
   DESTINATION sllm_store
   LANGUAGE ${SLLM_STORE_GPU_LANG}
   SOURCES ${CHECKPOINT_STORE_SOURCES}
+  CXX_SRCS ${CHECKPOINT_STORE_CXX_SOURCES}
   COMPILE_FLAGS ${SLLM_STORE_GPU_FLAGS}
   ARCHITECTURES ${SLLM_STORE_GPU_ARCHES}
   LIBRARIES ${CHECKPOINT_STORE_LIBRARIES}

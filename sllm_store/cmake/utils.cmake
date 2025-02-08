@@ -53,14 +53,18 @@ endmacro()
 # of CUDA source files. The names of the corresponding "hipified" sources are
 # stored in `OUT_SRCS`.
 #
-function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS)
+function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS CXX_SRCS)
   #
   # Split into C++ and non-C++ (i.e. CUDA) sources.
   #
   set(SRCS ${ORIG_SRCS})
-  set(CXX_SRCS ${ORIG_SRCS})
+
   list(FILTER SRCS EXCLUDE REGEX "\.(cc)|(cpp)$")
-  list(FILTER CXX_SRCS INCLUDE REGEX "\.(cc)|(cpp)$")
+
+  # remove CXX_SRCS from the list of SRCS
+  foreach(CXX_SRC ${CXX_SRCS})
+    list(REMOVE_ITEM SRCS ${CXX_SRC})  
+  endforeach(CXX_SRC ${CXX_SRCS})
 
   #
   # Generate ROCm/HIP source file names from CUDA file names.
@@ -295,6 +299,7 @@ endmacro()
 # INCLUDE_DIRECTORIES <dirs> - Extra include directories.
 # LIBRARIES <libraries>      - Extra link libraries.
 # WITH_SOABI                 - Generate library with python SOABI suffix name.
+# CXX_SRCS                   - List of C++ sources files to not be hipified.
 #
 # Note: optimization level/debug info is set via cmake build type.
 #
@@ -302,12 +307,13 @@ function (define_gpu_extension_target GPU_MOD_NAME)
   cmake_parse_arguments(PARSE_ARGV 1
     GPU
     "WITH_SOABI"
-    "DESTINATION;LANGUAGE"
-    "SOURCES;ARCHITECTURES;COMPILE_FLAGS;INCLUDE_DIRECTORIES;LIBRARIES")
+    "DESTINATION;LANGUAGE;CXX_SRCS"
+    "SOURCES;ARCHITECTURES;COMPILE_FLAGS;INCLUDE_DIRECTORIES;LIBRARIES"
+  )
 
   # Add hipify preprocessing step when building with HIP/ROCm.
   if (GPU_LANGUAGE STREQUAL "HIP")
-    hipify_sources_target(GPU_SOURCES ${GPU_MOD_NAME} "${GPU_SOURCES}")
+    hipify_sources_target(GPU_SOURCES ${GPU_MOD_NAME} "${GPU_SOURCES}" "${GPU_CXX_SRCS}")
   endif()
 
   if (GPU_WITH_SOABI)
