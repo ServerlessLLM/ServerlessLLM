@@ -15,10 +15,10 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
+#include "pinned_memory_pool.h"
+
 #include <cuda_runtime.h>
 #include <glog/logging.h>
-
-#include "pinned_memory_pool.h"
 
 PinnedMemoryPool::PinnedMemoryPool(size_t total_size, size_t chunk_size)
     : chunk_size_(chunk_size) {

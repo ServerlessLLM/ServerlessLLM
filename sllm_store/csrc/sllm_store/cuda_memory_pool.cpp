@@ -15,11 +15,11 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
+#include "cuda_memory_pool.h"
+
 #include <glog/logging.h>
 
 #include <mutex>
-
-#include "cuda_memory_pool.h"
 
 CudaMemoryPool::CudaMemoryPool(int device_count, size_t size_per_device)
     : device_count_(device_count), size_per_device_(size_per_device) {

@@ -15,6 +15,8 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
+#include "checkpoint.h"
+
 #include <ATen/cuda/CUDABlas.h>
 #include <cublas_v2.h>
 #include <cuda_runtime_api.h>
@@ -37,7 +39,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "checkpoint.h"
 #include "progress_bar.h"
 #include "tensor_writer.h"
 

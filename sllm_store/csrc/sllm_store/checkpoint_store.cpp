@@ -15,6 +15,8 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
+#include "checkpoint_store.h"
+
 #include <fcntl.h>
 #include <glog/logging.h>
 #include <sys/stat.h>
@@ -25,7 +27,6 @@
 #include <filesystem>
 #include <thread>
 
-#include "checkpoint_store.h"
 #include "error_handling.h"
 
 CheckpointStore::CheckpointStore(const std::string& storage_path,
