@@ -71,8 +71,12 @@ function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS CXX_SRCS)
   #
   set(HIP_SRCS)
   foreach (SRC ${SRCS})
+    set(ORIGINAL_SRC ${SRC})
     string(REGEX REPLACE "\.cu$" "\.hip" SRC ${SRC})
     string(REGEX REPLACE "cuda" "hip" SRC ${SRC})
+    if(${SRC} STREQUAL ${ORIGINAL_SRC})
+      string(REGEX REPLACE "\.cpp$" "_hip\.cpp" SRC ${SRC})
+    endif()
     list(APPEND HIP_SRCS "${CMAKE_CURRENT_BINARY_DIR}/${SRC}")
   endforeach()
 
@@ -305,8 +309,8 @@ function (define_gpu_extension_target GPU_MOD_NAME)
   cmake_parse_arguments(PARSE_ARGV 1
     GPU
     "WITH_SOABI"
-    "DESTINATION;LANGUAGE;CXX_SRCS"
-    "SOURCES;ARCHITECTURES;COMPILE_FLAGS;INCLUDE_DIRECTORIES;LIBRARIES"
+    "DESTINATION;LANGUAGE"
+    "SOURCES;ARCHITECTURES;COMPILE_FLAGS;INCLUDE_DIRECTORIES;LIBRARIES;CXX_SRCS"
   )
 
   # Add hipify preprocessing step when building with HIP/ROCm.

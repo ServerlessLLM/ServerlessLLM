@@ -125,7 +125,7 @@ set(SLLM_STORE_EXT_SRC
 
 set(SLLM_STORE_CXX_EXT_SRC
   "csrc/checkpoint/aligned_buffer.cpp"
-  "csrc/checkpoint/checkpoint.cpp"
+  "csrc/checkpoint/checkpoint_py.cpp"
   "csrc/checkpoint/tensor_writer.cpp"
 )
 
