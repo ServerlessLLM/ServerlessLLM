@@ -116,12 +116,21 @@ get_torch_gpu_compiler_flags(SLLM_STORE_GPU_FLAGS ${SLLM_STORE_GPU_LANG})
 # _C extension
 #
 
+#
+# Define source files used in SLLM_STORE_EXT
+#
+
 set(SLLM_STORE_EXT_SRC
   "csrc/checkpoint/aligned_buffer.cpp"
   "csrc/checkpoint/checkpoint.cpp"
   "csrc/checkpoint/checkpoint_py.cpp"
   "csrc/checkpoint/tensor_writer.cpp"
 )
+
+#
+# Define pure CXX files used in SLLM_STORE_EXT (files without CUDA code)
+# Used for hipify tool to only convert CUDA code
+#
 
 set(SLLM_STORE_CXX_EXT_SRC
   "csrc/checkpoint/aligned_buffer.cpp"
@@ -146,6 +155,10 @@ define_gpu_extension_target(
 # pthread
 find_package(Threads REQUIRED)
 
+#
+# Define source files used in CHECKPOINT_STORE
+#
+
 set(CHECKPOINT_STORE_SOURCES
   "csrc/sllm_store/binary_utils.cpp"
   "csrc/sllm_store/checkpoint_store.cpp"
@@ -158,6 +171,11 @@ set(CHECKPOINT_STORE_SOURCES
   "csrc/sllm_store/pinned_memory.cpp"
   "csrc/sllm_store/pinned_memory_pool.cpp"
 )
+
+#
+# Define pure CXX files used in CHECKPOINT_STORE (files without CUDA code)
+# Used for hipify tool to only convert CUDA code
+#
 
 set(CHECKPOINT_STORE_CXX_SOURCES
   "csrc/sllm_store/binary_utils.cpp"

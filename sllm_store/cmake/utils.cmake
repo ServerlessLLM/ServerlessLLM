@@ -52,6 +52,9 @@ endmacro()
 # Add a target named `hipify${NAME}` that runs the hipify preprocessor on a set
 # of CUDA source files. The names of the corresponding "hipified" sources are
 # stored in `OUT_SRCS`.
+# ORIG_SRCS - List of original source files.
+# CXX_SRCS - List of C++ source files that should not be hipified. (e.g., no CUDA code)
+# CXX_SRCS are removed from the list of ORIG_SRCS, in order to fix issue #206.
 #
 function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS CXX_SRCS)
   #
@@ -302,6 +305,7 @@ endmacro()
 # LIBRARIES <libraries>      - Extra link libraries.
 # WITH_SOABI                 - Generate library with python SOABI suffix name.
 # CXX_SRCS                   - List of C++ sources files to not be hipified.
+#                              Usually means they shouldn't contain CUDA code.
 #
 # Note: optimization level/debug info is set via cmake build type.
 #
