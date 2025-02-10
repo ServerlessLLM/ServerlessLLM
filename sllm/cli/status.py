@@ -45,7 +45,7 @@ class StatusCommand:
     def run(self) -> None:
         status = self.query_status()
         if status:
-            logger.info(f"Model status: {status}")
+            print(f"Model status: {status}")
         else:
             logger.error("Failed to fetch model status.")
 
