@@ -243,7 +243,7 @@ def to_num_bytes(value: str) -> int:
 
 
 def replace_linear_with_quantized(
-    model, name, module_tuple, quantization, device_map
+    model, name, module_tuple, quantization, device="cuda"
 ):
     module, _ = module_tuple
 
@@ -269,21 +269,21 @@ def replace_linear_with_quantized(
             quant_type=quantization,
         )
 
-    # move it to cpu (quantization occurs during tensor moving from CPU to GPU)
-    device = (
-        next(iter(device_map.values()))
-        if isinstance(device_map, dict)
-        else "cpu"
-    )
+    # # move it to cpu (quantization occurs during tensor moving from CPU to GPU)
+    # device = (
+    #     next(iter(device_map.values()))
+    #     if isinstance(device_map, dict)
+    #     else "cpu"
+    # )
     new_layer.to(device)
-
-    # ignore kwargs
-    core_forward = new_layer.forward
-
-    def wrapped_forward(hidden_states, *args, **kwargs):
-        return core_forward(hidden_states)
-
-    new_layer.forward = wrapped_forward
+    #
+    # # ignore kwargs
+    # core_forward = new_layer.forward
+    #
+    # def wrapped_forward(hidden_states, *args, **kwargs):
+    #     return core_forward(hidden_states)
+    #
+    # new_layer.forward = wrapped_forward
 
     # Get parent module and child name for setting
     full_path = name[:-7] if name.endswith(".weight") else name
