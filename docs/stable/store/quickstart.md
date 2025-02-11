@@ -183,7 +183,7 @@ for output in outputs:
 
 ## Quantization
 
-ServerlessLLM currently supports model quantization using `bitsandbytes` through the Hugging Face Transformers' `BitsAndBytesConfig`. 
+ServerlessLLM currently supports model quantization using `bitsandbytes` through the Hugging Face Transformers' `BitsAndBytesConfig`.
 
 Available precisions include:
 - `int8`
