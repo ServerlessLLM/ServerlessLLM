@@ -275,7 +275,7 @@ def replace_linear_with_quantized(
     #     if isinstance(device_map, dict)
     #     else "cpu"
     # )
-    new_layer.to(device)
+    new_layer.to("cuda")
     #
     # # ignore kwargs
     # core_forward = new_layer.forward
