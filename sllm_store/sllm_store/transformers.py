@@ -1,5 +1,4 @@
-# ---------------------------------------------------------------------------- #
-#  ServerlessLLM                                                               #
+# ---------------------------------------------------------------------------- # ServerlessLLM                                                               #
 #  Copyright (c) ServerlessLLM Team 2024                                       #
 #                                                                              #
 #  Licensed under the Apache License, Version 2.0 (the "License");             #
@@ -215,7 +214,7 @@ def fully_parallel_load(
 
             if not isinstance(quantization_config, BitsAndBytesConfig):
                 raise ValueError(
-                    f"quantization_config must be a BitsAndBytesConfig, got {type(quantization_config)}"
+                    f"Invalid config type: {type(quantization_config)}"
                 )
 
             logger.debug(
@@ -402,7 +401,7 @@ def best_effort_load(
 
             if not isinstance(quantization_config, BitsAndBytesConfig):
                 raise ValueError(
-                    f"quantization_config must be a BitsAndBytesConfig, got {type(quantization_config)}"
+                    f"Invalid config type: {type(quantization_config)}"
                 )
 
             logger.debug(
