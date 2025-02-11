@@ -225,7 +225,7 @@ def fully_parallel_load(
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
-                    isinstance(module[0], (torch.nn.Linear, torch.Conv1d))
+                    isinstance(module[0], (nn.Linear, nn.Conv1d))
                     and name.endswith(".weight")
                     and "lm_head" not in name
                 ):
