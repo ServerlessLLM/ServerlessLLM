@@ -242,9 +242,7 @@ def to_num_bytes(value: str) -> int:
     return bytes_value
 
 
-def replace_linear_with_quantized(
-    model, name, module_tuple, quantization
-):
+def replace_linear_with_quantized(model, name, module_tuple, quantization):
     module, modulename = module_tuple
     print(name)
     print(modulename)
