@@ -83,6 +83,9 @@ class RoundRobinRouter(SllmRouter):
         self.request_count = 0
         self.request_count_lock = asyncio.Lock()
 
+        self.fine_tuning_count = 0
+        self.fine_tuning_count_lock = asyncio.Lock()
+
         self.running = False
         self.running_lock = asyncio.Lock()
 
@@ -118,6 +121,12 @@ class RoundRobinRouter(SllmRouter):
             if not self.running:
                 return {"error": "Instance stopped"}
 
+        async with self.fine_tuning_count_lock:
+            if self.fine_tuning_count > 0:
+                return {
+                    "error": "Fine-tuning in progress, inference cannot start."
+                }
+
         async with self.request_count_lock:
             self.request_count += 1
 
@@ -146,16 +155,48 @@ class RoundRobinRouter(SllmRouter):
             result = await instance.backend_instance.encode.remote(
                 request_data=request_data
             )
-        elif action == "fine_tuning":
-            result = await instance.backend_instance.fine_tuning.remote(
-                request_data=request_data
-            )
         else:
             result = {"error": "Invalid action"}
         logger.info(f"Finished processing request")
         await instance.add_requests(-1)
         async with self.request_count_lock:
             self.request_count -= 1
+        return result
+
+    async def fine_tuning(self, request_data: dict):
+        async with self.running_lock:
+            if not self.running:
+                return {"error": "Instance stopped"}
+
+        async with self.request_count_lock:
+            if self.request_count > 0:
+                return {
+                    "error": "Inference requests in progress, fine-tuning cannot start."
+                }
+
+        async with self.fine_tuning_count_lock:
+            self.fine_tuning_count += 1
+
+        instance_allocation = self.loop.create_future()
+        await self.request_queue.put(instance_allocation)
+        logger.info(f"Enqueued request for model {self.model_name}")
+
+        instance_id = await instance_allocation
+        logger.info(f"{request_data}, type: {type(request_data)}")
+        async with self.instance_management_lock:
+            if instance_id not in self.ready_instances:
+                logger.error(f"Instance {instance_id} not found")
+                return {"error": "Instance not found"}
+            instance = self.ready_instances[instance_id]
+
+        result = await instance.backend_instance.fine_tuning.remote(
+            request_data=request_data
+        )
+
+        logger.info(f"Finished processing fine-tuning")
+        await instance.add_requests(-1)
+        async with self.fine_tuning_count_lock:
+            self.fine_tuning_count -= 1
         return result
 
     async def shutdown(self):
