@@ -218,11 +218,11 @@ def fully_parallel_load(
                     f"Unsupported quantization type: {quantization}"
                 )
 
-            if (
-                not hasattr(model, "_skip_keys_device_placement")
-                or model._skip_keys_device_placement is None
-            ):
-                model._skip_keys_device_placement = []
+            # if (
+            #     not hasattr(model, "_skip_keys_device_placement")
+            #     or model._skip_keys_device_placement is None
+            # ):
+            #     model._skip_keys_device_placement = []
 
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
@@ -232,13 +232,14 @@ def fully_parallel_load(
                     and ("lm_head" not in name)
                 ):
                     replace_linear_with_quantized(
-                        model, name, module, quantization, device_map
+                        model, name, module, quantization
                     )
-                    quantized_keys.add(name)
+                    # quantized_keys.add(name)
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
-                param = param.to(torch.float16).to("cuda")
+                param = param.to(torch.float16, device="cuda")
+
 
                 if name.endswith(".weight") and isinstance(
                     module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
@@ -280,7 +281,7 @@ def fully_parallel_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    model._skip_keys_device_placement = list(quantized_keys)
+    # model._skip_keys_device_placement = list(quantized_keys)
     dispatch_model(model, device_map)
     model.eval()
 
@@ -424,7 +425,7 @@ def best_effort_load(
                     and ("lm_head" not in name)
                 ):
                     replace_linear_with_quantized(
-                        model, name, module, quantization, device_map
+                        model, name, module, quantization
                     )
                     quantized_keys.add(name)
 
