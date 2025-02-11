@@ -186,9 +186,9 @@ for output in outputs:
 ServerlessLLM currently supports model quantization using `bitsandbytes` through the Hugging Face Transformers' `BitsAndBytesConfig`. 
 
 Available precisions include:
-- int8
-- fp4
-- nf4
+- `int8`
+- `fp4`
+- `nf4`
 
 For further information, consult the [HuggingFace Documentation for BitsAndBytes](https://huggingface.co/docs/transformers/main/en/quantization/bitsandbytes)
 
