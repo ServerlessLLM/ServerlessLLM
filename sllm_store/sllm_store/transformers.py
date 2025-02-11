@@ -209,7 +209,6 @@ def fully_parallel_load(
 
         replica_uuid, state_dict = future.result()
 
-    quantized_keys = set()
     with torch.no_grad():
         if quantization:
             logger.debug(f"using quantization: {quantization}")
@@ -217,12 +216,6 @@ def fully_parallel_load(
                 raise ValueError(
                     f"Unsupported quantization type: {quantization}"
                 )
-
-            # if (
-            #     not hasattr(model, "_skip_keys_device_placement")
-            #     or model._skip_keys_device_placement is None
-            # ):
-            #     model._skip_keys_device_placement = []
 
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
@@ -234,7 +227,6 @@ def fully_parallel_load(
                     replace_linear_with_quantized(
                         model, name, module, quantization
                     )
-                    # quantized_keys.add(name)
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
@@ -277,10 +269,8 @@ def fully_parallel_load(
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
-
         send_module_buffers_to_device(model, device_map)
 
-    # model._skip_keys_device_placement = list(quantized_keys)
     dispatch_model(model, device_map)
     model.eval()
 
@@ -401,7 +391,6 @@ def best_effort_load(
     )
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
-    quantized_keys = set()
     with torch.no_grad():
         if quantization:
             logger.debug(f"using quantization: {quantization}")
@@ -409,12 +398,6 @@ def best_effort_load(
                 raise ValueError(
                     f"Unsupported quantization type: {quantization}"
                 )
-
-            if (
-                not hasattr(model, "_skip_keys_device_placement")
-                or model._skip_keys_device_placement is None
-            ):
-                model._skip_keys_device_placement = []
 
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
@@ -426,7 +409,6 @@ def best_effort_load(
                     replace_linear_with_quantized(
                         model, name, module, quantization
                     )
-                    quantized_keys.add(name)
 
             for name, param in state_dict.items():
                 module = get_module_from_name(model, name)[0]
@@ -474,16 +456,7 @@ def best_effort_load(
 
         send_module_buffers_to_device(model, device_map)
 
-    if hasattr(model, "_skip_keys_device_placement"):
-        model._skip_keys_device_placement = list(
-            set(model._skip_keys_device_placement) | quantized_keys
-        )
-    else:
-        model._skip_keys_device_placement = list(quantized_keys)
-
-    dispatch_model(
-        model, device_map, skip_keys=model._skip_keys_device_placement
-    )
+    dispatch_model(model, device_map)
 
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
