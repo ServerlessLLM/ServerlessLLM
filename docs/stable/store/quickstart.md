@@ -183,7 +183,7 @@ for output in outputs:
 
 ## Quantization
 
-ServerlessLLM currently supports bitsandbytes quantization to `nf4`, `fp4`, and `int8` with transformers.
+ServerlessLLM currently supports `bitsandbytes` quantization to `nf4`, `fp4`, and `int8` with transformers.
 
 To quantize your model, simply pass in the precision as a parameter in `load_model()` as such:
 
