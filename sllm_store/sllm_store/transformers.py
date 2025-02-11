@@ -124,7 +124,7 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization: Optional[str] = None,
+    quantization_config=None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -135,7 +135,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
-            quantization=quantization,
+            quantization_config=quantization_config,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -145,7 +145,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
-        quantization=quantization,
+        quantization_config=quantization_config,
         storage_path=storage_path,
     )
 
@@ -155,7 +155,7 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization: Optional[str] = None,
+    quantization_config=None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -210,22 +210,27 @@ def fully_parallel_load(
         replica_uuid, state_dict = future.result()
 
     with torch.no_grad():
-        if quantization:
-            logger.debug(f"using quantization: {quantization}")
-            if quantization not in ["nf4", "fp4", "int8"]:
+        if quantization_config:
+            from transformers import BitsAndBytesConfig
+
+            if not isinstance(quantization_config, BitsAndBytesConfig):
                 raise ValueError(
-                    f"Unsupported quantization type: {quantization}"
+                    f"quantization_config must be a BitsAndBytesConfig, got {type(quantization_config)}"
                 )
+
+            logger.debug(
+                f"using precision: {quantization_config.quantization_method()}"
+            )
 
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
-                    isinstance(module[0], torch.nn.Linear)
+                    isinstance(module[0], (torch.nn.Linear, torch.Conv1d))
                     and name.endswith(".weight")
-                    and ("lm_head" not in name)
+                    and "lm_head" not in name
                 ):
                     replace_linear_with_quantized(
-                        model, name, module, quantization
+                        model, name, module, quantization_config
                     )
 
             for name, param in state_dict.items():
@@ -240,9 +245,9 @@ def fully_parallel_load(
                         module.weight = bnb.nn.Params4bit(
                             param,
                             requires_grad=False,
-                            blocksize=64,
                             compress_statistics=True,
-                            quant_type=quantization,
+                            quant_type=quantization_config.bnb_4bit_quant_type,
+                            quant_storage=quantization_config.bnb_4bit_quant_storage,
                             module=module,
                         )._quantize("cuda")
 
@@ -286,7 +291,7 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization: Optional[str] = None,
+    quantization_config=None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -392,22 +397,27 @@ def best_effort_load(
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
     with torch.no_grad():
-        if quantization:
-            logger.debug(f"using quantization: {quantization}")
-            if quantization not in ["nf4", "fp4", "int8"]:
+        if quantization_config:
+            from transformers import BitsAndBytesConfig
+
+            if not isinstance(quantization_config, BitsAndBytesConfig):
                 raise ValueError(
-                    f"Unsupported quantization type: {quantization}"
+                    f"quantization_config must be a BitsAndBytesConfig, got {type(quantization_config)}"
                 )
+
+            logger.debug(
+                f"using precision: {quantization_config.quantization_method()}"
+            )
 
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
-                    isinstance(module[0], torch.nn.Linear)
+                    isinstance(module[0], (torch.nn.Linear, torch.Conv1d))
                     and name.endswith(".weight")
-                    and ("lm_head" not in name)
+                    and "lm_head" not in name
                 ):
                     replace_linear_with_quantized(
-                        model, name, module, quantization
+                        model, name, module, quantization_config
                     )
 
             for name, param in state_dict.items():
@@ -422,9 +432,9 @@ def best_effort_load(
                         module.weight = bnb.nn.Params4bit(
                             param,
                             requires_grad=False,
-                            blocksize=64,
                             compress_statistics=True,
-                            quant_type=quantization,
+                            quant_type=quantization_config.bnb_4bit_quant_type,
+                            quant_storage=quantization_config.bnb_4bit_quant_storage,
                             module=module,
                         )._quantize("cuda")
 
@@ -450,10 +460,7 @@ def best_effort_load(
 
         else:
             for name, param in state_dict.items():
-                set_module_tensor_to_device(
-                    model, name, expanded_device_map[name], param
-                )
-
+                set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
 
     dispatch_model(model, device_map)

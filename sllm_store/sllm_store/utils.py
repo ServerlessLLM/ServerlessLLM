@@ -16,11 +16,12 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 from functools import reduce
+from inspect import signature
 
 import torch
 from torch import nn
-from accelerate.utils import find_tied_parameters
 import bitsandbytes as bnb
+from accelerate.utils import find_tied_parameters
 from transformers.quantizers.quantizers_utils import get_module_from_name
 import re
 
@@ -242,29 +243,43 @@ def to_num_bytes(value: str) -> int:
     return bytes_value
 
 
-def replace_linear_with_quantized(model, name, module_tuple, quantization):
+def replace_linear_with_quantized(
+    model, name, module_tuple, quantization_config
+):
     module, _ = module_tuple
 
-    in_features = module.in_features
-    out_features = module.out_features
+    if isinstance(module, nn.Conv1d):
+        in_features, out_features = module.weight.shape
+    else:
+        in_features = module.in_features
+        out_features = module.out_features
+
     bias = module.bias is not None
 
     # create new layer
-    if quantization == "int8":  # int8
+    if quantization_config.quantization_method() == "llm_int8":  # int8
         new_layer = bnb.nn.Linear8bitLt(
             in_features,
             out_features,
             bias=bias,
-            has_fp16_weights=False,
-            threshold=6.0,
+            has_fp16_weights=quantization_config.llm_int8_has_fp16_weight,
+            threshold=quantization_config.llm_int8_threshold,
         )
     else:  # 4bit (fp4, nf4)
+        extra_kwargs = (
+            {"quant_storage": quantization_config.bnb_4bit_quant_storage}
+            if "quant_storage" in list(signature(bnb.nn.Linear4bit).parameters)
+            else {}
+        )
+
         new_layer = bnb.nn.Linear4bit(
             in_features,
             out_features,
             bias=bias,
-            compute_dtype=torch.float16,
-            quant_type=quantization,
+            compute_dtype=quantization_config.bnb_4bit_compute_dtype,
+            compress_statistics=quantization_config.bnb_4bit_use_double_quant,
+            quant_type=quantization_config.bnb_4bit_quant_type,
+            **extra_kwargs,
         )
 
     new_layer.to("cuda")
