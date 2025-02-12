@@ -135,7 +135,7 @@ class RoundRobinRouter(SllmRouter):
 
         instance_allocation = self.loop.create_future()
         await self.request_queue.put(instance_allocation)
-        logger.info(f"Enqueued request for model {self.model_name}")
+        logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
 
         instance_id = await instance_allocation
         logger.info(f"{request_data}, type: {type(request_data)}")
@@ -259,7 +259,9 @@ class RoundRobinRouter(SllmRouter):
             # logger.info(f"Auto-scaling for model {self.model_name}")
             async with self.auto_scaling_lock:
                 auto_scaling_config = self.auto_scaling_config.copy()
-            auto_scaling_metrics = {"request_count": self.request_count}
+            auto_scaling_metrics = {
+                "request_count": self.request_count + self.fine_tuning_count
+            }
             desired_instances = await auto_scaler(
                 auto_scaling_metrics, auto_scaling_config
             )
