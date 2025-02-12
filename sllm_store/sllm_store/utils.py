@@ -275,7 +275,8 @@ def replace_linear_with_quantized(
         else:
             extra_kwargs = (
                 {"quant_storage": quantization_config.bnb_4bit_quant_storage}
-                if "quant_storage" in list(signature(bnb.nn.Linear4bit).parameters)
+                if "quant_storage"
+                in list(signature(bnb.nn.Linear4bit).parameters)
                 else {}
             )
 

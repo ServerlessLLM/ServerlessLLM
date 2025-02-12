@@ -1,4 +1,4 @@
-# ---------------------------------------------------------------------------- # 
+# ---------------------------------------------------------------------------- #
 #  ServerlessLLM                                                               #
 #  Copyright (c) ServerlessLLM Team 2024                                       #
 #                                                                              #
@@ -224,7 +224,7 @@ def fully_parallel_load(
 
             skip_modules = set()
             if quantization_config.llm_int8_skip_modules is not None:
-               skip_modules.update(quantization_config.llm_int8_skip_modules)
+                skip_modules.update(quantization_config.llm_int8_skip_modules)
 
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
