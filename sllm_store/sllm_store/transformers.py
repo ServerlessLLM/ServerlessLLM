@@ -222,11 +222,16 @@ def fully_parallel_load(
                 f"using precision: {quantization_config.quantization_method()}"
             )
 
+            skip_modules = set()
+            if quantization_config.llm_int8_skip_modules is not None:
+               skip_modules.update(quantization_config.llm_int8_skip_modules)
+
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
                     isinstance(module[0], (nn.Linear, nn.Conv1d))
                     and name.endswith(".weight")
+                    and name not in skip_modules
                     and "lm_head" not in name
                 ):
                     replace_linear_with_quantized(
