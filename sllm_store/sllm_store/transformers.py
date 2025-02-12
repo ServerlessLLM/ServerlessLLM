@@ -226,6 +226,9 @@ def fully_parallel_load(
             if quantization_config.llm_int8_skip_modules is not None:
                 skip_modules.update(quantization_config.llm_int8_skip_modules)
 
+            if quantization_config.llm_int8_enable_fp32_cpu_offload:
+                logger.debug("Offloading is not supported yet")
+
             for name, _param in state_dict.items():
                 module = get_module_from_name(model, name)
                 if (
