@@ -128,8 +128,12 @@ set(SLLM_STORE_EXT_SRC
 )
 
 #
-# Define pure CXX files used in SLLM_STORE_EXT (files without CUDA code)
-# Used for hipify tool to only convert CUDA code
+# NOTE: The following (pure CXX) source files will be excluded from the input
+# of the hipify tool. This is a temporary solution to avoid the recursive
+# inclusion of the hipify tool (#206).
+#
+# NOTE: If you are making changes to this section or adding new source files,
+# please make sure to update the list of excluded files here.
 #
 
 set(SLLM_STORE_CXX_EXT_SRC
