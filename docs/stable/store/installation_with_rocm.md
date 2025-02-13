@@ -2,23 +2,11 @@
 sidebar_position: 1
 ---
 
-# Installation with ROCm (Experimental)
+# ROCm Quick Start
 
-## Latest Tested Version
-+ v0.5.1
+ServerlessLLM Store (`sllm-store`) currently supports ROCm platform. However, there are no pre-built wheels for ROCm. 
 
-## Tested Hardware
-+ OS: Ubuntu 22.04
-+ ROCm: 6.2
-+ PyTorch: 2.3.0
-+ GPU: MI100s (gfx908), MI200s (gfx90a)
-
-## Build the wheel from source and install
-ServerlessLLM Store (`sllm-store`) currently provides experimental support for ROCm platform. Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
-
-Currently, `pip install .` does not work with ROCm. We suggest you build `sllm-store` wheel and manually install it in your environment.
-
-To build `sllm-store` from source, we suggest you using the docker and build it in ROCm container.
+Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
 
 1. Clone the repository and enter the `store` directory:
 
@@ -26,149 +14,100 @@ To build `sllm-store` from source, we suggest you using the docker and build it 
 git clone https://github.com/ServerlessLLM/ServerlessLLM.git
 cd ServerlessLLM/sllm_store
 ```
+After that, you may either use the Docker image or build the `sllm-store` wheel from source and install it in your environment.
 
-2. Build the Docker image from `Dockerfile.rocm`. The `Dockerfile.rocm` is build on top of `rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0` image.
+## Use the Docker image
+
+We provide a Docker file with ROCm support. Currently, it's built on base image `rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0`
+
+2. Build the Docker image:
 
 ``` bash
 docker build -t sllm_store_rocm -f Dockerfile.rocm .
 ```
 
-3. Build the package inside the ROCm docker container
-``` bash
-docker run -it --rm -v $(pwd)/dist:/app/dist sllm_store_rocm /bin/bash
-rm -rf /app/dist/* # remove the existing built files
-python setup.py sdist bdist_wheel
-```
+3. Start the Docker container:
 
-4. Install pytorch and package in local environment
-``` bash
-pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/rocm6.0
-pip install dist/*.whl
-```
-
-## Verify the Installation
-
-### End to end tests
-
-#### Transformer model Loading and Inference
-
-1. Save the `facebook/opt-1.3b` model in `./models` directory
-
-``` bash
-python3 examples/sllm_store/save_transformers_model.py --model_name facebook/opt-1.3b --storage_path ./models
-```
-
-2. Start the `sllm-store` server
-
-``` bash
-sllm-store start
-```
-
-3. Load the model and run the inference in another terminal
-
-``` bash
-python3 examples/sllm_store/load_transformers_model.py --model_name facebook/opt-1.3b --storage_path ./models
-```
-
-Expected Output:
-
-``` bash
-DEBUG 10-31 10:43:14 transformers.py:178] load_dict_non_blocking takes 0.008747100830078125 seconds
-DEBUG 10-31 10:43:14 transformers.py:189] load config takes 0.0016036033630371094 seconds
-DEBUG 10-31 10:43:14 torch.py:137] allocate_cuda_memory takes 0.0041697025299072266 seconds
-DEBUG 10-31 10:43:14 client.py:72] load_into_gpu: facebook/opt-1.3b, 544e032d-9080-429f-bbc0-cdbc2a298060
-INFO 10-31 10:43:14 client.py:113] Model loaded: facebook/opt-1.3b, 544e032d-9080-429f-bbc0-cdbc2a298060
-INFO 10-31 10:43:14 torch.py:160] restore state_dict takes 0.0017423629760742188 seconds
-DEBUG 10-31 10:43:14 transformers.py:199] load model takes 0.17534756660461426 seconds
-INFO 10-31 10:43:14 client.py:117] confirm_model_loaded: facebook/opt-1.3b, 544e032d-9080-429f-bbc0-cdbc2a298060
-INFO 10-31 10:43:14 client.py:125] Model loaded
-Model loading time: 0.20s
-~/miniconda3/envs/sllm/lib/python3.10/site-packages/transformers/generation/utils.py:1249: UserWarning: Using the model-agnostic default `max_length` (=20) to control the generation length. We recommend setting `max_new_tokens` to control the maximum length of the generation.
-  warnings.warn(
-Hello, my dog is cute and I want to give him a good home. I have a
-```
-
-#### vLLM model Loading and Inference
 :::tip
-Directly installing vLLM v0.5.0.post1 may not work with ROCm 6.2.0. This issue is due to the ambiguity of a function call in ROCm 6.2.0. You may change the vLLM's source code as in this [commit](https://github.com/vllm-project/vllm/commit/9984605412de1171a72d955cfcb954725edd4d6f).
-
-Similar as in CUDA, you need to apply our patch `sllm_store/vllm_patch/sllm_load.patch` to the installed vLLM library.
-```bash
-./sllm_store/vllm_patch/patch.sh
-```
+If you want to run inference outside the Docker container, you need to pass the port to the host machine. For example, `-p 8073:8073`. You can also get the wheel from the Docker container after starting it via `docker cp sllm_store_server:/app/dist .`.
 :::
 
-1. Save the `facebook/opt-1.3b` model in `./models` directory
-
 ``` bash
-python3 examples/sllm_store/save_vllm_model.py --model_name facebook/opt-1.3b --storage_path ./models
+docker run --name sllm_store_server --rm -it \
+  --device /dev/kfd --device /dev/dri \
+  --security-opt seccomp=unconfined \
+  -v $(pwd)/models:/models \
+  sllm_store_rocm
 ```
 
-2. Start the `sllm-store` server
+Expected output:
 
 ``` bash
-sllm-store start
+INFO 02-13 04:52:36 cli.py:76] Starting gRPC server
+INFO 02-13 04:52:36 server.py:40] StorageServicer: storage_path=/models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+I20250213 04:52:36.284631     1 checkpoint_store_hip.cpp:42] Number of GPUs: 1
+I20250213 04:52:36.284652     1 checkpoint_store_hip.cpp:44] I/O threads: 4, chunk size: 32MB
+I20250213 04:52:36.284659     1 checkpoint_store_hip.cpp:46] Storage path: "/models"
+I20250213 04:52:36.284674     1 checkpoint_store_hip.cpp:72] GPU 0 UUID: 61363865-3865-3038-3831-366132376261
+I20250213 04:52:36.425267     1 pinned_memory_pool_hip.cpp:30] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
+I20250213 04:52:37.333868     1 checkpoint_store_hip.cpp:84] Memory pool created with 4GB
+INFO 02-13 04:52:37 server.py:231] Starting gRPC server on 0.0.0.0:8073
+
 ```
 
-3. Load the model and run the inference in another terminal
+After starting the Docker container, you can enter the container and run the following command to test the installation.
 
 ``` bash
-python3 examples/sllm_store/load_vllm_model.py --model_name facebook/opt-1.3b --storage_path ./models
+docker exec -it sllm_store_server /bin/bash
 ```
 
-Expected Output:
+Try to save and load a transformer model:
 
 ``` bash
-INFO 10-31 11:05:16 llm_engine.py:161] Initializing an LLM engine (v0.5.0) with config: model='./models/facebook/opt-1.3b', speculative_config=None, tokenizer='./models/facebook/opt-1.3b', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, rope_scaling=None, rope_theta=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.float16, max_seq_len=2048, download_dir=None, load_format=LoadFormat.SERVERLESS_LLM, tensor_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, kv_cache_dtype=auto, quantization_param_path=None, device_config=cuda, decoding_config=DecodingConfig(guided_decoding_backend='outlines'), seed=0, served_model_name=./models/facebook/opt-1.3b)
-INFO 10-31 11:05:17 selector.py:56] Using ROCmFlashAttention backend.
-INFO 10-31 11:05:17 selector.py:56] Using ROCmFlashAttention backend.
-DEBUG 10-31 11:05:17 torch.py:137] allocate_cuda_memory takes 0.0005428791046142578 seconds
-DEBUG 10-31 11:05:17 client.py:72] load_into_gpu: facebook/opt-1.3b/rank_0, 9d7c0425-f652-4c4c-b1c5-fb6df0aab0a8
-INFO 10-31 11:05:17 client.py:113] Model loaded: facebook/opt-1.3b/rank_0, 9d7c0425-f652-4c4c-b1c5-fb6df0aab0a8
-INFO 10-31 11:05:17 torch.py:160] restore state_dict takes 0.0013034343719482422 seconds
-INFO 10-31 11:05:17 client.py:117] confirm_model_loaded: facebook/opt-1.3b/rank_0, 9d7c0425-f652-4c4c-b1c5-fb6df0aab0a8
-INFO 10-31 11:05:17 client.py:125] Model loaded
-INFO 10-31 11:05:17 model_runner.py:160] Loading model weights took 0.0000 GB
-INFO 10-31 11:05:25 gpu_executor.py:83] # GPU blocks: 18509, # CPU blocks: 1365
-INFO 10-31 11:05:26 model_runner.py:903] Capturing the model for CUDA graphs. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI.
-INFO 10-31 11:05:26 model_runner.py:907] CUDA graphs can take additional 1~3 GiB memory per GPU. If you are running out of memory, consider decreasing `gpu_memory_utilization` or enforcing eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
-INFO 10-31 11:05:31 model_runner.py:979] Graph capturing finished in 6 secs.
-Processed prompts: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:00<00:00, 12.13it/s, est. speed input: 78.83 toks/s, output: 194.04 toks/s]
-Prompt: 'Hello, my name is', Generated text: ' Joel, and I have been working as a web designer/developer for the'
-Prompt: 'The president of the United States is', Generated text: " speaking in an increasingly important national security forum and he's not using the right words"
-Prompt: 'The capital of France is', Generated text: " Paris.\nYeah but you couldn't get it through a French newspaper!"
-Prompt: 'The future of AI is', Generated text: ' literally in your hands\nDespite all the hype, AI isn’t here'
+python3 examples/save_transformers_model.py --model_name "facebook/opt-1.3b"
+python3 examples/load_transformers_model.py --model_name "facebook/opt-1.3b"
+```
+Expected output:
+
+``` bash
+DEBUG 02-13 04:58:09 transformers.py:178] load_dict_non_blocking takes 0.005706787109375 seconds
+DEBUG 02-13 04:58:09 transformers.py:189] load config takes 0.0013949871063232422 seconds
+DEBUG 02-13 04:58:09 torch.py:137] allocate_cuda_memory takes 0.001325368881225586 seconds
+DEBUG 02-13 04:58:09 client.py:72] load_into_gpu: facebook/opt-1.3b, d34e8994-37da-4357-a86c-2205175e3b3f
+INFO 02-13 04:58:09 client.py:113] Model loaded: facebook/opt-1.3b, d34e8994-37da-4357-a86c-2205175e3b3f
+INFO 02-13 04:58:09 torch.py:160] restore state_dict takes 0.0004620552062988281 seconds
+DEBUG 02-13 04:58:09 transformers.py:199] load model takes 0.06779956817626953 seconds
+INFO 02-13 04:58:09 client.py:117] confirm_model_loaded: facebook/opt-1.3b, d34e8994-37da-4357-a86c-2205175e3b3f
+INFO 02-13 04:58:14 client.py:125] Model loaded
+Model loading time: 5.14s
+tokenizer_config.json: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 685/685 [00:00<00:00, 8.26MB/s]
+vocab.json: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 899k/899k [00:00<00:00, 4.05MB/s]
+merges.txt: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 456k/456k [00:00<00:00, 3.07MB/s]
+special_tokens_map.json: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 441/441 [00:00<00:00, 4.59MB/s]
+/opt/conda/envs/py_3.10/lib/python3.10/site-packages/transformers/generation/utils.py:1249: UserWarning: Using the model-agnostic default `max_length` (=20) to control the generation length. We recommend setting `
+max_new_tokens` to control the maximum length of the generation.
+  warnings.warn(
+Hello, my dog is cute and I want to give him a good home. I have a
+
 ```
 
-### Python tests
+## Build the wheel from source and install
 
-1. Install the test dependencies
+Currently, `pip install .` does not work with ROCm. We suggest you build `sllm-store` wheel and manually install it in your environment.
+
+
+
+If there's a customized PyTorch version installed, you may need to run the following command to modify the `torch` version in `requirements.txt`:
 
 ```bash
-cd ServerlessLLM
-pip install -r requirements-test.txt
+python3 using_existing_torch.py
 ```
 
-2. Run the tests
-```
-cd ServerlessLLM/sllm_store/tests/python
-pytest
-```
-
-### C++ tests
-
-1. Build the C++ tests
+2. Build the wheel:
 
 ```bash
-cd ServerlessLLM/sllm_store
-bash build.sh
-```
-
-2. Run the tests
-
-```bash
-cd ServerlessLLM/sllm_store/build
-ctest --output-on-failure
+python setup.py sdist bdist_wheel
 ```
 
 ## Known issues
