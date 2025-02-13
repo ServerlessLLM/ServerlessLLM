@@ -277,6 +277,7 @@ def fully_parallel_load(
                     )
 
             model.tie_weights()
+            print(device_map)
             device_map = infer_auto_device_map(model)
             print(device_map)
 
