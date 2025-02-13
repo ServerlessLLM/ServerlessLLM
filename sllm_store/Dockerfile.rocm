@@ -30,12 +30,6 @@ RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
 
 WORKDIR /app
 
-# Set using existing torch
-COPY using_existing_torch.py .
-RUN python3 using_existing_torch.py
-COPY requirements-build.txt .
-RUN python3 -m pip install -r requirements-build.txt
-
 # Add the rest of the files
 COPY cmake ./cmake
 COPY CMakeLists.txt .
@@ -47,6 +41,13 @@ COPY MANIFEST.in .
 COPY requirements.txt .
 COPY README.md .
 COPY proto ./proto
+
+# Set using existing torch
+COPY using_existing_torch.py .
+RUN python3 using_existing_torch.py
+COPY requirements-build.txt .
+RUN python3 -m pip install -r requirements-build.txt
+
 
 # enable compile without AMD GPU
 ENV PYTORCH_ROCM_ARCH="gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
