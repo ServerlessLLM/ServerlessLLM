@@ -256,6 +256,12 @@ def replace_linear_with_quantized(
 
     bias = module.bias is not None
 
+    if (
+        quantization_config.llm_int8_skip_modules is not None
+        and name in quantization_config.llm_int8_skip_modules
+    ):
+        return
+
     # create new layer
     if quantization_config.quantization_method() == "llm_int8":  # int8
         new_layer = bnb.nn.Linear8bitLt(
@@ -266,29 +272,22 @@ def replace_linear_with_quantized(
             threshold=quantization_config.llm_int8_threshold,
         )
     else:  # 4bit (fp4, nf4)
-        if (
-            quantization_config.llm_int8_skip_modules is not None
-            and name in quantization_config.llm_int8_skip_modules
-        ):
-            return
+        extra_kwargs = (
+            {"quant_storage": quantization_config.bnb_4bit_quant_storage}
+            if "quant_storage"
+            in list(signature(bnb.nn.Linear4bit).parameters)
+            else {}
+        )
 
-        else:
-            extra_kwargs = (
-                {"quant_storage": quantization_config.bnb_4bit_quant_storage}
-                if "quant_storage"
-                in list(signature(bnb.nn.Linear4bit).parameters)
-                else {}
-            )
-
-            new_layer = bnb.nn.Linear4bit(
-                in_features,
-                out_features,
-                bias=bias,
-                compute_dtype=quantization_config.bnb_4bit_compute_dtype,
-                compress_statistics=quantization_config.bnb_4bit_use_double_quant,
-                quant_type=quantization_config.bnb_4bit_quant_type,
-                **extra_kwargs,
-            )
+        new_layer = bnb.nn.Linear4bit(
+            in_features,
+            out_features,
+            bias=bias,
+            compute_dtype=quantization_config.bnb_4bit_compute_dtype,
+            compress_statistics=quantization_config.bnb_4bit_use_double_quant,
+            quant_type=quantization_config.bnb_4bit_quant_type,
+            **extra_kwargs,
+        )
 
     new_layer.to("cuda")
 
