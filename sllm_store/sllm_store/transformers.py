@@ -460,7 +460,7 @@ def best_effort_load(
                     )
 
             model.tie_weights()
-            device_map = infer_auto_device_map(model)
+#            device_map = infer_auto_device_map(model)
 
         else:
             for name, param in state_dict.items():
