@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # ROCm Quick Start
 
-ServerlessLLM Store (`sllm-store`) currently supports ROCm platform. However, there are no pre-built wheels for ROCm. 
+ServerlessLLM Store (`sllm-store`) currently supports ROCm platform. However, there are no pre-built wheels for ROCm.
 
 Due to an internal bug in ROCm, serverless-llm-store may face a GPU memory leak in ROCm before version 6.2.0, as noted in [issue](https://github.com/ROCm/HIP/issues/3580).
 

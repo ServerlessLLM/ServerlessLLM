@@ -26,7 +26,7 @@ RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
     && apt-get update -y \
     && apt-get install -y ccache software-properties-common git curl sudo \
     && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update -y 
+    && apt-get update -y
 
 WORKDIR /app
 
