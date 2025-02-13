@@ -38,6 +38,9 @@ RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
 # Install PyTorch
 RUN python3 -m pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/rocm6.0
 
+# Set CMake Prefix Path
+ENV CMAKE_PREFIX_PATH=/opt/rocm
+
 WORKDIR /app
 
 # Install other parts listed in requirement-build
