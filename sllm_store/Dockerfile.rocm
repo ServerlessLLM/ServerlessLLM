@@ -43,10 +43,10 @@ COPY README.md .
 COPY proto ./proto
 
 # Set using existing torch
-COPY using_existing_torch.py .
-RUN python3 using_existing_torch.py
 COPY requirements-build.txt .
 RUN python3 -m pip install -r requirements-build.txt
+COPY using_existing_torch.py .
+RUN python3 using_existing_torch.py
 
 
 # enable compile without AMD GPU
