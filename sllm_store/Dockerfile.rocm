@@ -16,10 +16,9 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-ARG ROCM_VERSION=6.3
+ARG BASE_IMAGE="rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0"
 # Stage 1: Build the wheel
-FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION} AS builder
-ARG PYTHON_VERSION=3.10
+FROM ${BASE_IMAGE} AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
@@ -27,25 +26,15 @@ RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
     && apt-get update -y \
     && apt-get install -y ccache software-properties-common git curl sudo \
     && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update -y \
-    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
-    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
-    && ln -sf /usr/bin/python${PYTHON_VERSION}-config /usr/bin/python3-config \
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
-    && python3 --version && python3 -m pip --version
-
-# Install PyTorch
-RUN python3 -m pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/rocm6.0
-
-# Set CMake Prefix Path
-ENV CMAKE_PREFIX_PATH=/opt/rocm
+    && apt-get update -y 
 
 WORKDIR /app
 
-# Install other parts listed in requirement-build
-COPY requirements-build-rocm.txt .
-RUN pip install -r requirements-build-rocm.txt
+# Set using existing torch
+COPY using_existing_torch.py .
+RUN python3 using_existing_torch.py
+COPY requirements-build.txt .
+RUN python3 -m pip install -r requirements-build.txt
 
 # Add the rest of the files
 COPY cmake ./cmake
@@ -65,31 +54,15 @@ ENV PYTORCH_ROCM_ARCH="gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100
 RUN python3 setup.py sdist bdist_wheel
 
 # Stage 2: Start sllm store
-FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}
+FROM ${BASE_IMAGE}
 
-ARG PYTHON_VERSION=3.10
 ENV DEBIAN_FRONTEND=noninteractive
-
-RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
-    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
-    && apt-get update -y \
-    && apt-get install -y ccache software-properties-common git curl sudo \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update -y \
-    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
-    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
-    && ln -sf /usr/bin/python${PYTHON_VERSION}-config /usr/bin/python3-config \
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
-    && python3 --version && python3 -m pip --version
-
-# Install PyTorch
-RUN python3 -m pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/rocm6.0
 
 WORKDIR /app
 
 # Copy the built wheels from the builder
 COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/requirements.txt /app/requirements.txt
 
 # Install the built wheels
 RUN python3 -m pip install /app/dist/*.whl
