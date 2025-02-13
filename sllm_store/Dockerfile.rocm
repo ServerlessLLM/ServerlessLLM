@@ -68,5 +68,5 @@ COPY --from=builder /app/requirements.txt /app/requirements.txt
 # Install the built wheels
 RUN python3 -m pip install /app/dist/*.whl
 
-
-# ENTRYPOINT [ "/bin/bash", "-c" ]
+ENTRYPOINT [ "sllm-store", "start" ]
+CMD [ "--storage_path", "/models", "--mem-pool-size", "4GB" ]
