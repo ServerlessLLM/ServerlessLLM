@@ -129,4 +129,24 @@ def create_app() -> FastAPI:
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
 
+    @app.get("/v1/models")
+    async def get_models():
+        logger.info("Attempting to retrieve the controller actor")
+        try:
+            controller = ray.get_actor("controller")
+            if not controller:
+                logger.error("Controller not initialized")
+                raise HTTPException(
+                    status_code=500, detail="Controller not initialized"
+                )
+            logger.info("Controller actor found")
+            result = await controller.status.remote()
+            logger.info("Controller status retrieved successfully")
+            return result
+        except Exception as e:
+            logger.error(f"Error retrieving models: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail="Failed to retrieve models"
+            )
+
     return app
