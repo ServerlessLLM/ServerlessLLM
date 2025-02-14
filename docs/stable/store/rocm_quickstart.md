@@ -65,8 +65,8 @@ docker exec -it sllm_store_server /bin/bash
 Try to save and load a transformer model:
 
 ``` bash
-python3 examples/save_transformers_model.py --model_name "facebook/opt-1.3b"
-python3 examples/load_transformers_model.py --model_name "facebook/opt-1.3b"
+python3 examples/save_transformers_model.py --model_name "facebook/opt-1.3b" --storage_path "/models"
+python3 examples/load_transformers_model.py --model_name "facebook/opt-1.3b" --storage_path "/models"
 ```
 Expected output:
 

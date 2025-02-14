@@ -108,7 +108,7 @@ parser.add_argument(
 parser.add_argument(
     "--storage_path",
     type=str,
-    default="/models",
+    default="./models",
     help="Local path to save the model.",
 )
 parser.add_argument(
