@@ -182,7 +182,7 @@ class SllmController:
     async def get_models(self):
         async with self.metadata_lock:
             return self.registered_models
-        
+
     async def status(self):
         """
         Returns the status of all registered models in OpenAI-compliant format.
@@ -191,8 +191,12 @@ class SllmController:
             models = []
             for model_name, config in self.registered_models.items():
                 # Extract or calculate relevant fields
-                created_time = config.get("created", int(datetime.datetime.now().timestamp()))
-                max_model_len = config.get("max_model_len", 32768)  # Default value
+                created_time = config.get(
+                    "created", int(datetime.datetime.now().timestamp())
+                )
+                max_model_len = config.get(
+                    "max_model_len", 32768
+                )  # Default value
                 model_permission_id = f"modelperm-{model_name}"
                 permission = [
                     {
@@ -225,7 +229,6 @@ class SllmController:
                 models.append(model_metadata)
 
             return {"object": "list", "data": models}
-
 
     async def shutdown(self):
         # stop the control loop

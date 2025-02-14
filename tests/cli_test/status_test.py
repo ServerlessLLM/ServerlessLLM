@@ -1,6 +1,7 @@
 import unittest
-from unittest.mock import patch, MagicMock
 from argparse import Namespace
+from unittest.mock import MagicMock, patch
+
 from sllm.cli.status import StatusCommand
 
 
@@ -68,7 +69,7 @@ class TestStatusCommand(unittest.TestCase):
             headers={"Content-Type": "application/json"},
         )
         self.assertIsNone(status)
-    
+
     @patch("sllm.cli.status.StatusCommand.query_status")
     @patch("sllm.cli.status.logger.info")
     def test_run_success(self, mock_logger_info, mock_query_status):
@@ -133,6 +134,6 @@ class TestStatusCommand(unittest.TestCase):
             )
             self.assertEqual(status, {"data": "mocked_model_status"})
 
-    
+
 if __name__ == "__main__":
     unittest.main()
