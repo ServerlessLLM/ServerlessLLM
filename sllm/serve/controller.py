@@ -182,6 +182,50 @@ class SllmController:
     async def get_models(self):
         async with self.metadata_lock:
             return self.registered_models
+        
+    async def status(self):
+        """
+        Returns the status of all registered models in OpenAI-compliant format.
+        """
+        async with self.metadata_lock:
+            models = []
+            for model_name, config in self.registered_models.items():
+                # Extract or calculate relevant fields
+                created_time = config.get("created", int(datetime.datetime.now().timestamp()))
+                max_model_len = config.get("max_model_len", 32768)  # Default value
+                model_permission_id = f"modelperm-{model_name}"
+                permission = [
+                    {
+                        "id": model_permission_id,
+                        "object": "model_permission",
+                        "created": created_time,
+                        "allow_create_engine": False,  # Updated to match OpenAI example
+                        "allow_sampling": True,
+                        "allow_logprobs": True,
+                        "allow_search_indices": False,
+                        "allow_view": True,
+                        "allow_fine_tuning": False,
+                        "organization": "*",
+                        "group": None,
+                        "is_blocking": False,
+                    }
+                ]
+
+                # Build the model metadata entry
+                model_metadata = {
+                    "id": model_name,
+                    "object": "model",
+                    "created": created_time,
+                    "owned_by": "sllm",
+                    "root": model_name,
+                    "parent": None,
+                    "max_model_len": max_model_len,
+                    "permission": permission,
+                }
+                models.append(model_metadata)
+
+            return {"object": "list", "data": models}
+
 
     async def shutdown(self):
         # stop the control loop
