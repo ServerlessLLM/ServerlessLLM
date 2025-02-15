@@ -1,7 +1,8 @@
-import unittest
-from unittest.mock import patch, MagicMock
-from argparse import Namespace
 import sys
+import unittest
+from argparse import Namespace
+from unittest.mock import MagicMock, patch
+
 # import os
 # sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from sllm.cli.status import StatusCommand
@@ -98,17 +99,21 @@ class TestStatusCommand(unittest.TestCase):
             self.assertEqual(status, {"data": "mocked_model_status"})
 
     @patch("builtins.print")
-    @patch.object(StatusCommand, "query_status", return_value={
-        "object": "list",
-        "data": [
-            {
-                "id": "facebook/opt-1.3b",
-                "object": "model",
-                "created": 1738960470,
-                # etc. – the rest of the dict...
-            }
-        ]
-    })
+    @patch.object(
+        StatusCommand,
+        "query_status",
+        return_value={
+            "object": "list",
+            "data": [
+                {
+                    "id": "facebook/opt-1.3b",
+                    "object": "model",
+                    "created": 1738960470,
+                    # etc. – the rest of the dict...
+                }
+            ],
+        },
+    )
     def test_run_success(self, mock_query_status, mock_print):
         """
         Test that StatusCommand.run() logs a success if query_status returns a non-None result.
@@ -127,9 +132,8 @@ class TestStatusCommand(unittest.TestCase):
         found_line = any("Model status: {" in line for line in printed_lines)
         self.assertTrue(
             found_line,
-            f"Expected a printed line containing 'Model status: {{', got: {printed_lines}"
+            f"Expected a printed line containing 'Model status: {{', got: {printed_lines}",
         )
-
 
     @patch("sllm.cli.status.logger.error")
     @patch.object(StatusCommand, "query_status", return_value=None)
@@ -142,9 +146,10 @@ class TestStatusCommand(unittest.TestCase):
         cmd.run()
 
         mock_query_status.assert_called_once()
-        mock_logger_error.assert_called_once_with("Failed to fetch model status.")
+        mock_logger_error.assert_called_once_with(
+            "Failed to fetch model status."
+        )
 
-    
 
 if __name__ == "__main__":
     unittest.main()
