@@ -1,7 +1,9 @@
 import unittest
+from unittest.mock import patch, MagicMock
 from argparse import Namespace
-from unittest.mock import MagicMock, patch
-
+import sys
+# import os
+# sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from sllm.cli.status import StatusCommand
 
 
@@ -70,45 +72,6 @@ class TestStatusCommand(unittest.TestCase):
         )
         self.assertIsNone(status)
 
-    @patch("sllm.cli.status.StatusCommand.query_status")
-    @patch("sllm.cli.status.logger.info")
-    def test_run_success(self, mock_logger_info, mock_query_status):
-        """Test the run method when query_status is successful."""
-        # Mock query_status to return a valid response
-        mock_query_status.return_value = {"data": "mocked_model_status"}
-
-        # Initialize StatusCommand with dummy args
-        args = Namespace()
-        command = StatusCommand(args)
-
-        # Execute run
-        command.run()
-
-        # Debug: Print what was actually logged
-        print("Logger info calls:", mock_logger_info.call_args_list)
-
-        # Assertions
-        mock_query_status.assert_called_once()
-        mock_logger_info.assert_called_once()
-
-    @patch("sllm.cli.status.StatusCommand.query_status")
-    @patch("sllm.cli.status.logger.error")
-    def test_run_failure(self, mock_logger_error, mock_query_status):
-        """Test the run method when query_status fails."""
-        # Mock query_status to return None
-        mock_query_status.return_value = None
-
-        # Initialize StatusCommand with dummy args
-        args = Namespace()
-        command = StatusCommand(args)
-
-        # Execute run
-        command.run()
-
-        # Assertions
-        mock_query_status.assert_called_once()
-        mock_logger_error.assert_called_with("Failed to fetch model status.")
-
     @patch("sllm.cli.status.requests.get")
     def test_query_status_custom_url(self, mock_get):
         """Test query_status with a custom server URL."""
@@ -134,6 +97,54 @@ class TestStatusCommand(unittest.TestCase):
             )
             self.assertEqual(status, {"data": "mocked_model_status"})
 
+    @patch("builtins.print")
+    @patch.object(StatusCommand, "query_status", return_value={
+        "object": "list",
+        "data": [
+            {
+                "id": "facebook/opt-1.3b",
+                "object": "model",
+                "created": 1738960470,
+                # etc. – the rest of the dict...
+            }
+        ]
+    })
+    def test_run_success(self, mock_query_status, mock_print):
+        """
+        Test that StatusCommand.run() logs a success if query_status returns a non-None result.
+        """
+        args = Namespace()
+        cmd = StatusCommand(args)
+        cmd.run()
+        # Check that we actually called query_status
+        mock_query_status.assert_called_once()
+
+        # Extract all 'print(...)' calls.
+        printed_lines = [args[0] for args, kwargs in mock_print.call_args_list]
+
+        # You probably have only one print call in this scenario, but let's be safe and check them all:
+        # We expect something like: "Model status: {'object': 'list', 'data': [...]}"
+        found_line = any("Model status: {" in line for line in printed_lines)
+        self.assertTrue(
+            found_line,
+            f"Expected a printed line containing 'Model status: {{', got: {printed_lines}"
+        )
+
+
+    @patch("sllm.cli.status.logger.error")
+    @patch.object(StatusCommand, "query_status", return_value=None)
+    def test_run_failure(self, mock_query_status, mock_logger_error):
+        """
+        Test that StatusCommand.run() logs an error if query_status returns None.
+        """
+        args = Namespace()
+        cmd = StatusCommand(args)
+        cmd.run()
+
+        mock_query_status.assert_called_once()
+        mock_logger_error.assert_called_once_with("Failed to fetch model status.")
+
+    
 
 if __name__ == "__main__":
     unittest.main()
