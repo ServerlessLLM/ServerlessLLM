@@ -234,9 +234,7 @@ def fully_parallel_load(
             )
 
             for name, param in state_dict.items():
-                print(name)
-                print(param)
-                set_module_quantized_tensor_to_device(model, name, param.device)
+                set_module_quantized_tensor_to_device(model, name, param.device, param)
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
