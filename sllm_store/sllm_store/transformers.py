@@ -23,7 +23,7 @@ import uuid
 from typing import Optional, Union
 
 import torch
-from accelerate import dispatch_model, init_empty_weights, infer_auto_device_map
+from accelerate import dispatch_model, init_empty_weights
 
 # from accelerate.hooks import add_hook_to_module
 from accelerate.utils import set_module_tensor_to_device
@@ -54,7 +54,10 @@ from sllm_store.utils import (
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
 from transformers.quantizers.quantizers_utils import get_module_from_name
-from transformers.integrations.bitsandbytes import set_module_quantized_tensor_to_device, replace_with_bnb_linear
+from transformers.integrations.bitsandbytes import (
+    set_module_quantized_tensor_to_device,
+    replace_with_bnb_linear,
+)
 import bitsandbytes as bnb
 import importlib
 
@@ -226,12 +229,12 @@ def fully_parallel_load(
             if quantization_config.llm_int8_enable_fp32_cpu_offload:
                 logger.debug("Offloading is not supported yet")
 
-            model = replace_with_bnb_linear(model, quantization_config=quantization_config)
+            model = replace_with_bnb_linear(
+                model, quantization_config=quantization_config
+            )
 
             for name, param in state_dict.items():
-                set_quantized_module_tensor_to_device(
-                    model, name, param.device
-                )
+                set_module_quantized_tensor_to_device(model, name, param.device)
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
@@ -417,7 +420,7 @@ def best_effort_load(
                     )
 
             model.tie_weights()
-#            device_map = infer_auto_device_map(model)
+        #            device_map = infer_auto_device_map(model)
 
         else:
             for name, param in state_dict.items():
