@@ -54,6 +54,7 @@ from sllm_store.utils import (
 from torch import nn
 from transformers import AutoConfig, GenerationConfig
 from transformers.quantizers.quantizers_utils import get_module_from_name
+from transformers.integrations.bitsandbytes import set_module_quantized_tensor_to_device, replace_with_bnb_linear
 import bitsandbytes as bnb
 import importlib
 
@@ -225,54 +226,12 @@ def fully_parallel_load(
             if quantization_config.llm_int8_enable_fp32_cpu_offload:
                 logger.debug("Offloading is not supported yet")
 
-            for name, _param in state_dict.items():
-                module = get_module_from_name(model, name)
-                if (
-                    isinstance(module[0], (nn.Linear, nn.Conv1d))
-                    and name.endswith(".weight")
-                    and "lm_head" not in name
-                ):
-                    replace_linear_with_quantized(
-                        model, name, module, quantization_config
-                    )
+            model = replace_with_bnb_linear(model, quantization_config=quantization_config)
 
             for name, param in state_dict.items():
-                module = get_module_from_name(model, name)[0]
-                param = param.to(torch.float16).to("cuda")
-
-                if name.endswith(".weight") and isinstance(
-                    module, (bnb.nn.Linear4bit, bnb.nn.Linear8bitLt)
-                ):
-                    if isinstance(module, bnb.nn.Linear4bit):
-                        # 4-bit (nf4/fp4) quantization
-                        module.weight = bnb.nn.Params4bit(
-                            param,
-                            requires_grad=False,
-                            compress_statistics=True,
-                            quant_type=quantization_config.bnb_4bit_quant_type,
-                            quant_storage=quantization_config.bnb_4bit_quant_storage,
-                            module=module,
-                        )._quantize("cuda")
-
-                    else:
-                        # 8-bit quantization
-                        cb, scb, _ = bnb.functional.int8_vectorwise_quant(param)
-                        module.weight = bnb.nn.Int8Params(
-                            cb,
-                            requires_grad=False,
-                            has_fp16_weights=False,
-                            CB=cb,
-                            SCB=scb,
-                        )
-
-                else:
-                    # non-quantized parameters
-                    set_module_tensor_to_device(
-                        model, name, param.device, param
-                    )
-
-            model.tie_weights()
-
+                set_quantized_module_tensor_to_device(
+                    model, name, param.device
+                )
         else:
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
