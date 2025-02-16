@@ -16,6 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
+import datetime
 from typing import Mapping, Optional
 
 import ray
@@ -191,12 +192,8 @@ class SllmController:
             models = []
             for model_name, config in self.registered_models.items():
                 # Extract or calculate relevant fields
-                created_time = config.get(
-                    "created", int(datetime.datetime.now().timestamp())
-                )
-                max_model_len = config.get(
-                    "max_model_len", 32768
-                )  # Default value
+                created_time = config.get("created", None)
+                max_model_len = config.get("max_model_len", None)
                 model_permission_id = f"modelperm-{model_name}"
                 permission = [
                     {
@@ -219,11 +216,15 @@ class SllmController:
                 model_metadata = {
                     "id": model_name,
                     "object": "model",
-                    "created": created_time,
+                    "created": created_time
+                    if created_time is not None
+                    else "",  # Keep empty if unavailable
                     "owned_by": "sllm",
                     "root": model_name,
                     "parent": None,
-                    "max_model_len": max_model_len,
+                    "max_model_len": max_model_len
+                    if max_model_len is not None
+                    else "",
                     "permission": permission,
                 }
                 models.append(model_metadata)

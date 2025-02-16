@@ -36,7 +36,7 @@ class StatusCommand:
         status_parser.set_defaults(func=StatusCommand)
 
     def __init__(self, args: Namespace) -> None:
-        self.endpoint = "v1/models"  # TODO: as a argument
+        self.endpoint = "v1/models"  # TODO: as an argument
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
             + self.endpoint
