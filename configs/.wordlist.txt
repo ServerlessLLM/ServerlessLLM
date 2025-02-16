@@ -692,6 +692,7 @@ HPC
 HPCs
 HPC's
 SLURM
+slurm
 SBATCH
 JOBIDs
 nvcc
@@ -738,3 +739,4 @@ StorageAwareScheduler
 StoreManager
 deallocated
 fcfs
+nodelist
