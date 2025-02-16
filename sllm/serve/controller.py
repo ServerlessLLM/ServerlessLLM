@@ -212,6 +212,9 @@ class SllmController:
                     }
                 ]
 
+                if permission is None:
+                    permission = []
+
                 # Build the model metadata entry
                 model_metadata = {
                     "id": model_name,
