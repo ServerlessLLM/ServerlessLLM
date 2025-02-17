@@ -35,14 +35,19 @@ class TestSllmCLI(unittest.TestCase):
     @patch("sllm.cli.fine_tuning.FineTuningCommand")
     def test_fine_tuning_command(self, mock_fine_tuning_command):
         # Simulate command-line input
-        test_args = ["sllm-cli", "--base_model", "bigscience/bloomz-560m"]
+        test_args = [
+            "sllm-cli",
+            "fine-tuning",
+            "--base_model",
+            "bigscience/bloomz-560m",
+        ]
         with patch.object(sys, "argv", test_args):
             main()
 
         # Check that GenerateCommand was called with the correct arguments
         mock_fine_tuning_command.assert_called_once()
         self.assertEqual(
-            mock_fine_tuning_command.call_args[0][0].model,
+            mock_fine_tuning_command.call_args[0][0].base_model,
             "bigscience/bloomz-560m",
         )
 
