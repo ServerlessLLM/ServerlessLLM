@@ -179,7 +179,7 @@ class RoundRobinRouter(SllmRouter):
 
         instance_allocation = self.loop.create_future()
         await self.request_queue.put(instance_allocation)
-        logger.info(f"Enqueued request for model {self.model_name}")
+        logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
 
         instance_id = await instance_allocation
         logger.info(f"{request_data}, type: {type(request_data)}")
@@ -188,6 +188,7 @@ class RoundRobinRouter(SllmRouter):
                 logger.error(f"Instance {instance_id} not found")
                 return {"error": "Instance not found"}
             instance = self.ready_instances[instance_id]
+            instance.concurrency = 1
 
         result = await instance.backend_instance.fine_tuning.remote(
             request_data=request_data
