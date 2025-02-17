@@ -18,9 +18,19 @@
 import os
 from unittest.mock import patch
 
+import peft
 import pytest
 import torch
-from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
+from datasets import load_dataset
+from peft import LoraConfig, PeftModel, get_peft_model
+from transformers import (
+    AutoModel,
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    PreTrainedTokenizerBase,
+    Trainer,
+    TrainingArguments,
+)
 
 from sllm.serve.backends.backend_utils import BackendStatus
 from sllm.serve.backends.transformers_backend import (
@@ -354,3 +364,43 @@ def test_generate_without_init(transformers_backend):
         }
         response = transformers_backend.generate(request_data)
         assert "error" in response
+
+
+def test_fine_tuning(transformers_backend, model, tokenizer):
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize",
+        return_value=tokenizer,
+    ):
+        transformers_backend.init_backend()
+        input = {
+            "model": "facebook/opt-125m",
+            "ft_backend": "peft",
+            "dataset_config": {
+                "dataset_source": "hf_hub",
+                "hf_dataset_name": "fka/awesome-chatgpt-prompts",
+                "tokenization_field": "prompt",
+                "split": "train[:10%]",
+                "data_files": "",
+                "extension_type": "",
+            },
+            "lora_config": {
+                "r": 4,
+                "lora_alpha": 1,
+                "target_modules": ["q_proj", "v_proj"],
+                "lora_dropout": 0.05,
+                "bias": "lora_only",
+                "task_type": "CAUSAL_LM",
+            },
+            "training_config": {
+                "auto_find_batch_size": True,
+                "num_train_epochs": 2,
+                "learning_rate": 0.0001,
+                "use_cpu": False,
+            },
+        }
+        result = transformers_backend.fine_tuning(input)
+        assert "error" not in result
+        assert "model" in result and "lora_save_path" in result
