@@ -1,22 +1,28 @@
+import json
 import os
+import unittest
+
 import pytest
-import unittest 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from sllm_store.transformers import save_model, load_model
-import json
+
+from sllm_store.transformers import load_model, save_model
+
 
 @pytest.fixture(scope="session")
 def model_name():
     return "facebook/opt-1.3b"
 
+
 @pytest.fixture(scope="session")
 def storage_path(tmp_path_factory):
     return tmp_path_factory.mktemp("models")
 
+
 @pytest.fixture
 def model_path(model_name, storage_path):
     return os.path.join(storage_path, model_name)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_models(model_name, storage_path):
@@ -27,15 +33,17 @@ def setup_models(model_name, storage_path):
 
 
 # quantization configs
-@pytest.fixture(params=[
-    BitsAndBytesConfig(load_in_4bit=True),
-    BitsAndBytesConfig(load_in_8bit=True),
-    BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_quant_type="nf4"
-    )
-])
+@pytest.fixture(
+    params=[
+        BitsAndBytesConfig(load_in_4bit=True),
+        BitsAndBytesConfig(load_in_8bit=True),
+        BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4",
+        ),
+    ]
+)
 def get_quantization_config(request):
     return request.param
 
@@ -46,7 +54,7 @@ def hf_model(get_quantization_config, model_name):
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=get_quantization_config,
-        device_map="auto"
+        device_map="auto",
     )
     yield model
     del model
@@ -59,7 +67,7 @@ def sllm_model(get_quantization_config, model_name, storage_path):
         model_name,
         storage_path=storage_path,
         quantization_config=get_quantization_config,
-        device_map="auto"
+        device_map="auto",
     )
     yield model
     del model
@@ -71,18 +79,21 @@ def compare_state_dicts(transformers_model, sllm_model):
     """Compares model state dicts with support for partial quantization."""
     transformers_params = transformers_model.state_dict()
     sllm_params = sllm_model.state_dict()
-    
+
     # ignore lm_head
-    ignore_candidates = {'lm_head', 'lm_head.weight'}
+    ignore_candidates = {"lm_head", "lm_head.weight"}
     ignore_keys = {
-        k for k in ignore_candidates 
+        k
+        for k in ignore_candidates
         if k in transformers_params and k in sllm_params
     }
-    
-    # get comparable keys 
+
+    # get comparable keys
     transformers_keys = set(transformers_params.keys()) - ignore_keys
     sllm_keys = set(sllm_params.keys()) - ignore_keys
-    assert transformers_keys == sllm_keys, f"Key mismatch. Diff: {transformers_keys.symmetric_difference(sllm_keys)}"
+    assert (
+        transformers_keys == sllm_keys
+    ), f"Key mismatch. Diff: {transformers_keys.symmetric_difference(sllm_keys)}"
 
     for key in transformers_keys:
         t_param = transformers_params[key]
@@ -99,6 +110,7 @@ def compare_state_dicts(transformers_model, sllm_model):
             f"Dtype mismatch for {key}: "
             f"Transformers={t_param.dtype}, SLLM={s_param.dtype}"
         )
+
 
 def test_valid_quantization(hf_model, sllm_model):
     compare_state_dicts(hf_model, sllm_model)
