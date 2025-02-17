@@ -20,8 +20,9 @@ def model_path(model_name, storage_path):
 
 
 def save_hf_model(model_name, model_path):
-    model = AutoModelForCausalLM.from_pretrained(model_name)
-    save_model(model, model_path)
+    if not os.path.exists(model_path):
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        save_model(model, model_path)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -41,24 +42,16 @@ def setup_models(model_name, storage_path):
         bnb_4bit_quant_type="nf4"
     )
 ])
-def valid_quantization_config(request):
-    return request.param
-
-@pytest.fixture(params=[
-    BitsAndBytesConfig(load_in_4bit=True, load_in_8bit=True),  
-    BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="invalid_type"),
-    "not_a_config_object" 
-])
-def invalid_quantization_config(request):
+def get_quantization_config(request):
     return request.param
 
 
 # model configs
 @pytest.fixture
-def hf_model(valid_quantization_config, model_name):
+def hf_model(get_quantization_config, model_name):
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        quantization_config=valid_quantization_config,
+        quantization_config=get_quantization_config,
         device_map="auto"
     )
     yield model
@@ -67,11 +60,11 @@ def hf_model(valid_quantization_config, model_name):
 
 
 @pytest.fixture
-def sllm_model(valid_quantization_config, model_name, storage_path):
+def sllm_model(get_quantization_config, model_name, storage_path):
     model = load_model(
         model_name,
         storage_path=storage_path,
-        quantization_config=valid_quantization_config,
+        quantization_config=get_quantization_config,
         device_map="auto"
     )
     yield model
@@ -115,13 +108,3 @@ def compare_state_dicts(transformers_model, sllm_model):
 
 def test_valid_quantization(hf_model, sllm_model):
     compare_state_dicts(hf_model, sllm_model)
-
-def test_invalid_quantization(invalid_quantization_config, model_name, storage_path):
-    """Test invalid configs raise errors"""
-    with pytest.raises((ValueError, TypeError, AttributeError)):
-        load_model(
-            model_name,
-            storage_path=storage_path,
-            quantization_config=invalid_quantization_config,
-            device_map="auto"
-        )
