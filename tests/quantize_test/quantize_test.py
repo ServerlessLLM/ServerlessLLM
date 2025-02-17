@@ -3,7 +3,7 @@ import pytest
 import unittest 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from sllm_store import save_model, load_model
+from sllm_store.transformers import save_model, load_model
 import json
 
 @pytest.fixture
