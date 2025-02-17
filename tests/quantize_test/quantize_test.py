@@ -6,7 +6,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from sllm_store.transformers import save_model, load_model
 import json
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def model_name():
     return "facebook/opt-1.3b"
 
@@ -18,18 +18,12 @@ def storage_path(tmp_path_factory):
 def model_path(model_name, storage_path):
     return os.path.join(storage_path, model_name)
 
-
-def save_hf_model(model_name, model_path):
-    if not os.path.exists(model_path):
-        model = AutoModelForCausalLM.from_pretrained(model_name)
-        save_model(model, model_path)
-
-
 @pytest.fixture(scope="session", autouse=True)
 def setup_models(model_name, storage_path):
-    """Save original model before tests"""
+    """Save the original model before tests."""
     os.makedirs(storage_path, exist_ok=True)
-    save_hf_model(model_name, os.path.join(storage_path, model_name))
+    model = AutoModelForCausalLM.from_pretrained("facebook/opt-1.3b")
+    save_model(model, os.path.join(storage_path, "facebook/opt-1.3b"))
 
 
 # quantization configs
