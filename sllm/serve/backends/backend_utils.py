@@ -62,7 +62,6 @@ class SllmBackend(ABC):
     async def resume_kv_cache(self, request_datas: List[List[int]]) -> None:
         pass
 
+    @abstractmethod
     async def fine_tuning(self, request_data: Dict[str, Any]):
-        raise NotImplementedError(
-            "Fine-tuning is not supported in this backend"
-        )
+        pass

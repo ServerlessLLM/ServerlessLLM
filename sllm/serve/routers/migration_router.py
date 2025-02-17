@@ -245,3 +245,8 @@ class MigrationRouter(RoundRobinRouter):
                 instance_status.num_current_tokens = 0
             logger.info(f"Instance status: {instance_status}")
             return instance_status
+
+    async def fine_tuning(self, request_data: dict):
+        raise NotImplementedError(
+            "Fine-tuning is only applicable on roundrobin router"
+        )
