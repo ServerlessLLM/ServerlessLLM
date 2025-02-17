@@ -232,6 +232,10 @@ def fully_parallel_load(
             )
 
             for name, param in state_dict.items():
+
+                if param.dtype not in [torch.uint8, torch.int8]:
+                    param = param.to(torch.float16)
+
                 set_module_quantized_tensor_to_device(
                     model, name, param.device, param
                 )
