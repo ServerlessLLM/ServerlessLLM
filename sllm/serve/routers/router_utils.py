@@ -54,3 +54,8 @@ class SllmRouter(ABC):
     @abstractmethod
     async def inference(self, request_data: dict):
         pass
+
+    async def fine_tuning(self, request_data: dict):
+        raise NotImplementedError(
+            "Fine-tuning is only applicable on roundrobin router"
+        )
