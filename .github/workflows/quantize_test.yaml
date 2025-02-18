@@ -35,6 +35,14 @@ jobs:
         run: |
           cd sllm_store && pip install .
 
+      - name: Start sllm-store Server
+        run: |
+          export MODEL_FOLDER="./models"
+          mkdir -p $MODEL_FOLDER
+          nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 16GB
+          sleep 10
+
       - name: Run Python tests
         run: |
+          export MODEL_FOLDER="./models"
           pytest tests/quantize_test

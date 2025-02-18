@@ -15,8 +15,11 @@ def model_name():
 
 
 @pytest.fixture(scope="session")
-def storage_path(tmp_path_factory):
-    return tmp_path_factory.mktemp("models")
+def storage_path():
+    model_folder = os.getenv('MODEL_FOLDER')
+    if model_folder:
+        return model_folder
+    return pytest.tmp_path_factory.mktemp("models")
 
 
 @pytest.fixture
