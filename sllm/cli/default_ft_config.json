@@ -1,5 +1,5 @@
 {
-    "model": "bigscience/bloomz-560m",
+    "model": "",
     "ft_backend": "peft",
     "dataset_config": {
         "dataset_source": "hf_hub",

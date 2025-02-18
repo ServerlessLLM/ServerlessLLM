@@ -71,8 +71,9 @@ class FineTuningCommand:
 
     def run(self) -> None:
         config_data = read_config(self.config_path)
+        config_data["model"] = self.base_model
         self.validate_config(config_data)
-        logger.info(f"Start fine-tuning base model {self.base_model}")
+        logger.info(f"Start fine-tuning base model {config_data['model']}")
         result = self.fine_tuning(config_data)
         logger.info(f"{result}")
 
@@ -83,7 +84,7 @@ class FineTuningCommand:
         response = requests.post(self.url, headers=headers, json=config)
 
         if response.status_code == 200:
-            logger.info(f"{self.base_model} fine-tuned successful.")
+            logger.info(f"{config['model']} fine-tuned successful.")
             return response.json()
         else:
             logger.error(
