@@ -15,21 +15,20 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-FROM rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0
 
-# Set non-interactive installation
+ARG BASE_IMAGE="rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0"
+# Stage 1: Build the wheel
+FROM ${BASE_IMAGE} AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install necessary packages for wget and HTTPS
-RUN apt-get update && apt-get install -y wget bzip2 ca-certificates git \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
+    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
+    && apt-get update -y \
+    && apt-get install -y ccache software-properties-common git curl sudo \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update -y
 
 WORKDIR /app
-
-# Install other parts listed in requirement-build
-COPY requirements-build-rocm.txt .
-RUN pip install -r requirements-build-rocm.txt
 
 # Add the rest of the files
 COPY cmake ./cmake
@@ -43,7 +42,34 @@ COPY requirements.txt .
 COPY README.md .
 COPY proto ./proto
 
+# Set using existing torch
+COPY requirements-build.txt .
+COPY using_existing_torch.py .
+RUN python3 using_existing_torch.py
+RUN python3 -m pip install -r requirements-build.txt
+
+
 # enable compile without AMD GPU
 ENV PYTORCH_ROCM_ARCH="gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
 
-# ENTRYPOINT [ "/bin/bash", "-c" ]
+RUN python3 setup.py sdist bdist_wheel
+
+# Stage 2: Start sllm store
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+# Copy the built wheels from the builder
+COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/requirements.txt /app/requirements.txt
+
+# Install the built wheels
+RUN python3 -m pip install /app/dist/*.whl
+
+# Copy the examples
+COPY examples /app/examples
+
+ENTRYPOINT [ "sllm-store", "start" ]
+CMD [ "--storage-path", "/models", "--mem-pool-size", "4GB" ]
