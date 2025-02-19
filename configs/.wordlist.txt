@@ -747,3 +747,7 @@ quant
 fp
 FP
 precisions
+InitGoogleLogging
+PinnedMemoryPool
+StorageServicer
+cpp
