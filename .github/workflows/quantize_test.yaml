@@ -36,6 +36,7 @@ jobs:
           cd sllm_store && pip install .
 
       - name: Start sllm-store Server, Run Python Tests
+        timeout-minutes: 30
         run: |
           export MODEL_FOLDER="./models"
           mkdir -p $MODEL_FOLDER
