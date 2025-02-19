@@ -193,7 +193,8 @@ class SllmController:
             for model_name, config in self.registered_models.items():
                 # Extract or calculate relevant fields
                 created_time = config.get("created", None)
-                max_model_len = config.get("max_model_len", None)
+                max_model_len = config.get("max_position_embeddings", None)
+
                 model_permission_id = f"modelperm-{model_name}"
                 permission = [
                     {

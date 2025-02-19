@@ -265,3 +265,16 @@ sllm-cli update [OPTIONS]
 sllm-cli update --model facebook/opt-1.3b
 sllm-cli update --config /path/to/config.json
 ```
+
+### sllm-cli status
+Check the information of deployed models
+
+#### Usage
+```bash
+sllm-cli status
+```
+
+#### Example
+```bash
+sllm-cli status
+```
