@@ -9,7 +9,7 @@ on:
       - 'sllm_store/**'
 
 jobs:
-  sllm_store_tests:
+  quantize_test:
     runs-on: [self-hosted, nvidia]
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
     timeout-minutes: 60
