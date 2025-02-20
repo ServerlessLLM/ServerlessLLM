@@ -744,3 +744,7 @@ StorageAwareScheduler
 StoreManager
 deallocated
 fcfs
+InitGoogleLogging
+PinnedMemoryPool
+StorageServicer
+cpp
