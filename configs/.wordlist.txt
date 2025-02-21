@@ -744,6 +744,15 @@ StorageAwareScheduler
 StoreManager
 deallocated
 fcfs
+bitsandbytes
+BitsAndBytes
+BitsAndBytesConfig
+bnb
+nf
+quant
+fp
+FP
+precisions
 InitGoogleLogging
 PinnedMemoryPool
 StorageServicer
