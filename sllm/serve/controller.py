@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 import asyncio
 import datetime
+import os
 from typing import Mapping, Optional
 
 import ray
@@ -190,9 +191,28 @@ class SllmController:
         """
         async with self.metadata_lock:
             models = []
+            model_folder = os.getenv("MODEL_FOLDER")
             for model_name, config in self.registered_models.items():
                 # Extract or calculate relevant fields
+                model_path = config.get("_name_or_path", None)
+                created_time = next(
+                    (int(os.path.getctime(os.path.abspath(dirpath)))
+                    for dirpath, _, _ in os.walk(model_folder)
+                    if dirpath.endswith(model_path)),
+                    None
+                ) if model_path else None
+                
                 created_time = config.get("created", None)
+                allow_create_engine = config.get("allow_create_engine", None)
+                allow_sampling = config.get("allow_sampling", None)
+                allow_logprobs = config.get("allow_logprobs", None)
+                allow_search_indices = config.get("allow_search_indices", None)
+                allow_view = config.get("allow_view", None)
+                allow_fine_tuning = config.get("allow_fine_tuning", None)
+                organization = config.get("organization", "*")
+                group = config.get("group", None)
+                is_blocking = config.get("is_blocking", None)
+
                 max_model_len = config.get("max_position_embeddings", None)
 
                 model_permission_id = f"modelperm-{model_name}"
@@ -200,21 +220,18 @@ class SllmController:
                     {
                         "id": model_permission_id,
                         "object": "model_permission",
-                        "created": created_time,
-                        "allow_create_engine": False,  # Updated to match OpenAI example
-                        "allow_sampling": True,
-                        "allow_logprobs": True,
-                        "allow_search_indices": False,
-                        "allow_view": True,
-                        "allow_fine_tuning": False,
-                        "organization": "*",
-                        "group": None,
-                        "is_blocking": False,
+                        "created": created_time if created_time is not None else None,
+                        "allow_create_engine": allow_create_engine if allow_create_engine is not None else None,
+                        "allow_sampling": allow_sampling if allow_sampling is not None else None,
+                        "allow_logprobs": allow_logprobs if allow_logprobs is not None else None,
+                        "allow_search_indices": allow_search_indices if allow_search_indices is not None else None,
+                        "allow_view": allow_view if allow_view is not None else None,
+                        "allow_fine_tuning": allow_fine_tuning if allow_fine_tuning is not None else None,
+                        "organization": organization if organization is not None else None,
+                        "group": group if group is not None else None,
+                        "is_blocking": is_blocking if is_blocking is not None else None,
                     }
                 ]
-
-                if permission is None:
-                    permission = []
 
                 # Build the model metadata entry
                 model_metadata = {
@@ -222,18 +239,18 @@ class SllmController:
                     "object": "model",
                     "created": created_time
                     if created_time is not None
-                    else "",  # Keep empty if unavailable
+                    else None, 
                     "owned_by": "sllm",
                     "root": model_name,
                     "parent": None,
                     "max_model_len": max_model_len
                     if max_model_len is not None
-                    else "",
+                    else None,
                     "permission": permission,
                 }
                 models.append(model_metadata)
 
-            return {"object": "list", "data": models}
+            return {"object": "list", "models": models}
 
     async def shutdown(self):
         # stop the control loop
