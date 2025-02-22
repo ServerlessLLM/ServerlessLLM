@@ -266,6 +266,83 @@ sllm-cli update --model facebook/opt-1.3b
 sllm-cli update --config /path/to/config.json
 ```
 
+### sllm-cli fine-tuning
+Fine-tuning the deployed model.
+
+##### Usage
+```bash
+sllm-cli fine-tuning [OPTIONS]
+```
+
+##### Options
+- `--base_model <model_name>`
+  - Base model name to be fine-tuned
+- `--config <config_path>`
+  - Path to the JSON configuration file.
+
+##### Example
+```bash
+sllm-cli fine-tuning --base_model <model_name>
+sllm-cli fine-tuning --base_model <model_name> --config <path_to_ft_config_file>
+```
+
+##### Example Configuration File (`ft_config.json`)
+```json
+{
+    "model": "bigscience/bloomz-560m",
+    "ft_backend": "peft",
+    "dataset_config": {
+        "dataset_source": "hf_hub",
+        "hf_dataset_name": "fka/awesome-chatgpt-prompts",
+        "tokenization_field": "prompt",
+        "split": "train[:10%]",
+        "data_files": "",
+        "extension_type": ""
+    },
+    "lora_config": {
+        "r": 4,
+        "lora_alpha": 1,
+        "target_modules": ["query_key_value"],
+        "lora_dropout": 0.05,
+        "bias": "lora_only",
+        "task_type": "CAUSAL_LM"
+    },
+    "training_config": {
+        "auto_find_batch_size": true,
+        "num_train_epochs": 2,
+        "learning_rate": 0.0001,
+        "use_cpu": false
+    }
+}
+```
+
+Below is a description of all the fields in ft_config.json.
+
+| Field                                | Description                                                                                                                                                                                |
+|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| model                                | This should be a deployed model name, used to identify the backend instance.                                                                                                                     |
+| ft_backend                           | fine-tuning engine, only support `peft` now.                                                                                                                                               |
+| dataset_config                       | Config about the fine-tuning dataset                                                                                                                                                       |
+| dataset_config.dataset_source        | dataset is from `hf_hub` (huggingface_hub) or `local` file                                                                                                                                 |
+| dataset_config.hf_dataset_name       | dataset name on huggingface_hub                                                                                                                                                            |
+| dataset_config.tokenization_field    | the field to tokenize                                                                                                                                                                      |
+| dataset_config.split                 | Partitioning of the dataset (`train`, `validation` and `test`), You can also split the selected dataset, e.g. take only the top 10% of the training data: train[:10%]                                                                                                                             |
+| dataset_config.data_files            | data files will be loaded from local                                                                                                                                                       |
+| dataset_config.extension_type        | extension type of data files (`csv`, `json`, `parquet`, `arrow`)                                                                                                                           |
+| lora_config                          | Config about lora                                                                                                                                                                          |
+| lora_config.r                        | `r` defines how many parameters will be trained.                                                                                                                                           |
+| lora_config.lora_alpha               | A multiplier controlling the overall strength of connections within a neural network, typically set at 1                                                                                   |
+| lora_config.target_modules           | a list of the target_modules available on the [Hugging Face Documentation](https://github.com/huggingface/peft/blob/39ef2546d5d9b8f5f8a7016ec10657887a867041/src/peft/utils/other.py#L220) |
+| lora_config.lora_dropout             | used to avoid overfitting                                                                                                                                                                  |
+| lora_config.bias                     | use `none` or `lora_only`                                                                                                                                                                  |
+| lora_config.task_type                | Indicates the task the model is begin trained for                                                                                                                                          |
+| training_config                      | Config about training parameters                                                                                                                                                           |
+| training_config.auto_find_batch_size | Find a correct batch size that fits the size of Data.                                                                                                                                      |
+| training_config.num_train_epochs     | Total number of training rounds                                                                                                                                                            |
+| training_config.learning_rate        | learning rate                                                                                                                                                                              |
+| training_config.optim                | select an optimiser                                                                                                                                                                        |
+| training_config.use_cpu              | if use cpu to train                                                                                                                                                                        |
+
 ### sllm-cli status
 Check the information of deployed models
 

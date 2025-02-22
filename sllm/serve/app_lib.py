@@ -121,6 +121,21 @@ def create_app() -> FastAPI:
         result = request_router.inference.remote(body, action)
         return await result
 
+    async def fine_tuning_handler(request: Request):
+        body = await request.json()
+        model_name = body.get("model")
+        logger.info(f"Received request for model {model_name}")
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model_name in request body"
+            )
+
+        request_router = ray.get_actor(model_name, namespace="models")
+        logger.info(f"Got request router for {model_name}")
+
+        result = request_router.fine_tuning.remote(body)
+        return await result
+
     @app.post("/v1/chat/completions")
     async def generate_handler(request: Request):
         return await inference_handler(request, "generate")
@@ -129,7 +144,11 @@ def create_app() -> FastAPI:
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
 
-    @app.get("/v1/models")
+    @app.post("/fine-tuning")
+    async def fine_tuning(request: Request):
+        return await fine_tuning_handler(request)
+    
+        @app.get("/v1/models")
     async def get_models():
         logger.info("Attempting to retrieve the controller actor")
         try:
