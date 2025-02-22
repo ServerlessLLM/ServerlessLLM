@@ -195,13 +195,19 @@ class SllmController:
             for model_name, config in self.registered_models.items():
                 # Extract or calculate relevant fields
                 model_path = config.get("_name_or_path", None)
-                created_time = next(
-                    (int(os.path.getctime(os.path.abspath(dirpath)))
-                    for dirpath, _, _ in os.walk(model_folder)
-                    if dirpath.endswith(model_path)),
-                    None
-                ) if model_path else None
-                
+                created_time = (
+                    next(
+                        (
+                            int(os.path.getctime(os.path.abspath(dirpath)))
+                            for dirpath, _, _ in os.walk(model_folder)
+                            if dirpath.endswith(model_path)
+                        ),
+                        None,
+                    )
+                    if model_path
+                    else None
+                )
+
                 created_time = config.get("created", None)
                 allow_create_engine = config.get("allow_create_engine", None)
                 allow_sampling = config.get("allow_sampling", None)
@@ -220,16 +226,34 @@ class SllmController:
                     {
                         "id": model_permission_id,
                         "object": "model_permission",
-                        "created": created_time if created_time is not None else None,
-                        "allow_create_engine": allow_create_engine if allow_create_engine is not None else None,
-                        "allow_sampling": allow_sampling if allow_sampling is not None else None,
-                        "allow_logprobs": allow_logprobs if allow_logprobs is not None else None,
-                        "allow_search_indices": allow_search_indices if allow_search_indices is not None else None,
-                        "allow_view": allow_view if allow_view is not None else None,
-                        "allow_fine_tuning": allow_fine_tuning if allow_fine_tuning is not None else None,
-                        "organization": organization if organization is not None else None,
+                        "created": created_time
+                        if created_time is not None
+                        else None,
+                        "allow_create_engine": allow_create_engine
+                        if allow_create_engine is not None
+                        else None,
+                        "allow_sampling": allow_sampling
+                        if allow_sampling is not None
+                        else None,
+                        "allow_logprobs": allow_logprobs
+                        if allow_logprobs is not None
+                        else None,
+                        "allow_search_indices": allow_search_indices
+                        if allow_search_indices is not None
+                        else None,
+                        "allow_view": allow_view
+                        if allow_view is not None
+                        else None,
+                        "allow_fine_tuning": allow_fine_tuning
+                        if allow_fine_tuning is not None
+                        else None,
+                        "organization": organization
+                        if organization is not None
+                        else None,
                         "group": group if group is not None else None,
-                        "is_blocking": is_blocking if is_blocking is not None else None,
+                        "is_blocking": is_blocking
+                        if is_blocking is not None
+                        else None,
                     }
                 ]
 
@@ -239,7 +263,7 @@ class SllmController:
                     "object": "model",
                     "created": created_time
                     if created_time is not None
-                    else None, 
+                    else None,
                     "owned_by": "sllm",
                     "root": model_name,
                     "parent": None,

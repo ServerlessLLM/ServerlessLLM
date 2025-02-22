@@ -147,8 +147,8 @@ def create_app() -> FastAPI:
     @app.post("/fine-tuning")
     async def fine_tuning(request: Request):
         return await fine_tuning_handler(request)
-    
-        @app.get("/v1/models")
+
+    @app.get("/v1/models")
     async def get_models():
         logger.info("Attempting to retrieve the controller actor")
         try:
