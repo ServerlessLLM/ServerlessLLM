@@ -146,7 +146,6 @@ class RoundRobinRouter(SllmRouter):
             self.request_count += 1
             if self.registry != None:
                 self.arrived_request_counter.inc()
-                # push_to_gateway(self.pushgateway_url, job="roundrobin_router", registry=self.registry)
 
         async with self.idle_time_lock:
             self.idle_time = 0
