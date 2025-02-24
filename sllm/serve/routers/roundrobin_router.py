@@ -18,7 +18,9 @@
 import asyncio
 import logging
 import uuid
+import os
 from typing import Dict, Optional
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway, Counter
 
 import ray
 
@@ -93,7 +95,20 @@ class RoundRobinRouter(SllmRouter):
         self.idle_time_lock = asyncio.Lock()
 
         self.auto_scaler = None
+
+        self.pushgateway_url = self.router_config.get("pushgateway_url","")
+        self.registry = None
+        if self.pushgateway_url != None:
+            self.registry = CollectorRegistry()
+            # Set metrics to be recorded
+            self.num_running_instances = Gauge("num_running_instances", "Number of running instances", registry=self.registry)
+            self.num_running_instances.set(0)
+
+            self.arrived_request_counter = Counter("arrived_request_counter", "Total arrived requests", registry=self.registry)
+            logger.info(f"Prometheus pushgateway metrics registered")
         logger.info(f"Created new handler for model {self.model_name}")
+
+
 
     async def start(self, auto_scaling_config: Dict[str, int]):
         self.model_loading_scheduler = ray.get_actor("model_loading_scheduler")
@@ -129,6 +144,9 @@ class RoundRobinRouter(SllmRouter):
 
         async with self.request_count_lock:
             self.request_count += 1
+            if self.registry != None:
+                self.arrived_request_counter.inc()
+                # push_to_gateway(self.pushgateway_url, job="roundrobin_router", registry=self.registry)
 
         async with self.idle_time_lock:
             self.idle_time = 0
@@ -270,6 +288,12 @@ class RoundRobinRouter(SllmRouter):
                 num_running_instances = len(self.starting_instances) + len(
                     self.ready_instances
                 )
+
+            # if pushgateway url is not empty, push metrics to pushgateway
+            if self.registry != None:
+                self.num_running_instances.set(num_running_instances)
+                push_to_gateway(self.pushgateway_url, job="roundrobin_router", registry=self.registry)
+                
             logger.info(
                 f"{self.model_name}: {num_running_instances} instances,"
                 f"need {desired_instances} instances",

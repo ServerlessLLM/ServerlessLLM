@@ -56,6 +56,12 @@ def main():
         action="store_true",
         help="Enable live migration of model instances.",
     )
+    start_parser.add_argument(
+        "--pushgateway_url",
+        default="",
+        type=str,
+        help="URL that runs prometheus pushgateway" 
+    )
     args = parser.parse_args()
 
     try:
@@ -68,6 +74,7 @@ def main():
                 {
                     "enable_storage_aware": args.enable_storage_aware,
                     "enable_migration": args.enable_migration,
+                    "pushgateway_url": args.pushgateway_url,
                 }
             )
             ray.get(controller.start.remote())
