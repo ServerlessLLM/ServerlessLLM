@@ -6,10 +6,29 @@ sidebar_position: 4
 
 This guide will help you get started with running ServerlessLLM on SLURM cluster, connecting them to the head node, and starting the `sllm-store` on the worker node. Additionally, this guide will also show how to quickly setup with Docker Compose. Please make sure you have installed the ServerlessLLM following the [installation guide](./installation.md) on all machines.
 
-## Job Nodes Setup
-Let's start a head on the main job node (```JobNode01```) and add the worker on other job node (```JobNode02```). The head and the worker should be on different job nodes to avoid resource contention. The ```sllm-store``` should be started on the job node that runs worker (```JobNode02```), for passing the model weights, and the ```sllm-serve``` should be started on the main job node (```JobNode01```), finally you can use ```sllm-cli``` to manage the models on the login node.
+## Some Tips about Installation
+- Both installation and build require an internet connection. please make sure the port 443 on the job node you want to install is accessible.
+- If your conda is located in `/opt/conda`. Remember to add the following commands in `~/.bashrc`.
+  ```
+  export PATH="/opt/conda/bin:$PATH"
+  source /opt/conda/etc/profile.d/conda.sh
+  ```
+- Exit the cluster and re-login, If the terminal prompt like: `(base)[uthread]username@hostname`, it means that conda has been successfully loaded.
+- Importantly, we recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) if there is no CUDA driver on the node you want to install. If you want to [install from source](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-from-source), please make sure CUDA driver available on the node you want to install. Here are some commands to check it.
+   ```shell
+   module avail cuda # if you can see some CUDA options, it means CUDA is available, then load the cuda module
+   module load cuda-12.x # load specific CUDA version
+   # or
+   nvidia-smi # if you can see the GPU information, it means CUDA is available
+   # or
+   which nvcc # if you can see the CUDA compiler's path, it means CUDA is available
+   ```
+   However, we **strongly recommend that you read the documentation for the HPC you are using** to find out how to check if the CUDA driver is available.
 
-Note: ```JobNode02``` requires GPU, but ```JobNode01``` does not.
+## Job Nodes Setup
+Let's start a head on the main job node (`JobNode01`) and add the worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs worker (`JobNode02`), for passing the model weights, and the `sllm-serve` should be started on the main job node (`JobNode01`), finally you can use `sllm-cli` to manage the models on the login node.
+
+Note: `JobNode02` requires GPU, but `JobNode01` does not.
 - **Head**: JobNode01
 - **Worker**: JobNode02
 - **sllm-store**: JobNode02
@@ -27,7 +46,7 @@ PARTITION           NODELIST            GRES
 Partition1          JobNode[01,03]      gpu:gtx_1060:8
 Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
 ```
-### Step 1: Start the Head Node
+## Step 1: Start the Head Node
 1. **Identify an idle node**
 
     Since the head node does not require a gpu, you can find a low-computing capacity node to deploy the head node.
@@ -53,14 +72,14 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
 
     cd /path/to/ServerlessLLM
 
-
-    source ~/.bashrc
-    export PATH="$HOME/.local/bin:$PATH"
-
+    export PATH="/opt/conda/bin:$PATH"
+    source /opt/conda/etc/profile.d/conda.sh # make sure conda will be loaded correctly
     conda activate sllm
 
     ray start --head --port=6379 --num-cpus=12 --num-gpus=0 --resources='{"control_node": 1}' --block
     ```
+   - Replace `your-partition`, `JobNode01` and `/path/to/ServerlessLLM`
+
 3. **Submit the script**
 
     Use ```sbatch start_head_node.sh``` to submit the script to certain idle node.
@@ -75,7 +94,7 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
     Ray runtime started.
     --------------------
     ```
-   Remember the IP address, denoted ```<HEAD_NODE_IP>```, you will need it in following steps.
+   **Remember the IP address**, denoted ```<HEAD_NODE_IP>```, you will need it in following steps.
 
 ### Step 2: Start the Worker Node & Store
 We will start the worker node and store in the same script. Because the server loads the model weights onto the GPU and uses shared GPU memory to pass the pointer to the client. If you submit another script with ```#SBATCH --gpres=gpu:1```, it will be possibly set to use a different GPU, as specified by different ```CUDA_VISIBLE_DEVICES``` settings. Thus, they cannot pass the model weights.
