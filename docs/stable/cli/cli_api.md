@@ -342,3 +342,16 @@ Below is a description of all the fields in ft_config.json.
 | training_config.learning_rate        | learning rate                                                                                                                                                                              |
 | training_config.optim                | select an optimiser                                                                                                                                                                        |
 | training_config.use_cpu              | if use cpu to train                                                                                                                                                                        |
+
+### sllm-cli status
+Check the information of deployed models
+
+#### Usage
+```bash
+sllm-cli status
+```
+
+#### Example
+```bash
+sllm-cli status
+```
