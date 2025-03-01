@@ -89,13 +89,12 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
     #SBATCH --error=sllm_head.err
     #SBATCH --nodes=1
     #SBATCH --ntasks=1
-    #SBATCH --cpus-per-task=4
+    #SBATCH --cpus-per-task=12
     #SBATCH --gpus-per-task=0
 
     cd /path/to/ServerlessLLM
 
-    export PATH="/opt/conda/bin:$PATH"
-    source /opt/conda/etc/profile.d/conda.sh # make sure conda will be loaded correctly
+    source /opt/conda/bin/activate # make sure conda will be loaded correctly
     conda activate sllm
 
     ray start --head --port=6379 --num-cpus=12 --num-gpus=0 --resources='{"control_node": 1}' --block
