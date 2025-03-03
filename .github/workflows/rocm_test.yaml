@@ -1,4 +1,4 @@
-name: Build ROCm wheel for sllm-store
+name: ROCm test
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
 
 
 jobs:
-  build_rocm_wheel:
+  rocm_test:
     runs-on: [self-hosted, amd]
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
     container:
@@ -23,6 +23,12 @@ jobs:
         run: |
             apt-get update && apt-get install -y ca-certificates git wget bzip2
             python -m pip install --upgrade pip
+            pip install -r requirements-test.txt
+
+      - name: Set up using existing torch
+        working-directory: sllm_store
+        run: |
+            python using_existing_torch.py
 
       - name: Build wheel
         working-directory: sllm_store
@@ -30,5 +36,24 @@ jobs:
         env:
           PYTORCH_ROCM_ARCH: "gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
         run: |
-            pip install -r requirements-build-rocm.txt
+            pip install -r requirements-build.txt
             python setup.py sdist bdist_wheel
+
+      - name: Install wheel
+        working-directory: sllm_store
+        run: |
+            pip install dist/*.whl
+
+      - name: Run Python tests (excluding vllm)
+        working-directory: sllm_store
+        run: |
+            pytest tests/python/test_save_model.py
+            pytest tests/python/test_utils.py
+
+      - name: Run C++ tests
+        working-directory: sllm_store
+        env:
+          PYTORCH_ROCM_ARCH: "gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
+        run: |
+            bash cpp_build.sh
+            ctest --output-on-failure
