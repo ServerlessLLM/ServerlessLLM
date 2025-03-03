@@ -232,7 +232,10 @@ def fully_parallel_load(
             )
 
             for name, param in state_dict.items():
-                if param.dtype not in [torch.uint8, torch.int8]:
+                if (
+                    param.dtype not in [torch.uint8, torch.int8]
+                    and torch_dtype is None
+                ):
                     param = param.to(torch.float16)
 
                 set_module_quantized_tensor_to_device(
@@ -243,11 +246,13 @@ def fully_parallel_load(
                 set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
 
-    dispatch_model(model, device_map)
-    model.eval()
+    dispatch_model(
+        model, device_map, skip_keys=model._skip_keys_device_placement
+    )
 
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
+    model.eval()
     model.hf_device_map = device_map
 
     return model
@@ -385,7 +390,10 @@ def best_effort_load(
             )
 
             for name, param in state_dict.items():
-                if param.dtype not in [torch.uint8, torch.int8]:
+                if (
+                    param.dtype not in [torch.uint8, torch.int8]
+                    and torch_dtype is None
+                ):
                     param = param.to(torch.float16)
 
                 set_module_quantized_tensor_to_device(
@@ -396,7 +404,9 @@ def best_effort_load(
                 set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
 
-    dispatch_model(model, device_map)
+    dispatch_model(
+        model, device_map, skip_keys=model._skip_keys_device_placement
+    )
 
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
