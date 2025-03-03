@@ -235,6 +235,7 @@ class TransformersBackend(SllmBackend):
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
+        lora_adapter = request_data.get("lora_adapter", "")
 
         # Combine messages to form the prompt
         prompt = self.tokenizer.apply_chat_template(
