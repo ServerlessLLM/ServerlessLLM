@@ -66,12 +66,12 @@ class DeployCommand:
             help="Overwrite the maximum instances in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--enable-lora",
+            "--enable_lora",
             action="store_true",
             help="Enable LoRA adapter support.",
         )
         deploy_parser.add_argument(
-            "--lora-adapters",
+            "--lora_adapters",
             type=str,
             nargs="+",
             help="Specify LoRA adapters in the format <name>=<path>.",
