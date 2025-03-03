@@ -49,7 +49,7 @@ jobs:
           export MODEL_FOLDER="./models"
           pytest tests/quantize_test
 
-  quantize_test_amd: 
+  quantize_test_amd:
     runs-on: [self-hosted, amd]
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
     timeout-minutes: 60
@@ -62,7 +62,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get update && apt-get install -y ca-certificates git
+          apt-get update && apt-get install -y ca-certificates git wget bzip2
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
 
