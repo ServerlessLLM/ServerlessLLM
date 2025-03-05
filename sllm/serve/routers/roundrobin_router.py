@@ -148,9 +148,16 @@ class RoundRobinRouter(SllmRouter):
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
         if action == "generate":
-            result = await instance.backend_instance.generate.remote(
-                request_data=request_data
-            )
+            # TODO 测试直接传递generator是否可行
+            if request_data.get("stream", False):
+                result = instance.backend_instance.generate_stream.options(
+                    num_returns="streaming"
+                ).remote(request_data=request_data)
+            else:
+                result = await instance.backend_instance.generate.remote(
+                    request_data=request_data
+                )
+
         elif action == "encode":
             result = await instance.backend_instance.encode.remote(
                 request_data=request_data

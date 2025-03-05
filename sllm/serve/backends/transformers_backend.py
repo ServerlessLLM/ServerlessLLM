@@ -15,12 +15,14 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import asyncio
 import json
 import os
 import threading
 import time
 import uuid
 from copy import deepcopy
+from queue import Empty
 from typing import Any, Dict, List, Optional
 
 import peft
@@ -33,6 +35,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     PreTrainedTokenizerBase,
+    TextIteratorStreamer,
     Trainer,
     TrainingArguments,
 )
@@ -94,6 +97,7 @@ class TransformersBackend(SllmBackend):
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
         self.inf_status = InferenceStatus(self.status)
         self.status_lock = threading.Lock()
+        self.loop = asyncio.new_event_loop()
         self.model = None
         self.tokenizer = None
         self.past_key_values = None
@@ -223,6 +227,43 @@ class TransformersBackend(SllmBackend):
         }
 
         return response
+
+    async def generate_stream(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                raise Exception("Model not initialized")
+
+        assert self.model is not None
+
+        messages = request_data.get("messages", [])
+        temperature = float(request_data.get("temperature", 0.7))
+        max_tokens = int(request_data.get("max_tokens", 1024))
+
+        # Combine messages to form the prompt
+        prompt = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=False
+        )
+
+        if not prompt:
+            raise Exception("Missing prompt in request data")
+
+        inputs = self._tokenize(prompt)
+        streamer = TextIteratorStreamer(
+            self.tokenizer,
+            timeout=10,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
+        self.loop.run_in_executor(
+            None, self.generate_text, inputs, streamer, temperature, max_tokens
+        )
+        while True:
+            try:
+                for token in streamer:
+                    yield token
+                break
+            except Empty:
+                await asyncio.sleep(0.01)
 
     def generate(self, request_data: Optional[Dict[str, Any]]):
         with self.status_lock:

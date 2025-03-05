@@ -20,8 +20,10 @@ from contextlib import asynccontextmanager
 import ray
 import ray.exceptions
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from sllm.serve.logger import init_logger
+from sllm.serve.openai_api_protocol import chat_completion_stream_generator
 
 logger = init_logger(__name__)
 
@@ -117,6 +119,15 @@ def create_app() -> FastAPI:
 
         request_router = ray.get_actor(model_name, namespace="models")
         logger.info(f"Got request router for {model_name}")
+
+        if body.get("stream", False):
+            generator = request_router.inference_stream.remote(body)
+            chat_generator = chat_completion_stream_generator(
+                model_name, generator
+            )
+            return StreamingResponse(
+                chat_generator, media_type="text/event-stream"
+            )
 
         result = request_router.inference.remote(body, action)
         return await result
