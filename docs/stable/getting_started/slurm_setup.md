@@ -142,7 +142,7 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
        print(f'Available port: {s.getsockname()[1]}')
    "
    ```
-   Use `sbatch fine_port.sh` to submit the script to JobNode01, and in `find_port.log`, you will see the following output:
+   Use `sbatch find_port.sh` to submit the script to JobNode01, and in `find_port.log`, you will see the following output:
    ```
    Finding available port on JobNode01
    Available port: <avail_port>
