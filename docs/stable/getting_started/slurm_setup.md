@@ -94,9 +94,10 @@ If you are in development, we recommend using `srun` to start ServerlessLLM, as 
 ### Step 1: Use `srun` enter the JobNode
 To start an interactive session on the specified compute node (JobNode), use:
 ```
-srun --partition <your-partition> --nodelist <JobNode> --pty bash
+srun --partition <your-partition> --nodelist <JobNode> --gres <DEVICE>:1 --pty bash
 ```
-This command requests a session on the specified node and provides an interactive shell.
+This command requests a session on the specified node and provides an interactive shell. `--gres <DEVICE>:1` specifies the GPU device you will use, for example: `--gres gpu:gtx_1060:1`
+
 ### Step 2: Prepare multiple windows with `tmux`
 Since srun provides a single interactive shell, you can use tmux to create multiple windows. Start a tmux session:
 ```shell
@@ -127,18 +128,22 @@ Once multiple windows are created, you can switch between them using:
 `Ctrl + B` → [Number] (Switch to a specific window, e.g., Ctrl + B → 1)
 
 ### Step 3: Run ServerlessLLM on the JobNode
+First find ports that are already occupied. Then pick your favourite number from the remaining ports to replace the following placeholder `<PORT>`. For example: `6379`
+
+It should also be said that certain slurm system is a bit slow, **so please be patient and wait for the system to output**.
+
 In the first window, start a local ray cluster with 1 head node and 1 worker node:
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm
-ray start --head --port=6379 --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' --block
+ray start --head --port=<PORT> --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' --block
 ```
 In the second window, start the worker node:
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm-worker
 export CUDA_VISIBLE_DEVICES=0
-ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
+ray start --address=0.0.0.0:<PORT> --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
 ```
 In the third window, start ServerlessLLM Store server:
 ```shell
@@ -160,9 +165,9 @@ In the 5th window, let's deploy a model to the ServerlessLLM server. You can dep
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm
-sllm-cli deploy --model facebook/opt-1.3b
+sllm-cli deploy --model facebook/opt-1.3b --backend transformers
 ```
-This will download the model from HuggingFace. After deploying, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
+This will download the model from HuggingFace transformers. After deploying, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```shell
 curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
