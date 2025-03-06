@@ -58,18 +58,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Install dependencies
         run: |
           apt-get update && apt-get install -y ca-certificates git wget bzip2
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
-          
+
       - name: Set up using existing torch
         working-directory: sllm_store
         run: |
           python using_existing_torch.py
-          
+
       - name: Build wheel
         working-directory: sllm_store
         shell: bash
@@ -78,19 +78,19 @@ jobs:
         run: |
           pip install -r requirements-build.txt
           python setup.py sdist bdist_wheel
-          
+
       - name: Install wheel
         working-directory: sllm_store
         run: |
           pip install dist/*.whl
-          
+
       - name: Start sllm-store Server
         run: |
           export MODEL_FOLDER="./models"
           mkdir -p $MODEL_FOLDER
           nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 16GB > server.log 2>&1 &
           sleep 10
-          
+
       - name: Run quantize tests
         timeout-minutes: 30
         run: |
