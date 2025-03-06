@@ -105,7 +105,7 @@ tmux
 This creates a new tmux session
 
 **Create multiple windows**
-- Use `Ctrl+B C` to start a new window
+- Use `Ctrl+B` → `C` to start a new window
 - Repeat the shortcut 4 more times to create a total of 5 windows.
 
 **What if `Ctrl+B` does not work?**
@@ -118,6 +118,7 @@ tmux bind C-b send-prefix
 ```
 
 **Command to switch windows**
+
 Once multiple windows are created, you can switch between them using:
 
 `Ctrl + B` → `N` (Next window)
