@@ -80,6 +80,8 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
     compute    up        2  down   infinite   JobNode[16-17]
     ```
 2. **Activate the `sllm` environment and start the head node:**
+
+    Here is the example script, named `start_head_node.sh`.
     ```shell
     #!/bin/bash
     #SBATCH --partition=your-partition    # Specify the partition
@@ -120,6 +122,7 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
 5. **Find an available port for serve**
   - Some HPCs have a firewall that blocks port 8343. You can use `nc -zv <HEAD_NODE_IP> 8343` to check if the port is accessible.
   - If it is not accessible, find an available port and replace `available_port` in the following script.
+  - Here is an example script, named `find_port.sh`
 
    ```shell
    #!/bin/bash
@@ -139,9 +142,7 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
        print(f'Available port: {s.getsockname()[1]}')
    "
    ```
-   Use `sbatch start_head_node.sh` to submit the script to certain idle node.
-
-   In `find_port.log`, you will see the following output:
+   Use `sbatch fine_port.sh` to submit the script to JobNode01, and in `find_port.log`, you will see the following output:
    ```
    Finding available port on JobNode01
    Available port: <avail_port>
@@ -152,7 +153,7 @@ Partition2          JobNode[04-17]      gpu:a6000:2,gpu:gtx_
 We will start the worker node and store in the same script. Because the server loads the model weights onto the GPU and uses shared GPU memory to pass the pointer to the client. If you submit another script with ```#SBATCH --gpres=gpu:1```, it will be possibly set to use a different GPU, as specified by different ```CUDA_VISIBLE_DEVICES``` settings. Thus, they cannot pass the model weights.
 1. **Activate the ```sllm-worker``` environment and start the worker node.**
 
-   Here is the example script, named```start_worker_node_store.sh```.
+   Here is the example script, named```start_worker_node.sh```.
    ```shell
    #!/bin/sh
    #SBATCH --partition=your_partition
@@ -196,7 +197,7 @@ We will start the worker node and store in the same script. Because the server l
     Use ```sbatch start_worker_node.sh``` to submit the script to certain idle node (here we assume it is ```JobNode02```). In addition, We recommend that you place the head and worker on different nodes so that the Serve can start smoothly later, rather than queuing up for resource allocation.
 4. **Expected output**
 
-   In ```sllm_worker_store.out```, you will see the following output:
+   In ```sllm_worker.out```, you will see the following output:
 
    - The worker node expected output:
       ```shell
@@ -223,8 +224,6 @@ We will start the worker node and store in the same script. Because the server l
    #!/bin/sh
    #SBATCH --partition=your_partition
    #SBATCH --nodelist=JobNode01           # This node should be the same as head
-   #SBATCH --cpus-per-task=4              # Request 4 CPU cores
-   #SBATCH --mem=16G                      # Request 16GB of RAM
    #SBATCH --output=serve.log
 
    cd /path/to/ServerlessLLM
