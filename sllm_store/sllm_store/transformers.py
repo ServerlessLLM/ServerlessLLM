@@ -57,6 +57,7 @@ from transformers.integrations.bitsandbytes import (
     replace_with_bnb_linear,
 )
 import importlib
+from peft import PeftModel, get_peft_model_state_dict, PeftConfig
 
 logger = init_logger(__name__)
 
@@ -119,6 +120,27 @@ def save_model(model: nn.Module, model_path: str):
     tied_no_split_modules = get_tied_no_split_modules(model, no_split_modules)
     with open(os.path.join(model_path, "tied_no_split_modules.json"), "w") as f:
         json.dump(tied_no_split_modules, f)
+
+
+def save_lora(lora: PeftModel, lora_path: str):
+    if not os.path.exists(lora_path):
+        os.makedirs(lora_path, exist_ok=True)
+
+    model = lora.cpu()
+
+    lora_state_dict = get_peft_model_state_dict(model)
+
+    save_dict(lora_state_dict, lora_path)
+
+    # save the config
+    if (
+        hasattr(model, "peft_config")
+        and model.peft_config is not None
+        and isinstance(model.peft_config, PeftConfig)
+    ):
+        logger.info(f"{model.peft_config}")
+        config_save_path = os.path.join(lora_path, "adapter_config.json")
+        model.peft_config.save_pretrained(config_save_path)
 
 
 def load_model(

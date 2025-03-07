@@ -54,3 +54,7 @@ class SllmRouter(ABC):
     @abstractmethod
     async def inference(self, request_data: dict):
         pass
+
+    @abstractmethod
+    async def fine_tuning(self, request_data: dict):
+        pass
