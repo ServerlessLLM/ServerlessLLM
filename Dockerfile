@@ -60,14 +60,14 @@ COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
-RUN cd sllm_store && python3 setup.py sdist bdist_wheel
+RUN cd sllm_store && python3 setup.py bdist_wheel
 
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/serve /app/sllm/serve
 COPY sllm/cli /app/sllm/cli
 COPY README.md /app/
-RUN python3 setup.py sdist bdist_wheel
+RUN python3 setup.py bdist_wheel
 
 # Stage 2: Runner
 FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
@@ -88,8 +88,8 @@ COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
 
 # Install the built wheels
-RUN pip install /app/dist/*.whl --force-reinstall
-RUN pip install /app/sllm_store/dist/*.whl --force-reinstall
+RUN pip install /app/sllm_store/dist/*.whl
+RUN pip install /app/dist/*.whl
 
 # Copy the entrypoint
 COPY entrypoint.sh .
