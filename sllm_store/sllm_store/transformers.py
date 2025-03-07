@@ -211,7 +211,7 @@ def fully_parallel_load(
         replica_uuid, state_dict = future.result()
 
     with torch.no_grad():
-        if quantization_config:
+        if quantization_config and torch.cuda.is_available():
             from transformers import BitsAndBytesConfig
 
             if not isinstance(quantization_config, BitsAndBytesConfig):
@@ -242,6 +242,9 @@ def fully_parallel_load(
                     model, name, param.device, param
                 )
         else:
+            if quantization_config:
+                logger.debug("Quantization on AMD GPUs is not supported yet")
+
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
@@ -369,7 +372,7 @@ def best_effort_load(
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
     with torch.no_grad():
-        if quantization_config:
+        if quantization_config and torch.cuda.is_available():
             from transformers import BitsAndBytesConfig
 
             if not isinstance(quantization_config, BitsAndBytesConfig):
@@ -400,6 +403,9 @@ def best_effort_load(
                     model, name, param.device, param
                 )
         else:
+            if quantization_config:
+                logger.debug("Quantization on AMD GPUs is not supported yet")
+
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
