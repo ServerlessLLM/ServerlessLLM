@@ -242,8 +242,8 @@ def fully_parallel_load(
                     model, name, param.device, param
                 )
         else:
-            if quantization_config:
-                logger.debug("Quantization on AMD GPUs is not supported yet")
+            if quantization_config is not None:
+                logger.debug("Quantization on current device is not supported yet")
 
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
@@ -403,8 +403,8 @@ def best_effort_load(
                     model, name, param.device, param
                 )
         else:
-            if quantization_config:
-                logger.debug("Quantization on AMD GPUs is not supported yet")
+            if quantization_config is not None:
+                logger.debug("Quantization on current device is not supported yet")
 
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
