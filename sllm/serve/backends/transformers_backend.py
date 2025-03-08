@@ -23,14 +23,24 @@ import uuid
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
+import peft
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer
+import transformers
+from datasets import load_dataset
+from peft import LoraConfig, PeftModel, get_peft_model
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    PreTrainedTokenizerBase,
+    Trainer,
+    TrainingArguments,
+)
 from transformers.generation.streamers import BaseStreamer
 
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
-from sllm_store.transformers import load_model
+from sllm_store.transformers import load_model, save_lora
 
 logger = init_logger(__name__)
 
@@ -296,6 +306,121 @@ class TransformersBackend(SllmBackend):
             self.inf_status.delete()
 
             return response
+
+    def _load_dataset(
+        self,
+        dataset_config: Optional[Dict[str, Any]],
+        tokenizer: PreTrainedTokenizerBase,
+    ):
+        dataset_source = dataset_config.get("dataset_source")
+        hf_dataset_name = dataset_config.get("hf_dataset_name")
+        tokenization_field = dataset_config.get("tokenization_field")
+        split = dataset_config.get("split", None)
+        data_files = dataset_config.get("data_files", None)
+        extension_type = dataset_config.get("extension_type")
+
+        if dataset_source not in {"hf_hub", "local"}:
+            logger.error(
+                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
+            )
+            raise ValueError(
+                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
+            )
+
+        if dataset_source == "hf_hub":
+            if not hf_dataset_name:
+                logger.error(
+                    "hf_dataset_name must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "hf_dataset_name must be provided in the dataset configuration."
+                )
+            data = load_dataset(hf_dataset_name, split=split)
+            data = data.map(
+                lambda samples: tokenizer(samples[tokenization_field]),
+                batched=True,
+            )
+            return data
+        elif dataset_source == "local":
+            if not extension_type:
+                logger.error(
+                    "extension_type must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "extension_type must be provided in the dataset configuration."
+                )
+            if not data_files:
+                logger.error(
+                    "data_files must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "data_files must be provided in the dataset configuration."
+                )
+            data = load_dataset(
+                extension_type, data_files=data_files, split=split
+            )
+            data = data.map(
+                lambda samples: tokenizer(samples[tokenization_field]),
+                batched=True,
+            )
+            return data
+
+    def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        dataset_config = request_data.get("dataset_config")
+        try:
+            dataset = self._load_dataset(dataset_config, tokenizer)
+        except ValueError as e:
+            logger.error(f"Failed to load dataset: {e}")
+            return {"error": str(e)}
+
+        lora_config = request_data.get("lora_config")
+        try:
+            lora_config = LoraConfig(**lora_config)
+        except TypeError as e:
+            logger.error(f"Failed to load lora_config: {e}")
+            raise e
+        peft_model = get_peft_model(self.model, lora_config)
+
+        training_config = request_data.get("training_config")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        lora_save_path = os.path.join(
+            storage_path,
+            "transformers",
+            f"ft_{self.model_name}",
+        )
+        try:
+            training_args = TrainingArguments(
+                output_dir=lora_save_path, **training_config
+            )
+        except TypeError as e:
+            logger.error(f"Failed to load training_config: {e}")
+            raise e
+        trainer = Trainer(
+            model=peft_model,
+            args=training_args,
+            train_dataset=dataset,
+            data_collator=transformers.DataCollatorForLanguageModeling(
+                tokenizer, mlm=False
+            ),
+        )
+        trainer.train()
+
+        save_lora(peft_model, lora_save_path)
+        logger.info(
+            f"Fine-tuning completed. LoRA adapter and config saved to {lora_save_path}"
+        )
+
+        response = {
+            "model": self.model_name,
+            "lora_save_path": lora_save_path,
+        }
+
+        return response
 
     def shutdown(self):
         """Abort all requests and shutdown the backend."""

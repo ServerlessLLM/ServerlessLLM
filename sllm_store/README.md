@@ -2,7 +2,7 @@
 
 ## About
 
-`sllm-store` is an internal library of ServerlessLLM that provides high-performance model loading from local storage into GPU memory. It can also be installed and used independently in other projects. For more details, see our [quick start guide](https://serverlessllm.github.io/docs/stable/store/quickstart). For experimental support for ROCm, see our [ROCm guide](https://serverlessllm.github.io/docs/stable/store/installation_with_rocm).
+`sllm-store` is an internal library of ServerlessLLM that provides high-performance model loading from local storage into GPU memory. It can also be installed and used independently in other projects. For more details, see our [quick start guide](https://serverlessllm.github.io/docs/stable/store/quickstart). For support for ROCm, see our [ROCm guide](https://serverlessllm.github.io/docs/stable/store/rocm_quickstart).
 
 ## Installation
 
