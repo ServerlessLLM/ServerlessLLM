@@ -265,7 +265,9 @@ def fully_parallel_load(
                 )
         else:
             if quantization_config is not None:
-                logger.debug("Quantization on current device is not supported yet")
+                logger.debug(
+                    "Quantization on current device is not supported yet"
+                )
 
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
@@ -426,7 +428,9 @@ def best_effort_load(
                 )
         else:
             if quantization_config is not None:
-                logger.debug("Quantization on current device is not supported yet")
+                logger.debug(
+                    "Quantization on current device is not supported yet"
+                )
 
             for name, param in state_dict.items():
                 set_module_tensor_to_device(model, name, param.device, param)
