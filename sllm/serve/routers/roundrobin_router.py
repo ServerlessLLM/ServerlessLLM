@@ -116,7 +116,7 @@ class RoundRobinRouter(SllmRouter):
         pattern = "{model_name}_{id}"
         return pattern.format(model_name=self.model_name, id=uuid.uuid4())
 
-    async def inference(self, request_data: dict, action: str):
+    async def allocate_instance(self):
         async with self.running_lock:
             if not self.running:
                 return {"error": "Instance stopped"}
@@ -138,12 +138,33 @@ class RoundRobinRouter(SllmRouter):
         logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
 
         instance_id = await instance_allocation
-        logger.info(f"{request_data}, type: {type(request_data)}")
         async with self.instance_management_lock:
             if instance_id not in self.ready_instances:
                 logger.error(f"Instance {instance_id} not found")
                 return {"error": "Instance not found"}
             instance = self.ready_instances[instance_id]
+        return instance
+
+    async def generate_stream(self, request_data):
+        instance = await self.allocate_instance()
+
+        try:
+            generator = instance.backend_instance.generate_stream.options(
+                num_returns="streaming"
+            ).remote(request_data=request_data)
+            async for val in generator:
+                text = await val
+                yield text
+        except Exception as e:
+            logger.info(f"Exception in inference_stream: {e}")
+
+        await instance.add_requests(-1)
+        async with self.request_count_lock:
+            self.request_count -= 1
+        logger.info("Finished processing streaming request")
+
+    async def inference(self, request_data: dict, action: str):
+        instance = await self.allocate_instance()
         # NOTE: `.remote(request_data)` does not work, don't know why.
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475

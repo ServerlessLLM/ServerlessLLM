@@ -121,7 +121,7 @@ def create_app() -> FastAPI:
         logger.info(f"Got request router for {model_name}")
 
         if body.get("stream", False):
-            generator = request_router.inference_stream.remote(body)
+            generator = request_router.generate_stream.remote(body)
             chat_generator = chat_completion_stream_generator(
                 model_name, generator
             )
