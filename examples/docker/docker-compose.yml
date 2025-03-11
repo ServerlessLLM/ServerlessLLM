@@ -10,8 +10,8 @@ services:
       - MODEL_FOLDER=${MODEL_FOLDER}
       - MODE=HEAD
     ports:
-      - "6370:6379"    # Redis port
-      - "8344:8343"    # ServerlessLLM port
+      - "6379:6379"    # Redis port
+      - "8343:8343"    # ServerlessLLM port
     networks:
       - sllm_network
     command: []
