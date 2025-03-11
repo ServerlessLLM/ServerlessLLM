@@ -80,30 +80,38 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Set the working directory
 WORKDIR /app
 
-# Copy the built wheels from the builder
-COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
-COPY --from=builder /app/dist /app/dist
-
-# Copy requirements files
-COPY requirements-worker.txt /app/
-
-# Copy vllm patch for worker
-COPY sllm_store/vllm_patch /app/vllm_patch
-
 # Create conda environments for head and worker
 RUN conda create -n head python=3.10 -y && \
     conda create -n worker python=3.10 -y
 
+RUN conda run -n head pip install -U pip
+RUN conda run -n worker pip install -U pip
+
+# Copy requirements files
+COPY requirements.txt /app/
+
+RUN conda run -n head pip install -r /app/requirements.txt
+COPY requirements-worker.txt /app/
+
+RUN conda run -n worker pip install -r /app/requirements-worker.txt
+
+# Copy vllm patch for worker
+COPY sllm_store/vllm_patch /app/vllm_patch
+
+# Copy the built wheels from the builder
+COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
+COPY --from=builder /app/dist /app/dist
+
 # Install packages in head environment
-RUN conda run -n head pip install -U pip && \
-    conda run -n head pip install /app/sllm_store/dist/*.whl && \
+RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
     conda run -n head pip install /app/dist/*.whl
 
 # Install packages in worker environment
-RUN conda run -n worker pip install -U pip && \
-    conda run -n worker pip install /app/sllm_store/dist/*.whl && \
-    conda run -n worker pip install /app/dist/*.whl && \
-    conda run -n worker pip install -r /app/requirements-worker.txt
+RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
+    conda run -n worker pip install /app/dist/*.whl
+
+# Apply vLLM patch in worker environment
+RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
 
 # Copy the entrypoint
 COPY entrypoint.sh .
