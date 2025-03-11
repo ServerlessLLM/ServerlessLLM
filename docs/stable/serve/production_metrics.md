@@ -9,7 +9,7 @@ ServerlessLLM supports integration with prometheus. Due to its distributed natur
 1. Start a prometheus pushgateway at any node that is reachable by the controller node and worker nodes, here we simply set it to `localhost`.
 prometheus pushgateway download link: https://github.com/prometheus/pushgateway/releases
 ```
-./pushgateway 
+./pushgateway
 ```
 It will by default listen to port 9091
 2. Start prometheus server at the same node
@@ -55,5 +55,5 @@ Start ServerlessLLM as indicated in [quickstart](./quickstart.md), when starting
 ```
 sllm-serve --pushgateway_url localhost:9091
 ```
-Then everything is done, you can query metrics in your prometheus server. You can also visulize it in [grafana](https://grafana.com/docs/grafana/latest/getting-started/get-started-grafana-prometheus/)
+Then everything is done, you can query metrics in your prometheus server. You can also visualize it in [grafana](https://grafana.com/docs/grafana/latest/getting-started/get-started-grafana-prometheus/)
 
