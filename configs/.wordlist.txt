@@ -698,6 +698,7 @@ HPC
 HPCs
 HPC's
 SLURM
+slurm
 SBATCH
 JOBIDs
 nvcc
@@ -748,3 +749,8 @@ InitGoogleLogging
 PinnedMemoryPool
 StorageServicer
 cpp
+nodelist
+INET
+f'Available
+getsockname
+sbatch
