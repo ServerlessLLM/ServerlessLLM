@@ -228,6 +228,14 @@ class TransformersBackend(SllmBackend):
 
         return response
 
+    def generate_text(self, inputs, streamer, temperature, max_new_tokens):
+        self.model.generate(
+            inputs.input_ids,
+            streamer=streamer,
+            temperature=temperature,
+            max_new_tokens=max_new_tokens,
+        )
+
     async def generate_stream(self, request_data: Optional[Dict[str, Any]]):
         with self.status_lock:
             if self.status != BackendStatus.RUNNING:
