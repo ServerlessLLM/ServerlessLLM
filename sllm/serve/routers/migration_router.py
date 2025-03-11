@@ -53,8 +53,7 @@ class MigrationRouter(RoundRobinRouter):
 
         async with self.request_count_lock:
             self.request_count += 1
-            if self.registry != None:
-                self.arrived_request_counter.inc()
+            self.arrived_request_counter.inc()
 
         instance_allocation = self.loop.create_future()
         await self.request_queue.put(instance_allocation)
