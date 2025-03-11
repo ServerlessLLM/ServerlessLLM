@@ -20,7 +20,7 @@ services:
   sllm_worker_0:
     build:
       context: ../../
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
     image: serverlessllm/sllm:latest
     container_name: sllm_worker_0
     deploy:
