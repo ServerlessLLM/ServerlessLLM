@@ -698,6 +698,7 @@ HPC
 HPCs
 HPC's
 SLURM
+slurm
 SBATCH
 JOBIDs
 nvcc
@@ -751,3 +752,8 @@ cpp
 grafana
 prometheus
 pushgateway
+nodelist
+INET
+f'Available
+getsockname
+sbatch
