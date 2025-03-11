@@ -757,3 +757,5 @@ INET
 f'Available
 getsockname
 sbatch
+localhost
+alertmanagers

@@ -25,12 +25,10 @@ global:
   evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
   # scrape_timeout is set to the global default (10s).
 
-# Alertmanager configuration
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          # - alertmanager:9093
 
 # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
 rule_files:
@@ -40,7 +38,6 @@ rule_files:
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
 scrape_configs:
-  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
   - job_name: "pushgateway"
     honor_labels: true
 
@@ -51,7 +48,7 @@ scrape_configs:
       - targets: ["localhost:9091"]
 ```
 3. Start ServerlessLLM
-Start ServerlessLLM as indicated in [quickstart](./quickstart.md), when starting sllm-serve, use `--pushgateway_url` to pass pushgateway url:
+Start ServerlessLLM as indicated in [quickstart](../getting_started/quickstart.md), when starting sllm-serve, use `--pushgateway_url` to pass pushgateway url:
 ```
 sllm-serve --pushgateway_url localhost:9091
 ```

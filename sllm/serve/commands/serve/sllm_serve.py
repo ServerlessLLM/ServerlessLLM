@@ -60,7 +60,7 @@ def main():
         "--pushgateway_url",
         default="",
         type=str,
-        help="URL that runs prometheus pushgateway" 
+        help="URL that runs prometheus pushgateway",
     )
     args = parser.parse_args()
 

@@ -98,7 +98,9 @@ class SllmController:
         backend_config = model_config.get("backend_config", {})
         router_config = model_config.get("router_config", {})
         # Set router config's pushgateway_url to the url passed when sllm-serve is started
-        router_config["pushgateway_url"] = self.config.get("pushgateway_url", "")
+        router_config["pushgateway_url"] = self.config.get(
+            "pushgateway_url", ""
+        )
         auto_scaling_config = model_config.get("auto_scaling_config", None)
         async with self.metadata_lock:
             if model_name in self.registered_models:
