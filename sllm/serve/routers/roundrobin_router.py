@@ -135,7 +135,7 @@ class RoundRobinRouter(SllmRouter):
 
         instance_allocation = self.loop.create_future()
         await self.request_queue.put(instance_allocation)
-        logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
+        logger.info(f"Enqueued request for model {self.model_name}")
 
         instance_id = await instance_allocation
         async with self.instance_management_lock:
@@ -156,7 +156,7 @@ class RoundRobinRouter(SllmRouter):
                 text = await val
                 yield text
         except Exception as e:
-            logger.info(f"Exception in inference_stream: {e}")
+            logger.warning(f"Exception in generate_stream: {e}")
 
         await instance.add_requests(-1)
         async with self.request_count_lock:
@@ -169,16 +169,9 @@ class RoundRobinRouter(SllmRouter):
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
         if action == "generate":
-            # TODO 测试直接传递generator是否可行
-            if request_data.get("stream", False):
-                result = instance.backend_instance.generate_stream.options(
-                    num_returns="streaming"
-                ).remote(request_data=request_data)
-            else:
-                result = await instance.backend_instance.generate.remote(
-                    request_data=request_data
-                )
-
+            result = await instance.backend_instance.generate.remote(
+                request_data=request_data
+            )
         elif action == "encode":
             result = await instance.backend_instance.encode.remote(
                 request_data=request_data
