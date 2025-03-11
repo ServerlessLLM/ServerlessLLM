@@ -38,7 +38,7 @@ class TestSllmCLI(unittest.TestCase):
         test_args = [
             "sllm-cli",
             "fine-tuning",
-            "--base_model",
+            "--base-model",
             "bigscience/bloomz-560m",
         ]
         with patch.object(sys, "argv", test_args):

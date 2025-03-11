@@ -94,25 +94,25 @@ parser = argparse.ArgumentParser(
     description="Save a model from HuggingFace model hub."
 )
 parser.add_argument(
-    "--model_name",
+    "--model-name",
     type=str,
     required=True,
     help="Model name from HuggingFace model hub.",
 )
 parser.add_argument(
-    "--local_model_path",
+    "--local-model-path",
     type=str,
     required=False,
     help="Local path to the model snapshot.",
 )
 parser.add_argument(
-    "--storage_path",
+    "--storage-path",
     type=str,
     default="./models",
     help="Local path to save the model.",
 )
 parser.add_argument(
-    "--tensor_parallel_size",
+    "--tensor-parallel-size",
     type=int,
     default=1,
     help="Tensor parallel size.",
