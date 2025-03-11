@@ -36,7 +36,7 @@ class EncodeCommand:
             "encode", help="Encode using the deployed model."
         )
         encode_parser.add_argument(
-            "input-path", type=str, help="Path to the JSON input file."
+            "input_path", type=str, help="Path to the JSON input file."
         )
         encode_parser.add_argument(
             "-t",

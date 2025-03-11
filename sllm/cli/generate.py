@@ -34,7 +34,7 @@ class GenerateCommand:
             "generate", help="Generate using the deployed model."
         )
         generate_parser.add_argument(
-            "input-path", type=str, help="Path to the JSON input file."
+            "input_path", type=str, help="Path to the JSON input file."
         )
         generate_parser.add_argument(
             "-t",
