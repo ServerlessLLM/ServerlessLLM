@@ -69,7 +69,7 @@ COPY sllm/cli /app/sllm/cli
 COPY README.md /app/
 RUN python3 setup.py bdist_wheel
 
-# Stage 2: Runner
+# Stage 2: Runner with conda environments
 FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
 
 # Set non-interactive installation
@@ -80,22 +80,34 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Set the working directory
 WORKDIR /app
 
-RUN conda install python=3.10
-RUN pip install -U pip
-
 # Copy the built wheels from the builder
 COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
 
-# Install the built wheels
-RUN pip install /app/sllm_store/dist/*.whl
-RUN pip install /app/dist/*.whl
+# Copy requirements files
+COPY requirements-worker.txt /app/
+
+# Copy vllm patch for worker
+COPY sllm_store/vllm_patch /app/vllm_patch
+
+# Create conda environments for head and worker
+RUN conda create -n head python=3.10 -y && \
+    conda create -n worker python=3.10 -y
+
+# Install packages in head environment
+RUN conda run -n head pip install -U pip && \
+    conda run -n head pip install /app/sllm_store/dist/*.whl && \
+    conda run -n head pip install /app/dist/*.whl
+
+# Install packages in worker environment
+RUN conda run -n worker pip install -U pip && \
+    conda run -n worker pip install /app/sllm_store/dist/*.whl && \
+    conda run -n worker pip install /app/dist/*.whl && \
+    conda run -n worker pip install -r /app/requirements-worker.txt
 
 # Copy the entrypoint
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-# Set the environment variables
-ENV MODE=HEAD
-# Set the entrypoint
+# Set the entrypoint directly to the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]
