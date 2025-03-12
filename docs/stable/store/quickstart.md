@@ -192,6 +192,8 @@ Available precisions include:
 
 For further information, consult the [HuggingFace Documentation for BitsAndBytes](https://huggingface.co/docs/transformers/main/en/quantization/bitsandbytes)
 
+> Note: Quantization is currently experimental, especially on multi-GPU machines. You may encounter issues when using this feature in multi-GPU environments.
+
 ### Usage
 To use quantization, create a `BitsAndBytesConfig` object with your desired settings:
 
