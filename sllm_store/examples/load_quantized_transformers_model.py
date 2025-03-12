@@ -30,12 +30,15 @@ args = parser.parse_args()
 model_name = args.model_name
 storage_path = args.storage_path
 
+# Define quantization configuration with BitsAndBytesConfig
 if args.precision == "int8":
     quantization_config = BitsAndBytesConfig(load_in_8bit=True)
 elif args.precision == "fp4":
     quantization_config = BitsAndBytesConfig(load_in_4bit=True)
 elif args.precision == "nf4":
-    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4")
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True, bnb_4bit_quant_type="nf4"
+    )
 else:
     quantization_config = None
 
