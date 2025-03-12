@@ -9,7 +9,6 @@ This guide will help you get started with running ServerlessLLM on SLURM cluster
 ## Pre-requisites
 Before you begin, make sure you have checked the following:
 ### Some Tips about Installation
-- Both installation and build require an internet connection. please make sure the port 443 on the job node you want to install is accessible.
 - If 'not enough disk space' is reported when `pip install` on the login node, you can submit it to a job node for execution
   ```shell
   #!/bin/bash
@@ -37,19 +36,9 @@ Before you begin, make sure you have checked the following:
   pip install serverless-llm[worker]
   pip install serverless-llm-store
   ```
-- Importantly, we recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) if there is no CUDA driver on the node you want to install. If you want to [install from source](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-from-source), please make sure CUDA driver available on the node you want to install. Here are some commands to check it.
-   ```shell
-   module avail cuda # if you can see some CUDA options, it means CUDA is available, then load the cuda module
-   module load cuda-12.x # load specific CUDA version
-   # or
-   nvidia-smi # if you can see the GPU information, it means CUDA is available
-   # or
-   which nvcc # if you can see the CUDA compiler's path, it means CUDA is available
-   ```
-   However, we **strongly recommend that you read the documentation for the HPC you are using** to find out how to check if the CUDA driver is available.
 
-### Find nodes with sufficient computing power
-Consult the cluster documentation/administrator or run the following commands in the cluster to find a node with sufficient computing power (Compute Capacity > 7.0) ([Click here to check if your node has sufficient computing power](https://developer.nvidia.com/cuda-gpus#compute)).
+### Command for Querying GPU Resource Information
+Run the following commands in the cluster to check GPU resource information.
 ```shell
 sinfo -O partition,nodelist,gres
 ```
@@ -75,7 +64,7 @@ compute    up        2  down   infinite   JobNode[16-17]
 ### Job Nodes Setup
 **`srun` Node Selection**
 
-Only one JobNode (with sufficient compute capability) is enough.
+Only one JobNode is enough.
 
 **`sbatch` Node Selection**
 
@@ -98,7 +87,20 @@ srun --partition <your-partition> --nodelist <JobNode> --gres <DEVICE>:1 --pty b
 ```
 This command requests a session on the specified node and provides an interactive shell. `--gres <DEVICE>:1` specifies the GPU device you will use, for example: `--gres gpu:gtx_1060:1`
 
-### Step 2: Prepare multiple windows with `tmux`
+### Step 2: Install from source
+Firstly, please make sure CUDA driver available on the node. Here are some commands to check it.
+```shell
+nvidia-smi
+
+which nvcc
+```
+If `nvidia-smi` has listed GPU information, but `which nvcc` has no output. Then use the following commands to load `nvcc`. Here is an example that cuda is located at `/opt/cuda-12.2.0`
+```shell
+export PATH=/opt/cuda-12.2.0/bin:$PATH
+export LD_LIBRARY_PATH=/opt/cuda-12.2.0/lib64:$LD_LIBRARY_PATH
+```
+Then, following the [installation guide](./installation.md) to install from source.
+### Step 3: Prepare multiple windows with `tmux`
 Since srun provides a single interactive shell, you can use tmux to create multiple windows. Start a tmux session:
 ```shell
 tmux
@@ -127,7 +129,7 @@ Once multiple windows are created, you can switch between them using:
 `Ctrl + B` → `W` (List all windows and select)
 `Ctrl + B` → [Number] (Switch to a specific window, e.g., Ctrl + B → 1)
 
-### Step 3: Run ServerlessLLM on the JobNode
+### Step 4: Run ServerlessLLM on the JobNode
 First find ports that are already occupied. Then pick your favourite number from the remaining ports to replace the following placeholder `<PORT>`. For example: `6379`
 
 It should also be said that certain slurm system is a bit slow, **so please be patient and wait for the system to output**.
@@ -184,7 +186,7 @@ Expected output:
 {"id":"chatcmpl-9f812a40-6b96-4ef9-8584-0b8149892cb9","object":"chat.completion","created":1720021153,"model":"facebook/opt-1.3b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}
 ```
 
-### Step 4: Clean up
+### Step 5: Clean up
 To delete a deployed model, use the following command:
 ```shell
 sllm-cli delete facebook/opt-1.3b
@@ -265,7 +267,7 @@ Since the head node does not require a gpu, you can find a low-computing capacit
    Finding available port on JobNode01
    Available port: <avail_port>
    ```
-   Remember this <avail_port>, you will use it in Step 4
+   Remember this `<avail_port>`, you will use it in Step 4
 
 ### Step 2: Start the Worker Node & Store
 We will start the worker node and store in the same script. Because the server loads the model weights onto the GPU and uses shared GPU memory to pass the pointer to the client. If you submit another script with ```#SBATCH --gpres=gpu:1```, it will be possibly set to use a different GPU, as specified by different ```CUDA_VISIBLE_DEVICES``` settings. Thus, they cannot pass the model weights.
@@ -275,7 +277,7 @@ We will start the worker node and store in the same script. Because the server l
    ```shell
    #!/bin/sh
    #SBATCH --partition=your_partition
-   #SBATCH --nodelist=JobNode02           # Note JobNode02 should have sufficient compute capacity
+   #SBATCH --nodelist=JobNode02
    #SBATCH --gres=gpu:a6000:1             # Specify device on JobNode02
    #SBATCH --job-name=sllm-worker-store
    #SBATCH --output=sllm_worker.out
@@ -373,7 +375,7 @@ We will start the worker node and store in the same script. Because the server l
    $ conda activate sllm
    (sllm)$ export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343/
    ```
-   - Replace ```<HEAD_NODE_IP>``` with the actual IP address of the head node.
+   - Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
    - Replace ```8343``` with the actual port number (`<avail_port>` in Step1) if you have changed it.
 2. **Deploy a Model Using ```sllm-cli```**
    ```shell
