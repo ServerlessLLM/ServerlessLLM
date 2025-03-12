@@ -364,3 +364,8 @@ class VllmBackend(SllmBackend):
             return {"error": "All inputs failed"}
 
         return process_embedding_output(valid_outputs, model_name)
+
+    async def fine_tuning(self, request_data: Dict[str, Any]):
+        raise NotImplementedError(
+            "Fine-tuning is not supported in this backend"
+        )

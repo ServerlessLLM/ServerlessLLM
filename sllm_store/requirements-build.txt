@@ -1,7 +1,6 @@
 cmake>=3.20
-grpcio==1.49.1
-grpcio-tools==1.49.1
 ninja
+peft==0.8.2
 setuptools
 torch==2.5.1
 wheel

@@ -52,15 +52,20 @@ endmacro()
 # Add a target named `hipify${NAME}` that runs the hipify preprocessor on a set
 # of CUDA source files. The names of the corresponding "hipified" sources are
 # stored in `OUT_SRCS`.
+# ORIG_SRCS - List of original source files.
+# CXX_SRCS - List of C++ source files that should not be hipified. (e.g., no CUDA code)
+# CXX_SRCS are removed from the list of ORIG_SRCS, in order to fix issue #206.
 #
-function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS)
+function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS CXX_SRCS)
   #
   # Split into C++ and non-C++ (i.e. CUDA) sources.
   #
   set(SRCS ${ORIG_SRCS})
-  set(CXX_SRCS ${ORIG_SRCS})
-  list(FILTER SRCS EXCLUDE REGEX "\.(cc)|(cpp)$")
-  list(FILTER CXX_SRCS INCLUDE REGEX "\.(cc)|(cpp)$")
+
+  # remove CXX_SRCS from the list of SRCS
+  foreach(CXX_SRC ${CXX_SRCS})
+    list(REMOVE_ITEM SRCS ${CXX_SRC})
+  endforeach(CXX_SRC ${CXX_SRCS})
 
   #
   # Generate ROCm/HIP source file names from CUDA file names.
@@ -69,8 +74,12 @@ function (hipify_sources_target OUT_SRCS NAME ORIG_SRCS)
   #
   set(HIP_SRCS)
   foreach (SRC ${SRCS})
+    set(ORIGINAL_SRC ${SRC})
     string(REGEX REPLACE "\.cu$" "\.hip" SRC ${SRC})
     string(REGEX REPLACE "cuda" "hip" SRC ${SRC})
+    if(${SRC} STREQUAL ${ORIGINAL_SRC})
+      string(REGEX REPLACE "\.cpp$" "_hip\.cpp" SRC ${SRC})
+    endif()
     list(APPEND HIP_SRCS "${CMAKE_CURRENT_BINARY_DIR}/${SRC}")
   endforeach()
 
@@ -295,6 +304,8 @@ endmacro()
 # INCLUDE_DIRECTORIES <dirs> - Extra include directories.
 # LIBRARIES <libraries>      - Extra link libraries.
 # WITH_SOABI                 - Generate library with python SOABI suffix name.
+# CXX_SRCS                   - List of C++ sources files to not be hipified.
+#                              Usually means they shouldn't contain CUDA code.
 #
 # Note: optimization level/debug info is set via cmake build type.
 #
@@ -303,11 +314,12 @@ function (define_gpu_extension_target GPU_MOD_NAME)
     GPU
     "WITH_SOABI"
     "DESTINATION;LANGUAGE"
-    "SOURCES;ARCHITECTURES;COMPILE_FLAGS;INCLUDE_DIRECTORIES;LIBRARIES")
+    "SOURCES;ARCHITECTURES;COMPILE_FLAGS;INCLUDE_DIRECTORIES;LIBRARIES;CXX_SRCS"
+  )
 
   # Add hipify preprocessing step when building with HIP/ROCm.
   if (GPU_LANGUAGE STREQUAL "HIP")
-    hipify_sources_target(GPU_SOURCES ${GPU_MOD_NAME} "${GPU_SOURCES}")
+    hipify_sources_target(GPU_SOURCES ${GPU_MOD_NAME} "${GPU_SOURCES}" "${GPU_CXX_SRCS}")
   endif()
 
   if (GPU_WITH_SOABI)

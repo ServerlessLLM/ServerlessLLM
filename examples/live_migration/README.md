@@ -1,7 +1,7 @@
 # ServerlessLLM Docker Compose Quickstart
 
 ```bash
-docker compose -f docker-compose.yml -f enable-migration.yml up -d --build
+docker compose -f docker-compose.yml -f enable-migration.yml up -d
 ```
 
 ```bash

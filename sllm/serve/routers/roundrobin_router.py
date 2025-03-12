@@ -83,6 +83,9 @@ class RoundRobinRouter(SllmRouter):
         self.request_count = 0
         self.request_count_lock = asyncio.Lock()
 
+        self.fine_tuning_count = 0
+        self.fine_tuning_count_lock = asyncio.Lock()
+
         self.running = False
         self.running_lock = asyncio.Lock()
 
@@ -118,6 +121,12 @@ class RoundRobinRouter(SllmRouter):
             if not self.running:
                 return {"error": "Instance stopped"}
 
+        async with self.fine_tuning_count_lock:
+            if self.fine_tuning_count > 0:
+                return {
+                    "error": "Fine-tuning in progress, inference cannot start."
+                }
+
         async with self.request_count_lock:
             self.request_count += 1
 
@@ -126,7 +135,7 @@ class RoundRobinRouter(SllmRouter):
 
         instance_allocation = self.loop.create_future()
         await self.request_queue.put(instance_allocation)
-        logger.info(f"Enqueued request for model {self.model_name}")
+        logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
 
         instance_id = await instance_allocation
         logger.info(f"{request_data}, type: {type(request_data)}")
@@ -152,6 +161,43 @@ class RoundRobinRouter(SllmRouter):
         await instance.add_requests(-1)
         async with self.request_count_lock:
             self.request_count -= 1
+        return result
+
+    async def fine_tuning(self, request_data: dict):
+        async with self.running_lock:
+            if not self.running:
+                return {"error": "Instance stopped"}
+
+        async with self.request_count_lock:
+            if self.request_count > 0:
+                return {
+                    "error": "Inference requests in progress, fine-tuning cannot start."
+                }
+
+        async with self.fine_tuning_count_lock:
+            self.fine_tuning_count += 1
+
+        instance_allocation = self.loop.create_future()
+        await self.request_queue.put(instance_allocation)
+        logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
+
+        instance_id = await instance_allocation
+        logger.info(f"{request_data}, type: {type(request_data)}")
+        async with self.instance_management_lock:
+            if instance_id not in self.ready_instances:
+                logger.error(f"Instance {instance_id} not found")
+                return {"error": "Instance not found"}
+            instance = self.ready_instances[instance_id]
+            instance.concurrency = 1
+
+        result = await instance.backend_instance.fine_tuning.remote(
+            request_data=request_data
+        )
+
+        logger.info(f"Finished processing fine-tuning")
+        await instance.add_requests(-1)
+        async with self.fine_tuning_count_lock:
+            self.fine_tuning_count -= 1
         return result
 
     async def shutdown(self):
@@ -197,10 +243,15 @@ class RoundRobinRouter(SllmRouter):
                     if instance_id not in self.ready_instances:
                         continue
                     instance = self.ready_instances[instance_id]
-                    allocated = await instance.add_requests(1)
-                    if allocated:
-                        instance_allocation.set_result(instance_id)
-
+                    # check if the request queue reaches max length
+                    if await instance.check_request_queue():
+                        allocated = await instance.add_requests(1)
+                        if allocated:
+                            instance_allocation.set_result(instance_id)
+                    else:
+                        logger.info(
+                            f"Instance {instance_id} cannot add another request"
+                        )
                 if not allocated:
                     await asyncio.sleep(self.loop_interval)
 
@@ -209,7 +260,9 @@ class RoundRobinRouter(SllmRouter):
             # logger.info(f"Auto-scaling for model {self.model_name}")
             async with self.auto_scaling_lock:
                 auto_scaling_config = self.auto_scaling_config.copy()
-            auto_scaling_metrics = {"request_count": self.request_count}
+            auto_scaling_metrics = {
+                "request_count": self.request_count + self.fine_tuning_count
+            }
             desired_instances = await auto_scaler(
                 auto_scaling_metrics, auto_scaling_config
             )
@@ -249,10 +302,17 @@ class RoundRobinRouter(SllmRouter):
         logger.info(
             f"Creating new instance {instance_id} for model {self.model_name}"
         )
-        # TODO: Add max_queue_length to instance
+        # get max_queue_length from auto_scaling_config
+        if self.auto_scaling_config.get("metric", "") == "concurrency":
+            max_request_length = self.auto_scaling_config.get("target", 1)
+        else:
+            max_request_length = 1
+        logger.info(
+            f"Creating new instance {instance_id} for model {self.model_name}, max queue length is {max_request_length}"
+        )
         instance = InstanceHandle(
             instance_id=instance_id,
-            max_queue_length=10,
+            max_queue_length=max_request_length,
             num_gpu=self.resource_requirements["num_gpus"],
         )
         async with self.instance_management_lock:
@@ -312,6 +372,9 @@ class RoundRobinRouter(SllmRouter):
         return instance_id
 
     async def _stop_instance(self, instance_id: Optional[str] = None):
+        while len(self.ready_instances) <= 0:
+            await asyncio.sleep(1)
+
         async with self.instance_management_lock:
             if instance_id is None:
                 instance_id, instance = self.ready_instances.popitem()

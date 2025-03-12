@@ -29,7 +29,7 @@ ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 ### ServerlessLLM Store
 
 - [Quickstart](./store/quickstart.md)
-- [ROCm Installation(Experimental)](./store/installation_with_rocm.md)
+- [ROCm Quickstart](./store/rocm_quickstart.md)
 
 ### ServerlessLLM CLI
 

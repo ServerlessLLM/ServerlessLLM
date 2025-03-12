@@ -1,5 +1,5 @@
-accelerate>0.27.2
 accelerate==1.2.1
+click>=8.1.7
 grpcio==1.49.1
 grpcio-tools==1.49.1
 torch==2.5.1
