@@ -26,12 +26,13 @@ jobs:
 
       - name: Install dependencies
         run: |
+          apt-get update && apt-get install -y ca-certificates git
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
           pip install -r requirements-worker.txt
 
       # Python Tests
-      - name: Install ServerlessLLM
+      - name: Install ServerlessLLM Store
         run: |
           cd sllm_store && \
           rm -rf build && \
