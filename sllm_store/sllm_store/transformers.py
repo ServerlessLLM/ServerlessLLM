@@ -367,7 +367,20 @@ def best_effort_load(
 
 
 def load_lora(lora_name, lora_path, device_map, storage_path):
-    lora_config = ""
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+
+    lora_path = os.path.join(storage_path, lora_path)
+
+    tensor_index_path = os.path.join(lora_path, "tensor_index.json")
+    if not os.path.exists(tensor_index_path):
+        raise FileNotFoundError(
+            f"{lora_name} is missing tensor_index at {tensor_index_path}"
+        )
+
+    with open(tensor_index_path, "r") as f:
+        lora_config = json.load(f)
+
     lora_weights = load_dict(lora_path, device_map, storage_path)
 
     return lora_config, lora_weights

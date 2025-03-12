@@ -91,8 +91,8 @@ class TransformersBackend(SllmBackend):
         self.pretrained_model_name_or_path = backend_config.get(
             "pretrained_model_name_or_path"
         )
-        self.enable_lora = backend_config("enable_lora", False)
-        self.lora_adapters = backend_config("lora_adapters", [])
+        self.enable_lora = backend_config.get("enable_lora", False)
+        self.lora_adapters = backend_config.get("lora_adapters", [])
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
         self.inf_status = InferenceStatus(self.status)
         self.status_lock = threading.Lock()
@@ -140,10 +140,13 @@ class TransformersBackend(SllmBackend):
                 hf_model_class=hf_model_class,
             )
             if self.enable_lora:
-                for lora_name, lora_path in self.lora_modules.items():
+                for lora_name, lora_path in self.lora_adapters.items():
+                    logger.info(
+                        f"lora_name is {lora_name}, lora_path is {lora_path}"
+                    )
                     lora_config, lora_weights = load_lora(
-                        lora_name,
-                        lora_path,
+                        lora_name=lora_name,
+                        lora_path=lora_path,
                         device_map=device_map,
                         storage_path=storage_path,
                     )
