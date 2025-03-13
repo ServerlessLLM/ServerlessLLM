@@ -29,13 +29,15 @@ jobs:
           apt-get update && apt-get install -y ca-certificates git
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
+          pip install -r requirements-worker.txt
 
       # Python Tests
-      - name: Install ServerlessLLM
+      - name: Install ServerlessLLM Store
         run: |
-          export TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
-          pip uninstall -y vllm && pip install vllm==0.5.0.post1
-          cd sllm_store && pip install . && ./vllm_patch/patch.sh
+          cd sllm_store && \
+          rm -rf build && \
+          pip install . && \
+          ./vllm_patch/patch.sh
 
       - name: Run Python tests
         run: |

@@ -24,18 +24,32 @@ jobs:
               with:
                   python-version: '3.10'
 
+            # - name: Install dependencies
+            #   run: |
+            #       apt-get update && apt-get install -y ca-certificates git
+            #       python -m pip install --upgrade pip
+            #       pip install -r requirements.txt
+            #       pip install -r requirements-worker.txt
+            #       pip install -r requirements-test.txt]
+
+            # DO NOT install requirements.txt as this will install the release version of ServerlessLLM Store
             - name: Install dependencies
               run: |
                   apt-get update && apt-get install -y ca-certificates git
                   python -m pip install --upgrade pip
-                  pip install -r requirements.txt
                   pip install -r requirements-worker.txt
                   pip install -r requirements-test.txt
+
+            - name: Install ServerlessLLM Store
+              run: |
+                  cd sllm_store && \
+                  rm -rf build && \
+                  pip install . && \
+                  ./vllm_patch/patch.sh
 
             - name: Install ServerlessLLM
               run: |
                   pip install .
-                  cd sllm_store && pip install . && ./vllm_patch/patch.sh
 
             - name: Run tests
               run: |
