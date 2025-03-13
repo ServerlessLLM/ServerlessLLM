@@ -17,10 +17,12 @@
 # ---------------------------------------------------------------------------- #
 import asyncio
 import logging
+import os
 import uuid
 from typing import Dict, Optional
 
 import ray
+from prometheus_client import CollectorRegistry, Counter, Gauge, push_to_gateway
 
 from sllm.serve.inference_instance import start_instance
 from sllm.serve.logger import init_logger
@@ -93,6 +95,23 @@ class RoundRobinRouter(SllmRouter):
         self.idle_time_lock = asyncio.Lock()
 
         self.auto_scaler = None
+
+        # prometheus related members
+        self.pushgateway_url = self.router_config.get("pushgateway_url", "")
+        self.registry = CollectorRegistry()
+        # Set metrics to be recorded
+        self.num_running_instances = Gauge(
+            "num_running_instances",
+            "Number of running instances",
+            registry=self.registry,
+        )
+        self.num_running_instances.set(0)
+        self.arrived_request_counter = Counter(
+            "arrived_request_counter",
+            "Total arrived requests",
+            registry=self.registry,
+        )
+
         logger.info(f"Created new handler for model {self.model_name}")
 
     async def start(self, auto_scaling_config: Dict[str, int]):
@@ -101,6 +120,10 @@ class RoundRobinRouter(SllmRouter):
             self.auto_scaling_config = auto_scaling_config
         self.auto_scaler = asyncio.create_task(self._auto_scaler_loop())
         self.load_balancer = asyncio.create_task(self._load_balancer_loop())
+        if self.pushgateway_url != None:
+            self.metrics_reporter = asyncio.create_task(
+                self._metrics_reporter_loop()
+            )
         async with self.running_lock:
             self.running = True
         logger.info(f"Started handler for model {self.model_name}")
@@ -129,6 +152,7 @@ class RoundRobinRouter(SllmRouter):
 
         async with self.request_count_lock:
             self.request_count += 1
+            self.arrived_request_counter.inc()
 
         async with self.idle_time_lock:
             self.idle_time = 0
@@ -270,6 +294,10 @@ class RoundRobinRouter(SllmRouter):
                 num_running_instances = len(self.starting_instances) + len(
                     self.ready_instances
                 )
+
+            # Set prometheus metrics
+            self.num_running_instances.set(num_running_instances)
+
             logger.info(
                 f"{self.model_name}: {num_running_instances} instances,"
                 f"need {desired_instances} instances",
@@ -295,6 +323,18 @@ class RoundRobinRouter(SllmRouter):
             else:
                 # logger.info("No scaling needed")
                 pass
+            await asyncio.sleep(self.loop_interval)
+
+    async def _metrics_reporter_loop(self):
+        assert (
+            self.pushgateway_url != None
+        ), "prometheus pushgateway url is None!"
+        while True:
+            push_to_gateway(
+                self.pushgateway_url,
+                job="roundrobin_router",
+                registry=self.registry,
+            )
             await asyncio.sleep(self.loop_interval)
 
     async def _create_instance(self):
