@@ -17,8 +17,23 @@
 # ---------------------------------------------------------------------------- #
 
 ARG BASE_IMAGE="rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0"
-# Stage 1: Build the wheel
-FROM ${BASE_IMAGE} AS builder
+ARG PYTORCH_ROCM_ARCH="gfx908;gfx90a;gfx942;gfx1100"
+# Toggle for installing CK-based flash-attention
+# If 0, flash-attention won't be installed
+ARG BUILD_FA="1"
+ARG FA_GFX_ARCHS="gfx90a;gfx942"
+ARG FA_BRANCH="3cea2fb"
+
+# Toggle for building triton on rocm
+ARG BUILD_TRITON="1"
+ARG TRITON_BRANCH="e192dba"
+
+# vLLM branch version
+ARG VLLM_BRANCH="v0.6.6"
+
+
+# Base image build stage
+FROM ${BASE_IMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
@@ -28,9 +43,42 @@ RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update -y
 
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    sudo \
+    git \
+    bzip2 \
+    libx11-6 \
+    build-essential \
+    wget \
+    unzip \
+    tmux \
+    ccache \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get purge -y sccache; python3 -m pip uninstall -y sccache; rm -f "$(which sccache)"
+
+# Remove prebuilt torch and install pytorch 2.5.1
+RUN python3 -m pip uninstall -y torch torchvision \
+    && python3 -m pip install torch==2.5.1 \
+    torchvision==0.20.1 \
+    torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/rocm6.2
+
+# Set environment variables for LLVM and paths
+ENV LLVM_SYMBOLIZER_PATH=/opt/rocm/llvm/bin/llvm-symbolizer
+ENV PATH=$PATH:/opt/rocm/bin:/libtorch/bin
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib/:/libtorch/lib
+ENV CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:/libtorch/include:/libtorch/include/torch/csrc/api/include/:/opt/rocm/include/
+
+ENV PYTORCH_ROCM_ARCH=${PYTORCH_ROCM_ARCH}
+
 WORKDIR /app
 
-# Add the rest of the files
+### sllm-store wheel build stage
+FROM base AS builder
+# Add project files
 COPY cmake ./cmake
 COPY CMakeLists.txt .
 COPY csrc ./csrc
@@ -42,34 +90,112 @@ COPY requirements.txt .
 COPY README.md .
 COPY proto ./proto
 
-# Set using existing torch
+# Set up the environment using the existing torch version
 COPY requirements-build.txt .
 COPY using_existing_torch.py .
 RUN python3 using_existing_torch.py
 RUN python3 -m pip install -r requirements-build.txt
 
-
-# enable compile without AMD GPU
-ENV PYTORCH_ROCM_ARCH="gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
-
 RUN python3 setup.py sdist bdist_wheel
 
-# Stage 2: Start sllm store
-FROM ${BASE_IMAGE}
+### Flash-Attention wheel build stage
+FROM base AS build_fa
+ARG BUILD_FA
+ARG FA_GFX_ARCHS
+ARG FA_BRANCH
+# Build ROCm flash-attention wheel if `BUILD_FA = 1`
+RUN if [ "$BUILD_FA" = "1" ]; then \
+    mkdir -p libs \
+    && cd libs \
+    && git clone https://github.com/ROCm/flash-attention.git \
+    && cd flash-attention \
+    && git checkout "${FA_BRANCH}" \
+    && git submodule update --init \
+    && GPU_ARCHS="${FA_GFX_ARCHS}" python3 setup.py bdist_wheel --dist-dir=/install; \
+    # Create an empty directory if not building flash-attention
+    else mkdir -p /install; \
+    fi
 
-ENV DEBIAN_FRONTEND=noninteractive
+### Triton wheel build stage
+FROM base AS build_triton
+ARG BUILD_TRITON
+ARG TRITON_BRANCH
+# Build triton wheel if `BUILD_TRITON = 1`
+RUN if [ "$BUILD_TRITON" = "1" ]; then \
+    mkdir -p libs \
+    && cd libs \
+    && python3 -m pip install ninja cmake wheel pybind11 \
+    && git clone https://github.com/OpenAI/triton.git \
+    && cd triton \
+    && git checkout "${TRITON_BRANCH}" \
+    && cd python \
+    && python3 setup.py bdist_wheel --dist-dir=/install; \
+    # Create an empty directory if not building triton
+    else mkdir -p /install; \
+    fi
 
+### AMD-SMI build stage
+FROM base AS build_amdsmi
+# Build amdsmi wheel always
+RUN cd /opt/rocm/share/amd_smi \
+    && python3 -m pip wheel . --wheel-dir=/install
+
+### vLLM build stage
+FROM base AS build_vllm
+ARG VLLM_BRANCH
+
+WORKDIR /app/third_party
+
+COPY --from=build_triton /install/*.whl /install/
+RUN mkdir -p libs \
+    && if ls /install/*.whl; then \
+    cp /install/*.whl libs \
+    && python3 -m pip uninstall -y triton; fi
+
+COPY --from=build_fa /install/*.whl /install/
+RUN mkdir -p libs \
+    && if ls /install/*.whl; then \
+    cp /install/*.whl libs \
+    && python3 -m pip uninstall -y flash-attn; fi
+
+COPY --from=build_amdsmi /install/*.whl /install/
+RUN mkdir -p libs \
+    && if ls /install/*.whl; then \
+    cp /install/*.whl libs \
+    && python3 -m pip uninstall -y amdsmi; fi
+
+RUN if ls libs/*.whl; then \
+    python3 -m pip install libs/*.whl; fi
+
+RUN git clone https://github.com/vllm-project/vllm.git  \
+    && cd vllm \
+    && git checkout "${VLLM_BRANCH}" \
+    && pip install --upgrade numba scipy huggingface-hub[cli] \
+    && pip install setuptools_scm \
+    && pip install "numpy<2" \
+    && pip install -r requirements-rocm.txt
+
+RUN cd vllm && python3 setup.py develop
+
+COPY vllm_patch vllm_patch
+RUN vllm_patch/patch.sh
+
+### Final image build stage
+FROM build_vllm
 WORKDIR /app
 
-# Copy the built wheels from the builder
+# Copy the built wheels from the builder stage
 COPY --from=builder /app/dist /app/dist
 COPY --from=builder /app/requirements.txt /app/requirements.txt
 
 # Install the built wheels
 RUN python3 -m pip install /app/dist/*.whl
 
-# Copy the examples
+# Copy example files
 COPY examples /app/examples
+
+# Set storage path env
+ENV STORAGE_PATH=/models
 
 ENTRYPOINT [ "sllm-store", "start" ]
 CMD [ "--storage-path", "/models", "--mem-pool-size", "4GB" ]
