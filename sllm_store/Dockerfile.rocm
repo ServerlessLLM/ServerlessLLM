@@ -18,6 +18,10 @@
 
 ARG BASE_IMAGE="rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0"
 ARG PYTORCH_ROCM_ARCH="gfx908;gfx90a;gfx942;gfx1100"
+
+# Flash-Attention build, Triton build, and vLLM build are adapted from
+# https://github.com/vllm-project/vllm/blob/v0.6.6/Dockerfile.rocm
+
 # Toggle for installing CK-based flash-attention
 # If 0, flash-attention won't be installed
 ARG BUILD_FA="1"
