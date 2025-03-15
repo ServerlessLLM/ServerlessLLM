@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-accelerate==0.29.3
-bitsandbytes==0.45.1
-=======
 accelerate==1.2.1
->>>>>>> 53380f113b89b0b8619361d9e106210ec20e1e17
+bitsandbytes==0.45.1
 click>=8.1.7
 grpcio==1.49.1
 grpcio-tools==1.49.1
