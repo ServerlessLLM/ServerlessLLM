@@ -31,7 +31,7 @@ from vllm import (
     AsyncLLMEngine,
     EmbeddingRequestOutput,
     PoolingParams,
-    PromptStrictInputs,
+    PromptType,
     RequestOutput,
     SamplingParams,
 )
@@ -158,6 +158,7 @@ class VllmBackend(SllmBackend):
         self.enable_prefix_caching = backend_config.get(
             "enable_prefix_caching", True
         )
+        self.task = backend_config.get("task", "auto")
 
         async_engine_fields = {f.name for f in fields(AsyncEngineArgs)}
         filtered_engine_config = {
@@ -185,6 +186,7 @@ class VllmBackend(SllmBackend):
         filtered_engine_config["enable_prefix_caching"] = (
             self.enable_prefix_caching
         )
+        filtered_engine_config["task"] = self.task
 
         logger.info(
             f"Creating new VLLM engine with config: {filtered_engine_config}"
@@ -339,9 +341,7 @@ class VllmBackend(SllmBackend):
         if not query:
             return {"error": "No inputs provided"}
 
-        inputs = cast(
-            Union[PromptStrictInputs, Sequence[PromptStrictInputs]], query
-        )
+        inputs = cast(Union[PromptType, Sequence[PromptType]], query)
 
         async def process_input(input_data) -> List[EmbeddingRequestOutput]:
             request_id = str(next(request_counter))
