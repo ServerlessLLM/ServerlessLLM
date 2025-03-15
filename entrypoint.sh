@@ -27,9 +27,17 @@ DEFAULT_RAY_NUM_CPUS=20
 DEFAULT_RAY_HEAD_ADDRESS="sllm_head:6379"
 DEFAULT_STORAGE_PATH="/models"
 
+# Source conda
+source /opt/conda/etc/profile.d/conda.sh
+
 # Function to initialize the head node
 initialize_head_node() {
   echo "Initializing head node..."
+
+  # Activate head environment
+  echo "Activating head conda environment..."
+  conda activate head
+
   RAY_PORT="${RAY_PORT:-$DEFAULT_RAY_PORT}"
   RAY_RESOURCES="${RAY_RESOURCES:-$DEFAULT_RAY_RESOURCES_HEAD}"
   RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
@@ -43,12 +51,16 @@ initialize_head_node() {
 
   # Start sllm-serve with any additional arguments passed to the script
   echo "Starting sllm-serve with arguments: $@"
-  exec /opt/conda/bin/sllm-serve start "$@"
+  exec sllm-serve start "$@"
 }
 
 # Function to initialize the worker node
 initialize_worker_node() {
   echo "Initializing worker node..."
+
+  # Activate worker environment
+  echo "Activating worker conda environment..."
+  conda activate worker
 
   # Patch the vLLM code
   VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
