@@ -83,32 +83,12 @@ def save_model(model: nn.Module, model_path: str):
     save_dict(model_state_dict, model_path)
 
     # This section of code was adopted from the Hugging Face Transformers project under Apache-2.0 License. # noqa: E501
-    # Source: https://github.com/huggingface/transformers/blob/9fe3f585bb4ea29f209dc705d269fbe292e1128f/src/transformers/modeling_utils.py#L2425-L2447
+    # Source: https://github.com/huggingface/transformers/blob/241c04d36867259cdf11dbb4e9d9a60f9cb65ebc/src/transformers/modeling_utils.py#L2812-L2856
     # Modifications made: Removed the support for '_hf_peft_config_loaded'
     #
     # Save the config
     model.config.save_pretrained(model_path)
     if model.can_generate():
-        # generation config built from the model config + the model config holds generation kwargs -> generate # noqa: E501
-        # may revert to legacy behavior if the two don't match
-        if (
-            model.generation_config._from_model_config
-            and model.config._has_non_default_generation_parameters()
-        ):
-            new_generation_config = GenerationConfig.from_model_config(
-                model.config
-            )
-            if new_generation_config != model.generation_config:
-                logger.warning(
-                    "Your generation config was originally created from the model config, but the model "  # noqa: E501
-                    "config has changed since then. Unless you pass the `generation_config` argument to this "  # noqa: E501
-                    "model's `generate` calls, they will revert to the legacy behavior where the base "  # noqa: E501
-                    "`generate` parameterization is loaded from the model config instead. "  # noqa: E501
-                    "To avoid this behavior and this warning, we recommend you to overwrite the generation "  # noqa: E501
-                    "config model attribute before calling the model's `save_pretrained`, preferably also "  # noqa: E501
-                    "removing any generation kwargs from the model config. This warning will be raised to an "  # noqa: E501
-                    "exception in v4.41."
-                )
         model.generation_config.save_pretrained(model_path)
 
     # save module index
