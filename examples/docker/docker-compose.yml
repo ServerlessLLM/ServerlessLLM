@@ -3,11 +3,12 @@ services:
   sllm_head:
     build:
       context: ../../
-      dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
-    image: serverlessllm/sllm-head:latest
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
     container_name: sllm_head
     environment:
       - MODEL_FOLDER=${MODEL_FOLDER}
+      - MODE=HEAD
     ports:
       - "6379:6379"    # Redis port
       - "8343:8343"    # ServerlessLLM port
@@ -19,8 +20,8 @@ services:
   sllm_worker_0:
     build:
       context: ../../
-      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
-    image: serverlessllm/sllm-worker:latest
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
     container_name: sllm_worker_0
     deploy:
       resources:
@@ -32,6 +33,7 @@ services:
     environment:
       - WORKER_ID=0
       - STORAGE_PATH=/models
+      - MODE=WORKER
     networks:
       - sllm_network
     volumes:
