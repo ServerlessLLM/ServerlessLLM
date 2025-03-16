@@ -456,6 +456,7 @@ class StoreManager:
                     )
                     logger.info(f"{model_name} loaded to memory pool")
             self.model_info[model_name] = model_size
+            logger.info(f"{model_name} registered")
         else:
             # TODO: apply new placement config, if given
             pass
