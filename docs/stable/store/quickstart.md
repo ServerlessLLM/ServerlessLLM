@@ -134,11 +134,11 @@ Thus, for fist-time users, you have to load the model from other backends and th
 
 1. Download the model from HuggingFace and save it in the ServerlessLLM format:
 ``` bash
-python3 examples/sllm_store/save_vllm_model.py --model_name facebook/opt-1.3b --storage_path $PWD/models --tensor_parallel_size 1
+python3 examples/sllm_store/save_vllm_model.py --model-name facebook/opt-1.3b --storage-path $PWD/models --tensor-parallel-size 1
 
 ```
 
-You can also transfer the model from the local path compared to download it from network by passing the `--local_model_path` argument.
+You can also transfer the model from the local path compared to download it from network by passing the `--local-model-path` argument.
 
 After downloading the model, you can launch the checkpoint store server and load the model in vLLM through `sllm` load format.
 

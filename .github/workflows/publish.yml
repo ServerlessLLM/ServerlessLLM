@@ -239,19 +239,19 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            serverlessllm/sllm-head:${{ env.RELEASE_TAG }}
-            serverlessllm/sllm-head:latest
+            serverlessllm/sllm:${{ env.RELEASE_TAG }}
+            serverlessllm/sllm:latest
           build-args: |
             VERSION=${{ env.RELEASE_TAG }}
 
-      - name: Build and Push Worker Docker Image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./Dockerfile.worker
-          push: true
-          tags: |
-            serverlessllm/sllm-worker:${{ env.RELEASE_TAG }}
-            serverlessllm/sllm-worker:latest
-          build-args: |
-            VERSION=${{ env.RELEASE_TAG }}
+      # - name: Build and Push Worker Docker Image
+      #   uses: docker/build-push-action@v4
+      #   with:
+      #     context: .
+      #     file: ./Dockerfile.worker
+      #     push: true
+      #     tags: |
+      #       serverlessllm/sllm-worker:${{ env.RELEASE_TAG }}
+      #       serverlessllm/sllm-worker:latest
+      #     build-args: |
+      #       VERSION=${{ env.RELEASE_TAG }}
