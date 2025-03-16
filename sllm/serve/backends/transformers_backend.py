@@ -141,16 +141,18 @@ class TransformersBackend(SllmBackend):
             )
             if self.enable_lora:
                 for lora_name, lora_path in self.lora_adapters.items():
+                    lora_path = os.path.join("transformers", lora_path)
                     logger.info(
                         f"lora_name is {lora_name}, lora_path is {lora_path}"
                     )
                     lora_config, lora_weights = load_lora(
                         lora_name=lora_name,
                         lora_path=lora_path,
-                        device_map=device_map,
+                        device_map={"": 0},
                         storage_path=storage_path,
                     )
                     self.inject_lora(lora_name, lora_config, lora_weights)
+                    logger.info(f"{lora_name} injected successfully.")
             tokenizer_path = os.path.join(
                 storage_path, "transformers", self.model_name, "tokenizer"
             )
@@ -165,12 +167,18 @@ class TransformersBackend(SllmBackend):
 
     def inject_lora(self, lora_name, lora_config, lora_weights):
         for layer_name, layer in self.model.named_modules():
-            if layer_name in lora_config["target_modules"]:
-                lora_A = lora_weights[f"{layer_name}.lora_A"]
-                lora_B = lora_weights[f"{layer_name}.lora_B"]
+            if any(key.startswith(layer_name) for key in lora_config.keys()):
+                lora_A = lora_weights.get(f"{layer_name}.lora_A.weight", None)
+                lora_B = lora_weights.get(f"{layer_name}.lora_B.weight", None)
+
+                if lora_A is None or lora_B is None:
+                    continue
+
+                def lora_forward_hook(lora_A, lora_B, module, input, output):
+                    return output + (input[0] @ lora_A @ lora_B)
 
                 layer.register_forward_hook(
-                    lambda _, input, output: output + (input @ lora_A @ lora_B)
+                    functools.partial(lora_forward_hook, lora_A, lora_B)
                 )
 
     def _tokenize(self, prompt: str):

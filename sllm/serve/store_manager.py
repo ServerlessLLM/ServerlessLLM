@@ -88,19 +88,6 @@ class SllmLocalStore:
             self.disk_models[model_name] = (model_path, model_size)
             logger.info(f"{model_name} registered, {self.disk_models}")
 
-            if (
-                backend_config.get("enable_lora", False)
-                and "lora_adapters" in backend_config
-            ):
-                for lora_name, lora_path in backend_config[
-                    "lora_adapters"
-                ].items():
-                    logger.info(
-                        f"Registering LoRA adapter {lora_name} for {model_name}"
-                    )
-                    adapter_size = self.client.register_model(lora_path)
-                    model_size += adapter_size
-
         return model_size
 
     async def get_store_info(self):
@@ -462,16 +449,6 @@ class StoreManager:
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
                 logger.info(f"{model_name} downloaded to node {node_id}")
-                if (
-                    backend_config.get("enable_lora", False)
-                    and "lora_adapters" in backend_config
-                ):
-                    for lora_name, lora_path in backend_config[
-                        "lora_adapters"
-                    ].items():
-                        logger.info(
-                            f"LoRA adapter {lora_name} downloaded on node {node_id}"
-                        )
                 if node_id in memory_pool:
                     # preload to memory pool
                     await self.load_to_host(
@@ -479,15 +456,6 @@ class StoreManager:
                     )
                     logger.info(f"{model_name} loaded to memory pool")
             self.model_info[model_name] = model_size
-            logger.info(f"{model_name} registered")
-            if (
-                backend_config.get("enable_lora", False)
-                and "lora_adapters" in backend_config
-            ):
-                for lora_name, lora_path in backend_config[
-                    "lora_adapters"
-                ].items():
-                    logger.info(f"LoRA adapter {lora_name} registered")
         else:
             # TODO: apply new placement config, if given
             pass
