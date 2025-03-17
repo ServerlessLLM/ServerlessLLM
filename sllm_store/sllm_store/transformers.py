@@ -51,7 +51,7 @@ from sllm_store.utils import (
     send_module_buffers_to_device,
 )
 from torch import nn
-from transformers import AutoConfig, GenerationConfig
+from transformers import AutoConfig
 from transformers.integrations.bitsandbytes import (
     set_module_quantized_tensor_to_device,
     replace_with_bnb_linear,
