@@ -46,7 +46,7 @@ class DeployCommand:
             help="Overwrite the backend in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--num_gpus",
+            "--num-gpus",
             type=int,
             help="Overwrite the number of GPUs in the default configuration.",
         )
@@ -56,12 +56,12 @@ class DeployCommand:
             help="Overwrite the target concurrency in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--min_instances",
+            "--min-instances",
             type=int,
             help="Overwrite the minimum instances in the default configuration.",
         )
         deploy_parser.add_argument(
-            "--max_instances",
+            "--max-instances",
             type=int,
             help="Overwrite the maximum instances in the default configuration.",
         )
