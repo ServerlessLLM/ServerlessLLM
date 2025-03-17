@@ -62,10 +62,6 @@ initialize_worker_node() {
   echo "Activating worker conda environment..."
   conda activate worker
 
-  # Patch the vLLM code
-  VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
-  patch -p2 -d "$VLLM_PATH" < ./vllm_patch/sllm_load.patch
-
   # Start the worker
   RAY_HEAD_ADDRESS="${RAY_HEAD_ADDRESS:-$DEFAULT_RAY_HEAD_ADDRESS}"
 
