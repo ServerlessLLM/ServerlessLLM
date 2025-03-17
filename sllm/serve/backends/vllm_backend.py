@@ -213,8 +213,8 @@ class VllmBackend(SllmBackend):
         if request_data is None:
             return {"error": "Request data is missing"}
 
-        model_name: str = request_data.get("model", "vllm-model")
-        messages: Dict[Dict[str, str], str] = request_data.get("messages", [])
+        model_name: str = request_data.pop("model", "vllm-model")
+        messages: Dict[Dict[str, str], str] = request_data.pop("messages", [])
         construct_prompt: str = "\n".join(
             [
                 f"{message['role']}: {message['content']}"
@@ -224,26 +224,22 @@ class VllmBackend(SllmBackend):
         )
 
         # If prompt is not provided, construct it from messages
-        inputs: Union[str, TokensPrompt] = request_data.get(
+        inputs: Union[str, TokensPrompt] = request_data.pop(
             "prompt", construct_prompt
         )
         if request_data.get("input_tokens") is not None:
             inputs = TokensPrompt(
-                prompt_token_ids=request_data["input_tokens"],
+                prompt_token_ids=request_data.pop("input_tokens"),
             )
 
-        request_id: str = request_data.get(
+        request_id: str = request_data.pop(
             "request_id", f"chatcmpl-{uuid.uuid4()}"
         )
 
-        sampling_params_constructor = inspect.signature(
-            SamplingParams.__init__
-        ).parameters.keys()
-        sampling_params_fields = set(sampling_params_constructor)
-        filtered_request_data = {
-            k: v for k, v in request_data.items() if k in sampling_params_fields
-        }
-        sampling_params = SamplingParams(**filtered_request_data)
+        try:
+            sampling_params = SamplingParams(**request_data)
+        except Exception as e:
+            return {"error": f"Invalid sampling parameters: {e}"}
 
         results_generator = self.engine.generate(
             inputs, sampling_params, request_id
