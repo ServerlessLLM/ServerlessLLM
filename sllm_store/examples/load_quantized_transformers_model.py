@@ -9,10 +9,10 @@ from sllm_store.transformers import load_model
 
 parser = argparse.ArgumentParser(description="Load a model from ServerlessLLM")
 parser.add_argument(
-    "--model_name", type=str, required=True, help="Model name stored"
+    "--model-name", type=str, required=True, help="Model name stored"
 )
 parser.add_argument(
-    "--storage_path",
+    "--storage-path",
     type=str,
     default="./models",
     help="Local path stored the model.",
