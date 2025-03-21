@@ -92,6 +92,59 @@ Hello, my dog is cute and I want to give him a good home. I have a
 
 ```
 
+Try to save and load a model in vLLM:
+
+``` bash
+python3 examples/save_vllm_model.py --model-name "facebook/opt-125m" --storage-path "/models"
+python3 examples/load_vllm_model.py --model-name "facebook/opt-125m" --storage-path "/models"
+```
+Expected output:
+
+``` bash
+WARNING 03-13 09:37:29 rocm.py:31] `fork` method is not supported by ROCm. VLLM_WORKER_MULTIPROC_METHOD is overridden to `spawn` instead.
+INFO 03-13 09:37:35 config.py:510] This model supports multiple tasks: {'embed', 'classify', 'generate', 'reward', 'score'}. Defaulting to 'generate'.
+INFO 03-13 09:37:35 config.py:1339] Disabled the custom all-reduce kernel because it is not supported on AMD GPUs.
+INFO 03-13 09:37:35 llm_engine.py:234] Initializing an LLM engine (v0.6.6) with config: model='/models/facebook/opt-125m', speculative_config=None, tokenizer='/models/facebook/opt-125m', skip_tokenizer_init=False,
+ tokenizer_mode=auto, revision=None, override_neuron_config=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.float16, max_seq_len=2048, download_dir=None, load_format=serverless_llm, tensor_para
+llel_size=1, pipeline_parallel_size=1, disable_custom_all_reduce=True, quantization=None, enforce_eager=False, kv_cache_dtype=auto, quantization_param_path=None, device_config=cuda, decoding_config=DecodingConfig(
+guided_decoding_backend='xgrammar'), observability_config=ObservabilityConfig(otlp_traces_endpoint=None, collect_model_forward_time=False, collect_model_execute_time=False), seed=0, served_model_name=/models/faceb
+ook/opt-125m, num_scheduler_steps=1, multi_step_stream_outputs=True, enable_prefix_caching=False, chunked_prefill_enabled=False, use_async_output_proc=True, disable_mm_preprocessor_cache=False, mm_processor_kwargs
+=None, pooler_config=None, compilation_config={"splitting_ops":["vllm.unified_attention","vllm.unified_attention_with_output"],"candidate_compile_sizes":[],"compile_sizes":[],"capture_sizes":[256,248,240,232,224,2
+16,208,200,192,184,176,168,160,152,144,136,128,120,112,104,96,88,80,72,64,56,48,40,32,24,16,8,4,2,1],"max_capture_size":256}, use_cached_outputs=False,
+INFO 03-13 09:37:38 selector.py:134] Using ROCmFlashAttention backend.
+INFO 03-13 09:37:39 model_runner.py:1094] Starting to load model /models/facebook/opt-125m...
+DEBUG 03-13 09:37:39 torch.py:137] allocate_cuda_memory takes 0.0004572868347167969 seconds
+DEBUG 03-13 09:37:39 client.py:72] load_into_gpu: facebook/opt-125m/rank_0, 8554547c-25d3-4a01-92b6-27d69d91d3b8
+INFO 03-13 09:37:39 client.py:113] Model loaded: facebook/opt-125m/rank_0, 8554547c-25d3-4a01-92b6-27d69d91d3b8
+INFO 03-13 09:37:39 torch.py:160] restore state_dict takes 0.00017452239990234375 seconds
+INFO 03-13 09:37:39 client.py:117] confirm_model_loaded: facebook/opt-125m/rank_0, 8554547c-25d3-4a01-92b6-27d69d91d3b8
+INFO 03-13 09:37:39 client.py:125] Model loaded
+INFO 03-13 09:37:39 model_runner.py:1099] Loading model weights took 0.0000 GB
+/app/third_party/vllm/vllm/model_executor/layers/linear.py:140: UserWarning: Attempting to use hipBLASLt on an unsupported architecture! Overriding blas backend to hipblas (Triggered internally at ../aten/src/ATen
+/Context.cpp:296.)
+  return F.linear(x, layer.weight, bias)
+INFO 03-13 09:37:42 worker.py:253] Memory profiling takes 2.68 seconds
+INFO 03-13 09:37:42 worker.py:253] the current vLLM instance can use total_gpu_memory (23.98GiB) x gpu_memory_utilization (0.90) = 21.59GiB
+INFO 03-13 09:37:42 worker.py:253] model weights take 0.00GiB; non_torch_memory takes 0.62GiB; PyTorch activation peak memory takes 0.46GiB; the rest of the memory reserved for KV Cache is 20.50GiB.
+INFO 03-13 09:37:42 gpu_executor.py:76] # GPU blocks: 37326, # CPU blocks: 7281
+INFO 03-13 09:37:42 gpu_executor.py:80] Maximum concurrency for 2048 tokens per request: 291.61x
+INFO 03-13 09:37:43 model_runner.py:1429] Capturing cudagraphs for decoding. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--
+enforce-eager' in the CLI. If out-of-memory error occurs during cudagraph capture, consider decreasing `gpu_memory_utilization` or switching to eager mode. You can also reduce the `max_num_seqs` as needed to decre
+ase memory usage.
+Capturing CUDA graph shapes: 100%|████████████████████████████████████████| 35/35 [00:09<00:00,  3.73it/s]
+INFO 03-13 09:37:52 model_runner.py:1549] Graph capturing finished in 9 secs, took 0.06 GiB
+INFO 03-13 09:37:52 llm_engine.py:431] init engine (profile, create kv cache, warmup model) took 12.80 seconds
+Processed prompts: 100%|█| 4/4 [00:00<00:00, 50.16it/s, est. speed input: 326.19 toks/s, output: 802.89 to
+Prompt: 'Hello, my name is', Generated text: ' Joel, my dad is my friend and we are in a relationship. I am'
+Prompt: 'The president of the United States is', Generated text: ' speaking out against the release of some State Department documents which show the Russians were involved'
+Prompt: 'The capital of France is', Generated text: ' a worldwide knowledge center. What better place to learn about the history and culture of'
+Prompt: 'The future of AI is', Generated text: " here: it's the future of everything\nIf you want to test your minds"
+[rank0]:[W313 09:37:53.050846849 ProcessGroupNCCL.cpp:1250] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_p
+rocess_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This cons
+traint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+
+```
+
 ## Build the wheel from source and install
 
 Currently, `pip install .` does not work with ROCm. We suggest you build `sllm-store` wheel and manually install it in your environment.
