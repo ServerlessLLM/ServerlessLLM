@@ -24,7 +24,7 @@ ARG PYTORCH_ROCM_ARCH="gfx908;gfx90a;gfx942;gfx1100"
 
 # Toggle for installing CK-based flash-attention
 # If 0, flash-attention won't be installed
-ARG BUILD_FA="1"
+ARG BUILD_FA="0"
 ARG FA_GFX_ARCHS="gfx90a;gfx942"
 ARG FA_BRANCH="3cea2fb"
 
