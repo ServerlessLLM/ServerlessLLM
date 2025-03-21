@@ -65,8 +65,8 @@ docker exec -it sllm_store_server /bin/bash
 Try to save and load a transformer model:
 
 ``` bash
-python3 examples/save_transformers_model.py --model_name "facebook/opt-1.3b" --storage_path "/models"
-python3 examples/load_transformers_model.py --model_name "facebook/opt-1.3b" --storage_path "/models"
+python3 examples/save_transformers_model.py --model-name "facebook/opt-1.3b" --storage-path "/models"
+python3 examples/load_transformers_model.py --model-name "facebook/opt-1.3b" --storage-path "/models"
 ```
 Expected output:
 
@@ -95,8 +95,8 @@ Hello, my dog is cute and I want to give him a good home. I have a
 Try to save and load a model in vLLM:
 
 ``` bash
-python3 examples/save_vllm_model.py --model_name "facebook/opt-125m" --storage_path "/models"
-python3 examples/load_vllm_model.py --model_name "facebook/opt-125m" --storage_path "/models"
+python3 examples/save_vllm_model.py --model-name "facebook/opt-125m" --storage-path "/models"
+python3 examples/load_vllm_model.py --model-name "facebook/opt-125m" --storage-path "/models"
 ```
 Expected output:
 
