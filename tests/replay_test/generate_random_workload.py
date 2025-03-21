@@ -40,16 +40,16 @@ def main():
         description="Generate random workload.json for sllm-cli"
     )
     parser.add_argument(
-        "--num_models", type=int, required=True, help="Number of models"
+        "--num-models", type=int, required=True, help="Number of models"
     )
     parser.add_argument(
-        "--request_rate",
+        "--request-rate",
         type=int,
         required=True,
         help="Request rate per second",
     )
     parser.add_argument(
-        "--duration_minutes",
+        "--duration-minutes",
         type=int,
         required=True,
         help="Duration of the workload in minutes",

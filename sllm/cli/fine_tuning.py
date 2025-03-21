@@ -34,7 +34,7 @@ class FineTuningCommand:
             "fine-tuning", help="fine-tuning base model."
         )
         fine_tuning_parser.add_argument(
-            "--base_model", type=str, help="base_model name"
+            "--base-model", type=str, help="base model name"
         )
         fine_tuning_parser.add_argument(
             "--config",

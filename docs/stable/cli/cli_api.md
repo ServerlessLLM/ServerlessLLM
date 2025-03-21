@@ -62,16 +62,16 @@ sllm-cli deploy [OPTIONS]
 - `--backend <backend_name>`
   - Overwrite the backend in the default configuration.
 
-- `--num_gpus <number>`
+- `--num-gpus <number>`
   - Overwrite the number of GPUs in the default configuration.
 
 - `--target <number>`
   - Overwrite the target concurrency in the default configuration.
 
-- `--min_instances <number>`
+- `--min-instances <number>`
   - Overwrite the minimum instances in the default configuration.
 
-- `--max_instances <number>`
+- `--max-instances <number>`
   - Overwrite the maximum instances in the default configuration.
 
 ##### Examples
@@ -92,7 +92,7 @@ sllm-cli deploy --model facebook/opt-1.3b --backend transformers
 
 Deploy using a model name and overwrite multiple configurations:
 ```bash
-sllm-cli deploy --model facebook/opt-1.3b --num_gpus 2 --target 5 --min_instances 1 --max_instances 5
+sllm-cli deploy --model facebook/opt-1.3b --num-gpus 2 --target 5 --min-instances 1 --max-instances 5
 ```
 
 ##### Example Configuration File (`config.json`)
@@ -275,15 +275,15 @@ sllm-cli fine-tuning [OPTIONS]
 ```
 
 ##### Options
-- `--base_model <model_name>`
+- `--base-model <model_name>`
   - Base model name to be fine-tuned
 - `--config <config_path>`
   - Path to the JSON configuration file.
 
 ##### Example
 ```bash
-sllm-cli fine-tuning --base_model <model_name>
-sllm-cli fine-tuning --base_model <model_name> --config <path_to_ft_config_file>
+sllm-cli fine-tuning --base-model <model_name>
+sllm-cli fine-tuning --base-model <model_name> --config <path_to_ft_config_file>
 ```
 
 ##### Example Configuration File (`ft_config.json`)

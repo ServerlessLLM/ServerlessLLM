@@ -47,12 +47,12 @@ def main():
         "--port", default=8343, type=int, help="Port to run the server on."
     )
     start_parser.add_argument(
-        "--enable_storage_aware",
+        "--enable-storage-aware",
         action="store_true",
         help="Enable storage-aware scheduling.",
     )
     start_parser.add_argument(
-        "--enable_migration",
+        "--enable-migration",
         action="store_true",
         help="Enable live migration of model instances.",
     )

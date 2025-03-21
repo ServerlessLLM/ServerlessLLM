@@ -19,7 +19,7 @@ ServerlessLLM now supports flexible runtime configurations for both the head and
 To use a memory pool size of 16GB, modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows:
 
 ```yaml
-command: ["-mem_pool_size", "16", "-registration_required", "true"]
+command: ["-mem-pool-size", "16", "-registration-required", "true"]
 ```
 
 This command line option will set a memory pool size of 16GB for each worker node.
