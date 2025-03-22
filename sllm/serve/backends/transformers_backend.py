@@ -139,6 +139,16 @@ class TransformersBackend(SllmBackend):
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )
+            tokenizer_path = os.path.join(
+                storage_path, "transformers", self.model_name, "tokenizer"
+            )
+            if os.path.exists(tokenizer_path):
+                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+            else:
+                # Fall back to load from system's cache
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.pretrained_model_name_or_path
+                )
             if self.enable_lora:
                 for lora_name, lora_path in self.lora_adapters.items():
                     lora_path = os.path.join("transformers", lora_path)
@@ -153,33 +163,40 @@ class TransformersBackend(SllmBackend):
                     )
                     self.inject_lora(lora_name, lora_config, lora_weights)
                     logger.info(f"{lora_name} injected successfully.")
-            tokenizer_path = os.path.join(
-                storage_path, "transformers", self.model_name, "tokenizer"
-            )
-            if os.path.exists(tokenizer_path):
-                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-            else:
-                # Fall back to load from system's cache
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    self.pretrained_model_name_or_path
-                )
             self.status = BackendStatus.RUNNING
 
     def inject_lora(self, lora_name, lora_config, lora_weights):
         for layer_name, layer in self.model.named_modules():
+            if layer_name.endswith(".bias"):
+                continue
+            if layer_name.endswith(".weight"):
+                layer_name = layer_name.rsplit(".", 1)[0]
             if any(key.startswith(layer_name) for key in lora_config.keys()):
-                lora_A = lora_weights.get(f"{layer_name}.lora_A.weight", None)
-                lora_B = lora_weights.get(f"{layer_name}.lora_B.weight", None)
-
+                lora_A = lora_weights.get(
+                    f"base_model.model.{layer_name}.lora_A.weight", None
+                )
+                lora_B = lora_weights.get(
+                    f"base_model.model.{layer_name}.lora_B.weight", None
+                )
                 if lora_A is None or lora_B is None:
                     continue
+                lora_A.to(layer.weight.device)
+                lora_B.to(layer.weight.device)
 
-                def lora_forward_hook(lora_A, lora_B, module, input, output):
-                    return output + (input[0] @ lora_A @ lora_B)
+                def forward_with_lora(self, input):
+                    return (
+                        self._orig_forward(input)
+                        + input @ self.lora_A @ self.lora_B
+                    )
 
-                layer.register_forward_hook(
-                    functools.partial(lora_forward_hook, lora_A, lora_B)
-                )
+                layer._orig_forward = layer.forward
+                layer.forward = types.MethodType(forward_with_lora, layer)
+                # def lora_forward_hook(lora_A, lora_B, module, input, output):
+                #     return output + (input[0] @ lora_A @ lora_B)
+
+                # layer.register_forward_hook(
+                #     functools.partial(lora_forward_hook, lora_A, lora_B)
+                # )
 
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
