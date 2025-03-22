@@ -42,7 +42,7 @@ from sllm_store.device_map_utils import (
     _transform_device_map_to_dict,
 )
 from sllm_store.logger import init_logger
-from sllm_store.torch import load_dict_non_blocking, save_dict
+from sllm_store.torch import load_dict_non_blocking, save_dict, load_dict
 from sllm_store.utils import (
     calculate_device_memory,
     calculate_tensor_device_offsets,
@@ -344,3 +344,17 @@ def best_effort_load(
     model.hf_device_map = device_map
 
     return model
+
+
+def load_lora(lora_name, lora_path, device_map, storage_path):
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+
+    with open(
+        os.path.join(storage_path, lora_path, "tensor_index.json"), "r"
+    ) as f:
+        lora_config = json.load(f)
+
+    lora_weights = load_dict(lora_path, device_map, storage_path)
+
+    return lora_config, lora_weights
