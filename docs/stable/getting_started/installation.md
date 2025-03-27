@@ -56,7 +56,7 @@ pip install .
 
 # vLLM Patch
 To use vLLM with ServerlessLLM, you need to apply our patch located at `sllm_store/vllm_patch/sllm_load.patch` to the vLLM repository. to the vLLM repository.
-The patch has been tested with vLLM version `0.5.0.post1`.
+The patch has been tested with vLLM version `0.6.6`.
 
 You can apply the patch by running the following script:
 ```bash
