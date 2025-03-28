@@ -1,4 +1,4 @@
-cmake>=3.20
+cmake>=3.20,<4.0.0
 ninja
 peft==0.8.2
 setuptools
