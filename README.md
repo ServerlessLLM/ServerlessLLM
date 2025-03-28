@@ -13,6 +13,8 @@
 
 ServerlessLLM (`sllm`, pronounced "slim") is an open-source serverless framework designed to make custom and elastic LLM deployment easy, fast, and affordable. As LLMs grow in size and complexity, deploying them on AI hardware has become increasingly costly and technically challenging, limiting custom LLM deployment to only a select few. ServerlessLLM solves these challenges with a full-stack, LLM-centric serverless system design, optimizing everything from checkpoint formats and inference runtimes to the storage layer and cluster scheduler.
 
+Curious about how it works under the hood? Check out our [System Walkthrough](https://github.com/ServerlessLLM/ServerlessLLM/tree/main/blogs/serverless-llm-architecture) for a deep dive into the technical design—perfect if you're exploring your own research or building with ServerlessLLM.
+
 ## News
 
 - **[03/25]** We're excited to share that we'll be giving a ServerlessLLM tutorial at the SESAME workshop, co-located with ASPLOS/EuroSys 2025 in Rotterdam, Netherlands, on March 31. [More info](https://sesame25.github.io/)
