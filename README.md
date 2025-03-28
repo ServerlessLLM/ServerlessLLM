@@ -15,6 +15,7 @@ ServerlessLLM (`sllm`, pronounced "slim") is an open-source serverless framework
 
 ## News
 
+- **[03/25]** We're excited to share that we'll be giving a ServerlessLLM tutorial at the SESAME workshop, co-located with ASPLOS/EuroSys 2025 in Rotterdam, Netherlands, on March 31. [More info](https://sesame25.github.io/)
 - **[11/24]** We have added experimental support of fast checkpoint loading for AMD GPUs (ROCm) when using with vLLM, PyTorch and HuggingFace Accelerate. Please refer to the [documentation](https://serverlessllm.github.io/docs/stable/store/rocm_quickstart) for more details.
 - **[10/24]** ServerlessLLM was invited to present at a global AI tech vision forum in Singapore.
 - **[10/24]** We hosted the first ServerlessLLM developer meetup in Edinburgh, attracting over 50 attendees both offline and online. Together, we brainstormed many exciting new features to develop. If you have great ideas, we’d love for you to join us!
