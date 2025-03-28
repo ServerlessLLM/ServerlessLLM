@@ -100,7 +100,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-n",
-        "--num_models",
+        "--num-models",
         type=int,
         required=True,
         help="Number of models to deploy.",
