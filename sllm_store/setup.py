@@ -232,7 +232,7 @@ cmdclass = {
 
 setup(
     name="serverless-llm-store",
-    version="0.6.2",
+    version="0.6.3",
     ext_modules=[
         CMakeExtension(name="sllm_store._C"),
         CMakeExtension(name="sllm_store._checkpoint_store"),
