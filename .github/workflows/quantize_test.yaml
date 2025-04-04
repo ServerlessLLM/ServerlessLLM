@@ -1,0 +1,50 @@
+name: Quantization Test
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+    branches:
+      - main
+    paths:
+      - 'sllm_store/**'
+
+jobs:
+  quantize_test_nvidia:
+    runs-on: [self-hosted, nvidia]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
+    timeout-minutes: 60
+    container:
+      image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
+      options: --gpus all
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y ca-certificates git
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.txt
+
+      # Python Tests
+      - name: Install ServerlessLLM
+        run: |
+          cd sllm_store && pip install .
+
+      - name: Start sllm-store Server
+        run: |
+          export MODEL_FOLDER="./models"
+          mkdir -p $MODEL_FOLDER
+          nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 16GB > server.log 2>&1 &
+          sleep 10
+
+      - name: Run Python Tests
+        timeout-minutes: 30
+        run: |
+          export MODEL_FOLDER="./models"
+          pytest tests/quantize_test
