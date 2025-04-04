@@ -32,6 +32,7 @@ try:
     # install cuda library is sufficient
     # assert torch.cuda.is_available() == True
     from torch.utils.cpp_extension import CUDA_HOME
+    from torch.utils.cpp_extension import ROCM_HOME
 except Exception:
     torch_available = False
     print(
@@ -56,23 +57,32 @@ def check_nvcc_installed(cuda_home: str) -> None:
         ) from None
 
 
-def check_hipcc_installed() -> None:
+def check_hipcc_installed(rocm_home: str) -> None:
     """Check if hipcc (AMD HIP compiler) is installed."""
-    try:
-        _ = subprocess.check_output(
-            ["hipcc", "--version"], universal_newlines=True
-        )
-    except Exception:
-        raise RuntimeError(
-            "hipcc is not installed or not found in your PATH. "
-            "Please ensure that the HIP toolkit is installed and hipcc is available in your PATH."  # noqa: E501
-        ) from None
+    # can be either <ROCM_HOME>/hip/bin/hipcc or <ROCM_HOME>/bin/hipcc
+    hipcc_paths = [rocm_home + "/bin/hipcc", rocm_home + "/hip/bin/hipcc"]
+    for hipcc in hipcc_paths:
+        try:
+            _ = subprocess.check_output(
+                [hipcc, "--version"], universal_newlines=True
+            )
+            return
+        except Exception:
+            continue
+    raise RuntimeError(
+        "hipcc is not installed or not found in your PATH. "
+        "Please ensure that the HIP toolkit is installed and hipcc is available in your PATH."  # noqa: E501
+    ) from None
 
 
 if CUDA_HOME is not None:
     check_nvcc_installed(CUDA_HOME)
+elif ROCM_HOME is not None:
+    check_hipcc_installed(ROCM_HOME)
 else:
-    check_hipcc_installed()
+    raise RuntimeError(
+        "CUDA_HOME or ROCM_HOME environment variable must be set to compile CUDA or HIP extensions."  # noqa: E501
+    )
 
 
 def is_ninja_available() -> bool:
