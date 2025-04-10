@@ -229,21 +229,18 @@ def fully_parallel_load(
                 logger.debug("Offloading is not supported yet")
                 quantization_config.llm_int8_enable_fp32_cpu_offload = False
 
-            torch_dtype = torch_dtype or torch.float16
+            has_torch_dtype = torch_dtype is not None
             model = replace_with_bnb_linear(
                 model, quantization_config=quantization_config
             )
 
             for name, param in state_dict.items():
-                if param.dtype in [torch.uint8, torch.int8]:
-                    set_module_quantized_tensor_to_device(
-                        model, name, param.device, param
-                    )
-                else:
-                    param = param.to(torch_dtype)
-                    set_module_tensor_to_device(
-                        model, name, param.device, param
-                    )
+                if not has_torch_dtype:
+                    param = param.to(torch.float16)
+
+                set_module_quantized_tensor_to_device(
+                    model, name, param.device, param
+                )
         else:
             if quantization_config is not None:
                 logger.debug(
