@@ -235,11 +235,12 @@ def fully_parallel_load(
             )
 
             for name, param in state_dict.items():
+                final_device = param.device
                 if not has_torch_dtype:
                     param = param.to(torch.float16)
 
                 set_module_quantized_tensor_to_device(
-                    model, name, param.device, param
+                    model, name, final_device, param.to("cpu")
                 )
         else:
             if quantization_config is not None:
@@ -258,8 +259,6 @@ def fully_parallel_load(
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
-    model.hf_device_map = device_map
-
     return model
 
 
