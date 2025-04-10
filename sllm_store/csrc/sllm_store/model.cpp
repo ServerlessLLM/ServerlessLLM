@@ -446,12 +446,12 @@ int Model::FreeHost() {
   std::unique_lock<std::mutex> lock(mutex_);
   if (state_ == MemoryState::UNINITIALIZED) {
     LOG(WARNING) << "Model " << model_path_ << " is not initialized";
-    return 0;
+    return 1;
   }
 
   if (state_ == MemoryState::UNALLOCATED) {
     LOG(WARNING) << "Model " << model_path_ << " is not allocated";
-    return 0;
+    return 1;
   }
 
   if (state_ == MemoryState::LOADING) {
@@ -478,7 +478,7 @@ int Model::FreeHost() {
   pinned_mem_.reset();
   state_ = MemoryState::UNALLOCATED;
 
-  return freed_chunks;
+  return 0;
 }
 
 int Model::TryFreeHost() {
