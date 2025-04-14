@@ -149,54 +149,26 @@ class TransformersBackend(SllmBackend):
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     self.pretrained_model_name_or_path
                 )
-            if self.enable_lora:
-                for lora_name, lora_path in self.lora_adapters.items():
-                    lora_path = os.path.join("transformers", lora_path)
-                    logger.info(
-                        f"lora_name is {lora_name}, lora_path is {lora_path}"
+            if self.enable_lora and self.lora_adapters:
+                for i, (lora_name, lora_path) in enumerate(
+                    self.lora_adapters.items()
+                ):
+                    lora_path = os.path.join(
+                        storage_path, "transformers", lora_path
                     )
-                    lora_config, lora_weights = load_lora(
-                        lora_name=lora_name,
-                        lora_path=lora_path,
-                        device_map={"": 0},
-                        storage_path=storage_path,
+                    self.model = load_lora(
+                        self.model,
+                        lora_name,
+                        lora_path,
+                        device_map,
+                        storage_path,
                     )
-                    self.inject_lora(lora_name, lora_config, lora_weights)
-                    logger.info(f"{lora_name} injected successfully.")
+
+            logger.info(
+                f"Successfully injected {len(self.lora_adapters)} LoRA adapter(s)."
+            )
+
             self.status = BackendStatus.RUNNING
-
-    def inject_lora(self, lora_name, lora_config, lora_weights):
-        for layer_name, layer in self.model.named_modules():
-            if layer_name.endswith(".bias"):
-                continue
-            if layer_name.endswith(".weight"):
-                layer_name = layer_name.rsplit(".", 1)[0]
-            if any(key.startswith(layer_name) for key in lora_config.keys()):
-                lora_A = lora_weights.get(
-                    f"base_model.model.{layer_name}.lora_A.weight", None
-                )
-                lora_B = lora_weights.get(
-                    f"base_model.model.{layer_name}.lora_B.weight", None
-                )
-                if lora_A is None or lora_B is None:
-                    continue
-                lora_A.to(layer.weight.device)
-                lora_B.to(layer.weight.device)
-
-                def forward_with_lora(self, input):
-                    return (
-                        self._orig_forward(input)
-                        + input @ self.lora_A @ self.lora_B
-                    )
-
-                layer._orig_forward = layer.forward
-                layer.forward = types.MethodType(forward_with_lora, layer)
-                # def lora_forward_hook(lora_A, lora_B, module, input, output):
-                #     return output + (input[0] @ lora_A @ lora_B)
-
-                # layer.register_forward_hook(
-                #     functools.partial(lora_forward_hook, lora_A, lora_B)
-                # )
 
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
@@ -284,6 +256,7 @@ class TransformersBackend(SllmBackend):
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
+        lora_adapter_name = request_data.get("lora_adapter_name", None)
 
         # Combine messages to form the prompt
         try:
@@ -305,6 +278,10 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
+                if lora_adapter_name is None:
+                    self.model.disable_adapters()
+                else:
+                    self.model.enable_adapters()
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=max_tokens,

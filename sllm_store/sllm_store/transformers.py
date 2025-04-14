@@ -42,7 +42,7 @@ from sllm_store.device_map_utils import (
     _transform_device_map_to_dict,
 )
 from sllm_store.logger import init_logger
-from sllm_store.torch import load_dict_non_blocking, save_dict, load_dict
+from sllm_store.torch import load_dict_non_blocking, save_dict
 from sllm_store.utils import (
     calculate_device_memory,
     calculate_tensor_device_offsets,
@@ -53,7 +53,7 @@ from sllm_store.utils import (
 from torch import nn
 from transformers import AutoConfig
 import importlib
-from peft import PeftModel, get_peft_model_state_dict, PeftConfig
+from peft import PeftModel, get_peft_model_state_dict, LoraConfig
 
 logger = init_logger(__name__)
 
@@ -109,14 +109,21 @@ def save_lora(lora: PeftModel, lora_path: str):
     save_dict(lora_state_dict, lora_path)
 
     # save the config
-    if (
-        hasattr(model, "peft_config")
-        and model.peft_config is not None
-        and isinstance(model.peft_config, PeftConfig)
-    ):
-        logger.info(f"{model.peft_config}")
-        config_save_path = os.path.join(lora_path, "adapter_config.json")
-        model.peft_config.save_pretrained(config_save_path)
+    if hasattr(model, "peft_config") and model.peft_config:
+        adapter_name = getattr(model, "active_adapter", None)
+        if adapter_name is None:
+            logger.warning("No active_adapter found")
+            return
+
+        config = model.peft_config.get(adapter_name, None)
+        if config is None:
+            logger.warning(f"No config found for adapter: {adapter_name}")
+            return
+
+        config.save_pretrained(lora_path)
+        logger.info(
+            f"Saved LoRA config for adapter: {adapter_name} to {lora_path}"
+        )
 
 
 def load_model(
@@ -346,15 +353,48 @@ def best_effort_load(
     return model
 
 
-def load_lora(lora_name, lora_path, device_map, storage_path):
-    if not storage_path:
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+def _clean_state_dict_keys(state_dict: dict, prefix_to_remove: str) -> dict:
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith(prefix_to_remove):
+            new_k = k[len(prefix_to_remove) :]
+            new_state_dict[new_k] = v
+        else:
+            new_state_dict[k] = v
+    return new_state_dict
 
-    with open(
-        os.path.join(storage_path, lora_path, "tensor_index.json"), "r"
-    ) as f:
-        lora_config = json.load(f)
 
-    lora_weights = load_dict(lora_path, device_map, storage_path)
+def load_lora(
+    model: nn.Module,
+    adapter_name: str,
+    adapter_path: str,
+    device_map: DeviceMapType = "auto",
+    storage_path: Optional[str] = None,
+):
+    config_path = os.path.join(adapter_path, "adapter_config.json")
+    with open(config_path, "r") as f:
+        config_dict = json.load(f)
+    lora_config = LoraConfig(**config_dict)
 
-    return lora_config, lora_weights
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # TODO: device_map should be processed.
+        future = executor.submit(
+            load_dict_non_blocking, adapter_path, {"": 0}, storage_path
+        )
+
+        model.add_adapter(lora_config, adapter_name=adapter_name)
+
+        _, state_dict = future.result()
+        state_dict = _clean_state_dict_keys(state_dict, "base_model.model.")
+
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    if missing:
+        logger.warning("Missing keys in state_dict")
+    if unexpected:
+        logger.warning("Unexpected keys in state_dict")
+    logger.info(f"Available adapters: {model.peft_config.keys()}")
+
+    if hasattr(model, "set_adapter"):
+        model.set_adapter(adapter_name=adapter_name)
+
+    return model
