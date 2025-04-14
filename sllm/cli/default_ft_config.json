@@ -5,14 +5,13 @@
         "dataset_source": "hf_hub",
         "hf_dataset_name": "fka/awesome-chatgpt-prompts",
         "tokenization_field": "prompt",
-        "split": "train[:10%]",
+        "split": "train",
         "data_files": "",
         "extension_type": ""
     },
     "lora_config": {
         "r": 4,
         "lora_alpha": 1,
-        "target_modules": ["query_key_value"],
         "lora_dropout": 0.05,
         "bias": "lora_only",
         "task_type": "CAUSAL_LM"
