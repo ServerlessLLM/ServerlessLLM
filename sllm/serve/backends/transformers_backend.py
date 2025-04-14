@@ -164,9 +164,9 @@ class TransformersBackend(SllmBackend):
                         storage_path,
                     )
 
-            logger.info(
-                f"Successfully injected {len(self.lora_adapters)} LoRA adapter(s)."
-            )
+                logger.info(
+                    f"Successfully injected {len(self.lora_adapters)} LoRA adapter(s)."
+                )
 
             self.status = BackendStatus.RUNNING
 
@@ -278,9 +278,9 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
-                if lora_adapter_name is None:
+                if self.enable_lora and lora_adapter_name is None:
                     self.model.disable_adapters()
-                else:
+                elif self.enable_lora and lora_adapter_name:
                     self.model.enable_adapters()
                 outputs = self.model.generate(
                     **inputs,
