@@ -394,7 +394,4 @@ def load_lora(
         logger.warning("Unexpected keys in state_dict")
     logger.info(f"Available adapters: {model.peft_config.keys()}")
 
-    if hasattr(model, "set_adapter"):
-        model.set_adapter(adapter_name=adapter_name)
-
     return model

@@ -278,10 +278,11 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
+                # TODO: check current active adapters.
                 if self.enable_lora and lora_adapter_name is None:
                     self.model.disable_adapters()
                 elif self.enable_lora and lora_adapter_name:
-                    self.model.enable_adapters()
+                    self.model.set_adapter(lora_adapter_name)
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=max_tokens,
