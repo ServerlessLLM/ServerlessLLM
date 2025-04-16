@@ -163,11 +163,6 @@ class TransformersBackend(SllmBackend):
                         device_map,
                         storage_path,
                     )
-
-                logger.info(
-                    f"Successfully injected {len(self.lora_adapters)} LoRA adapter(s)."
-                )
-
             self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):

@@ -54,6 +54,7 @@ from torch import nn
 from transformers import AutoConfig
 import importlib
 from peft import PeftModel, get_peft_model_state_dict, LoraConfig
+from peft.utils import set_peft_model_state_dict
 
 logger = init_logger(__name__)
 
@@ -353,28 +354,26 @@ def best_effort_load(
     return model
 
 
-def _clean_state_dict_keys(state_dict: dict, prefix_to_remove: str) -> dict:
-    new_state_dict = {}
-    for k, v in state_dict.items():
-        if k.startswith(prefix_to_remove):
-            new_k = k[len(prefix_to_remove) :]
-            new_state_dict[new_k] = v
-        else:
-            new_state_dict[k] = v
-    return new_state_dict
-
-
 def load_lora(
     model: nn.Module,
     adapter_name: str,
     adapter_path: str,
     device_map: DeviceMapType = "auto",
     storage_path: Optional[str] = None,
+    is_trainable: bool = False,
 ):
     config_path = os.path.join(adapter_path, "adapter_config.json")
     with open(config_path, "r") as f:
         config_dict = json.load(f)
     lora_config = LoraConfig(**config_dict)
+
+    if lora_config.is_prompt_learning and is_trainable:
+        raise ValueError(
+            "Cannot set a prompt learning adapter to trainable\
+             when loading pretrained adapter."
+        )
+    else:
+        lora_config.inference_mode = not is_trainable
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # TODO: device_map should be processed.
@@ -385,13 +384,51 @@ def load_lora(
         model.add_adapter(lora_config, adapter_name=adapter_name)
 
         _, state_dict = future.result()
-        state_dict = _clean_state_dict_keys(state_dict, "base_model.model.")
+        # https://github.com/huggingface/transformers/blob/main/src/transformers/integrations/peft.py#L72
+        processed_adapter_state_dict = {}
+        prefix = "base_model.model."
+        for key, value in state_dict.items():
+            new_key = key[len(prefix) :] if key.startswith(prefix) else key
+            processed_adapter_state_dict[new_key] = value
 
-    missing, unexpected = model.load_state_dict(state_dict, strict=False)
-    if missing:
-        logger.warning("Missing keys in state_dict")
-    if unexpected:
-        logger.warning("Unexpected keys in state_dict")
+    incompatible_keys = set_peft_model_state_dict(
+        model, processed_adapter_state_dict, adapter_name
+    )
+    if incompatible_keys is not None:
+        err_msg = ""
+        origin_name = adapter_path if adapter_path is not None else "state_dict"
+        # Check for unexpected keys.
+        if (
+            hasattr(incompatible_keys, "unexpected_keys")
+            and len(incompatible_keys.unexpected_keys) > 0
+        ):
+            err_msg = (
+                f"Loading adapter weights from {origin_name} led to \
+                    unexpected keys not found in the model: "
+                f"{', '.join(incompatible_keys.unexpected_keys)}. "
+            )
+
+        # Check for missing keys.
+        missing_keys = getattr(incompatible_keys, "missing_keys", None)
+        if missing_keys:
+            # Filter missing keys specific to the current adapter, \
+            # as missing base model keys are expected.
+            lora_missing_keys = [
+                k for k in missing_keys if "lora_" in k and adapter_name in k
+            ]
+            if lora_missing_keys:
+                err_msg += (
+                    f"Loading adapter weights from {origin_name} led to \
+                        missing keys in the model: "
+                    f"{', '.join(lora_missing_keys)}"
+                )
+
+        if err_msg:
+            logger.warning(err_msg)
+
+    if lora_config.inference_mode:
+        model.eval()
+
     logger.info(f"Available adapters: {model.peft_config.keys()}")
 
     return model
