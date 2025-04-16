@@ -384,7 +384,7 @@ def load_lora(
         model.add_adapter(lora_config, adapter_name=adapter_name)
 
         _, state_dict = future.result()
-        # https://github.com/huggingface/transformers/blob/main/src/transformers/integrations/peft.py#L72
+        # https://github.com/huggingface/transformers/blob/main/src/transformers/integrations/peft.py#L228
         processed_adapter_state_dict = {}
         prefix = "base_model.model."
         for key, value in state_dict.items():

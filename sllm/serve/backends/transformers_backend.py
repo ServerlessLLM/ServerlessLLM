@@ -416,10 +416,13 @@ class TransformersBackend(SllmBackend):
 
         training_config = request_data.get("training_config")
         storage_path = os.getenv("STORAGE_PATH", "./models")
+        output_dir = request_data.get(
+            "output_dir", f"ft_{self.model_name}_adapter"
+        )
         lora_save_path = os.path.join(
             storage_path,
             "transformers",
-            f"ft_{self.model_name}",
+            output_dir,
         )
         try:
             training_args = TrainingArguments(

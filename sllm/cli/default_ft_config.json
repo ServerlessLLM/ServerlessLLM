@@ -1,6 +1,7 @@
 {
     "model": "",
     "ft_backend": "peft",
+    "output_dir": "ft_facebook/opt-125m_adapter1",
     "dataset_config": {
         "dataset_source": "hf_hub",
         "hf_dataset_name": "fka/awesome-chatgpt-prompts",
