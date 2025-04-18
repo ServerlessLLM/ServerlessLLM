@@ -234,6 +234,10 @@ def fully_parallel_load(
                 model, quantization_config=quantization_config
             )
 
+            # synchronize
+            client = SllmStoreClient("127.0.0.1:8073")
+            client.confirm_model_loaded(model_path, replica_uuid)
+
             for name, param in state_dict.items():
                 final_device = param.device
                 if not has_torch_dtype:
@@ -392,6 +396,8 @@ def best_effort_load(
             model = replace_with_bnb_linear(
                 model, quantization_config=quantization_config
             )
+
+            client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
                 if (
