@@ -76,7 +76,7 @@ INFO 08-01 07:39:00 deploy.py:49] Model registered successfully.
 
 Now, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```bash
-curl http://127.0.0.1:8343/v1/chat/completions \
+curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",
