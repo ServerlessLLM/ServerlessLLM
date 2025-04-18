@@ -40,7 +40,7 @@ from transformers.generation.streamers import BaseStreamer
 
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
-from sllm_store.transformers import load_model, save_lora
+from sllm_store.transformers import load_lora, load_model, save_lora
 
 logger = init_logger(__name__)
 
@@ -91,6 +91,8 @@ class TransformersBackend(SllmBackend):
         self.pretrained_model_name_or_path = backend_config.get(
             "pretrained_model_name_or_path"
         )
+        self.enable_lora = backend_config.get("enable_lora", False)
+        self.lora_adapters = backend_config.get("lora_adapters", [])
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
         self.inf_status = InferenceStatus(self.status)
         self.status_lock = threading.Lock()
@@ -147,6 +149,20 @@ class TransformersBackend(SllmBackend):
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     self.pretrained_model_name_or_path
                 )
+            if self.enable_lora and self.lora_adapters:
+                for i, (lora_name, lora_path) in enumerate(
+                    self.lora_adapters.items()
+                ):
+                    lora_path = os.path.join(
+                        storage_path, "transformers", lora_path
+                    )
+                    self.model = load_lora(
+                        self.model,
+                        lora_name,
+                        lora_path,
+                        device_map,
+                        storage_path,
+                    )
             self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):
@@ -235,6 +251,7 @@ class TransformersBackend(SllmBackend):
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
+        lora_adapter_name = request_data.get("lora_adapter_name", None)
 
         # Combine messages to form the prompt
         try:
@@ -256,6 +273,11 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
+                # TODO: check current active adapters.
+                if self.enable_lora and lora_adapter_name is None:
+                    self.model.disable_adapters()
+                elif self.enable_lora and lora_adapter_name:
+                    self.model.set_adapter(lora_adapter_name)
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=max_tokens,
@@ -394,10 +416,13 @@ class TransformersBackend(SllmBackend):
 
         training_config = request_data.get("training_config")
         storage_path = os.getenv("STORAGE_PATH", "./models")
+        output_dir = request_data.get(
+            "output_dir", f"ft_{self.model_name}_adapter"
+        )
         lora_save_path = os.path.join(
             storage_path,
             "transformers",
-            f"ft_{self.model_name}",
+            output_dir,
         )
         try:
             training_args = TrainingArguments(
