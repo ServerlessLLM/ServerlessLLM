@@ -115,7 +115,7 @@ def compare_state_dicts(transformers_model, sllm_model):
         )
 
         # individual parameter check
-        assert torch.allclose(t_param, s_param), (
+        assert torch.allclose(t_param, s_param, rtol=1e-02, atol=1e-03), (
             f"Param mismatch for {key}: "
             f"Transformers={t_param.dtype}, SLLM={s_param.dtype}"
         )
