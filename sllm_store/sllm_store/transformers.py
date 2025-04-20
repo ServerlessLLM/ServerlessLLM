@@ -214,15 +214,19 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers import BitsAndBytesConfig
+            from transformers import QuantizationConfigMixin
+            from transformers.quantizers import AutoHFQuantizer
 
-            if not isinstance(quantization_config, BitsAndBytesConfig):
+            if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
                     f"Invalid config type: {type(quantization_config)}"
                 )
 
             logger.debug(
-                f"using precision: {quantization_config.quantization_method()}"
+                f"Using quantization method: {quantization_config.quant_method}"
+            )
+            logger.debug(
+                f"Using precision: {quantization_config.quantization_method()}"
             )
 
             if quantization_config.llm_int8_enable_fp32_cpu_offload:
@@ -230,9 +234,8 @@ def fully_parallel_load(
                 quantization_config.llm_int8_enable_fp32_cpu_offload = False
 
             has_torch_dtype = torch_dtype is not None
-            model = replace_with_bnb_linear(
-                model, quantization_config=quantization_config
-            )
+            hf_quantizer = AutoHFQuantizer.from_config(quantization_config)
+            model = hf_quantizer.preprocess_model(model, device_map=device_map)
 
             # synchronize
             client = SllmStoreClient("127.0.0.1:8073")
@@ -243,9 +246,13 @@ def fully_parallel_load(
                 if not has_torch_dtype:
                     param = param.to(torch.float16)
 
-                set_module_quantized_tensor_to_device(
-                    model, name, final_device, param.to("cpu")
+                hf_quantizer.create_quantized_param(
+                    model, param, name, final_device, state_dict
                 )
+
+            hf_quantizer.postprocess_model(model)
+            model.hf_quantizer = hf_quantizer
+
         else:
             if quantization_config is not None:
                 logger.debug(
