@@ -214,8 +214,10 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers import QuantizationConfigMixin
-            from transformers.quantizers import AutoHFQuantizer
+            from transformers.utils.quantization_config import (
+                QuantizationConfigMixin,
+            )
+            from transformers.quantizers.auto import AutoHfQuantizer
 
             if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
@@ -234,7 +236,7 @@ def fully_parallel_load(
                 quantization_config.llm_int8_enable_fp32_cpu_offload = False
 
             has_torch_dtype = torch_dtype is not None
-            hf_quantizer = AutoHFQuantizer.from_config(quantization_config)
+            hf_quantizer = AutoHfQuantizer.from_config(quantization_config)
             model = hf_quantizer.preprocess_model(model, device_map=device_map)
 
             # synchronize
