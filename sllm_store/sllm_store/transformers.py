@@ -218,6 +218,7 @@ def fully_parallel_load(
                 QuantizationConfigMixin,
             )
             from transformers.quantizers.auto import AutoHfQuantizer
+            from transformers.quantizers.quantizers_utils import get_module_from_name
 
             if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
@@ -227,30 +228,44 @@ def fully_parallel_load(
             logger.debug(
                 f"Using quantization method: {quantization_config.quant_method}"
             )
-            logger.debug(
-                f"Using precision: {quantization_config.quantization_method()}"
-            )
+            if quantization_config.quant_method == "bitsandbytes":
+                logger.debug(
+                    f"Using precision: {quantization_config.quantization_method()}"
+                )
 
-            if quantization_config.llm_int8_enable_fp32_cpu_offload:
-                logger.debug("Offloading is not supported yet")
-                quantization_config.llm_int8_enable_fp32_cpu_offload = False
+                if quantization_config.llm_int8_enable_fp32_cpu_offload:
+                    logger.debug("Offloading is not supported yet")
+                    quantization_config.llm_int8_enable_fp32_cpu_offload = False
+            else:
+                try:
+                    logger.debug(
+                        f"Using precision: {quantization_config.bits()}"
+                    )
+                except:
+                    pass
 
-            has_torch_dtype = torch_dtype is not None
+
+
+            torch_dtype = torch_dtype or torch.float16
             hf_quantizer = AutoHfQuantizer.from_config(quantization_config)
-            model = hf_quantizer.preprocess_model(model, device_map=device_map)
+            hf_quantizer.preprocess_model(model, device_map=device_map)
 
             # synchronize
             client = SllmStoreClient("127.0.0.1:8073")
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
-                final_device = param.device
-                if not has_torch_dtype:
-                    param = param.to(torch.float16)
+                if param.dtype in [torch.uint8, torch.int8]:
+                    final_device = param.device
+                    hf_quantizer.create_quantized_param(
+                        model, param, name, final_device, state_dict
+                    )
 
-                hf_quantizer.create_quantized_param(
-                    model, param, name, final_device, state_dict
-                )
+                else:
+                    param.to(torch_dtype)
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
 
             hf_quantizer.postprocess_model(model)
             model.hf_quantizer = hf_quantizer
