@@ -49,6 +49,7 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    load_parameter_into_model,
 )
 from torch import nn
 from transformers import AutoConfig
@@ -218,7 +219,6 @@ def fully_parallel_load(
                 QuantizationConfigMixin,
             )
             from transformers.quantizers.auto import AutoHfQuantizer
-            from transformers.quantizers.quantizers_utils import get_module_from_name
 
             if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
@@ -239,15 +239,14 @@ def fully_parallel_load(
             else:
                 try:
                     logger.debug(
-                        f"Using precision: {quantization_config.bits()}"
+                        f"Using precision: {quantization_config.bits}"
                     )
                 except:
                     pass
 
-
-
             torch_dtype = torch_dtype or torch.float16
-            hf_quantizer = AutoHfQuantizer.from_config(quantization_config)
+            hf_quantizer = AutoHfQuantizer.from_config(quantization_config, pre_quantized=False)
+            hf_quantizer.validate_environment(device_map=device_map)
             hf_quantizer.preprocess_model(model, device_map=device_map)
 
             # synchronize
@@ -255,20 +254,21 @@ def fully_parallel_load(
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
-                if param.dtype in [torch.uint8, torch.int8]:
+                if hf_quantizer.check_quantized_param(model, param, name, state_dict):
                     final_device = param.device
                     hf_quantizer.create_quantized_param(
-                        model, param, name, final_device, state_dict
+                        model, param, name, final_device, state_dict, unexpected_keys=[]
                     )
 
                 else:
                     param.to(torch_dtype)
-                    set_module_tensor_to_device(
-                        model, name, param.device, param
-                    )
+                    try:
+                        set_module_tensor_to_device(
+                            model, name, param.device, param
+                        )
+                    except:
+                        load_parameter_into_model(model, name, param)
 
-            hf_quantizer.postprocess_model(model)
-            model.hf_quantizer = hf_quantizer
 
         else:
             if quantization_config is not None:
@@ -283,7 +283,8 @@ def fully_parallel_load(
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
-
+    hf_quantizer.postprocess_model(model)
+    model.hf_quantizer = hf_quantizer
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
