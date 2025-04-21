@@ -180,3 +180,51 @@ for output in outputs:
     generated_text = output.outputs[0].text
     print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
 ```
+
+## Quantization
+
+ServerlessLLM currently supports model quantization using `bitsandbytes` through the Hugging Face Transformers' `BitsAndBytesConfig`.
+
+Available precisions include:
+- `int8`
+- `fp4`
+- `nf4`
+
+For further information, consult the [HuggingFace Documentation for BitsAndBytes](https://huggingface.co/docs/transformers/main/en/quantization/bitsandbytes)
+
+> Note: Quantization is currently experimental, especially on multi-GPU machines. You may encounter issues when using this feature in multi-GPU environments.
+
+### Usage
+To use quantization, create a `BitsAndBytesConfig` object with your desired settings:
+
+```python
+from transformers import BitsAndBytesConfig
+import torch
+
+# For 8-bit quantization
+quantization_config = BitsAndBytesConfig(
+    load_in_8bit=True
+)
+
+# For 4-bit quantization (NF4)
+quantization_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4"
+)
+
+# For 4-bit quantization (FP4)
+quantization_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="fp4"
+)
+
+# Then load your model with the config
+model = load_model(
+    "facebook/opt-1.3b",
+    device_map="auto",
+    torch_dtype=torch.float16,
+    storage_path="./models/",
+    fully_parallel=True,
+    quantization_config=quantization_config,
+)
+```
