@@ -200,6 +200,36 @@ class RoundRobinRouter(SllmRouter):
             self.fine_tuning_count -= 1
         return result
 
+    async def lora_adapter_operation(self, request_data: dict, operation: str):
+        async with self.running_lock:
+            if not self.running:
+                return {"error": "Instance stopped"}
+
+        # TODO: instance allocation (should load adapter on every instance, right?)
+
+        try:
+            if operation == "load":
+                logger.info(
+                    f"Loading LoRA adapter {request_data['lora_name']} for model {self.model_name}"
+                )
+                result = (
+                    await instance.backend_instance.load_lora_adapter.remote(
+                        request_data=request_data
+                    )
+                )
+            elif operation == "unload":
+                result = (
+                    await instance.backend_instance.unload_lora_adapter.remote(
+                        request_data=request_data
+                    )
+                )
+            else:
+                result = {"error": "Invalid operation"}
+        finally:
+            await instance.add_requests(-1)
+
+        return result
+
     async def shutdown(self):
         async with self.running_lock:
             self.running = False
