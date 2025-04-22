@@ -62,6 +62,8 @@ class RoundRobinRouter(SllmRouter):
         backend: str,
         backend_config: Dict,
         router_config: Dict,
+        enable_lora: bool = False,
+        lora_adapters: Dict[str, Dict[str, str]] = {},
     ) -> None:
         self.model_name = model_name
         self.resource_requirements = resource_requirements
@@ -92,7 +94,8 @@ class RoundRobinRouter(SllmRouter):
         self.idle_time = 0
         self.idle_time_lock = asyncio.Lock()
 
-        self.loaded_lora_adapters = {}
+        self.enable_lora = enable_lora
+        self.loaded_lora_adapters = lora_adapters
         self.lora_lock = asyncio.Lock()
 
         self.auto_scaler = None
@@ -215,8 +218,7 @@ class RoundRobinRouter(SllmRouter):
 
             async with self.lora_lock:
                 self.loaded_lora_adapters[lora_name] = {
-                    "path": lora_path,
-                    "request_data": request_data.copy(),
+                    "request_data": request_data.copy()
                 }
         elif operation == "unload":
             async with self.lora_lock:
@@ -346,6 +348,22 @@ class RoundRobinRouter(SllmRouter):
 
         return instance_id
 
+    async def _load_lora_adapters(self, instance, instance_id):
+        logger.info(self.loaded_lora_adapters)
+        async with self.lora_lock:
+            for lora_name, lora_info in self.loaded_lora_adapters.items():
+                try:
+                    await instance.backend_instance.load_lora_adapter.remote(
+                        request_data=lora_info["request_data"]
+                    )
+                    logger.info(
+                        f"Successfully loaded LoRA adapter {lora_name} on instance {instance_id}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to load LoRA adapter {lora_name} on instance {instance_id}: {str(e)}"
+                    )
+
     async def _start_instance(self, instance_id):
         async with self.instance_management_lock:
             if instance_id not in self.starting_instances:
@@ -394,24 +412,8 @@ class RoundRobinRouter(SllmRouter):
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
             self.starting_instances.pop(instance_id)
-            async with self.lora_lock:
-                for lora_name, lora_info in self.loaded_lora_adapters.items():
-                    logger.info(
-                        f"Auto-loading LoRA adapter {lora_name} on new instance {instance_id}"
-                    )
-                    try:
-                        await (
-                            instance.backend_instance.load_lora_adapter.remote(
-                                request_data=lora_info["request_data"]
-                            )
-                        )
-                        logger.info(
-                            f"Successfully loaded LoRA adapter {lora_name} on instance {instance_id}"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to load LoRA adapter {lora_name} on instance {instance_id}: {str(e)}"
-                        )
+            if self.enable_lora:
+                await self._load_lora_adapters(instance, instance_id)
 
         return instance_id
 

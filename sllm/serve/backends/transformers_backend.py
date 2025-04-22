@@ -91,8 +91,6 @@ class TransformersBackend(SllmBackend):
         self.pretrained_model_name_or_path = backend_config.get(
             "pretrained_model_name_or_path"
         )
-        self.enable_lora = backend_config.get("enable_lora", False)
-        self.lora_adapters = backend_config.get("lora_adapters", [])
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
         self.inf_status = InferenceStatus(self.status)
         self.status_lock = threading.Lock()
@@ -149,20 +147,6 @@ class TransformersBackend(SllmBackend):
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     self.pretrained_model_name_or_path
                 )
-            if self.enable_lora and self.lora_adapters:
-                for i, (lora_name, lora_path) in enumerate(
-                    self.lora_adapters.items()
-                ):
-                    lora_path = os.path.join(
-                        storage_path, "transformers", lora_path
-                    )
-                    self.model = load_lora(
-                        self.model,
-                        lora_name,
-                        lora_path,
-                        device_map,
-                        storage_path,
-                    )
             self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):
@@ -273,7 +257,7 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
-                if self.enable_lora and lora_adapter_name:
+                if lora_adapter_name:
                     self.model.set_adapter(lora_adapter_name)
                 outputs = self.model.generate(
                     **inputs,

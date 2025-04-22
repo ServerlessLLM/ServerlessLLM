@@ -104,7 +104,13 @@ class DeployCommand:
                         f"Invalid LoRA module format: {module}. Expected <name>=<path>."
                     )
                 name, path = module.split("=", 1)
-                parsed_modules[name] = path
+                parsed_modules[name] = {
+                    "request_data": {
+                        "model": self.model,
+                        "lora_name": name,
+                        "lora_path": path,
+                    }
+                }
         return parsed_modules
 
     def validate_config(self, config_data: dict) -> None:
