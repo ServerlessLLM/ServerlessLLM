@@ -157,8 +157,8 @@ def create_app() -> FastAPI:
             )
 
         request_router = ray.get_actor(model_name, namespace="models")
-        result = request_router.lora_adapter_operation.remote(body, "load")
-        return await result
+        await request_router.lora_adapter_operation.remote(body, "load")
+        return {"status": f"loaded adapter for {model_name}"}
 
     @app.post("/v1/unload-lora-adapter")
     async def unload_lora_adapter_handler(request: Request):
@@ -173,8 +173,8 @@ def create_app() -> FastAPI:
             )
 
         request_router = ray.get_actor(model_name, namespace="models")
-        result = request_router.lora_adapter_operation.remote(body, "unload")
-        return await result
+        await request_router.lora_adapter_operation.remote(body, "unload")
+        return {"status": f"unloaded adapter for {model_name}"}
 
     @app.post("/fine-tuning")
     async def fine_tuning(request: Request):

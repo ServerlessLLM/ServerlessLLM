@@ -273,10 +273,7 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
-                # TODO: check current active adapters.
-                if self.enable_lora and lora_adapter_name is None:
-                    self.model.disable_adapters()
-                elif self.enable_lora and lora_adapter_name:
+                if self.enable_lora and lora_adapter_name:
                     self.model.set_adapter(lora_adapter_name)
                 outputs = self.model.generate(
                     **inputs,

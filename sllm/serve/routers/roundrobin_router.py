@@ -92,6 +92,9 @@ class RoundRobinRouter(SllmRouter):
         self.idle_time = 0
         self.idle_time_lock = asyncio.Lock()
 
+        self.loaded_lora_adapters = {}
+        self.lora_lock = asyncio.Lock()
+
         self.auto_scaler = None
         logger.info(f"Created new handler for model {self.model_name}")
 
@@ -201,34 +204,26 @@ class RoundRobinRouter(SllmRouter):
         return result
 
     async def lora_adapter_operation(self, request_data: dict, operation: str):
-        async with self.running_lock:
-            if not self.running:
-                return {"error": "Instance stopped"}
+        lora_name = request_data.get("lora_name")
+        if not lora_name:
+            return {"error": "lora_name must be provided"}
 
-        # TODO: instance allocation (should load adapter on every instance, right?)
+        if operation == "load":
+            lora_path = request_data.get("lora_path")
+            if not lora_path:
+                return {"error": "lora_path must be provided"}
 
-        try:
-            if operation == "load":
-                logger.info(
-                    f"Loading LoRA adapter {request_data['lora_name']} for model {self.model_name}"
-                )
-                result = (
-                    await instance.backend_instance.load_lora_adapter.remote(
-                        request_data=request_data
-                    )
-                )
-            elif operation == "unload":
-                result = (
-                    await instance.backend_instance.unload_lora_adapter.remote(
-                        request_data=request_data
-                    )
-                )
-            else:
-                result = {"error": "Invalid operation"}
-        finally:
-            await instance.add_requests(-1)
-
-        return result
+            async with self.lora_lock:
+                self.loaded_lora_adapters[lora_name] = {
+                    "path": lora_path,
+                    "request_data": request_data.copy(),
+                }
+        elif operation == "unload":
+            async with self.lora_lock:
+                if lora_name in self.loaded_lora_adapters:
+                    del self.loaded_lora_adapters[lora_name]
+        else:
+            return {"error": "Invalid lora operation"}
 
     async def shutdown(self):
         async with self.running_lock:
@@ -399,6 +394,25 @@ class RoundRobinRouter(SllmRouter):
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
             self.starting_instances.pop(instance_id)
+            async with self.lora_lock:
+                for lora_name, lora_info in self.loaded_lora_adapters.items():
+                    logger.info(
+                        f"Auto-loading LoRA adapter {lora_name} on new instance {instance_id}"
+                    )
+                    try:
+                        await (
+                            instance.backend_instance.load_lora_adapter.remote(
+                                request_data=lora_info["request_data"]
+                            )
+                        )
+                        logger.info(
+                            f"Successfully loaded LoRA adapter {lora_name} on instance {instance_id}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to load LoRA adapter {lora_name} on instance {instance_id}: {str(e)}"
+                        )
+
         return instance_id
 
     async def _stop_instance(self, instance_id: Optional[str] = None):

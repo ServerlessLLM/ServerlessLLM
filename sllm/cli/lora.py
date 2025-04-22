@@ -91,12 +91,8 @@ class LoraCommand:
             logger.info(
                 f"Successfully loaded LoRA adapter '{name}' for model '{model}'"
             )
-            logger.info(f"Response: {response.json()}")
         else:
-            logger.error(
-                f"Failed to load LoRA adapter. Status code: {response.status_code}"
-            )
-            logger.error(f"Response: {response.text}")
+            logger.error(f"Failed to load LoRA adapter, {response.text}")
 
     def unload_lora_adapter(self, model: str, name: str) -> None:
         url = f"{self.base_url}v1/unload_lora_adapter"
@@ -108,9 +104,5 @@ class LoraCommand:
             logger.info(
                 f"Successfully unloaded LoRA adapter '{name}' from model '{model}'"
             )
-            logger.info(f"Response: {response.json()}")
         else:
-            logger.error(
-                f"Failed to unload LoRA adapter. Status code: {response.status_code}"
-            )
-            logger.error(f"Response: {response.text}")
+            logger.error(f"Failed to unload LoRA adapter, {response.text}")
