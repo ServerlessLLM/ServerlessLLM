@@ -256,6 +256,8 @@ def fully_parallel_load(
             for name, param in state_dict.items():
                 if hf_quantizer.check_quantized_param(model, param, name, state_dict):
                     final_device = param.device
+                    if quantization_config.quant_method == "torchao": # torchao quantization requires input tensors to be in float16
+                        param = param.to(torch.float16)
                     hf_quantizer.create_quantized_param(
                         model, param, name, final_device, state_dict, unexpected_keys=[]
                     )
