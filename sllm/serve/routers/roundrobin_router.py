@@ -408,11 +408,11 @@ class RoundRobinRouter(SllmRouter):
             instance.ready = True
             instance.node_id = startup_node
         await instance.backend_instance.init_backend.remote()
+        if self.enable_lora:
+            await self._load_lora_adapters(instance, instance_id)
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
             self.starting_instances.pop(instance_id)
-            if self.enable_lora:
-                await self._load_lora_adapters(instance, instance_id)
 
         return instance_id
 
