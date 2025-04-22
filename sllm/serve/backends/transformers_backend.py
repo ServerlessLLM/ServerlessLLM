@@ -435,7 +435,6 @@ class TransformersBackend(SllmBackend):
         return response
 
     def load_lora_adapter(self, request_data: Optional[Dict[str, Any]]):
-        logger.info(f"Loading LoRA adapter with request data: {request_data}")
         with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
