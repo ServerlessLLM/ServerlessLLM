@@ -1,0 +1,70 @@
+services:
+  # Head Node
+  sllm_head:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
+    container_name: sllm_head
+    environment:
+      - MODEL_FOLDER=${MODEL_FOLDER}
+      - MODE=HEAD
+    ports:
+      - "6379:6379"    # Redis port
+      - "8343:8343"    # ServerlessLLM port
+    networks:
+      - sllm_network
+    command: ["--enable-storage-aware"]
+
+  # Worker Node 0
+  sllm_worker_0:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
+    container_name: sllm_worker_0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              device_ids: ["0"] # Assigns GPU 0 to the worker
+    environment:
+      - WORKER_ID=0
+      - STORAGE_PATH=/models
+      - MODE=WORKER
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+    command: ["--mem-pool-size", "10GB"]
+
+  # Worker Node 1
+  sllm_worker_1:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
+    container_name: sllm_worker_1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              device_ids: ["1"] # Assigns GPU 1 to the worker
+    environment:
+      - WORKER_ID=1
+      - STORAGE_PATH=/models
+      - MODE=WORKER
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+    command: ["--mem-pool-size", "10GB"]
+
+networks:
+  sllm_network:
+    driver: bridge
+    name: sllm

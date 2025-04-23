@@ -51,8 +51,13 @@ from sllm_store.utils import (
     send_module_buffers_to_device,
 )
 from torch import nn
-from transformers import AutoConfig, GenerationConfig
+from transformers import AutoConfig
+from transformers.integrations.bitsandbytes import (
+    set_module_quantized_tensor_to_device,
+    replace_with_bnb_linear,
+)
 import importlib
+from peft import PeftModel, get_peft_model_state_dict, PeftConfig
 
 logger = init_logger(__name__)
 
@@ -78,32 +83,12 @@ def save_model(model: nn.Module, model_path: str):
     save_dict(model_state_dict, model_path)
 
     # This section of code was adopted from the Hugging Face Transformers project under Apache-2.0 License. # noqa: E501
-    # Source: https://github.com/huggingface/transformers/blob/9fe3f585bb4ea29f209dc705d269fbe292e1128f/src/transformers/modeling_utils.py#L2425-L2447
+    # Source: https://github.com/huggingface/transformers/blob/241c04d36867259cdf11dbb4e9d9a60f9cb65ebc/src/transformers/modeling_utils.py#L2812-L2856
     # Modifications made: Removed the support for '_hf_peft_config_loaded'
     #
     # Save the config
     model.config.save_pretrained(model_path)
     if model.can_generate():
-        # generation config built from the model config + the model config holds generation kwargs -> generate # noqa: E501
-        # may revert to legacy behavior if the two don't match
-        if (
-            model.generation_config._from_model_config
-            and model.config._has_non_default_generation_parameters()
-        ):
-            new_generation_config = GenerationConfig.from_model_config(
-                model.config
-            )
-            if new_generation_config != model.generation_config:
-                logger.warning(
-                    "Your generation config was originally created from the model config, but the model "  # noqa: E501
-                    "config has changed since then. Unless you pass the `generation_config` argument to this "  # noqa: E501
-                    "model's `generate` calls, they will revert to the legacy behavior where the base "  # noqa: E501
-                    "`generate` parameterization is loaded from the model config instead. "  # noqa: E501
-                    "To avoid this behavior and this warning, we recommend you to overwrite the generation "  # noqa: E501
-                    "config model attribute before calling the model's `save_pretrained`, preferably also "  # noqa: E501
-                    "removing any generation kwargs from the model config. This warning will be raised to an "  # noqa: E501
-                    "exception in v4.41."
-                )
         model.generation_config.save_pretrained(model_path)
 
     # save module index
@@ -117,10 +102,32 @@ def save_model(model: nn.Module, model_path: str):
         json.dump(tied_no_split_modules, f)
 
 
+def save_lora(lora: PeftModel, lora_path: str):
+    if not os.path.exists(lora_path):
+        os.makedirs(lora_path, exist_ok=True)
+
+    model = lora.cpu()
+
+    lora_state_dict = get_peft_model_state_dict(model)
+
+    save_dict(lora_state_dict, lora_path)
+
+    # save the config
+    if (
+        hasattr(model, "peft_config")
+        and model.peft_config is not None
+        and isinstance(model.peft_config, PeftConfig)
+    ):
+        logger.info(f"{model.peft_config}")
+        config_save_path = os.path.join(lora_path, "adapter_config.json")
+        model.peft_config.save_pretrained(config_save_path)
+
+
 def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization_config=None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -131,6 +138,7 @@ def load_model(
             hf_model_class=hf_model_class,
             device_map=device_map,
             torch_dtype=torch_dtype,
+            quantization_config=quantization_config,
             storage_path=storage_path,
         )
     # if fully_parallel is disabled, we still try to parallelize the model
@@ -140,6 +148,7 @@ def load_model(
         hf_model_class=hf_model_class,
         device_map=device_map,
         torch_dtype=torch_dtype,
+        quantization_config=quantization_config,
         storage_path=storage_path,
     )
 
@@ -149,10 +158,12 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization_config=None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
         storage_path = os.getenv("STORAGE_PATH", "./models")
+
     start = time.time()
     device_map = _transform_device_map_to_dict(device_map)
     with open(
@@ -170,6 +181,7 @@ def fully_parallel_load(
         device_map = _compute_device_placement_from_map_fast(
             no_split_modules, tied_no_split_modules, device_map
         )
+
     # TODO: offload `load_dict_non_blocking` to c++ for real parallelism
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(
@@ -185,24 +197,63 @@ def fully_parallel_load(
         )
         if torch_dtype is not None:
             config.torch_dtype = torch_dtype
-
         logger.debug(f"load config takes {time.time() - start} seconds")
+
         start = time.time()
         with init_empty_weights():
             module = importlib.import_module("transformers")
             _class = getattr(module, hf_model_class)
-            model = _class.from_config(config, trust_remote_code=True).to(
-                config.torch_dtype
-            )
-
+            model = _class.from_config(
+                config,
+                trust_remote_code=True,
+            ).to(config.torch_dtype)
         model.tie_weights()
         logger.debug(f"load model takes {time.time() - start} seconds")
 
         replica_uuid, state_dict = future.result()
 
     with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(model, name, param.device, param)
+        if quantization_config and torch.cuda.is_available():
+            from transformers import BitsAndBytesConfig
+
+            if not isinstance(quantization_config, BitsAndBytesConfig):
+                raise ValueError(
+                    f"Invalid config type: {type(quantization_config)}"
+                )
+
+            logger.debug(
+                f"using precision: {quantization_config.quantization_method()}"
+            )
+
+            if quantization_config.llm_int8_enable_fp32_cpu_offload:
+                logger.debug("Offloading is not supported yet")
+                quantization_config.llm_int8_enable_fp32_cpu_offload = False
+
+            has_torch_dtype = torch_dtype is not None
+            model = replace_with_bnb_linear(
+                model, quantization_config=quantization_config
+            )
+
+            # synchronize
+            client = SllmStoreClient("127.0.0.1:8073")
+            client.confirm_model_loaded(model_path, replica_uuid)
+
+            for name, param in state_dict.items():
+                final_device = param.device
+                if not has_torch_dtype:
+                    param = param.to(torch.float16)
+
+                set_module_quantized_tensor_to_device(
+                    model, name, final_device, param.to("cpu")
+                )
+        else:
+            if quantization_config is not None:
+                logger.debug(
+                    "Quantization on current device is not supported yet"
+                )
+
+            for name, param in state_dict.items():
+                set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
 
     dispatch_model(
@@ -212,8 +263,6 @@ def fully_parallel_load(
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
-    model.hf_device_map = device_map
-
     return model
 
 
@@ -222,6 +271,7 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
+    quantization_config=None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -327,10 +377,46 @@ def best_effort_load(
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
 
     with torch.no_grad():
-        for name, param in state_dict.items():
-            set_module_tensor_to_device(
-                model, name, expanded_device_map[name], param
+        if quantization_config and torch.cuda.is_available():
+            from transformers import BitsAndBytesConfig
+
+            if not isinstance(quantization_config, BitsAndBytesConfig):
+                raise ValueError(
+                    f"Invalid config type: {type(quantization_config)}"
+                )
+
+            logger.debug(
+                f"using precision: {quantization_config.quantization_method()}"
             )
+
+            if quantization_config.llm_int8_enable_fp32_cpu_offload:
+                logger.debug("Offloading is not supported yet")
+                quantization_config.llm_int8_enable_fp32_cpu_offload = False
+
+            model = replace_with_bnb_linear(
+                model, quantization_config=quantization_config
+            )
+
+            client.confirm_model_loaded(model_path, replica_uuid)
+
+            for name, param in state_dict.items():
+                if (
+                    param.dtype not in [torch.uint8, torch.int8]
+                    and torch_dtype is None
+                ):
+                    param = param.to(torch.float16)
+
+                set_module_quantized_tensor_to_device(
+                    model, name, param.device, param
+                )
+        else:
+            if quantization_config is not None:
+                logger.debug(
+                    "Quantization on current device is not supported yet"
+                )
+
+            for name, param in state_dict.items():
+                set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
 
     dispatch_model(

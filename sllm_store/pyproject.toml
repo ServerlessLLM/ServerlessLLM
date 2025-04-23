@@ -2,18 +2,18 @@
 requires = [
     "setuptools",
     "wheel",
-    "cmake>=3.20",
+    "cmake>=3.20,<4.0.0",
     "ninja",
-    "torch==2.3.0",
-    "grpcio==1.49.1",
-    "grpcio-tools==1.49.1",
+    "torch==2.5.1",
 ]
 build-backend = "setuptools.build_meta"
 
 
 [tool.ruff]
 line-length = 80
-exclude = []
+exclude = [
+    "sllm_store/proto",
+]
 
 [tool.ruff.lint]
 select = [

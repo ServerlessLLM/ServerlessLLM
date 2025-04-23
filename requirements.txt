@@ -1,10 +1,11 @@
+bitsandbytes==0.45.1
 fastapi==0.108.0
 GPUtil==1.4.0
 grpcio==1.49.1
 grpcio-tools==1.49.1
-openai==1.35.7
-pydantic==2.6.1
-pydantic_core==2.16.2
+openai==1.52.0
+pydantic==2.9.0
+pydantic_core==2.23.2
 ray==2.9.0
 requests==2.32.2
 serverless-llm-store

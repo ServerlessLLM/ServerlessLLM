@@ -16,14 +16,14 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
+import datetime
+import os
 from typing import Mapping, Optional
 
 import ray
 
 from sllm.serve.logger import init_logger
-
-# from sllm.serve.utils import AllocationPlan, MigrationPlan
-from sllm.serve.routers import RoundRobinRouter
+from sllm.serve.routers import MigrationRouter, RoundRobinRouter
 from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from sllm.serve.store_manager import StoreManager
 
@@ -71,10 +71,19 @@ class SllmController:
         else:
             ray_scheduler_cls = ray.remote(FcfsScheduler)
 
+        enable_migration = self.config.get("enable_migration", False)
+        if enable_migration:
+            self.router_cls = ray.remote(MigrationRouter)
+        else:
+            self.router_cls = ray.remote(RoundRobinRouter)
+
         self.scheduler = ray_scheduler_cls.options(
             name="model_loading_scheduler", resources={"control_node": 0.1}
-        ).remote()
-
+        ).remote(
+            scheduler_config={
+                "enable_migration": enable_migration,
+            }
+        )
         self.scheduler.start.remote()
 
     async def register(self, model_config):
@@ -87,6 +96,7 @@ class SllmController:
             logger.error(f"Backend not specified for model {model_name}")
             return
         backend_config = model_config.get("backend_config", {})
+        router_config = model_config.get("router_config", {})
         auto_scaling_config = model_config.get("auto_scaling_config", None)
         async with self.metadata_lock:
             if model_name in self.registered_models:
@@ -104,9 +114,18 @@ class SllmController:
             "num_cpus": 1,
             "num_gpus": model_config.get("num_gpus", 0),
         }
-        request_router = RoundRobinRouter.options(  # type:ignore
-            name=model_name, namespace="models"
-        ).remote(model_name, resource_requirements, backend, backend_config)
+        request_router = self.router_cls.options(
+            name=model_name,
+            namespace="models",
+            num_cpus=1,
+            resources={"control_node": 0.1},
+        ).remote(
+            model_name,
+            resource_requirements,
+            backend,
+            backend_config,
+            router_config,
+        )
 
         async with self.metadata_lock:
             if model_name in self.request_routers:
@@ -165,6 +184,97 @@ class SllmController:
     async def get_models(self):
         async with self.metadata_lock:
             return self.registered_models
+
+    async def status(self):
+        """
+        Returns the status of all registered models in OpenAI-compliant format.
+        """
+        async with self.metadata_lock:
+            models = []
+            model_folder = os.getenv("MODEL_FOLDER")
+            for model_name, config in self.registered_models.items():
+                # Extract or calculate relevant fields
+                model_path = config.get("_name_or_path", None)
+                created_time = (
+                    next(
+                        (
+                            int(os.path.getctime(os.path.abspath(dirpath)))
+                            for dirpath, _, _ in os.walk(model_folder)
+                            if dirpath.endswith(model_path)
+                        ),
+                        None,
+                    )
+                    if model_path
+                    else None
+                )
+
+                created_time = config.get("created", None)
+                allow_create_engine = config.get("allow_create_engine", None)
+                allow_sampling = config.get("allow_sampling", None)
+                allow_logprobs = config.get("allow_logprobs", None)
+                allow_search_indices = config.get("allow_search_indices", None)
+                allow_view = config.get("allow_view", None)
+                allow_fine_tuning = config.get("allow_fine_tuning", None)
+                organization = config.get("organization", "*")
+                group = config.get("group", None)
+                is_blocking = config.get("is_blocking", None)
+
+                max_model_len = config.get("max_position_embeddings", None)
+
+                model_permission_id = f"modelperm-{model_name}"
+                permission = [
+                    {
+                        "id": model_permission_id,
+                        "object": "model_permission",
+                        "created": created_time
+                        if created_time is not None
+                        else None,
+                        "allow_create_engine": allow_create_engine
+                        if allow_create_engine is not None
+                        else None,
+                        "allow_sampling": allow_sampling
+                        if allow_sampling is not None
+                        else None,
+                        "allow_logprobs": allow_logprobs
+                        if allow_logprobs is not None
+                        else None,
+                        "allow_search_indices": allow_search_indices
+                        if allow_search_indices is not None
+                        else None,
+                        "allow_view": allow_view
+                        if allow_view is not None
+                        else None,
+                        "allow_fine_tuning": allow_fine_tuning
+                        if allow_fine_tuning is not None
+                        else None,
+                        "organization": organization
+                        if organization is not None
+                        else None,
+                        "group": group if group is not None else None,
+                        "is_blocking": is_blocking
+                        if is_blocking is not None
+                        else None,
+                    }
+                ]
+
+                # Build the model metadata entry
+                model_metadata = {
+                    "id": model_name,
+                    "object": "model",
+                    "created": created_time
+                    if created_time is not None
+                    else None,
+                    "owned_by": "sllm",
+                    "root": model_name,
+                    "parent": None,
+                    "max_model_len": max_model_len
+                    if max_model_len is not None
+                    else None,
+                    "permission": permission,
+                }
+                models.append(model_metadata)
+
+            return {"object": "list", "models": models}
 
     async def shutdown(self):
         # stop the control loop

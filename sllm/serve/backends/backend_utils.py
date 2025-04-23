@@ -29,7 +29,9 @@ class BackendStatus(Enum):
 
 class SllmBackend(ABC):
     @abstractmethod
-    def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         pass
 
     @abstractmethod
@@ -58,4 +60,8 @@ class SllmBackend(ABC):
 
     @abstractmethod
     async def resume_kv_cache(self, request_datas: List[List[int]]) -> None:
+        pass
+
+    @abstractmethod
+    async def fine_tuning(self, request_data: Dict[str, Any]):
         pass

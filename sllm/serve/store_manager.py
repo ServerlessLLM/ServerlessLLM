@@ -77,15 +77,18 @@ class SllmLocalStore:
             model_path = self._get_model_path(model_name, backend)
             if backend == "transformers":
                 model_size = self.client.register_model(model_path)
+                self.disk_models[model_name] = ([model_path], model_size)
             elif backend == "vllm":
                 tensor_parallel_size = backend_config.get(
                     "tensor_parallel_size", 1
                 )
                 model_size = 0
+                model_path_list = []
                 for rank in range(tensor_parallel_size):
                     model_rank_path = os.path.join(model_path, f"rank_{rank}")
                     model_size += self.client.register_model(model_rank_path)
-            self.disk_models[model_name] = (model_path, model_size)
+                    model_path_list.append(model_rank_path)
+                self.disk_models[model_name] = (model_path_list, model_size)
             logger.info(f"{model_name} registered, {self.disk_models}")
 
         return model_size
@@ -97,7 +100,7 @@ class SllmLocalStore:
                 delta_time = self.io_queue[-1]["estimated_time"] - time.time()
                 if delta_time < 0:
                     delta_time = 0
-            return self.disk_models, self.pinned_memory_pool, delta_time
+            return [self.disk_models, self.pinned_memory_pool, delta_time]
 
     async def load_to_host(self, model_name: str) -> bool:
         async with self.lock:
@@ -149,7 +152,7 @@ class SllmLocalStore:
                 )
 
             model_name = model_info["model_name"]
-            model_path, model_size = self.disk_models[model_name]
+            model_path_list, model_size = self.disk_models[model_name]
             can_load = await self._lru_eviction(model_size)
             if not can_load:
                 logger.warning(
@@ -158,13 +161,18 @@ class SllmLocalStore:
                 await asyncio.sleep(1)
                 continue
             logger.info(f"Loading {model_name} to node {self.node_id}")
-            ret = self.client.load_into_cpu(model_path)
+            ret = 1
+            for model_path in model_path_list:
+                ret = ret and self.client.load_into_cpu(model_path)
             self.io_queue.pop(0)
             self.queued_models.pop(model_name)
             if not ret:
                 logger.error(f"Failed to load {model_name}")
                 continue
             self.pinned_memory_pool[model_name] = time.time()
+            self.pinned_memory_pool_usage += (
+                model_size + self.chunk_size - 1
+            ) // self.chunk_size
             logger.info(f"{model_name} loaded to host")
 
     async def _lru_eviction(self, model_size):
@@ -188,14 +196,13 @@ class SllmLocalStore:
             ):
                 model_name, _ = sorted_models.pop(0)
                 if model_name not in self.queued_models:
-                    model_path, _ = self.disk_models[model_name]
-                    self.client.unload_from_cpu(model_path)
+                    model_path_list, _ = self.disk_models[model_name]
+                    for model_path in model_path_list:
+                        self.client.unload_from_cpu(model_path)
                     self.pinned_memory_pool.pop(model_name)
                     unloaded_chunks = (
-                        self.disk_models[model_name]
-                        + self.pinned_memory_pool_chunks
-                        - 1
-                    ) // self.pinned_memory_pool_chunks
+                        self.disk_models[model_name][1] + self.chunk_size - 1
+                    ) // self.chunk_size
                     self.pinned_memory_pool_usage -= unloaded_chunks
                     logger.info(
                         f"{model_name} evicted {unloaded_chunks} chunks"
@@ -297,9 +304,6 @@ class StoreManager:
                             chunk_size,
                             self.hardware_info[node_id],
                         )
-                        self.local_servers[
-                            node_id
-                        ].hardware_info = self.hardware_info[node_id]
                         uninitialized_nodes.remove(node_id)
                         logger.info(
                             f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
@@ -360,8 +364,7 @@ class StoreManager:
             logger.info(f"Registering new {model_name}")
 
             backend = model_config.get("backend", None)
-
-            pretrained_model_name = backend_config.get(
+            pretrained_model_name_or_path = backend_config.get(
                 "pretrained_model_name_or_path", None
             )
             # 1. download this model to one worker using round-robin
@@ -373,18 +376,27 @@ class StoreManager:
             for node_id, node_info in worker_node_info.items():
                 node_address = node_info["address"]
                 if node_id not in self.local_servers:
-                    self.local_servers[node_id] = SllmLocalStore(
-                        node_id, SllmStoreClient(f"{node_address}:8073"), 1
-                    )
+                    if self.local_servers:
+                        first_node = next(iter(self.local_servers.values()))
+                        self.local_servers[node_id] = SllmLocalStore(
+                            node_id,
+                            SllmStoreClient(f"{node_address}:8073"),
+                            1,
+                            first_node.chunk_size,
+                            first_node.hardware_info,
+                        )
+                    else:
+                        logger.error(f"Node {node_id} not found")
+                        raise ValueError(f"Node {node_id} not found")
 
-            target_nodes = []
-            if placement_config and "target_nodes" in placement_config:
-                target_nodes = placement_config["target_nodes"]
+            local_disk = []
+            if placement_config and "local_disk" in placement_config:
+                local_disk = placement_config["local_disk"]
                 if not all(
-                    [node_id in worker_node_info for node_id in target_nodes]
+                    [node_id in worker_node_info for node_id in local_disk]
                 ):
                     logger.error(
-                        f"Invalid target nodes {target_nodes}, worker nodes: {worker_node_info}"  # noqa: E501
+                        f"Invalid target nodes {local_disk}, worker nodes: {worker_node_info}"  # noqa: E501
                     )
                     return
             else:
@@ -393,12 +405,23 @@ class StoreManager:
                     self.round_robin_index % n_nodes
                 ]
                 self.round_robin_index += 1
-                target_nodes = [node_id]
+                local_disk = [node_id]
+
+            memory_pool = []
+            if placement_config and "memory_pool" in placement_config:
+                memory_pool = placement_config["memory_pool"]
+                if not all(
+                    [node_id in worker_node_info for node_id in memory_pool]
+                ):
+                    logger.error(
+                        f"Invalid target nodes {memory_pool}, worker nodes: {worker_node_info}"  # noqa: E501
+                    )
+                    return
 
             logger.info(
-                f"Downloading model {pretrained_model_name} to nodes {target_nodes}"  # noqa: E501
+                f"Downloading model {pretrained_model_name_or_path} to nodes {local_disk}"  # noqa: E501
             )
-            for node_id in target_nodes:
+            for node_id in local_disk:
                 if backend == "transformers":
                     hf_model_class = backend_config.get("hf_model_class", None)
                     torch_dtype = backend_config.get("torch_dtype", "float16")
@@ -408,14 +431,16 @@ class StoreManager:
                         )
                         break
                     await self.download_transformers_model(
-                        pretrained_model_name,
+                        model_name,
+                        pretrained_model_name_or_path,
                         node_id,
                         hf_model_class,
                         torch_dtype,
                     )
                 elif backend == "vllm":
                     await self.download_vllm_model(
-                        pretrained_model_name,
+                        model_name,
+                        pretrained_model_name_or_path,
                         node_id,
                         model_config.get("num_gpus", 1),
                         backend_config.get("tensor_parallel_size", 1),
@@ -431,6 +456,12 @@ class StoreManager:
                 # record the storage info
                 self.model_storage_info[model_name][node_id] = True
                 logger.info(f"{model_name} downloaded to node {node_id}")
+                if node_id in memory_pool:
+                    # preload to memory pool
+                    await self.load_to_host(
+                        node_id, pretrained_model_name_or_path
+                    )
+                    logger.info(f"{model_name} loaded to memory pool")
             self.model_info[model_name] = model_size
             logger.info(f"{model_name} registered")
         else:
@@ -438,22 +469,37 @@ class StoreManager:
             pass
 
     async def download_transformers_model(
-        self, pretrained_model_name, node_id, hf_model_class, torch_dtype
+        self,
+        model_name,
+        pretrained_model_name_or_path,
+        node_id,
+        hf_model_class,
+        torch_dtype,
     ) -> int:
-        logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
+        logger.info(
+            f"Downloading {pretrained_model_name_or_path} to node {node_id}"
+        )
         return await download_transformers_model.options(
             resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
-        ).remote(pretrained_model_name, torch_dtype, hf_model_class)
+        ).remote(
+            model_name,
+            pretrained_model_name_or_path,
+            torch_dtype,
+            hf_model_class,
+        )
 
     async def download_vllm_model(
         self,
-        pretrained_model_name,
+        model_name,
+        pretrained_model_name_or_path,
         node_id,
         num_gpus,
         tensor_parallel_size,
         torch_dtype,
     ):
-        logger.info(f"Downloading {pretrained_model_name} to node {node_id}")
+        logger.info(
+            f"Downloading {pretrained_model_name_or_path} to node {node_id}"
+        )
         vllm_backend_downloader = (
             ray.remote(VllmModelDownloader)
             .options(
@@ -463,7 +509,8 @@ class StoreManager:
             .remote()
         )
         return await vllm_backend_downloader.download_vllm_model.remote(
-            pretrained_model_name,
+            model_name,
+            pretrained_model_name_or_path,
             torch_dtype,
             tensor_parallel_size,
         )

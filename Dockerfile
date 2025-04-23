@@ -16,32 +16,40 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-# Stage 1: Builder
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel AS builder
+# Adapted from https://github.com/vllm-project/vllm/blob/23c1b10a4c8cd77c5b13afa9242d67ffd055296b/Dockerfile
+ARG CUDA_VERSION=12.1.1
+#################### BASE BUILD IMAGE ####################
+# prepare basic build environment
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
+ARG CUDA_VERSION=12.1.1
+ARG PYTHON_VERSION=3.10
+ARG TARGETPLATFORM
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Set non-interactive installation
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-
-# Install necessary packages for wget and HTTPS
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
-        wget \
-        bzip2 \
-        ca-certificates \
-        git \
-        && rm -rf /var/lib/apt/lists/*
+# Install Python and other dependencies
+RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
+    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
+    && apt-get update -y \
+    && apt-get install -y ccache software-properties-common git curl sudo \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update -y \
+    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
+    && ln -sf /usr/bin/python${PYTHON_VERSION}-config /usr/bin/python3-config \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
+    && python3 --version && python3 -m pip --version
 
 # Set the working directory
 WORKDIR /app
 
-RUN conda install python=3.10
-RUN pip install -U pip
-
 # Build checkpoint store
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
+COPY sllm_store/requirements-build.txt /app/sllm_store/requirements-build.txt
+RUN cd sllm_store && \
+  pip install -r requirements-build.txt && \
+  pip install setuptools wheel
+
 COPY sllm_store/cmake /app/sllm_store/cmake
 COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
 COPY sllm_store/csrc /app/sllm_store/csrc
@@ -49,24 +57,20 @@ COPY sllm_store/sllm_store /app/sllm_store/sllm_store
 COPY sllm_store/setup.py /app/sllm_store/setup.py
 COPY sllm_store/pyproject.toml /app/sllm_store/pyproject.toml
 COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
-COPY sllm_store/setup.cfg /app/sllm_store/setup.cfg
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
-RUN cd sllm_store && \
-  pip install -r requirements.txt && \
-  pip install setuptools wheel  && \
-  python setup.py sdist bdist_wheel
+RUN cd sllm_store && python3 setup.py bdist_wheel
 
 COPY requirements.txt requirements-worker.txt /app/
-COPY pyproject.toml setup.py setup.cfg py.typed /app/
+COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/serve /app/sllm/serve
 COPY sllm/cli /app/sllm/cli
 COPY README.md /app/
-RUN python setup.py sdist bdist_wheel
+RUN python3 setup.py bdist_wheel
 
-# Stage 2: Runner
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
+# Stage 2: Runner with conda environments
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -76,22 +80,42 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Set the working directory
 WORKDIR /app
 
-RUN conda install python=3.10
-RUN pip install -U pip
+# Create conda environments for head and worker
+RUN conda create -n head python=3.10 -y && \
+    conda create -n worker python=3.10 -y
+
+RUN conda run -n head pip install -U pip
+RUN conda run -n worker pip install -U pip
+
+# Copy requirements files
+COPY requirements.txt /app/
+
+RUN conda run -n head pip install -r /app/requirements.txt
+COPY requirements-worker.txt /app/
+
+RUN conda run -n worker pip install -r /app/requirements-worker.txt
+
+# Copy vllm patch for worker
+COPY sllm_store/vllm_patch /app/vllm_patch
 
 # Copy the built wheels from the builder
 COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
 
-# Install the built wheels
-RUN pip install /app/dist/*.whl --force-reinstall
-RUN pip install /app/sllm_store/dist/*.whl --force-reinstall
+# Install packages in head environment
+RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
+    conda run -n head pip install /app/dist/*.whl
+
+# Install packages in worker environment
+RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
+    conda run -n worker pip install /app/dist/*.whl
+
+# Apply vLLM patch in worker environment
+RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
 
 # Copy the entrypoint
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-# Set the environment variables
-ENV MODE=HEAD
-# Set the entrypoint
+# Set the entrypoint directly to the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]

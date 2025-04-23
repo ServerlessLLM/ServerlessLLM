@@ -1,0 +1,68 @@
+name: ROCm test
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+    branches:
+      - main
+    paths:
+      - 'sllm_store/**'
+
+
+jobs:
+  rocm_test:
+    runs-on: [self-hosted, amd]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
+    container:
+      image: rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+            apt-get update && apt-get install -y ca-certificates git wget bzip2
+            python -m pip install --upgrade pip
+            pip install -r requirements-test.txt
+
+      - name: Uninstall existing PyTorch packages
+        run: |
+          python3 -m pip uninstall -y torch torchvision
+
+      - name: Install torch
+        run: |
+          python3 -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 \
+          --index-url https://download.pytorch.org/whl/rocm6.2
+
+      - name: Set up using existing torch
+        working-directory: sllm_store
+        run: |
+            python using_existing_torch.py
+
+      - name: Build wheel
+        working-directory: sllm_store
+        shell: bash
+        env:
+          PYTORCH_ROCM_ARCH: "gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
+        run: |
+            pip install -r requirements-build.txt
+            python setup.py sdist bdist_wheel
+
+      - name: Install wheel
+        working-directory: sllm_store
+        run: |
+            pip install dist/*.whl
+
+      - name: Run Python tests (excluding vllm)
+        working-directory: sllm_store
+        run: |
+            pytest tests/python/test_save_model.py
+            pytest tests/python/test_utils.py
+
+      - name: Run C++ tests
+        working-directory: sllm_store
+        env:
+          PYTORCH_ROCM_ARCH: "gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
+        run: |
+            bash cpp_build.sh
+            ctest --output-on-failure

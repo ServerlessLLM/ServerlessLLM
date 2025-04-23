@@ -22,6 +22,7 @@ import shutil
 from typing import Optional
 
 import ray
+from transformers import AutoTokenizer
 
 logger = logging.getLogger("ray")
 
@@ -38,10 +39,16 @@ logger = logging.getLogger("ray")
 
 @ray.remote(num_cpus=1)
 def download_transformers_model(
-    model_name: str, torch_dtype: str, hf_model_class: str
+    model_name: str,
+    pretrained_model_name_or_path: str,
+    torch_dtype: str,
+    hf_model_class: str,
 ) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
+    tokenizer_path = os.path.join(
+        storage_path, "transformers", model_name, "tokenizer"
+    )
 
     if os.path.exists(model_path):
         logger.info(f"{model_path} already exists")
@@ -58,14 +65,19 @@ def download_transformers_model(
     module = importlib.import_module("transformers")
     hf_model_cls = getattr(module, hf_model_class)
     model = hf_model_cls.from_pretrained(
-        model_name, torch_dtype=torch_dtype, trust_remote_code=True
+        pretrained_model_name_or_path,
+        torch_dtype=torch_dtype,
+        trust_remote_code=True,
     )
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     from sllm_store.transformers import save_model
 
     logger.info(f"Saving {model_path}")
     try:
         save_model(model, model_path)
+        tokenizer.save_pretrained(tokenizer_path)
     except Exception as e:
         logger.error(f"Failed to save {model_path}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
@@ -86,6 +98,7 @@ class VllmModelDownloader:
     def download_vllm_model(
         self,
         model_name: str,
+        pretrained_model_name_or_path: str,
         torch_dtype: str,
         tensor_parallel_size: int = 1,
         pattern: Optional[str] = None,
@@ -105,12 +118,15 @@ class VllmModelDownloader:
             logger.info(f"{model_path} already exists")
             return
 
+        cache_dir = TemporaryDirectory()
         try:
-            with TemporaryDirectory() as cache_dir:
+            if os.path.exists(pretrained_model_name_or_path):
+                input_dir = pretrained_model_name_or_path
+            else:
                 # download from huggingface
                 input_dir = snapshot_download(
                     model_name,
-                    cache_dir=cache_dir,
+                    cache_dir=cache_dir.name,
                     allow_patterns=[
                         "*.safetensors",
                         "*.bin",
@@ -118,47 +134,50 @@ class VllmModelDownloader:
                         "*.txt",
                     ],
                 )
-                logger.info(input_dir)
-                # load models from the input directory
-                llm_writer = LLM(
-                    model=input_dir,
-                    download_dir=input_dir,
-                    dtype=torch_dtype,
-                    tensor_parallel_size=tensor_parallel_size,
-                    num_gpu_blocks_override=1,
-                    enforce_eager=True,
-                    max_model_len=1,
-                )
-                model_executer = llm_writer.llm_engine.model_executor
-                # save the models in the ServerlessLLM format
-                model_executer.save_serverless_llm_state(
-                    path=model_path, pattern=pattern, max_size=max_size
-                )
-                for file in os.listdir(input_dir):
-                    # Copy the metadata files into the output directory
-                    if os.path.splitext(file)[1] not in (
-                        ".bin",
-                        ".pt",
-                        ".safetensors",
-                    ):
-                        src_path = os.path.join(input_dir, file)
-                        dest_path = os.path.join(model_path, file)
-                        logger.info(src_path)
-                        logger.info(dest_path)
-                        if os.path.isdir(src_path):
-                            shutil.copytree(src_path, dest_path)
-                        else:
-                            shutil.copy(src_path, dest_path)
-                del model_executer
-                del llm_writer
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                    torch.cuda.synchronize()
+            logger.info(f"Loading model from {input_dir}")
+
+            # load models from the input directory
+            llm_writer = LLM(
+                model=input_dir,
+                download_dir=input_dir,
+                dtype=torch_dtype,
+                tensor_parallel_size=tensor_parallel_size,
+                num_gpu_blocks_override=1,
+                enforce_eager=True,
+                max_model_len=1,
+            )
+            model_executer = llm_writer.llm_engine.model_executor
+            # save the models in the ServerlessLLM format
+            model_executer.save_serverless_llm_state(
+                path=model_path, pattern=pattern, max_size=max_size
+            )
+            for file in os.listdir(input_dir):
+                # Copy the metadata files into the output directory
+                if os.path.splitext(file)[1] not in (
+                    ".bin",
+                    ".pt",
+                    ".safetensors",
+                ):
+                    src_path = os.path.join(input_dir, file)
+                    dest_path = os.path.join(model_path, file)
+                    logger.info(src_path)
+                    logger.info(dest_path)
+                    if os.path.isdir(src_path):
+                        shutil.copytree(src_path, dest_path)
+                    else:
+                        shutil.copy(src_path, dest_path)
+            del model_executer
+            del llm_writer
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
         except Exception as e:
-            print(f"An error occurred while saving the model: {e}")
+            logger.info(f"An error occurred while saving the model: {e}")
             # remove the output dir
             shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
             raise RuntimeError(
                 f"Failed to save {model_name} for vllm backend: {e}"
             )
+        finally:
+            cache_dir.cleanup()

@@ -33,7 +33,7 @@ Replace `/path/to/your/models` with the actual path where you want to store the 
 
 ### Step 3: Enable Storage Aware Scheduling in Docker Compose
 
-The Docker Compose configuration is already located in the `examples/storage_aware_scheduling` directory. To activate storage-aware scheduling, ensure the `docker-compose.yml` file includes the necessary configurations(`sllm_head` service should include the `--enable_storage_aware` command).
+The Docker Compose configuration is already located in the `examples/storage_aware_scheduling` directory. To activate storage-aware scheduling, ensure the `docker-compose.yml` file includes the necessary configurations(`sllm_head` service should include the `--enable-storage-aware` command).
 
 :::tip
 Recommend to adjust the number of GPUs and `mem_pool_size` based on the resources available on your machine.
@@ -45,7 +45,7 @@ Recommend to adjust the number of GPUs and `mem_pool_size` based on the resource
 Start the ServerlessLLM services using Docker Compose:
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.

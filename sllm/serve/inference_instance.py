@@ -24,7 +24,9 @@ logger = init_logger(__name__)
 
 
 @ray.remote
-def start_instance(instance_id, backend, backend_config, startup_config):
+def start_instance(
+    instance_id, backend, model_name, backend_config, startup_config
+):
     logger.info(f"Starting instance {instance_id} with backend {backend}")
     if backend == "vllm":
         from sllm.serve.backends import VllmBackend
@@ -42,6 +44,6 @@ def start_instance(instance_id, backend, backend_config, startup_config):
         logger.error(f"Unknown backend: {backend}")
         raise ValueError(f"Unknown backend: {backend}")
 
-    return model_backend_cls.options(name=instance_id, **startup_config).remote(
-        backend_config
-    )
+    return model_backend_cls.options(
+        name=instance_id, **startup_config, max_concurrency=10
+    ).remote(model_name, backend_config)

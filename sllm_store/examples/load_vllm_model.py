@@ -7,13 +7,13 @@ parser = argparse.ArgumentParser(
     description="Save a model from HuggingFace model hub."
 )
 parser.add_argument(
-    "--model_name",
+    "--model-name",
     type=str,
     required=True,
     help="Model name from HuggingFace model hub.",
 )
 parser.add_argument(
-    "--storage_path",
+    "--storage-path",
     type=str,
     default="./models",
     help="Local path to save the model.",

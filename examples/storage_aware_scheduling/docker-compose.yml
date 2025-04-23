@@ -3,24 +3,25 @@ services:
   sllm_head:
     build:
       context: ../../
-      dockerfile: Dockerfile  # Ensure this points to your head node Dockerfile
-    image: serverlessllm/sllm-serve
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
     container_name: sllm_head
     environment:
       - MODEL_FOLDER=${MODEL_FOLDER}
+      - MODE=HEAD
     ports:
       - "6379:6379"    # Redis port
       - "8343:8343"    # ServerlessLLM port
     networks:
       - sllm_network
-    command: ["--enable_storage_aware"]  # Enable storage-aware scheduling
+    command: ["--enable-storage-aware"]  # Enable storage-aware scheduling
 
   # Worker Node 0
   sllm_worker_0:
     build:
       context: ../../
-      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
-    image: serverlessllm/sllm-serve-worker
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
     container_name: sllm_worker_0
     deploy:
       resources:
@@ -32,18 +33,19 @@ services:
     environment:
       - WORKER_ID=0
       - STORAGE_PATH=/models
+      - MODE=WORKER
     networks:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "32", "-registration_required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "32GB", "--registration-required", "true"] # Customize the memory pool size here
 
   # Worker Node 1
   sllm_worker_1:
     build:
       context: ../../
-      dockerfile: Dockerfile.worker  # Ensure this points to your worker Dockerfile
-    image: serverlessllm/sllm-serve-worker
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
     container_name: sllm_worker_1
     deploy:
       resources:
@@ -55,11 +57,12 @@ services:
     environment:
       - WORKER_ID=1
       - STORAGE_PATH=/models
+      - MODE=WORKER
     networks:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["-mem_pool_size", "32", "-registration_required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "32GB", "--registration-required", "true"] # Customize the memory pool size here
 
 networks:
   sllm_network:

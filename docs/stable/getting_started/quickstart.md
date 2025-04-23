@@ -29,22 +29,22 @@ And start ServerlessLLM Store server. This server will use `./models` as the sto
 ```bash
 conda activate sllm-worker
 export CUDA_VISIBLE_DEVICES=0
-sllm-store-server
+sllm-store start
 ```
 
 Expected output:
 ```bash
-$ sllm-store-server
-Run server...
+$ sllm-store start
+INFO 12-31 17:13:23 cli.py:58] Starting gRPC server
+INFO 12-31 17:13:23 server.py:34] StorageServicer: storage_path=./models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
 WARNING: Logging before InitGoogleLogging() is written to STDERR
-I20241111 16:34:14.856642 467195 server.cpp:333] Log directory already exists.
-I20241111 16:34:14.897728 467195 checkpoint_store.cpp:41] Number of GPUs: 1
-I20241111 16:34:14.897949 467195 checkpoint_store.cpp:43] I/O threads: 4, chunk size: 32MB
-I20241111 16:34:14.897960 467195 checkpoint_store.cpp:45] Storage path: "./models/"
-I20241111 16:34:14.972811 467195 checkpoint_store.cpp:71] GPU 0 UUID: c9938b31-33b0-e02f-24c5-88bd6fbe19ad
-I20241111 16:34:14.972856 467195 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
-I20241111 16:34:16.449775 467195 checkpoint_store.cpp:83] Memory pool created with 4GB
-I20241111 16:34:16.462957 467195 server.cpp:306] Server listening on 0.0.0.0:8073
+I20241231 17:13:23.947276 2165054 checkpoint_store.cpp:41] Number of GPUs: 1
+I20241231 17:13:23.947299 2165054 checkpoint_store.cpp:43] I/O threads: 4, chunk size: 32MB
+I20241231 17:13:23.947309 2165054 checkpoint_store.cpp:45] Storage path: "./models"
+I20241231 17:13:24.038651 2165054 checkpoint_store.cpp:71] GPU 0 UUID: c9938b31-33b0-e02f-24c5-88bd6fbe19ad
+I20241231 17:13:24.038700 2165054 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
+I20241231 17:13:25.557906 2165054 checkpoint_store.cpp:83] Memory pool created with 4GB
+INFO 12-31 17:13:25 server.py:243] Starting gRPC server on 0.0.0.0:8073
 ```
 
 Now, let’s start ServerlessLLM.
@@ -66,6 +66,8 @@ Next, open another new terminal, let's deploy a model to the ServerlessLLM serve
 conda activate sllm
 sllm-cli deploy --model facebook/opt-1.3b
 ```
+
+This will download the model from HuggingFace, if you want load the model from local path, you can use `config.json`, see [here](../cli/cli_api.md#example-configuration-file-configjson) for details.
 
 Now, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```bash

@@ -53,7 +53,7 @@ In another terminal:
 
     Run the test:
     ```sh
-    python deploy_dummy_models.py --num_models 7
-    python generate_random_workload.py --num_models 7 --request_rate 1 --duration_minutes 1
+    python deploy_dummy_models.py --num-models 7
+    python generate_random_workload.py --num-models 7 --request-rate 1 --duration-minutes 1
     sllm-cli replay --workload workload.json --dataset gsm8k_dataset.json
     ```

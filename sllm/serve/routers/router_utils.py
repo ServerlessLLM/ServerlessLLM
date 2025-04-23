@@ -35,6 +35,7 @@ class SllmRouter(ABC):
         resource_requirements: Dict[str, int],
         backend: str,
         backend_config: Dict,
+        router_config: Dict,
     ) -> None:
         pass
 
@@ -54,27 +55,6 @@ class SllmRouter(ABC):
     async def inference(self, request_data: dict):
         pass
 
-
-@dataclass
-class InstanceHandle:
-    instance_id: str
-    max_queue_length: int
-
-    node_id: Optional[str] = None
-    backend_instance: Optional[ray.actor.ActorHandle] = None
-    ready: bool = False
-    queue_length: int = 0
-
-    lock: asyncio.Lock = asyncio.Lock()
-
-    async def add_requests(self, num_requests: int = 1):
-        async with self.lock:
-            if not self.ready:
-                return False
-            if (
-                self.queue_length + num_requests > self.max_queue_length
-                or self.queue_length + num_requests < 0
-            ):
-                return False
-            self.queue_length += num_requests
-            return True
+    @abstractmethod
+    async def fine_tuning(self, request_data: dict):
+        pass

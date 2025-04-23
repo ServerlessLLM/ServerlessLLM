@@ -23,11 +23,20 @@ import os
 import time
 import uuid
 from dataclasses import fields
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
 import torch
-from vllm import AsyncEngineArgs, AsyncLLMEngine, RequestOutput, SamplingParams
+from vllm import (
+    AsyncEngineArgs,
+    AsyncLLMEngine,
+    EmbeddingRequestOutput,
+    PoolingParams,
+    PromptType,
+    RequestOutput,
+    SamplingParams,
+)
 from vllm.inputs import TokensPrompt
+from vllm.utils import Counter
 
 from sllm.serve.backends.backend_utils import (
     BackendStatus,
@@ -73,6 +82,30 @@ def process_output(output: RequestOutput, model_name: str) -> Dict[str, Any]:
     return api_response
 
 
+def process_embedding_output(
+    outputs: List[EmbeddingRequestOutput], model_name: str
+) -> Dict[str, Any]:
+    valid_outputs = [output for output in outputs if output is not None]
+    query_tokens = sum(len(output.prompt_token_ids) for output in valid_outputs)
+    api_response = {
+        "object": "list",
+        "data": [
+            {
+                "object": "embedding",
+                "index": i,
+                "embedding": output.outputs.embedding,
+            }
+            for i, output in enumerate(outputs)
+        ],
+        "model": model_name,
+        "usage": {
+            "query_tokens": query_tokens,
+            "total_tokens": query_tokens,
+        },
+    }
+    return api_response
+
+
 class LLMEngineStatusDict:
     def __init__(self):
         self.status_dict: Dict[str, Union[RequestOutput, str]] = {}
@@ -109,7 +142,9 @@ class VllmBackend(SllmBackend):
     # - stop: stops every ongoing request and then stops the backend
     # - get_current_tokens: returns a list of all ongoing request tokens
     # - resume_kv_cache: resumes the key-value cache for the given requests
-    def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, model: str, backend_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         if backend_config is None:
             raise ValueError("Backend config is missing")
 
@@ -119,14 +154,16 @@ class VllmBackend(SllmBackend):
         self.request_trace = LLMEngineStatusDict()
         # if trace_debug is True, request trace will not be deleted after completion
         self.trace_debug = backend_config.get("trace_debug", False)
+        self.enforce_eager = backend_config.get("enforce_eager", False)
+        self.enable_prefix_caching = backend_config.get(
+            "enable_prefix_caching", True
+        )
+        self.task = backend_config.get("task", "auto")
 
         async_engine_fields = {f.name for f in fields(AsyncEngineArgs)}
         filtered_engine_config = {
             k: v for k, v in backend_config.items() if k in async_engine_fields
         }
-        # warp to set model name
-        # TODO: Change the format of model from 'pretrained_model_name_or_path' to 'model'
-        model = backend_config.get("pretrained_model_name_or_path")
 
         load_format = backend_config.get("load_format")
         torch_dtype = backend_config.get("torch_dtype")
@@ -135,7 +172,9 @@ class VllmBackend(SllmBackend):
 
         if load_format is not None:
             filtered_engine_config["load_format"] = load_format
-            filtered_engine_config["model"] = model
+            filtered_engine_config["model"] = backend_config.get(
+                "pretrained_model_name_or_path"
+            )
         else:
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = os.path.join(storage_path, "vllm", model)
@@ -143,7 +182,11 @@ class VllmBackend(SllmBackend):
             filtered_engine_config["load_format"] = "serverless_llm"
 
         # NOTE: Automatic enable prefix cachinging
-        filtered_engine_config["enable_prefix_caching"] = True
+        filtered_engine_config["enforce_eager"] = self.enforce_eager
+        filtered_engine_config["enable_prefix_caching"] = (
+            self.enable_prefix_caching
+        )
+        filtered_engine_config["task"] = self.task
 
         logger.info(
             f"Creating new VLLM engine with config: {filtered_engine_config}"
@@ -170,8 +213,8 @@ class VllmBackend(SllmBackend):
         if request_data is None:
             return {"error": "Request data is missing"}
 
-        model_name: str = request_data.get("model_name", "vllm-model")
-        messages: Dict[Dict[str, str], str] = request_data.get("messages", [])
+        model_name: str = request_data.pop("model", "vllm-model")
+        messages: Dict[Dict[str, str], str] = request_data.pop("messages", [])
         construct_prompt: str = "\n".join(
             [
                 f"{message['role']}: {message['content']}"
@@ -181,26 +224,22 @@ class VllmBackend(SllmBackend):
         )
 
         # If prompt is not provided, construct it from messages
-        inputs: Union[str, TokensPrompt] = request_data.get(
+        inputs: Union[str, TokensPrompt] = request_data.pop(
             "prompt", construct_prompt
         )
         if request_data.get("input_tokens") is not None:
             inputs = TokensPrompt(
-                prompt_token_ids=request_data["input_tokens"],
+                prompt_token_ids=request_data.pop("input_tokens"),
             )
 
-        request_id: str = request_data.get(
+        request_id: str = request_data.pop(
             "request_id", f"chatcmpl-{uuid.uuid4()}"
         )
 
-        sampling_params_constructor = inspect.signature(
-            SamplingParams.__init__
-        ).parameters.keys()
-        sampling_params_fields = set(sampling_params_constructor)
-        filtered_request_data = {
-            k: v for k, v in request_data.items() if k in sampling_params_fields
-        }
-        sampling_params = SamplingParams(**filtered_request_data)
+        try:
+            sampling_params = SamplingParams(**request_data)
+        except Exception as e:
+            return {"error": f"Invalid sampling parameters: {e}"}
 
         results_generator = self.engine.generate(
             inputs, sampling_params, request_id
@@ -281,5 +320,48 @@ class VllmBackend(SllmBackend):
         await asyncio.gather(*tasks)
 
     async def encode(self, request_data: Dict[str, Any]):
-        # TODO: Implement this method on vLLM
-        pass
+        async with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Engine is not running"}
+
+        assert self.engine is not None
+
+        if not request_data:
+            return {"error": "Request data is missing"}
+
+        request_counter: Counter = Counter()
+        pooling_params: PoolingParams = PoolingParams()
+        model_name = request_data.get("model", "vllm-model")
+        query = request_data.get("input", [])
+
+        if not query:
+            return {"error": "No inputs provided"}
+
+        inputs = cast(Union[PromptType, Sequence[PromptType]], query)
+
+        async def process_input(input_data) -> List[EmbeddingRequestOutput]:
+            request_id = str(next(request_counter))
+            res = self.engine.encode(input_data, pooling_params, request_id)
+            return [result async for result in res]
+
+        raw_outputs = await asyncio.gather(
+            *[process_input(input_data) for input_data in inputs],
+            return_exceptions=True,
+        )
+
+        valid_outputs = []
+        for output in raw_outputs:
+            if isinstance(output, Exception):
+                logger.error(f"Error encountered: {output}")
+            else:
+                valid_outputs.extend(output)
+
+        if not valid_outputs:
+            return {"error": "All inputs failed"}
+
+        return process_embedding_output(valid_outputs, model_name)
+
+    async def fine_tuning(self, request_data: Dict[str, Any]):
+        raise NotImplementedError(
+            "Fine-tuning is not supported in this backend"
+        )

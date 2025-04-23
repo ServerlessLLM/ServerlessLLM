@@ -1,7 +1,7 @@
 # ServerlessLLM Example Scripts
 Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/getting_started/installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
-This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using ServerlessLLM.
+This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using vllm backend of ServerlessLLM.
 
 ### 1. Environment and Service Setup
 First and foremost, enter the folder where docker compose file is located:
@@ -15,7 +15,7 @@ export MODEL_FOLDER=/path/to/your/models
 Secondly, in a new terminal, launch the ServerlessLLM services with docker compose. It's important to note that the model `all-MiniLM-L12-v2` is approximately 0.12GB in size (float32), so you'll need to configure the store server with a memory pool of at least 0.12GB to avoid encountering an Out of Memory error. We recommend setting the memory pool size as large as possible. The memory pool size is set to 4GB by default. **If you would like to change the memory pool size, you need to modify the `command` entry for each `sllm_worker_#` service in `docker-compose.yml` as follows**:
 
 ```yaml
-command: ["-mem_pool_size", "32", "-registration_required", "true"]
+command: ["-mem-pool-size", "32", "-registration-required", "true"]
 ```
 
 This command line option will set a memory pool size of 32GB for each worker node.
@@ -33,22 +33,27 @@ First, write your deployment configuration `my_config.json`:
 ```json
 {
     "model": "sentence-transformers/all-MiniLM-L12-v2",
-    "backend": "transformers",
+    "backend": "vllm",
     "num_gpus": 1,
     "auto_scaling_config": {
         "metric": "concurrency",
         "target": 1,
         "min_instances": 0,
-        "max_instances": 10
+        "max_instances": 10,
+        "keep_alive": 0
     },
     "backend_config": {
-        "pretrained_model_name_or_path": "",
+        "pretrained_model_name_or_path": "sentence-transformers/all-MiniLM-L12-v2",
+        "enforce_eager": true,
+        "enable_prefix_caching": false,
         "device_map": "auto",
-        "torch_dtype": "float32",
-        "hf_model_class": "AutoModel"
+        "task": "embed",
+        "torch_dtype": "float32"
     }
 }
 ```
+**NOTE:** `enable_prefix_caching: false` and `enforce_eager: true` are necessary for current vLLM version.
+
 Next, set the ServerlessLLM Server URL `LLM_SERVER_URL` and deploy this model with the configuration:
 ```bash
 conda activate sllm
@@ -77,23 +82,23 @@ You will finally receive the response like:
             "object": "embedding",
             "index": 0,
             "embedding": [
-                0.03510047867894173,
-                0.0419340543448925,
-                0.005905449856072664，
+                0.010307748802006245,
+                0.060131508857011795,
+                0.09968873113393784,
                 ... # (omit for spacing)
-                0.08812830597162247,
-                0.03634589537978172,
-                0.0021678076591342688,
-                0.051571957767009735,
-                0.029966454952955246,
-                0.02055398002266884
+                -0.04998933523893356,
+                -0.016926823183894157,
+                0.046083349734544754,
+                0.07767919450998306,
+                0.029209429398179054,
+                -0.08836055546998978
             ]
         }
     ],
     "model": "sentence-transformers/all-MiniLM-L12-v2",
     "usage": {
-        "query_tokens": 11,
-        "total_tokens": 11
+        "query_tokens": 8,
+        "total_tokens": 8
     }
 }
 ```

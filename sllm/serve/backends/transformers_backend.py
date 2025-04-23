@@ -15,35 +15,88 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import asyncio
 import json
 import os
+import threading
 import time
 import uuid
-from typing import Any, Dict, Optional
+from copy import deepcopy
+from typing import Any, Dict, List, Optional
 
+import peft
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer
+import transformers
+from datasets import load_dataset
+from peft import LoraConfig, PeftModel, get_peft_model
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    PreTrainedTokenizerBase,
+    Trainer,
+    TrainingArguments,
+)
+from transformers.generation.streamers import BaseStreamer
 
-from sllm.serve.backends.backend_utils import SllmBackend
+from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
-from sllm_store.transformers import load_model
+from sllm_store.transformers import load_model, save_lora
 
 logger = init_logger(__name__)
 
 
+class DeletingException(Exception):
+    pass
+
+
+class InferenceStatus(BaseStreamer):
+    def __init__(self, status: BackendStatus):
+        super().__init__()
+        self.status = status
+        self.intermediate = []
+
+    def put(self, value):
+        value = value.tolist()
+        if not self.intermediate:
+            self.intermediate = value
+        else:
+            # NOTE: This does not support in-flight batching
+            # or dynamic batch size
+            for i, v in enumerate(value):
+                self.intermediate[i].append(v)
+        logger.warning(f"Intermediate output: {self.intermediate}")
+        if self.status == BackendStatus.DELETING:
+            raise DeletingException("Backend is deleting")
+
+    def end(self):
+        logger.error("Inference completed")
+
+    def get(self):
+        return deepcopy(self.intermediate)
+
+    def delete(self):
+        logger.info("Deleting intermediate output")
+        self.intermediate = []
+
+
 class TransformersBackend(SllmBackend):
-    def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
+    ) -> None:
         self.backend_config = backend_config
         logger.info(
-            f"Initializing TransformersBackend with config: {backend_config}"
+            f"Initializing TransformersBackend for {model_name} with config: {backend_config}"
         )
-        self.model_name = backend_config.get("pretrained_model_name_or_path")
+        self.model_name = model_name
+        self.pretrained_model_name_or_path = backend_config.get(
+            "pretrained_model_name_or_path"
+        )
+        self.status: BackendStatus = BackendStatus.UNINITIALIZED
+        self.inf_status = InferenceStatus(self.status)
+        self.status_lock = threading.Lock()
         self.model = None
-        self.model_initialized = False
-        self.model_status_lock = asyncio.Lock()
         self.tokenizer = None
+        self.past_key_values = None
 
     def convert_str_to_json(self, json_str):
         try:
@@ -54,9 +107,9 @@ class TransformersBackend(SllmBackend):
             logger.error(f"Failed to decode JSON string: {e}")
             return None
 
-    async def init_backend(self) -> None:
-        async with self.model_status_lock:
-            if self.model_initialized:
+    def init_backend(self) -> None:
+        with self.status_lock:
+            if self.status != BackendStatus.UNINITIALIZED:
                 return
             device_map = self.backend_config.get("device_map", "auto")
             torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
@@ -84,8 +137,17 @@ class TransformersBackend(SllmBackend):
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model_initialized = True
+            tokenizer_path = os.path.join(
+                storage_path, "transformers", self.model_name, "tokenizer"
+            )
+            if os.path.exists(tokenizer_path):
+                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+            else:
+                # Fall back to load from system's cache
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.pretrained_model_name_or_path
+                )
+            self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
@@ -99,9 +161,9 @@ class TransformersBackend(SllmBackend):
             return_tensors="pt",
         ).to("cuda:0")
 
-    async def encode(self, request_data: Optional[Dict[str, Any]]):
-        async with self.model_status_lock:
-            if not self.model_initialized:
+    def encode(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
         def last_token_pool(
@@ -162,74 +224,351 @@ class TransformersBackend(SllmBackend):
 
         return response
 
-    async def generate(self, request_data: Optional[Dict[str, Any]]):
-        async with self.model_status_lock:
-            if not self.model_initialized:
+    def generate(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
+
+        assert self.model is not None
+
         model_name = request_data.get("model", "dummy-model")
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
 
         # Combine messages to form the prompt
-        prompt = self.tokenizer.apply_chat_template(
-            messages, add_generation_prompt=True, tokenize=False
-        )
+        try:
+            prompt = self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False
+            )
+        except Exception as e:
+            prompt = "\n".join(
+                f"{message['role'].capitalize()}: {message['content']}"
+                for message in messages
+            )
 
         if not prompt:
             return {"error": "Missing prompt in request data"}
 
         inputs = self._tokenize(prompt)
+        prompt_tokens = inputs.input_ids.shape[1]
 
         # Generate response
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs, max_new_tokens=max_tokens, temperature=temperature
+        try:
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    streamer=self.inf_status,
+                )
+        except DeletingException:
+            logger.info("Backend is shutting down. Aborting request")
+            output_tokens = self.inf_status.get()
+            self.inf_status.delete()
+            return {
+                "preempted": "True",
+                "current_output": output_tokens,
+                "completed_tokens": len(output_tokens[0]) - prompt_tokens,
+            }
+        except Exception as e:
+            logger.error(f"Failed to generate response: {e}")
+            raise e
+        else:
+            output_text = self.tokenizer.decode(
+                outputs[0][prompt_tokens:], skip_special_tokens=True
+            )
+            total_tokens = len(outputs[0])
+            completion_tokens = total_tokens - prompt_tokens
+            # FIXME: consider corner case when max_tokens is reached
+            finish_reason = (
+                "stop" if completion_tokens < max_tokens else "length"
             )
 
-        real_output = outputs[0][len(inputs.input_ids[0]) :]
-        output_text = self.tokenizer.decode(
-            real_output, skip_special_tokens=True
+            # Generate response compatible with OpenAI's API
+            response = {
+                "id": f"chatcmpl-{uuid.uuid4()}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": output_text,
+                        },
+                        "logprobs": None,
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
+
+            self.inf_status.delete()
+
+            return response
+
+    def _load_dataset(
+        self,
+        dataset_config: Optional[Dict[str, Any]],
+        tokenizer: PreTrainedTokenizerBase,
+    ):
+        dataset_source = dataset_config.get("dataset_source")
+        hf_dataset_name = dataset_config.get("hf_dataset_name")
+        tokenization_field = dataset_config.get("tokenization_field")
+        split = dataset_config.get("split", None)
+        data_files = dataset_config.get("data_files", None)
+        extension_type = dataset_config.get("extension_type")
+
+        if dataset_source not in {"hf_hub", "local"}:
+            logger.error(
+                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
+            )
+            raise ValueError(
+                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
+            )
+
+        if dataset_source == "hf_hub":
+            if not hf_dataset_name:
+                logger.error(
+                    "hf_dataset_name must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "hf_dataset_name must be provided in the dataset configuration."
+                )
+            data = load_dataset(hf_dataset_name, split=split)
+            data = data.map(
+                lambda samples: tokenizer(samples[tokenization_field]),
+                batched=True,
+            )
+            return data
+        elif dataset_source == "local":
+            if not extension_type:
+                logger.error(
+                    "extension_type must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "extension_type must be provided in the dataset configuration."
+                )
+            if not data_files:
+                logger.error(
+                    "data_files must be provided in the dataset configuration."
+                )
+                raise ValueError(
+                    "data_files must be provided in the dataset configuration."
+                )
+            data = load_dataset(
+                extension_type, data_files=data_files, split=split
+            )
+            data = data.map(
+                lambda samples: tokenizer(samples[tokenization_field]),
+                batched=True,
+            )
+            return data
+
+    def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        dataset_config = request_data.get("dataset_config")
+        try:
+            dataset = self._load_dataset(dataset_config, tokenizer)
+        except ValueError as e:
+            logger.error(f"Failed to load dataset: {e}")
+            return {"error": str(e)}
+
+        lora_config = request_data.get("lora_config")
+        try:
+            lora_config = LoraConfig(**lora_config)
+        except TypeError as e:
+            logger.error(f"Failed to load lora_config: {e}")
+            raise e
+        peft_model = get_peft_model(self.model, lora_config)
+
+        training_config = request_data.get("training_config")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        lora_save_path = os.path.join(
+            storage_path,
+            "transformers",
+            f"ft_{self.model_name}",
+        )
+        try:
+            training_args = TrainingArguments(
+                output_dir=lora_save_path, **training_config
+            )
+        except TypeError as e:
+            logger.error(f"Failed to load training_config: {e}")
+            raise e
+        trainer = Trainer(
+            model=peft_model,
+            args=training_args,
+            train_dataset=dataset,
+            data_collator=transformers.DataCollatorForLanguageModeling(
+                tokenizer, mlm=False
+            ),
+        )
+        trainer.train()
+
+        save_lora(peft_model, lora_save_path)
+        logger.info(
+            f"Fine-tuning completed. LoRA adapter and config saved to {lora_save_path}"
         )
 
-        # Simulate token counts for the response
-        prompt_tokens = len(self.tokenizer.tokenize(prompt))
-        completion_tokens = len(self.tokenizer.tokenize(output_text))
-        total_tokens = prompt_tokens + completion_tokens
-
-        # Generate response compatible with OpenAI's API
         response = {
-            "id": f"chatcmpl-{uuid.uuid4()}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": output_text},
-                    "logprobs": None,
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-            },
+            "model": self.model_name,
+            "lora_save_path": lora_save_path,
         }
 
         return response
 
-    async def shutdown(self):
-        pass
+    def shutdown(self):
+        """Abort all requests and shutdown the backend."""
+        with self.status_lock:
+            if self.status == BackendStatus.DELETING:
+                return
+            self.status = BackendStatus.DELETING
+            if self.inf_status:
+                self.inf_status.status = BackendStatus.DELETING
 
-    async def stop(self):
-        pass
+        while self.inf_status and len(self.inf_status.get()) > 0:
+            logger.info("Waiting for all requests to finish")
+            time.sleep(1)
 
-    async def get_current_tokens(self):
-        logger.error("Not implemented")
-        raise NotImplementedError
+        if self.model is not None:
+            del self.model
 
-    async def resume_kv_cache(self, request_datas):
-        logger.error("Not implemented")
-        raise NotImplementedError
+    def stop(self) -> None:
+        """Wait for all requests to finish and shutdown the backend."""
+        with self.status_lock:
+            if self.status.value >= BackendStatus.STOPPING.value:
+                return
+            self.status = BackendStatus.STOPPING
+        while self.inf_status and len(self.inf_status.get()) > 0:
+            logger.info("Waiting for all requests to finish")
+            time.sleep(1)
+        logger.info("All requests finished. Shutting down the backend.")
+        self.shutdown()
+
+    def get_current_tokens(self) -> List[List[int]]:
+        """Return a list of all ongoing request tokens."""
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return []
+
+        status = self.inf_status.get()
+        logger.info(f"Current tokens: {status}")
+        return status
+
+    def resume_kv_cache(self, request_datas):
+        logger.info(f"Resuming cache for {request_datas}")
+        with torch.no_grad():
+            device = self.model.device
+            input_ids = torch.tensor(request_datas).to(device)
+            logger.info(input_ids)
+            output = self.model.generate(
+                input_ids,
+                past_key_values=self.past_key_values,
+                max_new_tokens=1,
+                return_dict_in_generate=True,
+                return_legacy_cache=True,
+            )
+            self.past_key_values = output.past_key_values
+            self.current_tokens = output.sequences
+        logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
+
+    def resume_generate(
+        self, request_data: Optional[Dict[str, Any]], current_output
+    ):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        assert self.model is not None
+
+        model_name = request_data.get("model", "dummy-model")
+        messages = request_data.get("messages", [])
+        temperature = request_data.get("temperature", 0.7)
+        max_tokens = request_data.get("max_tokens", 10)
+
+        # Combine messages to form the prompt
+        try:
+            prompt = self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False
+            )
+        except Exception as e:
+            prompt = "\n".join(
+                f"{message['role'].capitalize()}: {message['content']}"
+                for message in messages
+            )
+
+        if not prompt:
+            return {"error": "Missing prompt in request data"}
+
+        inputs = self._tokenize(prompt)
+        prompt_tokens = inputs.input_ids.shape[1]
+
+        # Generate response
+        try:
+            with torch.no_grad():
+                device = self.model.device
+                current_output = torch.tensor(current_output).to(device)
+                if len(current_output[0]) < len(self.current_tokens[0]):
+                    current_output = self.current_tokens
+                outputs = self.model.generate(
+                    current_output,
+                    past_key_values=self.past_key_values,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    streamer=self.inf_status,
+                )
+        except DeletingException:
+            logger.error("Backend is shutting down. Aborting request")
+            raise DeletingException("Backend is shutting down")
+        except Exception as e:
+            logger.error(f"Failed to generate response: {e}")
+            raise e
+        else:
+            output_text = self.tokenizer.decode(
+                outputs[0][prompt_tokens:], skip_special_tokens=True
+            )
+            total_tokens = len(outputs[0])
+            completion_tokens = total_tokens - prompt_tokens
+            # FIXME: consider corner case when max_tokens is reached
+            finish_reason = (
+                "stop" if completion_tokens < max_tokens else "length"
+            )
+
+            # Generate response compatible with OpenAI's API
+            response = {
+                "id": f"chatcmpl-{uuid.uuid4()}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": output_text,
+                        },
+                        "logprobs": None,
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
+
+            self.inf_status.delete()
+
+            return response
