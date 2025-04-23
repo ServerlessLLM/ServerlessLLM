@@ -45,8 +45,9 @@ jobs:
       - name: Test models
         timeout-minutes: 60
         run: |
-          pytest tests/inference_test/store_test.py
-          pytest tests/inference_test/inference_test.py
+          cd tests/inference_test
+          pytest store_test.py
+          pytest inference_test.py
 
       - name: Check results
         if: always()
