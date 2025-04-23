@@ -15,7 +15,11 @@ with open("supported_models.json") as fh:
 @pytest.fixture(scope="session")
 def storage_path(tmp_path_factory):
     env_path = os.getenv("MODEL_FOLDER")
-    return pathlib.Path(env_path) if env_path else tmp_path_factory.mktemp("models")
+    return (
+        pathlib.Path(env_path)
+        if env_path
+        else tmp_path_factory.mktemp("models")
+    )
 
 
 @pytest.fixture(scope="session", params=_MODELS)
@@ -63,4 +67,3 @@ def pytest_sessionfinish(session, exitstatus):
     if failures:
         with open("failed_models.json", "w") as fh:
             json.dump(failures, fh, indent=2)
-

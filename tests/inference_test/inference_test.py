@@ -42,4 +42,3 @@ def test_inference(model_name, storage_path):
     tok = AutoTokenizer.from_pretrained(model_name)
     inp = tok("Hello, my dog is cute", return_tensors="pt").to("cuda")
     model.generate(**inp)
-
