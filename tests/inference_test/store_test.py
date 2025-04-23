@@ -15,17 +15,15 @@ with open("supported_models.json") as fh:
 def model_name(request):
     return request.param
 
-
 @pytest.fixture(scope="session")
 def storage_path(tmp_path_factory):
     env = os.getenv("MODEL_FOLDER")
     return pathlib.Path(env) if env else tmp_path_factory.mktemp("models")
 
-
-def store_and_compare(model_name: str, storage_path: pathlib.Path):
+def store_and_compare(model_name, storage_path):
     try:
-        cache_dir = storage_path / model_name
-
+        os.makedirs(storage_path, exist_ok=True)
+        cache_dir = os.path.join(storage_path, model_name)
         hf_model = AutoModelForCausalLM.from_pretrained(
             model_name, torch_dtype=torch.float16, trust_remote_code=True
         )
@@ -42,9 +40,13 @@ def store_and_compare(model_name: str, storage_path: pathlib.Path):
         for name, param in test_model.named_parameters():
             ref = hf_model.state_dict()[name]
             if param.dtype != ref.dtype:
-                return f"dtype mismatch for {name}: {param.dtype} vs {ref.dtype}"
+                return (
+                    f"dtype mismatch for {name}: {param.dtype} vs {ref.dtype}"
+                )
             if param.shape != ref.shape:
-                return f"shape mismatch for {name}: {param.shape} vs {ref.shape}"
+                return (
+                    f"shape mismatch for {name}: {param.shape} vs {ref.shape}"
+                )
             if not torch.allclose(param.cpu(), ref.cpu(), atol=1e-6):
                 return f"value mismatch for {name}"
 
@@ -52,7 +54,7 @@ def store_and_compare(model_name: str, storage_path: pathlib.Path):
         torch.cuda.empty_cache()
         return None
 
-    except Exception as exc: 
+    except Exception as exc:
         return str(exc)
 
 
