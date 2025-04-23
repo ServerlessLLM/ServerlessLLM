@@ -45,8 +45,8 @@ jobs:
         timeout-minutes: 60
         run: |
           export MODEL_FOLDER="./models"
-          pytest tests/inference_test/store_test.py
-          pytest tests/inference_test/inference_test.py
+          pytest -s tests/inference_test/store_test.py
+          pytest -s tests/inference_test/inference_test.py
 
       - name: Check results
         if: always()

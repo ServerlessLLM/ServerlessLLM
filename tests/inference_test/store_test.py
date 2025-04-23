@@ -9,10 +9,10 @@ from transformers import AutoModelForCausalLM
 from sllm_store.transformers import load_model, save_model
 
 with open("tests/inference_test/supported_models.json") as fh:
-    MODELS = list(json.load(fh).keys())
+    models = list(json.load(fh).keys())
 
 
-@pytest.fixture(scope="session", params=MODELS)
+@pytest.fixture(scope="session", params=models, ids=models)
 def model_name(request):
     return request.param
 
