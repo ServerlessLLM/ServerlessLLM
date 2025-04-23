@@ -446,34 +446,35 @@ def load_lora(
     storage_path: Optional[str] = None,
     is_trainable: bool = False,
 ):
-    config_path = os.path.join(adapter_path, "adapter_config.json")
-    with open(config_path, "r") as f:
-        config_dict = json.load(f)
-    lora_config = LoraConfig(**config_dict)
-
-    if lora_config.is_prompt_learning and is_trainable:
-        raise ValueError(
-            "Cannot set a prompt learning adapter to trainable\
-             when loading pretrained adapter."
-        )
-    else:
-        lora_config.inference_mode = not is_trainable
-
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # TODO: device_map should be processed.
         future = executor.submit(
             load_dict_non_blocking, adapter_path, {"": 0}, storage_path
         )
 
+        config_path = os.path.join(adapter_path, "adapter_config.json")
+        with open(config_path, "r") as f:
+            config_dict = json.load(f)
+        lora_config = LoraConfig(**config_dict)
+
+        if lora_config.is_prompt_learning and is_trainable:
+            raise ValueError(
+                "Cannot set a prompt learning adapter to trainable\
+                when loading pretrained adapter."
+            )
+        else:
+            lora_config.inference_mode = not is_trainable
+
         model.add_adapter(lora_config, adapter_name=adapter_name)
 
         _, state_dict = future.result()
-        # https://github.com/huggingface/transformers/blob/de182ba2690fe6c3466f6463c7f4b3a61694b885/src/transformers/integrations/peft.py#L228-L268
-        processed_adapter_state_dict = {}
-        prefix = "base_model.model."
-        for key, value in state_dict.items():
-            new_key = key[len(prefix) :] if key.startswith(prefix) else key
-            processed_adapter_state_dict[new_key] = value
+
+    # https://github.com/huggingface/transformers/blob/de182ba2690fe6c3466f6463c7f4b3a61694b885/src/transformers/integrations/peft.py#L228-L265
+    processed_adapter_state_dict = {}
+    prefix = "base_model.model."
+    for key, value in state_dict.items():
+        new_key = key[len(prefix) :] if key.startswith(prefix) else key
+        processed_adapter_state_dict[new_key] = value
 
     incompatible_keys = set_peft_model_state_dict(
         model, processed_adapter_state_dict, adapter_name
