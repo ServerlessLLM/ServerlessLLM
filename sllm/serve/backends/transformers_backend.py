@@ -443,12 +443,21 @@ class TransformersBackend(SllmBackend):
         lora_path = request_data.get("lora_path")
         storage_path = os.getenv("STORAGE_PATH", "./models")
         lora_path = os.path.join(storage_path, "transformers", lora_path)
+        device_map = self.backend_config.get("device_map", "auto")
+        torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
+        torch_dtype = getattr(torch, torch_dtype)
+        if torch_dtype is None:
+            logger.warning(
+                f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
+            )
+            torch_dtype = torch.float16
         self.model = load_lora(
             self.model,
             lora_name,
             lora_path,
-            device_map="auto",
+            device_map=device_map,
             storage_path=storage_path,
+            torch_dtype=torch_dtype,
         )
         logger.info(f"Loaded LoRA adapter {lora_name} from {lora_path}")
 
