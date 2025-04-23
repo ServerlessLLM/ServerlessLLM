@@ -1,9 +1,9 @@
-name: Test Store and Inference 
+name: Test Store and Inference
 
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize, labeled]
+    types: [opened, synchronize]
     branches:
       - main
     paths:
