@@ -42,4 +42,6 @@ def test_inference(model_name, storage_path):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to("cuda")
     outputs = model.generate(**inputs)
-    print(f"{model_name} output: {tokenizer.decode(outputs[0], skip_special_tokens=True)}")
+    print(
+        f"{model_name} output: {tokenizer.decode(outputs[0], skip_special_tokens=True)}"
+    )
