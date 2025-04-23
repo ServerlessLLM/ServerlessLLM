@@ -8,17 +8,20 @@ from transformers import AutoModelForCausalLM
 
 from sllm_store.transformers import load_model, save_model
 
-with open("supported_models.json") as fh:
+with open("tests/inference_test/supported_models.json") as fh:
     MODELS = list(json.load(fh).keys())
+
 
 @pytest.fixture(scope="session", params=MODELS)
 def model_name(request):
     return request.param
 
+
 @pytest.fixture(scope="session")
 def storage_path(tmp_path_factory):
     env = os.getenv("MODEL_FOLDER")
     return pathlib.Path(env) if env else tmp_path_factory.mktemp("models")
+
 
 def store_and_compare(model_name, storage_path):
     try:
@@ -69,5 +72,5 @@ def test_model_can_be_stored(model_name, storage_path, request):
 def pytest_sessionfinish(session, exitstatus):
     failures = session.__dict__.get("_model_failures", [])
     if failures:
-        with open("failed_models.json", "w") as fh:
+        with open("tests/inference_test/failed_models.json", "w") as fh:
             json.dump(failures, fh, indent=2)

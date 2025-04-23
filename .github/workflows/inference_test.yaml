@@ -14,8 +14,6 @@ jobs:
     container:
       image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
       options: --gpus all
-    env:
-      MODEL_FOLDER: ./models
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,6 +36,7 @@ jobs:
 
       - name: Start sllm-store Server
         run: |
+          export MODEL_FOLDER="./models"
           mkdir -p $MODEL_FOLDER
           nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 16GB > server.log 2>&1 &
           sleep 10
@@ -45,9 +44,9 @@ jobs:
       - name: Test models
         timeout-minutes: 60
         run: |
-          cd tests/inference_test
-          pytest store_test.py
-          pytest inference_test.py
+          export MODEL_FOLDER="./models"
+          pytest tests/inference_test/store_test.py
+          pytest tests/inference_test/inference_test.py
 
       - name: Check results
         if: always()
