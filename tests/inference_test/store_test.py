@@ -9,53 +9,55 @@ from transformers import AutoModelForCausalLM
 from sllm_store.transformers import load_model, save_model
 
 with open("supported_models.json") as fh:
-    _MODELS = list(json.load(fh).keys())
+    MODELS = list(json.load(fh).keys())
 
-
-@pytest.fixture(scope="session")
-def storage_path(tmp_path_factory):
-    env_path = os.getenv("MODEL_FOLDER")
-    return (
-        pathlib.Path(env_path)
-        if env_path
-        else tmp_path_factory.mktemp("models")
-    )
-
-
-@pytest.fixture(scope="session", params=_MODELS)
+@pytest.fixture(scope="session", params=MODELS)
 def model_name(request):
     return request.param
 
 
-def _store_and_compare(model, storage_path):
+@pytest.fixture(scope="session")
+def storage_path(tmp_path_factory):
+    env = os.getenv("MODEL_FOLDER")
+    return pathlib.Path(env) if env else tmp_path_factory.mktemp("models")
+
+
+def store_and_compare(model_name: str, storage_path: pathlib.Path):
     try:
-        cached_path = storage_path / model
+        cache_dir = storage_path / model_name
+
         hf_model = AutoModelForCausalLM.from_pretrained(
-            model, torch_dtype=torch.float16, trust_remote_code=True
+            model_name, torch_dtype=torch.float16, trust_remote_code=True
         )
-        save_model(hf_model, cached_path)
+        save_model(hf_model, cache_dir)
+
         test_model = load_model(
-            model,
+            model_name,
             storage_path=storage_path,
             device_map="auto",
             torch_dtype=torch.float16,
             fully_parallel=True,
         )
+
         for name, param in test_model.named_parameters():
-            ref_param = hf_model.state_dict()[name]
-            if param.dtype != ref_param.dtype:
-                return f"dtype mismatch for {name}: {param.dtype} vs {ref_param.dtype}"
-            if param.shape != ref_param.shape:
-                return f"shape mismatch for {name}: {param.shape} vs {ref_param.shape}"
-            if not torch.allclose(param.cpu(), ref_param.cpu(), atol=1e-6):
+            ref = hf_model.state_dict()[name]
+            if param.dtype != ref.dtype:
+                return f"dtype mismatch for {name}: {param.dtype} vs {ref.dtype}"
+            if param.shape != ref.shape:
+                return f"shape mismatch for {name}: {param.shape} vs {ref.shape}"
+            if not torch.allclose(param.cpu(), ref.cpu(), atol=1e-6):
                 return f"value mismatch for {name}"
+
+        del hf_model, test_model
+        torch.cuda.empty_cache()
         return None
-    except Exception as exc:
+
+    except Exception as exc: 
         return str(exc)
 
 
 def test_model_can_be_stored(model_name, storage_path, request):
-    error = _store_and_compare(model_name, storage_path)
+    error = store_and_compare(model_name, storage_path)
     if error:
         failures = request.session.__dict__.setdefault("_model_failures", [])
         failures.append({"model": model_name, "error": error})
