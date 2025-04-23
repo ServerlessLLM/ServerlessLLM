@@ -51,6 +51,7 @@ jobs:
       - name: Check results
         if: always()
         run: |
+          cd tests/inference_test
           if [ -f failed_models.json ]; then
             echo "::error::Tests failed - see above for details"
             exit 1
