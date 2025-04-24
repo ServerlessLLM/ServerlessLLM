@@ -1,3 +1,9 @@
+---
+sidebar_position: 2
+---
+
+# CLI API
+
 ## ServerlessLLM CLI Documentation
 
 ### Overview
@@ -7,9 +13,9 @@
 
 Before using the `sllm-cli` commands, you need to start the ServerlessLLM cluster. Follow the guides below to set up your cluster:
 
-- [Installation Guide](../getting_started/installation.md)
-- [Docker Quickstart Guide](../getting_started/docker_quickstart.md)
-- [Quickstart Guide](../getting_started/quickstart.md)
+- [Installation Guide](../stable/getting_started/installation.md)
+- [Docker Quickstart Guide](../stable/getting_started/docker_quickstart.md)
+- [Quickstart Guide](../stable/getting_started/quickstart.md)
 
 After setting up the ServerlessLLM cluster, you can use the commands listed below to manage and interact with your models.
 
