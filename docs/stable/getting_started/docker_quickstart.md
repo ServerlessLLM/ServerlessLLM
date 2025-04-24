@@ -17,15 +17,21 @@ Before you begin, make sure you have the following:
 
 ## Run ServerlessLLM using Docker Compose
 
-We will use docker compose to simplify the setup of ServerlessLLM. The `docker-compose.yml` file is located in the `examples/docker/` directory of the ServerlessLLM repository.
+We will use docker compose to simplify the setup of ServerlessLLM.
 
-### Step 1: Clone the ServerlessLLM Repository
+### Step 1: Download the Docker Compose File
 
-If you haven't already, clone the ServerlessLLM repository:
+Download the `docker-compose.yml` file from the ServerlessLLM repository:
 
 ```bash
-git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/examples/docker/
+# Create a directory for the ServerlessLLM Docker setup
+mkdir serverless-llm-docker && cd serverless-llm-docker
+
+# Download the docker-compose.yml file
+curl -O https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
+
+# Alternatively, you can use wget:
+# wget https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
 ```
 
 ### Step 2:  Configuration
@@ -36,7 +42,7 @@ Create a directory on your host machine where models will be stored and set the 
 export MODEL_FOLDER=/path/to/your/models
 ```
 
-Replace /path/to/your/models with the actual path where you want to store the models.
+Replace /path/to/your/models with the actual path where you want to store the models. This directory will be mounted into the Docker containers.
 
 ### Step 3: Start the Services
 
@@ -50,7 +56,7 @@ This command will start the Ray head node and two worker nodes defined in the `d
 
 ### Step 4: Deploy a Model Using sllm-cli
 
-Open a new terminal, activate the `sllm` environment, and set the `LLM_SERVER_URL` environment variable:
+Open a new terminal, activate the `sllm` environment (if you created one during CLI installation), and set the `LLM_SERVER_URL` environment variable:
 
 ```bash
 conda activate sllm
