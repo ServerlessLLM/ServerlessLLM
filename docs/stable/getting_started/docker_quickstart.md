@@ -54,7 +54,7 @@ Open a new terminal, activate the `sllm` environment, and set the `LLM_SERVER_UR
 
 ```bash
 conda activate sllm
-export LLM_SERVER_URL=http://127.0.0.1:8343/
+export LLM_SERVER_URL=http://127.0.0.1:8343
 ```
 
 Deploy a model to the ServerlessLLM server using the `sllm-cli`:

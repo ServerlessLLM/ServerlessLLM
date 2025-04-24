@@ -48,10 +48,9 @@ class GenerateCommand:
     def __init__(self, args: Namespace) -> None:
         self.input_path = args.input_path
         self.threads = args.threads
-        self.endpoint = "v1/chat/completions"  # TODO: as a argument
+        self.endpoint = "/v1/chat/completions"  # TODO: as a argument
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
-            + self.endpoint
+            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343") + self.endpoint
         )
 
     def run(self) -> None:

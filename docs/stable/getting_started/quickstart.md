@@ -47,7 +47,7 @@ I20241231 17:13:25.557906 2165054 checkpoint_store.cpp:83] Memory pool created w
 INFO 12-31 17:13:25 server.py:243] Starting gRPC server on 0.0.0.0:8073
 ```
 
-Now, let’s start ServerlessLLM.
+Now, let's start ServerlessLLM.
 
 First, in another new terminal, start ServerlessLLM Serve (i.e., `sllm-serve`)
 
