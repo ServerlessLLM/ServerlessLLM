@@ -441,7 +441,7 @@ def best_effort_load(
 def load_lora(
     model: nn.Module,
     adapter_name: str,
-    adapter_path: str,
+    adapter_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     storage_path: Optional[str] = None,
     is_trainable: bool = False,
@@ -457,12 +457,12 @@ def load_lora(
             "Cannot set a prompt learning adapter to trainable\
             when loading pretrained adapter."
         )
-    else:
-        lora_config.inference_mode = not is_trainable
+
+    lora_config.inference_mode = not is_trainable
 
     model.add_adapter(lora_config, adapter_name=adapter_name)
 
-    state_dict = load_dict_non_blocking(adapter_path, {"": 0}, storage_path)
+    _, state_dict = load_dict_non_blocking(adapter_path, {"": 0}, storage_path)
 
     # https://github.com/huggingface/transformers/blob/de182ba2690fe6c3466f6463c7f4b3a61694b885/src/transformers/integrations/peft.py#L228-L265
     processed_adapter_state_dict = {}
