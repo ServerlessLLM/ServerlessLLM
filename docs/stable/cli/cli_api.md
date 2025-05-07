@@ -289,20 +289,19 @@ sllm-cli fine-tuning --base-model <model_name> --config <path_to_ft_config_file>
 ##### Example Configuration File (`ft_config.json`)
 ```json
 {
-    "model": "bigscience/bloomz-560m",
+    "model": "facebook/opt-125m",
     "ft_backend": "peft",
     "dataset_config": {
         "dataset_source": "hf_hub",
         "hf_dataset_name": "fka/awesome-chatgpt-prompts",
         "tokenization_field": "prompt",
-        "split": "train[:10%]",
+        "split": "train",
         "data_files": "",
         "extension_type": ""
     },
     "lora_config": {
         "r": 4,
         "lora_alpha": 1,
-        "target_modules": ["query_key_value"],
         "lora_dropout": 0.05,
         "bias": "lora_only",
         "task_type": "CAUSAL_LM"
