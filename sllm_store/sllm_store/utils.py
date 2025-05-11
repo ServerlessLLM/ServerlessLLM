@@ -19,6 +19,7 @@ from functools import reduce
 
 import torch
 from accelerate.utils import find_tied_parameters
+from transformers.quantizers.quantizers_utils import get_module_from_name
 from torch import nn
 import re
 
@@ -238,3 +239,9 @@ def to_num_bytes(value: str) -> int:
 
     bytes_value = number * unit_multipliers[unit]
     return bytes_value
+
+def load_parameter_into_model(model, param_name: str, tensor: torch.Tensor):
+    """Cast a single parameter `param_name` into the `model`, with value `tensor`."""
+    module, param_type = get_module_from_name(model, param_name)
+    # This will check potential shape mismatch if skipped before
+    module.load_state_dict({param_type: tensor}, strict=False, assign=True)
