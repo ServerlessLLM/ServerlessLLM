@@ -441,8 +441,8 @@ class TransformersBackend(SllmBackend):
 
         lora_name = request_data.get("lora_name")
         lora_path = request_data.get("lora_path")
+        lora_path = os.path.join("transformers", lora_path)
         storage_path = os.getenv("STORAGE_PATH", "./models")
-        lora_path = os.path.join(storage_path, "transformers", lora_path)
         device_map = self.backend_config.get("device_map", "auto")
         torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
         torch_dtype = getattr(torch, torch_dtype)

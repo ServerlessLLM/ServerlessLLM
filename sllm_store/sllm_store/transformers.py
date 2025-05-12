@@ -447,7 +447,12 @@ def load_lora(
     is_trainable: bool = False,
     torch_dtype: Optional[torch.dtype] = None,
 ):
-    config_path = os.path.join(adapter_path, "adapter_config.json")
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+
+    config_path = os.path.join(
+        storage_path, adapter_path, "adapter_config.json"
+    )
     with open(config_path, "r") as f:
         config_dict = json.load(f)
     lora_config = LoraConfig(**config_dict)
@@ -462,7 +467,9 @@ def load_lora(
 
     model.add_adapter(lora_config, adapter_name=adapter_name)
 
-    _, state_dict = load_dict_non_blocking(adapter_path, {"": 0}, storage_path)
+    replica_uuid, state_dict = load_dict_non_blocking(
+        adapter_path, {"": 0}, storage_path
+    )
 
     # https://github.com/huggingface/transformers/blob/de182ba2690fe6c3466f6463c7f4b3a61694b885/src/transformers/integrations/peft.py#L228-L265
     processed_adapter_state_dict = {}
@@ -506,6 +513,9 @@ def load_lora(
         if err_msg:
             logger.warning(err_msg)
 
+    # synchronize
+    client = SllmStoreClient("127.0.0.1:8073")
+    client.confirm_model_loaded(adapter_path, replica_uuid)
     if lora_config.inference_mode:
         model.eval()
 
