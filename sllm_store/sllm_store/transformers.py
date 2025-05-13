@@ -465,6 +465,9 @@ def load_lora(
 
     lora_config.inference_mode = not is_trainable
 
+    client = SllmStoreClient("127.0.0.1:8073")
+    client.register_model(adapter_path)
+
     model.add_adapter(lora_config, adapter_name=adapter_name)
 
     replica_uuid, state_dict = load_dict_non_blocking(
@@ -514,8 +517,8 @@ def load_lora(
             logger.warning(err_msg)
 
     # synchronize
-    client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(adapter_path, replica_uuid)
+
     if lora_config.inference_mode:
         model.eval()
 

@@ -461,16 +461,6 @@ class TransformersBackend(SllmBackend):
         )
         logger.info(f"Loaded LoRA adapter {lora_name} from {lora_path}")
 
-    def unload_lora_adapter(self, request_data: Optional[Dict[str, Any]]):
-        with self.status_lock:
-            if self.status != BackendStatus.RUNNING:
-                return {"error": "Model not initialized"}
-
-        lora_name = request_data.get("lora_name")
-        if hasattr(self.model, "disable_adapter"):
-            self.model.disable_adapter(lora_name)
-        logger.info(f"Unloaded LoRA adapter {lora_name}")
-
     def shutdown(self):
         """Abort all requests and shutdown the backend."""
         with self.status_lock:
