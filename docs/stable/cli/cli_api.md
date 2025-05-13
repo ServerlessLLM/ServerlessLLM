@@ -331,7 +331,7 @@ Below is a description of all the fields in ft_config.json.
 | lora_config                          | Config about lora                                                                                                                                                                          |
 | lora_config.r                        | `r` defines how many parameters will be trained.                                                                                                                                           |
 | lora_config.lora_alpha               | A multiplier controlling the overall strength of connections within a neural network, typically set at 1                                                                                   |
-| lora_config.target_modules           | a list of the target_modules available on the [Hugging Face Documentation](https://github.com/huggingface/peft/blob/39ef2546d5d9b8f5f8a7016ec10657887a867041/src/peft/utils/other.py#L220) |
+| lora_config.target_modules           | a list of the target_modules available on the [Hugging Face Documentation][1] |
 | lora_config.lora_dropout             | used to avoid overfitting                                                                                                                                                                  |
 | lora_config.bias                     | use `none` or `lora_only`                                                                                                                                                                  |
 | lora_config.task_type                | Indicates the task the model is begin trained for                                                                                                                                          |
@@ -341,6 +341,8 @@ Below is a description of all the fields in ft_config.json.
 | training_config.learning_rate        | learning rate                                                                                                                                                                              |
 | training_config.optim                | select an optimiser                                                                                                                                                                        |
 | training_config.use_cpu              | if use cpu to train                                                                                                                                                                        |
+
+[1]: https://github.com/huggingface/peft/blob/39ef2546d5d9b8f5f8a7016ec10657887a867041/src/peft/utils/other.py#L220
 
 ### sllm-cli status
 Check the information of deployed models
