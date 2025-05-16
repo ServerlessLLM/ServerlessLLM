@@ -280,7 +280,7 @@ def fully_parallel_load(
                     )
 
                 else:
-                    param.to(torch_dtype)
+                    param = param.to(torch_dtype)
                     try:
                         set_module_tensor_to_device(
                             model, name, param.device, param
@@ -489,7 +489,7 @@ def best_effort_load(
                     )
 
                 else:
-                    param.to(torch_dtype)
+                    param = param.to(torch_dtype)
                     try:
                         set_module_tensor_to_device(
                             model, name, param.device, param
