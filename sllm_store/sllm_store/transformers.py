@@ -287,7 +287,8 @@ def fully_parallel_load(
                         )
                     except Exception:
                         load_parameter_into_model(model, name, param)
-
+            hf_quantizer.postprocess_model(model)
+            model.hf_quantizer = hf_quantizer
         else:
             if quantization_config is not None:
                 logger.debug(
@@ -301,8 +302,6 @@ def fully_parallel_load(
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
-    hf_quantizer.postprocess_model(model)
-    model.hf_quantizer = hf_quantizer
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
@@ -496,7 +495,8 @@ def best_effort_load(
                         )
                     except Exception:
                         load_parameter_into_model(model, name, param)
-
+            hf_quantizer.postprocess_model(model)
+            model.hf_quantizer = hf_quantizer
         else:
             if quantization_config is not None:
                 logger.debug(
