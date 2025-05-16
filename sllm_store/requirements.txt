@@ -6,3 +6,4 @@ grpcio-tools==1.49.1
 peft==0.8.2
 torch==2.5.1
 transformers==4.47.1
+optimum==0.0.1

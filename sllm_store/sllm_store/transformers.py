@@ -289,6 +289,7 @@ def fully_parallel_load(
                         load_parameter_into_model(model, name, param)
             hf_quantizer.postprocess_model(model)
             model.hf_quantizer = hf_quantizer
+
         else:
             if quantization_config is not None:
                 logger.debug(
