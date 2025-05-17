@@ -289,20 +289,19 @@ sllm-cli fine-tuning --base-model <model_name> --config <path_to_ft_config_file>
 ##### Example Configuration File (`ft_config.json`)
 ```json
 {
-    "model": "bigscience/bloomz-560m",
+    "model": "facebook/opt-125m",
     "ft_backend": "peft",
     "dataset_config": {
         "dataset_source": "hf_hub",
         "hf_dataset_name": "fka/awesome-chatgpt-prompts",
         "tokenization_field": "prompt",
-        "split": "train[:10%]",
+        "split": "train",
         "data_files": "",
         "extension_type": ""
     },
     "lora_config": {
         "r": 4,
         "lora_alpha": 1,
-        "target_modules": ["query_key_value"],
         "lora_dropout": 0.05,
         "bias": "lora_only",
         "task_type": "CAUSAL_LM"
@@ -332,7 +331,7 @@ Below is a description of all the fields in ft_config.json.
 | lora_config                          | Config about lora                                                                                                                                                                          |
 | lora_config.r                        | `r` defines how many parameters will be trained.                                                                                                                                           |
 | lora_config.lora_alpha               | A multiplier controlling the overall strength of connections within a neural network, typically set at 1                                                                                   |
-| lora_config.target_modules           | a list of the target_modules available on the [Hugging Face Documentation](https://github.com/huggingface/peft/blob/39ef2546d5d9b8f5f8a7016ec10657887a867041/src/peft/utils/other.py#L220) |
+| lora_config.target_modules           | a list of the target_modules available on the [Hugging Face Documentation][1] |
 | lora_config.lora_dropout             | used to avoid overfitting                                                                                                                                                                  |
 | lora_config.bias                     | use `none` or `lora_only`                                                                                                                                                                  |
 | lora_config.task_type                | Indicates the task the model is begin trained for                                                                                                                                          |
@@ -342,6 +341,8 @@ Below is a description of all the fields in ft_config.json.
 | training_config.learning_rate        | learning rate                                                                                                                                                                              |
 | training_config.optim                | select an optimiser                                                                                                                                                                        |
 | training_config.use_cpu              | if use cpu to train                                                                                                                                                                        |
+
+[1]: https://github.com/huggingface/peft/blob/39ef2546d5d9b8f5f8a7016ec10657887a867041/src/peft/utils/other.py#L220
 
 ### sllm-cli status
 Check the information of deployed models
@@ -354,4 +355,27 @@ sllm-cli status
 #### Example
 ```bash
 sllm-cli status
+```
+
+### sllm-cli lora load
+Manually load a LoRA adapter into the specified model.
+
+#### Usage
+```bash
+sllm-cli lora load --model <base_model_name> --name <lora_adapter_name> --path <lora_adapter_path>
+```
+#### Example
+```bash
+sllm-cli lora load --model facebook/opt-125m --name demo_lora --path ft_facebook/opt-125m-adapter1
+```
+### sllm-cli lora unload
+Manually unload a LoRA adapter from the specified model.
+
+#### Usage
+```bash
+sllm-cli lora unload --model <base_model_name> --name <lora_adapter_name>
+```
+#### Example
+```bash
+sllm-cli lora unload --model facebook/opt-125m --name demo_lora
 ```

@@ -776,3 +776,6 @@ seqs
 toks
 traint
 warmup
+LoRA
+PEFT
+peft
