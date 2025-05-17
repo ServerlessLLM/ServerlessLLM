@@ -266,6 +266,7 @@ def fully_parallel_load(
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
+                param = param.to(torch_dtype)
                 if hf_quantizer.check_quantized_param(
                     model, param, name, state_dict
                 ):
@@ -280,7 +281,6 @@ def fully_parallel_load(
                     )
 
                 else:
-                    param = param.to(torch_dtype)
                     try:
                         set_module_tensor_to_device(
                             model, name, param.device, param
@@ -475,6 +475,7 @@ def best_effort_load(
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
+                param = param.to(torch_dtype)
                 if hf_quantizer.check_quantized_param(
                     model, param, name, state_dict
                 ):
@@ -489,7 +490,6 @@ def best_effort_load(
                     )
 
                 else:
-                    param = param.to(torch_dtype)
                     try:
                         set_module_tensor_to_device(
                             model, name, param.device, param
