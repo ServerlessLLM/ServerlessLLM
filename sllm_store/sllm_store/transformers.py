@@ -49,15 +49,13 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    load_parameter_into_model,
 )
 from torch import nn
 from transformers import AutoConfig
-from transformers.integrations.bitsandbytes import (
-    set_module_quantized_tensor_to_device,
-    replace_with_bnb_linear,
-)
 import importlib
 from peft import PeftModel, get_peft_model_state_dict, PeftConfig
+from contextlib import suppress
 
 logger = init_logger(__name__)
 
@@ -214,38 +212,84 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers import BitsAndBytesConfig
+            from transformers.utils.quantization_config import (
+                QuantizationConfigMixin,
+            )
+            from transformers.quantizers.auto import AutoHfQuantizer
 
-            if not isinstance(quantization_config, BitsAndBytesConfig):
+            if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
                     f"Invalid config type: {type(quantization_config)}"
                 )
 
-            logger.debug(
-                f"using precision: {quantization_config.quantization_method()}"
-            )
+            quant_method = quantization_config.quant_method
+            if quant_method in [
+                "aqlm",
+                "awq",
+                "bitnet",
+                "quanto",
+                "vptq",
+                "quark",
+                "higgs",
+                "hqq",
+                "eetq",
+                "torchao",
+                "spqr",
+                "fp8",
+                "auto-round",
+                "fbgemm_fp8",
+                "compressed_tensors",
+            ]:
+                raise ValueError(f"{quant_method} is not supported.")
 
-            if quantization_config.llm_int8_enable_fp32_cpu_offload:
-                logger.debug("Offloading is not supported yet")
-                quantization_config.llm_int8_enable_fp32_cpu_offload = False
+            logger.debug(f"Using quantization method: {quant_method}")
+            if quantization_config.quant_method == "bitsandbytes":
+                precision = quantization_config.quantization_method()
+                logger.debug(f"Using precision: {precision}")
 
-            has_torch_dtype = torch_dtype is not None
-            model = replace_with_bnb_linear(
-                model, quantization_config=quantization_config
+                if quantization_config.llm_int8_enable_fp32_cpu_offload:
+                    logger.debug("Offloading is not supported yet")
+                    quantization_config.llm_int8_enable_fp32_cpu_offload = False
+            else:
+                with suppress(Exception):
+                    logger.debug(f"Using precision: {quantization_config.bits}")
+
+            torch_dtype = torch_dtype or torch.float16
+            hf_quantizer = AutoHfQuantizer.from_config(
+                quantization_config, pre_quantized=False
             )
+            hf_quantizer.validate_environment(device_map=device_map)
+            hf_quantizer.preprocess_model(model, device_map=device_map)
 
             # synchronize
             client = SllmStoreClient("127.0.0.1:8073")
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
-                final_device = param.device
-                if not has_torch_dtype:
-                    param = param.to(torch.float16)
+                param = param.to(torch_dtype)
+                if hf_quantizer.check_quantized_param(
+                    model, param, name, state_dict
+                ):
+                    final_device = param.device
+                    hf_quantizer.create_quantized_param(
+                        model,
+                        param,
+                        name,
+                        final_device,
+                        state_dict,
+                        unexpected_keys=[],
+                    )
 
-                set_module_quantized_tensor_to_device(
-                    model, name, final_device, param.to("cpu")
-                )
+                else:
+                    try:
+                        set_module_tensor_to_device(
+                            model, name, param.device, param
+                        )
+                    except Exception:
+                        load_parameter_into_model(model, name, param)
+            hf_quantizer.postprocess_model(model)
+            model.hf_quantizer = hf_quantizer
+
         else:
             if quantization_config is not None:
                 logger.debug(
@@ -259,7 +303,6 @@ def fully_parallel_load(
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
-
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
@@ -378,37 +421,83 @@ def best_effort_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers import BitsAndBytesConfig
+            from transformers.utils.quantization_config import (
+                QuantizationConfigMixin,
+            )
+            from transformers.quantizers.auto import AutoHfQuantizer
 
-            if not isinstance(quantization_config, BitsAndBytesConfig):
+            if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
                     f"Invalid config type: {type(quantization_config)}"
                 )
 
-            logger.debug(
-                f"using precision: {quantization_config.quantization_method()}"
+            quant_method = quantization_config.quant_method
+            if quant_method in [
+                "aqlm",
+                "awq",
+                "bitnet",
+                "quanto",
+                "vptq",
+                "quark",
+                "higgs",
+                "hqq",
+                "eetq",
+                "torchao",
+                "spqr",
+                "fp8",
+                "auto-round",
+                "fbgemm_fp8",
+                "compressed_tensors",
+            ]:
+                raise ValueError(f"{quant_method} is not supported.")
+
+            logger.debug(f"Using quantization method: {quant_method}")
+            if quantization_config.quant_method == "bitsandbytes":
+                precision = quantization_config.quantization_method()
+                logger.debug(f"Using precision: {precision}")
+
+                if quantization_config.llm_int8_enable_fp32_cpu_offload:
+                    logger.debug("Offloading is not supported yet")
+                    quantization_config.llm_int8_enable_fp32_cpu_offload = False
+            else:
+                with suppress(Exception):
+                    logger.debug(f"Using precision: {quantization_config.bits}")
+
+            torch_dtype = torch_dtype or torch.float16
+            hf_quantizer = AutoHfQuantizer.from_config(
+                quantization_config, pre_quantized=False
             )
+            hf_quantizer.validate_environment(device_map=device_map)
+            hf_quantizer.preprocess_model(model, device_map=device_map)
 
-            if quantization_config.llm_int8_enable_fp32_cpu_offload:
-                logger.debug("Offloading is not supported yet")
-                quantization_config.llm_int8_enable_fp32_cpu_offload = False
-
-            model = replace_with_bnb_linear(
-                model, quantization_config=quantization_config
-            )
-
+            # synchronize
+            client = SllmStoreClient("127.0.0.1:8073")
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
-                if (
-                    param.dtype not in [torch.uint8, torch.int8]
-                    and torch_dtype is None
+                param = param.to(torch_dtype)
+                if hf_quantizer.check_quantized_param(
+                    model, param, name, state_dict
                 ):
-                    param = param.to(torch.float16)
+                    final_device = param.device
+                    hf_quantizer.create_quantized_param(
+                        model,
+                        param,
+                        name,
+                        final_device,
+                        state_dict,
+                        unexpected_keys=[],
+                    )
 
-                set_module_quantized_tensor_to_device(
-                    model, name, param.device, param
-                )
+                else:
+                    try:
+                        set_module_tensor_to_device(
+                            model, name, param.device, param
+                        )
+                    except Exception:
+                        load_parameter_into_model(model, name, param)
+            hf_quantizer.postprocess_model(model)
+            model.hf_quantizer = hf_quantizer
         else:
             if quantization_config is not None:
                 logger.debug(
