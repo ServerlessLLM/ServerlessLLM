@@ -47,6 +47,7 @@ class LoraCommand:
         load_parser.add_argument(
             "--path", required=True, type=str, help="Path to the LoRA adapter."
         )
+        load_parser.set_defaults(func=LoraCommand)
 
         # Unload LoRA adapter
         unload_parser = lora_subparsers.add_parser(
@@ -64,8 +65,7 @@ class LoraCommand:
             type=str,
             help="Name of the LoRA adapter to unload.",
         )
-
-        lora_parser.set_defaults(func=LoraCommand)
+        unload_parser.set_defaults(func=LoraCommand)
 
     def __init__(self, args: Namespace) -> None:
         self.args = args
@@ -83,7 +83,7 @@ class LoraCommand:
 
     def load_lora_adapter(self, model: str, name: str, path: str) -> None:
         url = f"{self.base_url}v1/load_lora_adapter"
-        data = {"model": model, "lora_name": name, "lora_path": path}
+        data = {"model_name": model, "lora_name": name, "lora_path": path}
         headers = {"Content-Type": "application/json"}
 
         response = requests.post(url, headers=headers, json=data)
@@ -96,7 +96,7 @@ class LoraCommand:
 
     def unload_lora_adapter(self, model: str, name: str) -> None:
         url = f"{self.base_url}v1/unload_lora_adapter"
-        data = {"model": model, "lora_name": name}
+        data = {"model_name": model, "lora_name": name}
         headers = {"Content-Type": "application/json"}
 
         response = requests.post(url, headers=headers, json=data)

@@ -356,3 +356,26 @@ sllm-cli status
 ```bash
 sllm-cli status
 ```
+
+### sllm-cli lora load
+Manually load a LoRA adapter into the specified model.
+
+#### Usage
+```bash
+sllm-cli lora load --model <base_model_name> --name <lora_adapter_name> --path <lora_adapter_path>
+```
+#### Example
+```bash
+sllm-cli lora load --model facebook/opt-125m --name demo_lora --path ft_facebook/opt-125m-adapter1
+```
+### sllm-cli lora unload
+Manually unload a LoRA adapter from the specified model.
+
+#### Usage
+```bash
+sllm-cli lora unload --model <base_model_name> --name <lora_adapter_name>
+```
+#### Example
+```bash
+sllm-cli lora unload --model facebook/opt-125m --name demo_lora
+```
