@@ -1,7 +1,8 @@
-import os
-import sys
 import json
+import os
 import subprocess
+import sys
+
 import click
 import requests
 
@@ -9,7 +10,9 @@ import requests
 # ----------------------------- START COMMAND ----------------------------- #
 def start_server():
     """Start the SLLM server using docker-compose."""
-    compose_file = os.getenv("SLLM_COMPOSE_FILE", "examples/docker/docker-compose.yml")
+    compose_file = os.getenv(
+        "SLLM_COMPOSE_FILE", "examples/docker/docker-compose.yml"
+    )
     compose_file = os.path.abspath(compose_file)
 
     if not os.path.exists(compose_file):
@@ -18,9 +21,11 @@ def start_server():
 
     try:
         click.echo(f"[ℹ] Starting services using {compose_file}...")
-        subprocess.run(["docker", "compose", "-f", compose_file, "up", "-d"], check=True)
+        subprocess.run(
+            ["docker", "compose", "-f", compose_file, "up", "-d"], check=True
+        )
         click.echo(f"[🚀] SLLM server started successfully.")
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         click.echo(f"[❌] Failed to start services: {e}")
 
 
@@ -75,7 +80,9 @@ def deploy_model(
 
     if model:
         config_data["model"] = model
-        config_data.setdefault("backend_config", {})["pretrained_model_name_or_path"] = model
+        config_data.setdefault("backend_config", {})[
+            "pretrained_model_name_or_path"
+        ] = model
     if backend:
         config_data["backend"] = backend
     if num_gpus is not None:
@@ -93,9 +100,13 @@ def deploy_model(
     try:
         response = requests.post(url, headers=headers, json=config_data)
         if response.status_code == 200:
-            print(f"[✅ SUCCESS] Model '{config_data['model']}' deployed successfully.")
+            print(
+                f"[✅ SUCCESS] Model '{config_data['model']}' deployed successfully."
+            )
         else:
-            print(f"[❌ ERROR] Deploy failed with status {response.status_code}: {response.text}")
+            print(
+                f"[❌ ERROR] Deploy failed with status {response.status_code}: {response.text}"
+            )
     except Exception as e:
         print(f"[EXCEPTION] Failed to deploy: {str(e)}")
 
@@ -116,7 +127,9 @@ def delete_model(models):
             if response.status_code == 200:
                 print(f"[✅ SUCCESS] Model '{model}' deleted successfully.")
             else:
-                print(f"[❌ ERROR] Failed to delete model '{model}'. Status: {response.status_code}, Response: {response.text}")
+                print(
+                    f"[❌ ERROR] Failed to delete model '{model}'. Status: {response.status_code}, Response: {response.text}"
+                )
         except Exception as e:
             print(f"[EXCEPTION] Failed to delete model '{model}': {str(e)}")
 
@@ -145,6 +158,8 @@ def show_status():
             except ValueError:
                 click.echo("[❌ ERROR] Invalid JSON received from server.")
         else:
-            click.echo(f"[❌ ERROR] Failed with status {response.status_code}: {response.text}")
+            click.echo(
+                f"[❌ ERROR] Failed with status {response.status_code}: {response.text}"
+            )
     except requests.exceptions.RequestException as e:
         click.echo(f"[EXCEPTION] Failed to query status: {str(e)}")
