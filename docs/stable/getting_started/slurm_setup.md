@@ -373,7 +373,7 @@ We will start the worker node and store in the same script. Because the server l
 1. **You can do this step on login node, and set the ```LLM_SERVER_URL``` environment variable:**
    ```shell
    $ conda activate sllm
-   (sllm)$ export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343/
+   (sllm)$ export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343
    ```
    - Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
    - Replace ```8343``` with the actual port number (`<avail_port>` in Step1) if you have changed it.
@@ -384,7 +384,7 @@ We will start the worker node and store in the same script. Because the server l
 ### Step 5: Query the Model Using OpenAI API Client
    **You can use the following command to query the model:**
    ```shell
-   curl http://<HEAD_NODE_IP>:8343/v1/chat/completions \
+   curl $LLM_SERVER_URL/v1/chat/completions \
    -H "Content-Type: application/json" \
    -d '{
          "model": "facebook/opt-1.3b",
