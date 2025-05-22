@@ -2,7 +2,7 @@
 sidebar_position: 1
 ---
 
-# Docker Quickstart Guide
+# Getting Started
 
 This guide shows how to quickly set up a local ServerlessLLM cluster using Docker Compose. We will start a minimal cluster with a head node and one worker node, deploy and query a model using the `sllm-cli`.
 

@@ -2,7 +2,7 @@
 sidebar_position: 0
 ---
 
-# Installations
+# Installation
 
 ## Requirements
 - OS: Ubuntu 20.04
