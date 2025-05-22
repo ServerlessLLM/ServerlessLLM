@@ -1,9 +1,10 @@
 # tests/new_cli_test/test_deploy.py
 
-import unittest
 import json
 import tempfile
+import unittest
 from unittest import mock
+
 from click.testing import CliRunner
 
 from sllm.clic import cli
@@ -16,8 +17,9 @@ class TestDeployCommand(unittest.TestCase):
     @mock.patch("sllm._cli_utils.requests.post")
     @mock.patch("sllm._cli_utils.read_config")
     @mock.patch("sllm._cli_utils.os.path.exists", return_value=True)
-    def test_deploy_success_with_config(self, mock_exists, mock_read, mock_post):
-     
+    def test_deploy_success_with_config(
+        self, mock_exists, mock_read, mock_post
+    ):
         default_config = {
             "model": "",
             "backend": "vllm",
@@ -46,17 +48,20 @@ class TestDeployCommand(unittest.TestCase):
             f.flush()
             result = self.runner.invoke(
                 cli,
-                ["deploy", "--model", "facebook/opt-2.7b", "--config", f.name]
+                ["deploy", "--model", "facebook/opt-2.7b", "--config", f.name],
             )
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Model 'facebook/opt-2.7b' deployed successfully.", result.output)
+        self.assertIn(
+            "Model 'facebook/opt-2.7b' deployed successfully.", result.output
+        )
 
-        
         request_json = mock_post.call_args[1]["json"]
         self.assertEqual(request_json["model"], "facebook/opt-2.7b")
         self.assertEqual(request_json["backend"], "transformers")
-        self.assertEqual(request_json["auto_scaling_config"]["min_instances"], 1)
+        self.assertEqual(
+            request_json["auto_scaling_config"]["min_instances"], 1
+        )
 
     @mock.patch("sllm._cli_utils.requests.post")
     @mock.patch("sllm._cli_utils.read_config")
@@ -73,7 +78,6 @@ class TestDeployCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Deploy failed with status 500", result.output)
 
-        
         self.assertEqual(mock_post.call_args[1]["json"]["model"], "m")
 
     @mock.patch("sllm._cli_utils.os.path.exists", return_value=False)
@@ -90,24 +94,41 @@ class TestDeployCommand(unittest.TestCase):
             "model": "",
             "backend": "vllm",
             "auto_scaling_config": {},
-            "backend_config": {}
+            "backend_config": {},
         }
         mock_post.return_value.status_code = 200
 
-        result = self.runner.invoke(cli, [
-            "deploy", "--model", "facebook/opt-1.3b", "--backend", "transformers",
-            "--num-gpus", "2", "--target", "3", "--min-instances", "1", "--max-instances", "5"
-        ])
+        result = self.runner.invoke(
+            cli,
+            [
+                "deploy",
+                "--model",
+                "facebook/opt-1.3b",
+                "--backend",
+                "transformers",
+                "--num-gpus",
+                "2",
+                "--target",
+                "3",
+                "--min-instances",
+                "1",
+                "--max-instances",
+                "5",
+            ],
+        )
         self.assertEqual(result.exit_code, 0)
 
-        
         request_data = mock_post.call_args[1]["json"]
         self.assertEqual(request_data["model"], "facebook/opt-1.3b")
         self.assertEqual(request_data["backend"], "transformers")
         self.assertEqual(request_data["num_gpus"], 2)
         self.assertEqual(request_data["auto_scaling_config"]["target"], 3)
-        self.assertEqual(request_data["auto_scaling_config"]["min_instances"], 1)
-        self.assertEqual(request_data["auto_scaling_config"]["max_instances"], 5)
+        self.assertEqual(
+            request_data["auto_scaling_config"]["min_instances"], 1
+        )
+        self.assertEqual(
+            request_data["auto_scaling_config"]["max_instances"], 5
+        )
 
 
 if __name__ == "__main__":

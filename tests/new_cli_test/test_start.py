@@ -2,6 +2,7 @@
 
 import unittest
 from unittest import mock
+
 from click.testing import CliRunner
 
 from sllm.clic import cli
@@ -24,7 +25,9 @@ class TestStartCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("Cannot find docker-compose.yml", result.output)
 
-    @mock.patch("sllm._cli_utils.subprocess.run", side_effect=Exception("docker error"))
+    @mock.patch(
+        "sllm._cli_utils.subprocess.run", side_effect=Exception("docker error")
+    )
     @mock.patch("sllm._cli_utils.os.path.exists", return_value=True)
     def test_start_subprocess_exception(self, mock_exists, mock_run):
         result = self.runner.invoke(cli, ["start"])

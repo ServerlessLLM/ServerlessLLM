@@ -65,29 +65,24 @@ setup(
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     extras_require=extras,
-   entry_points={
-    "console_scripts": [
-        "sllm = sllm.clic:cli", 
-        "sllm-cli = sllm.cli.sllm_cli:main",
-        "sllm-serve = sllm.serve.commands.serve.sllm_serve:main",
-    ],
-},
-
-
-
-
+    entry_points={
+        "console_scripts": [
+            "sllm = sllm.clic:cli",
+            "sllm-cli = sllm.cli.sllm_cli:main",
+            "sllm-serve = sllm.serve.commands.serve.sllm_serve:main",
+        ],
+    },
     include_package_data=True,
     package_data={
         "sllm.serve": ["py.typed", "sllm.sllm_serve"],
         "sllm.cli": ["default_config.json"],
     },
     packages=[
-    "sllm",
-    "sllm.serve",
-    "sllm.serve.commands.serve",
-    "sllm.serve.backends",
-    "sllm.serve.routers",
-    "sllm.serve.schedulers",
-],
-
+        "sllm",
+        "sllm.serve",
+        "sllm.serve.commands.serve",
+        "sllm.serve.backends",
+        "sllm.serve.routers",
+        "sllm.serve.schedulers",
+    ],
 )
