@@ -161,6 +161,17 @@ class RoundRobinRouter(SllmRouter):
                 logger.error(f"Instance {instance_id} not found")
                 return {"error": "Instance not found"}
             instance = self.ready_instances[instance_id]
+
+        # sanity check
+        if self.enable_lora and "lora_adapter_name" in request_data:
+            lora_adapter_name = request_data["lora_adapter_name"]
+            if lora_adapter_name not in self.loaded_lora_adapters:
+                logger.error(f"Lora adapter {lora_adapter_name} not found")
+                return {"error": f"Lora adapter {lora_adapter_name} not found"}
+            await instance.backend_instance.load_lora_adapter.remote(
+                lora_adapter_name,
+                self.loaded_lora_adapters[lora_adapter_name]["lora_path"],
+            )
         # NOTE: `.remote(request_data)` does not work, don't know why.
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
@@ -347,6 +358,22 @@ class RoundRobinRouter(SllmRouter):
 
         return instance_id
 
+
+    # async def _load_lora_adapters(self, instance, instance_id):
+    #     async with self.lora_lock:
+    #         for lora_name, lora_info in self.loaded_lora_adapters.items():
+    #             try:
+    #                 await instance.backend_instance.load_lora_adapter.remote(
+    #                     request_data=lora_info["request_data"]
+    #                 )
+    #                 logger.info(
+    #                     f"Successfully loaded LoRA adapter {lora_name} on instance {instance_id}"
+    #                 )
+    #             except Exception as e:
+    #                 logger.error(
+    #                     f"Failed to load LoRA adapter {lora_name} on instance {instance_id}: {str(e)}"
+    #                 )
+
     async def _start_instance(self, instance_id):
         async with self.instance_management_lock:
             if instance_id not in self.starting_instances:
@@ -392,6 +419,8 @@ class RoundRobinRouter(SllmRouter):
             instance.ready = True
             instance.node_id = startup_node
         await instance.backend_instance.init_backend.remote()
+        # if self.enable_lora:
+        #     await self._load_lora_adapters(instance, instance_id)
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
             self.starting_instances.pop(instance_id)

@@ -251,19 +251,27 @@ class TransformersBackend(SllmBackend):
         if not prompt:
             return {"error": "Missing prompt in request data"}
 
+        if lora_adapter_name:
+            if (
+                not hasattr(self.model, "peft_config")
+                or lora_adapter_name not in self.model.peft_config
+            ):
+                return {"error": f"LoRA adapter {lora_adapter_name} not found"}
+
         inputs = self._tokenize(prompt)
         prompt_tokens = inputs.input_ids.shape[1]
 
         # Generate response
         try:
             with torch.no_grad():
-                if lora_adapter_name:
-                    self.model.set_adapter(lora_adapter_name)
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=max_tokens,
                     temperature=temperature,
                     streamer=self.inf_status,
+                    adapter_names=[lora_adapter_name]
+                    if lora_adapter_name
+                    else None,
                 )
         except DeletingException:
             logger.info("Backend is shutting down. Aborting request")
@@ -434,13 +442,18 @@ class TransformersBackend(SllmBackend):
 
         return response
 
-    def load_lora_adapter(self, request_data: Optional[Dict[str, Any]]):
+    def load_lora_adapter(self, lora_name: str, lora_path: str):
         with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
-        lora_name = request_data.get("lora_name")
-        lora_path = request_data.get("lora_path")
+        if (
+            hasattr(self.model, "peft_config")
+            and lora_name in self.model.peft_config
+        ):
+            logger.info(f"LoRA adapter {lora_name} already loaded")
+            return
+
         lora_path = os.path.join("transformers", lora_path)
         storage_path = os.getenv("STORAGE_PATH", "./models")
         device_map = self.backend_config.get("device_map", "auto")
