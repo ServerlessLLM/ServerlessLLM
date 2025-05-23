@@ -2,7 +2,7 @@
 sidebar_position: 2
 ---
 
-# Multi-machine deployment
+# Multi-machine
 
 This guide will help you get started with running ServerlessLLM on multiple machines by adding worker nodes on different machines, connecting them to the head node, and starting the `sllm-store` on the worker nodes. You can extend this setup to use as many nodes as you need. Please make sure you have installed the ServerlessLLM following the [installation guide](./installation.md) on all machines.
 

@@ -2,7 +2,7 @@
 sidebar_position: 3
 ---
 
-# SLURM cluster deployment
+# SLURM cluster
 
 This guide will help you get started with running ServerlessLLM on SLURM cluster. It provides two deployment methods, based on `sbatch` and `srun`. If you are in development, we recommend using `srun`, as it is easier to debug than `sbatch`, and if you are in production mode, `sbatch` is recommended. Please make sure you have installed the ServerlessLLM following the [installation guide](./installation.md) on all machines.
 
