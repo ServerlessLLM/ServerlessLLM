@@ -87,7 +87,11 @@ class DeployCommand:
         self.min_instances = args.min_instances
         self.max_instances = args.max_instances
         self.enable_lora = args.enable_lora
-        self.lora_adapters = self.parse_lora_adapters(args.lora_adapters)
+        self.lora_adapters = (
+            self.parse_lora_adapters(args.lora_adapters)
+            if args.lora_adapters
+            else None
+        )
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "register"
         )

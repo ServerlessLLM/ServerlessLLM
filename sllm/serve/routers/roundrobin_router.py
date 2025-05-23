@@ -18,7 +18,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import ray
 
@@ -63,7 +63,7 @@ class RoundRobinRouter(SllmRouter):
         backend_config: Dict,
         router_config: Dict,
         enable_lora: bool = False,
-        lora_adapters: Dict[str, Dict[str, str]] = {},
+        lora_adapters: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> None:
         self.model_name = model_name
         self.resource_requirements = resource_requirements
@@ -111,9 +111,20 @@ class RoundRobinRouter(SllmRouter):
             self.running = True
         logger.info(f"Started handler for model {self.model_name}")
 
-    async def update(self, auto_scaling_config: Dict[str, int]):
-        async with self.auto_scaling_lock:
-            self.auto_scaling_config = auto_scaling_config
+    async def update(
+        self,
+        auto_scaling_config: Optional[Dict[str, int]] = None,
+        lora_adapters: Optional[Dict[str, str]] = None,
+    ):
+        if auto_scaling_config is not None:
+            async with self.auto_scaling_lock:
+                self.auto_scaling_config = auto_scaling_config
+
+        if lora_adapters is not None:
+            async with self.lora_lock:
+                for adapter_name, adapter_path in lora_adapters.items():
+                    if adapter_name not in self.loaded_lora_adapters:
+                        self.loaded_lora_adapters[adapter_name] = adapter_path
         logger.info(
             f"Model {self.model_name}'s auto scaling config updated to {auto_scaling_config}"
         )
@@ -217,26 +228,14 @@ class RoundRobinRouter(SllmRouter):
             self.fine_tuning_count -= 1
         return result
 
-    async def lora_adapter_operation(self, request_data: dict, operation: str):
-        lora_name = request_data.get("lora_name")
-        if not lora_name:
-            return {"error": "lora_name must be provided"}
-
-        if operation == "load":
-            lora_path = request_data.get("lora_path")
-            if not lora_path:
-                return {"error": "lora_path must be provided"}
-
-            async with self.lora_lock:
-                self.loaded_lora_adapters[lora_name] = {
-                    "request_data": request_data.copy()
-                }
-        elif operation == "unload":
-            async with self.lora_lock:
-                if lora_name in self.loaded_lora_adapters:
-                    del self.loaded_lora_adapters[lora_name]
-        else:
-            return {"error": "Invalid lora operation"}
+    async def delete_adapters(self, lora_adapters: List[str]):
+        async with self.lora_lock:
+            for adapter_name in lora_adapters:
+                if adapter_name in self.loaded_lora_adapters:
+                    del self.loaded_lora_adapters[adapter_name]
+        logger.info(
+            f"Deleted LoRA adapters {lora_adapters} on model {self.model_name}"
+        )
 
     async def shutdown(self):
         async with self.running_lock:
@@ -358,6 +357,7 @@ class RoundRobinRouter(SllmRouter):
         self.loop.create_task(self._start_instance(instance_id))
 
         return instance_id
+
 
     # async def _load_lora_adapters(self, instance, instance_id):
     #     async with self.lora_lock:
