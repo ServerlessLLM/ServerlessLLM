@@ -103,11 +103,11 @@ def save_model(model: nn.Module, model_path: str):
         json.dump(tied_no_split_modules, f)
 
 
-def save_lora(lora: PeftModel, lora_path: str):
+def save_lora(model: PeftModel, lora_path: str):
     if not os.path.exists(lora_path):
         os.makedirs(lora_path, exist_ok=True)
 
-    model = lora.cpu()
+    model = model.cpu()
 
     lora_state_dict = get_peft_model_state_dict(model)
 
