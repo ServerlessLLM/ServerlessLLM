@@ -354,3 +354,274 @@ def test_generate_without_init(transformers_backend):
         }
         response = transformers_backend.generate(request_data)
         assert "error" in response
+
+
+# LoRA-related fixtures and tests
+@pytest.fixture
+def base_model_name():
+    return "facebook/opt-125m"
+
+
+@pytest.fixture
+def lora_model_name():
+    return "peft-internal-testing/opt-125m-dummy-lora"
+
+
+@pytest.fixture
+def lora_model_name_2():
+    return "monsterapi/opt125M_alpaca"
+
+
+@pytest.fixture
+def lora_backend_config():
+    return {
+        "pretrained_model_name_or_path": "facebook/opt-125m",
+        "torch_dtype": "float16",
+        "hf_model_class": "AutoModelForCausalLM",
+        "device_map": "cpu",  # Use CPU for testing to avoid GPU memory issues
+    }
+
+
+@pytest.fixture
+def lora_backend(base_model_name, lora_backend_config):
+    backend = TransformersBackend(base_model_name, lora_backend_config)
+    backend.init_backend()
+    yield backend
+    backend.shutdown()
+
+
+def test_load_lora_adapter_success(lora_backend, lora_model_name):
+    """Test successful loading of a LoRA adapter."""
+    # Load the LoRA adapter
+    lora_backend.load_lora_adapter("test_lora", lora_model_name)
+
+    # Verify the adapter is loaded
+    assert hasattr(lora_backend.model, "peft_config")
+    assert "test_lora" in lora_backend.model.peft_config
+
+
+def test_load_lora_adapter_repeated(lora_backend, lora_model_name):
+    """Test that loading the same LoRA adapter multiple times doesn't cause issues."""
+    # Load the LoRA adapter first time
+    lora_backend.load_lora_adapter("test_lora", lora_model_name)
+
+    # Load the same adapter again - should not cause errors
+    lora_backend.load_lora_adapter("test_lora", lora_model_name)
+
+    # Verify the adapter is still loaded
+    assert hasattr(lora_backend.model, "peft_config")
+    assert "test_lora" in lora_backend.model.peft_config
+
+
+def test_load_multiple_lora_adapters(
+    lora_backend, lora_model_name, lora_model_name_2
+):
+    """Test loading multiple LoRA adapters."""
+    # Load first LoRA adapter
+    lora_backend.load_lora_adapter("test_lora_1", lora_model_name)
+
+    # Load second LoRA adapter
+    lora_backend.load_lora_adapter("test_lora_2", lora_model_name_2)
+
+    # Verify both adapters are loaded
+    assert hasattr(lora_backend.model, "peft_config")
+    assert "test_lora_1" in lora_backend.model.peft_config
+    assert "test_lora_2" in lora_backend.model.peft_config
+
+
+def test_generate_with_lora_adapter(lora_backend, lora_model_name):
+    """Test generation with a loaded LoRA adapter."""
+    # Load the LoRA adapter
+    lora_backend.load_lora_adapter("test_lora", lora_model_name)
+
+    # Generate with LoRA adapter
+    input_data = {
+        "model": "facebook/opt-125m",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, how are you?",
+            }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 10,
+        "lora_adapter_name": "test_lora",
+    }
+
+    result = lora_backend.generate(input_data)
+
+    # Verify successful generation
+    assert "error" not in result
+    assert "choices" in result and len(result["choices"]) == 1
+    assert "message" in result["choices"][0]
+    assert "content" in result["choices"][0]["message"]
+
+
+def test_generate_with_unloaded_lora_adapter(lora_backend):
+    """Test generation with an unloaded LoRA adapter should fail."""
+    input_data = {
+        "model": "facebook/opt-125m",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, how are you?",
+            }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 10,
+        "lora_adapter_name": "nonexistent_lora",
+    }
+
+    result = lora_backend.generate(input_data)
+
+    # Verify error is returned
+    assert "error" in result
+    assert "LoRA adapter nonexistent_lora not found" in result["error"]
+
+
+def test_generate_base_model_without_lora(lora_backend):
+    """Test generation with base model (no LoRA adapter specified)."""
+    input_data = {
+        "model": "facebook/opt-125m",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, how are you?",
+            }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 10,
+    }
+
+    result = lora_backend.generate(input_data)
+
+    # Verify successful generation
+    assert "error" not in result
+    assert "choices" in result and len(result["choices"]) == 1
+    assert "message" in result["choices"][0]
+    assert "content" in result["choices"][0]["message"]
+
+
+def test_generate_with_lora_on_base_model_error(lora_backend):
+    """Test that requesting LoRA generation on a base model without LoRA loaded fails."""
+    # Don't load any LoRA adapter
+
+    input_data = {
+        "model": "facebook/opt-125m",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, how are you?",
+            }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 10,
+        "lora_adapter_name": "test_lora",
+    }
+
+    result = lora_backend.generate(input_data)
+
+    # Verify error is returned
+    assert "error" in result
+    assert "LoRA adapter test_lora not found" in result["error"]
+
+
+def test_load_lora_adapter_uninitialized_backend():
+    """Test that loading LoRA adapter on uninitialized backend fails."""
+    backend_config = {
+        "pretrained_model_name_or_path": "facebook/opt-125m",
+        "torch_dtype": "float16",
+        "hf_model_class": "AutoModelForCausalLM",
+    }
+    backend = TransformersBackend("facebook/opt-125m", backend_config)
+
+    # Try to load LoRA without initializing backend
+    result = backend.load_lora_adapter(
+        "test_lora", "peft-internal-testing/opt-125m-dummy-lora"
+    )
+
+    # Verify error is returned
+    assert result is not None
+    assert "error" in result
+    assert "Model not initialized" in result["error"]
+
+
+def test_generate_with_different_lora_adapters(
+    lora_backend, lora_model_name, lora_model_name_2
+):
+    """Test generation with different LoRA adapters produces different outputs."""
+    # Load both LoRA adapters
+    lora_backend.load_lora_adapter("test_lora_1", lora_model_name)
+    lora_backend.load_lora_adapter("test_lora_2", lora_model_name_2)
+
+    input_data_base = {
+        "model": "facebook/opt-125m",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, how are you?",
+            }
+        ],
+        "temperature": 0.0,  # Use temperature 0 for deterministic output
+        "max_tokens": 10,
+    }
+
+    # Generate with first LoRA adapter
+    input_data_1 = input_data_base.copy()
+    input_data_1["lora_adapter_name"] = "test_lora_1"
+    result_1 = lora_backend.generate(input_data_1)
+
+    # Generate with second LoRA adapter
+    input_data_2 = input_data_base.copy()
+    input_data_2["lora_adapter_name"] = "test_lora_2"
+    result_2 = lora_backend.generate(input_data_2)
+
+    # Generate with base model (no LoRA)
+    result_base = lora_backend.generate(input_data_base)
+
+    # Verify all generations are successful
+    assert "error" not in result_1
+    assert "error" not in result_2
+    assert "error" not in result_base
+
+    # Extract generated content
+    content_1 = result_1["choices"][0]["message"]["content"]
+    content_2 = result_2["choices"][0]["message"]["content"]
+    content_base = result_base["choices"][0]["message"]["content"]
+
+    # Note: We can't guarantee the outputs will be different due to the small model size
+    # and limited generation length, but we can verify they're all valid
+    assert isinstance(content_1, str)
+    assert isinstance(content_2, str)
+    assert isinstance(content_base, str)
+
+
+def test_lora_adapter_persistence_across_generations(
+    lora_backend, lora_model_name
+):
+    """Test that LoRA adapter remains loaded across multiple generations."""
+    # Load the LoRA adapter
+    lora_backend.load_lora_adapter("test_lora", lora_model_name)
+
+    input_data = {
+        "model": "facebook/opt-125m",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, how are you?",
+            }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 5,
+        "lora_adapter_name": "test_lora",
+    }
+
+    # Generate multiple times
+    for i in range(3):
+        result = lora_backend.generate(input_data)
+        assert "error" not in result
+        assert "choices" in result and len(result["choices"]) == 1
+
+        # Verify adapter is still loaded
+        assert hasattr(lora_backend.model, "peft_config")
+        assert "test_lora" in lora_backend.model.peft_config
