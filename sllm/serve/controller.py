@@ -170,7 +170,8 @@ class SllmController:
                 request_router = self.request_routers[model_name]
             await request_router.update.remote(auto_scaling_config)
 
-        lora_adapters = model_config.get("lora_adapters", {})
+        backend_config = model_config.get("backend_config", {})
+        lora_adapters = backend_config.get("lora_adapters", {})
         logger.info(
             f"Try to update the LoRA adapters {lora_adapters} on model {model_name}"
         )

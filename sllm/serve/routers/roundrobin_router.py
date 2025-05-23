@@ -63,7 +63,7 @@ class RoundRobinRouter(SllmRouter):
         backend_config: Dict,
         router_config: Dict,
         enable_lora: bool = False,
-        lora_adapters: Optional[Dict[str, Dict[str, str]]] = None,
+        lora_adapters: Optional[Dict[str, str]] = None,
     ) -> None:
         self.model_name = model_name
         self.resource_requirements = resource_requirements
@@ -168,8 +168,8 @@ class RoundRobinRouter(SllmRouter):
                 logger.error(f"Lora adapter {lora_adapter_name} not found")
                 return {"error": f"Lora adapter {lora_adapter_name} not found"}
             await instance.backend_instance.load_lora_adapter.remote(
-                lora_adapter_name,
-                self.loaded_lora_adapters[lora_adapter_name]["lora_path"],
+                lora_name=lora_adapter_name,
+                lora_path=self.loaded_lora_adapters[lora_adapter_name],
             )
         # NOTE: `.remote(request_data)` does not work, don't know why.
         # Looks like a known issue:
