@@ -114,6 +114,8 @@ class SllmController:
             "num_cpus": 1,
             "num_gpus": model_config.get("num_gpus", 0),
         }
+        enable_lora = backend_config.get("enable_lora", False)
+        lora_adapters = backend_config.get("lora_adapters", {})
         request_router = self.router_cls.options(
             name=model_name,
             namespace="models",
@@ -125,6 +127,8 @@ class SllmController:
             backend,
             backend_config,
             router_config,
+            enable_lora,
+            lora_adapters,
         )
 
         async with self.metadata_lock:

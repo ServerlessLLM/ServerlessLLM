@@ -57,7 +57,8 @@ from transformers.integrations.bitsandbytes import (
     replace_with_bnb_linear,
 )
 import importlib
-from peft import PeftModel, get_peft_model_state_dict, PeftConfig
+from peft import PeftModel, get_peft_model_state_dict, LoraConfig
+from peft.utils import set_peft_model_state_dict
 
 logger = init_logger(__name__)
 
@@ -102,25 +103,32 @@ def save_model(model: nn.Module, model_path: str):
         json.dump(tied_no_split_modules, f)
 
 
-def save_lora(lora: PeftModel, lora_path: str):
+def save_lora(model: PeftModel, lora_path: str):
     if not os.path.exists(lora_path):
         os.makedirs(lora_path, exist_ok=True)
 
-    model = lora.cpu()
+    model = model.cpu()
 
     lora_state_dict = get_peft_model_state_dict(model)
 
     save_dict(lora_state_dict, lora_path)
 
     # save the config
-    if (
-        hasattr(model, "peft_config")
-        and model.peft_config is not None
-        and isinstance(model.peft_config, PeftConfig)
-    ):
-        logger.info(f"{model.peft_config}")
-        config_save_path = os.path.join(lora_path, "adapter_config.json")
-        model.peft_config.save_pretrained(config_save_path)
+    if hasattr(model, "peft_config") and model.peft_config:
+        adapter_name = getattr(model, "active_adapter", None)
+        if adapter_name is None:
+            logger.warning("No active_adapter found")
+            return
+
+        config = model.peft_config.get(adapter_name, None)
+        if config is None:
+            logger.warning(f"No config found for adapter: {adapter_name}")
+            return
+
+        config.save_pretrained(lora_path)
+        logger.info(
+            f"Saved LoRA config for adapter: {adapter_name} to {lora_path}"
+        )
 
 
 def load_model(
@@ -426,5 +434,94 @@ def best_effort_load(
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
     model.hf_device_map = device_map
+
+    return model
+
+
+def load_lora(
+    model: nn.Module,
+    adapter_name: str,
+    adapter_path: Optional[Union[str, os.PathLike]],
+    device_map: DeviceMapType = "auto",
+    storage_path: Optional[str] = None,
+    is_trainable: bool = False,
+    torch_dtype: Optional[torch.dtype] = None,
+):
+    if not storage_path:
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+
+    config_path = os.path.join(
+        storage_path, adapter_path, "adapter_config.json"
+    )
+    with open(config_path, "r") as f:
+        config_dict = json.load(f)
+    lora_config = LoraConfig(**config_dict)
+
+    if lora_config.is_prompt_learning and is_trainable:
+        raise ValueError(
+            "Cannot set a prompt learning adapter to trainable\
+            when loading pretrained adapter."
+        )
+
+    lora_config.inference_mode = not is_trainable
+
+    client = SllmStoreClient("127.0.0.1:8073")
+    client.register_model(adapter_path)
+
+    model.add_adapter(lora_config, adapter_name=adapter_name)
+
+    replica_uuid, state_dict = load_dict_non_blocking(
+        adapter_path, {"": 0}, storage_path
+    )
+
+    # https://github.com/huggingface/transformers/blob/de182ba2690fe6c3466f6463c7f4b3a61694b885/src/transformers/integrations/peft.py#L228-L265
+    processed_adapter_state_dict = {}
+    prefix = "base_model.model."
+    for key, value in state_dict.items():
+        new_key = key[len(prefix) :] if key.startswith(prefix) else key
+        processed_adapter_state_dict[new_key] = value
+
+    incompatible_keys = set_peft_model_state_dict(
+        model, processed_adapter_state_dict, adapter_name
+    )
+    if incompatible_keys is not None:
+        err_msg = ""
+        origin_name = adapter_path if adapter_path is not None else "state_dict"
+        # Check for unexpected keys.
+        if (
+            hasattr(incompatible_keys, "unexpected_keys")
+            and len(incompatible_keys.unexpected_keys) > 0
+        ):
+            err_msg = (
+                f"Loading adapter weights from {origin_name} led to \
+                    unexpected keys not found in the model: "
+                f"{', '.join(incompatible_keys.unexpected_keys)}. "
+            )
+
+        # Check for missing keys.
+        missing_keys = getattr(incompatible_keys, "missing_keys", None)
+        if missing_keys:
+            # Filter missing keys specific to the current adapter, \
+            # as missing base model keys are expected.
+            lora_missing_keys = [
+                k for k in missing_keys if "lora_" in k and adapter_name in k
+            ]
+            if lora_missing_keys:
+                err_msg += (
+                    f"Loading adapter weights from {origin_name} led to \
+                        missing keys in the model: "
+                    f"{', '.join(lora_missing_keys)}"
+                )
+
+        if err_msg:
+            logger.warning(err_msg)
+
+    # synchronize
+    client.confirm_model_loaded(adapter_path, replica_uuid)
+
+    if lora_config.inference_mode:
+        model.eval()
+
+    logger.info(f"Available adapters: {model.peft_config.keys()}")
 
     return model

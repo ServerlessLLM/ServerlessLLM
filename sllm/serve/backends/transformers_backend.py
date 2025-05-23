@@ -40,7 +40,7 @@ from transformers.generation.streamers import BaseStreamer
 
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
-from sllm_store.transformers import load_model, save_lora
+from sllm_store.transformers import load_lora, load_model, save_lora
 
 logger = init_logger(__name__)
 
@@ -235,6 +235,7 @@ class TransformersBackend(SllmBackend):
         messages = request_data.get("messages", [])
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
+        lora_adapter_name = request_data.get("lora_adapter_name", None)
 
         # Combine messages to form the prompt
         try:
@@ -256,6 +257,8 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
+                if lora_adapter_name:
+                    self.model.set_adapter(lora_adapter_name)
                 outputs = self.model.generate(
                     **inputs,
                     max_new_tokens=max_tokens,
@@ -394,10 +397,13 @@ class TransformersBackend(SllmBackend):
 
         training_config = request_data.get("training_config")
         storage_path = os.getenv("STORAGE_PATH", "./models")
+        output_dir = request_data.get(
+            "output_dir", f"ft_{self.model_name}_adapter"
+        )
         lora_save_path = os.path.join(
             storage_path,
             "transformers",
-            f"ft_{self.model_name}",
+            output_dir,
         )
         try:
             training_args = TrainingArguments(
@@ -427,6 +433,33 @@ class TransformersBackend(SllmBackend):
         }
 
         return response
+
+    def load_lora_adapter(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        lora_name = request_data.get("lora_name")
+        lora_path = request_data.get("lora_path")
+        lora_path = os.path.join("transformers", lora_path)
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        device_map = self.backend_config.get("device_map", "auto")
+        torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
+        torch_dtype = getattr(torch, torch_dtype)
+        if torch_dtype is None:
+            logger.warning(
+                f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
+            )
+            torch_dtype = torch.float16
+        self.model = load_lora(
+            self.model,
+            lora_name,
+            lora_path,
+            device_map=device_map,
+            storage_path=storage_path,
+            torch_dtype=torch_dtype,
+        )
+        logger.info(f"Loaded LoRA adapter {lora_name} from {lora_path}")
 
     def shutdown(self):
         """Abort all requests and shutdown the backend."""

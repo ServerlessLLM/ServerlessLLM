@@ -144,6 +144,38 @@ def create_app() -> FastAPI:
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
 
+    @app.post("/v1/load-lora-adapter")
+    async def load_lora_adapter_handler(request: Request):
+        body = await request.json()
+        model_name = body.get("model_name")
+        logger.info(
+            f"Received request to load LoRA adapter for model {model_name}"
+        )
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model_name in request body"
+            )
+
+        request_router = ray.get_actor(model_name, namespace="models")
+        await request_router.lora_adapter_operation.remote(body, "load")
+        return {"status": f"loaded adapter for {model_name}"}
+
+    @app.post("/v1/unload-lora-adapter")
+    async def unload_lora_adapter_handler(request: Request):
+        body = await request.json()
+        model_name = body.get("model_name")
+        logger.info(
+            f"Received request to unload LoRA adapter for model {model_name}"
+        )
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model_name in request body"
+            )
+
+        request_router = ray.get_actor(model_name, namespace="models")
+        await request_router.lora_adapter_operation.remote(body, "unload")
+        return {"status": f"unloaded adapter for {model_name}"}
+
     @app.post("/fine-tuning")
     async def fine_tuning(request: Request):
         return await fine_tuning_handler(request)
