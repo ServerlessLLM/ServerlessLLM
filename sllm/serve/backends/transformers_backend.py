@@ -251,12 +251,19 @@ class TransformersBackend(SllmBackend):
         if not prompt:
             return {"error": "Missing prompt in request data"}
 
+        generate_kwargs = {
+            "max_new_tokens": max_tokens,
+            "temperature": temperature,
+            "streamer": self.inf_status,
+        }
+
         if lora_adapter_name:
             if (
                 not hasattr(self.model, "peft_config")
                 or lora_adapter_name not in self.model.peft_config
             ):
                 return {"error": f"LoRA adapter {lora_adapter_name} not found"}
+            generate_kwargs["adapter_names"] = [lora_adapter_name]
 
         inputs = self._tokenize(prompt)
         prompt_tokens = inputs.input_ids.shape[1]
@@ -266,12 +273,7 @@ class TransformersBackend(SllmBackend):
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
-                    max_new_tokens=max_tokens,
-                    temperature=temperature,
-                    streamer=self.inf_status,
-                    adapter_names=[lora_adapter_name]
-                    if lora_adapter_name
-                    else None,
+                    **generate_kwargs,
                 )
         except DeletingException:
             logger.info("Backend is shutting down. Aborting request")
