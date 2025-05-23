@@ -18,7 +18,7 @@
 import asyncio
 import datetime
 import os
-from typing import Mapping, Optional
+from typing import List, Mapping, Optional
 
 import ray
 
@@ -98,9 +98,13 @@ class SllmController:
         backend_config = model_config.get("backend_config", {})
         router_config = model_config.get("router_config", {})
         auto_scaling_config = model_config.get("auto_scaling_config", None)
+        enable_lora = backend_config.get("enable_lora", False)
+        lora_adapters = backend_config.get("lora_adapters", {})
         async with self.metadata_lock:
             if model_name in self.registered_models:
                 logger.error(f"Model {model_name} already registered")
+                if lora_adapters is not None:
+                    await self.update(model_name, model_config)
                 return
 
         logger.info(f"Registering new model {model_name}")
@@ -114,8 +118,6 @@ class SllmController:
             "num_cpus": 1,
             "num_gpus": model_config.get("num_gpus", 0),
         }
-        enable_lora = backend_config.get("enable_lora", False)
-        lora_adapters = backend_config.get("lora_adapters", {})
         request_router = self.router_cls.options(
             name=model_name,
             namespace="models",
@@ -167,16 +169,31 @@ class SllmController:
                 request_router = self.request_routers[model_name]
             await request_router.update.remote(auto_scaling_config)
         # TODO: update other config (if possible)
+        lora_adapters = model_config.get("lora_adapters", {})
+        logger.info(
+            f"Try to update the LoRA adapters {lora_adapters} on model {model_name}"
+        )
+        if lora_adapters is not None:
+            async with self.metadata_lock:
+                request_router = self.request_routers[model_name]
+            await request_router.update.remote(lora_adapters)
 
     async def exists(self, model_name: str):
         async with self.metadata_lock:
             return model_name in self.registered_models
 
-    async def delete(self, model_name: str):
+    async def delete(
+        self, model_name: str, lora_adapters: Optional[List[str]] = None
+    ):
         router = None
         async with self.metadata_lock:
             if model_name not in self.request_routers:
                 logger.error(f"Model {model_name} not found")
+                return
+            if lora_adapters is not None:
+                await self.request_routers[model_name].delete_adapters.remote(
+                    lora_adapters
+                )
                 return
             router = self.request_routers.pop(model_name)
             self.registered_models.pop(model_name)
