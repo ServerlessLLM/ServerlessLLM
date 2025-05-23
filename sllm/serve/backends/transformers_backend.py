@@ -251,6 +251,13 @@ class TransformersBackend(SllmBackend):
         if not prompt:
             return {"error": "Missing prompt in request data"}
 
+        if lora_adapter_name:
+            if (
+                not hasattr(self.model, "peft_config")
+                or lora_adapter_name not in self.model.peft_config
+            ):
+                return {"error": f"LoRA adapter {lora_adapter_name} not found"}
+
         inputs = self._tokenize(prompt)
         prompt_tokens = inputs.input_ids.shape[1]
 

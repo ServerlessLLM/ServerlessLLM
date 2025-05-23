@@ -157,7 +157,10 @@ class RoundRobinRouter(SllmRouter):
             if lora_adapter_name not in self.loaded_lora_adapters:
                 logger.error(f"Lora adapter {lora_adapter_name} not found")
                 return {"error": f"Lora adapter {lora_adapter_name} not found"}
-
+            await instance.backend_instance.load_lora_adapter.remote(
+                lora_adapter_name,
+                self.loaded_lora_adapters[lora_adapter_name]["lora_path"],
+            )
         # NOTE: `.remote(request_data)` does not work, don't know why.
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
