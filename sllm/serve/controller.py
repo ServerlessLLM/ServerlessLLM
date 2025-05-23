@@ -102,9 +102,10 @@ class SllmController:
         lora_adapters = backend_config.get("lora_adapters", {})
         async with self.metadata_lock:
             if model_name in self.registered_models:
-                logger.error(f"Model {model_name} already registered")
                 if lora_adapters is not None:
                     await self.update(model_name, model_config)
+                else:
+                    logger.info(f"Model {model_name} already registered")
                 return
 
         logger.info(f"Registering new model {model_name}")
@@ -168,7 +169,7 @@ class SllmController:
                 )
                 request_router = self.request_routers[model_name]
             await request_router.update.remote(auto_scaling_config)
-        # TODO: update other config (if possible)
+
         lora_adapters = model_config.get("lora_adapters", {})
         logger.info(
             f"Try to update the LoRA adapters {lora_adapters} on model {model_name}"

@@ -358,21 +358,6 @@ class RoundRobinRouter(SllmRouter):
 
         return instance_id
 
-    # async def _load_lora_adapters(self, instance, instance_id):
-    #     async with self.lora_lock:
-    #         for lora_name, lora_info in self.loaded_lora_adapters.items():
-    #             try:
-    #                 await instance.backend_instance.load_lora_adapter.remote(
-    #                     request_data=lora_info["request_data"]
-    #                 )
-    #                 logger.info(
-    #                     f"Successfully loaded LoRA adapter {lora_name} on instance {instance_id}"
-    #                 )
-    #             except Exception as e:
-    #                 logger.error(
-    #                     f"Failed to load LoRA adapter {lora_name} on instance {instance_id}: {str(e)}"
-    #                 )
-
     async def _start_instance(self, instance_id):
         async with self.instance_management_lock:
             if instance_id not in self.starting_instances:
@@ -418,8 +403,7 @@ class RoundRobinRouter(SllmRouter):
             instance.ready = True
             instance.node_id = startup_node
         await instance.backend_instance.init_backend.remote()
-        # if self.enable_lora:
-        #     await self._load_lora_adapters(instance, instance_id)
+
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
             self.starting_instances.pop(instance_id)
