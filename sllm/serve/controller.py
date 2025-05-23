@@ -110,6 +110,13 @@ class SllmController:
         logger.info(f"Registering new model {model_name}")
         try:
             await self.store_manager.register.remote(model_config)
+            for adapter_name, adapter_config in lora_adapters:
+                await self.store_manager.register_lora_adapter.remote(
+                    model_name,
+                    adapter_name,
+                    adapter_config["adapter_path"],
+                    backend_config,
+                )
         except RuntimeError as e:
             error_message = e.args[0]
             raise RuntimeError(f"{error_message}")
@@ -173,6 +180,14 @@ class SllmController:
         logger.info(
             f"Try to update the LoRA adapters {lora_adapters} on model {model_name}"
         )
+        backend_config = model_config.get("backend_config", {})
+        for adapter_name, adapter_config in lora_adapters:
+            await self.store_manager.register_lora_adapter.remote(
+                model_name,
+                adapter_name,
+                adapter_config["adapter_path"],
+                backend_config,
+            )
         if lora_adapters is not None:
             async with self.metadata_lock:
                 request_router = self.request_routers[model_name]

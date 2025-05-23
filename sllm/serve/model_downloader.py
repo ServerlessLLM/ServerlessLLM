@@ -22,6 +22,7 @@ import shutil
 from typing import Optional
 
 import ray
+from torch import nn
 from transformers import AutoTokenizer
 
 logger = logging.getLogger("ray")
@@ -87,6 +88,65 @@ def download_transformers_model(
 
     # model_size = get_directory_size(model_path)
     # logger.info(f"{model_name} (size: {model_size}) downloaded")
+
+    return True
+
+
+@ray.remote(num_cpus=1)
+def download_lora_adapter(
+    base_model_name: str,
+    adapter_name: str,
+    adapter_name_or_path: str,
+    hf_model_class: str,
+    torch_dtype: str,
+) -> bool:
+    storage_path = os.getenv("STORAGE_PATH", "./models")
+    adapter_path = os.path.join(storage_path, "transformers", adapter_name)
+
+    if os.path.exists(adapter_path):
+        logger.info(f"{adapter_path} already exists")
+        return True
+
+    import torch
+
+    torch_dtype = getattr(torch, torch_dtype)
+    if torch_dtype is None:
+        raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
+
+    from transformers import AutoConfig
+
+    config = AutoConfig.from_pretrained(
+        os.path.join(storage_path, "transformers", base_model_name),
+        trust_remote_code=True,
+    )
+    config.torch_dtype = torch_dtype
+    module = importlib.import_module("transformers")
+    hf_model_cls = getattr(module, hf_model_class)
+    base_model = hf_model_cls.from_config(
+        config,
+        trust_remote_code=True,
+    ).to(config.torch_dtype)
+
+    logger.info(f"Downloading {adapter_path}")
+    from peft import PeftModel
+
+    try:
+        model = PeftModel.from_pretrained(base_model, adapter_name_or_path)
+    except Exception as e:
+        logger.error(f"Failed to load adapter: {e}")
+        raise RuntimeError(f"LoRA adapter load failed: {e}")
+
+    from sllm_store.transformers import save_lora
+
+    logger.info(f"Saving {adapter_path}")
+    try:
+        save_lora(model, adapter_path)
+    except Exception as e:
+        logger.error(f"Failed to save {adapter_path}: {e}")
+        # shutil.rmtree(model_path)  # TODO: deal with error in save_model
+        raise RuntimeError(
+            f"Failed to save {adapter_name} for transformer backend: {e}"
+        )
 
     return True
 

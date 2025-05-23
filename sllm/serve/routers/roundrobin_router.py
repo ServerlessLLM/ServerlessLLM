@@ -358,7 +358,6 @@ class RoundRobinRouter(SllmRouter):
 
         return instance_id
 
-
     # async def _load_lora_adapters(self, instance, instance_id):
     #     async with self.lora_lock:
     #         for lora_name, lora_info in self.loaded_lora_adapters.items():
