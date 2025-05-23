@@ -122,9 +122,8 @@ class RoundRobinRouter(SllmRouter):
 
         if lora_adapters is not None:
             async with self.lora_lock:
-                for adapter_name, adapter_path in lora_adapters.items():
-                    if adapter_name not in self.loaded_lora_adapters:
-                        self.loaded_lora_adapters[adapter_name] = adapter_path
+                self.loaded_lora_adapters = lora_adapters
+
         logger.info(
             f"Model {self.model_name}'s auto scaling config updated to {auto_scaling_config}"
         )
