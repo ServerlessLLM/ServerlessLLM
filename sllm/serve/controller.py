@@ -104,7 +104,20 @@ class SllmController:
             if model_name in self.registered_models:
                 logger.info(f"Model {model_name} already registered")
                 if lora_adapters is not None:
-                    await self.update(model_name, model_config)
+                    for (
+                        lora_adapter_name,
+                        lora_adapter_path,
+                    ) in lora_adapters.items():
+                        await self.store_manager.register_lora_adapter.remote(
+                            model_name,
+                            lora_adapter_name,
+                            lora_adapter_path,
+                            backend_config,
+                        )
+                    request_router = self.request_routers[model_name]
+                    await request_router.update.remote(
+                        lora_adapters=lora_adapters
+                    )
                 return
 
         logger.info(f"Registering new model {model_name}")
@@ -175,24 +188,7 @@ class SllmController:
                 )
                 request_router = self.request_routers[model_name]
             await request_router.update.remote(auto_scaling_config)
-
-        backend_config = model_config.get("backend_config", {})
-        lora_adapters = backend_config.get("lora_adapters", {})
-        logger.info(
-            f"Try to update the LoRA adapters {lora_adapters} on model {model_name}"
-        )
-        backend_config = model_config.get("backend_config", {})
-        for lora_adapter_name, lora_adapter_path in lora_adapters.items():
-            await self.store_manager.register_lora_adapter.remote(
-                model_name,
-                lora_adapter_name,
-                lora_adapter_path,
-                backend_config,
-            )
-        if lora_adapters is not None:
-            async with self.metadata_lock:
-                request_router = self.request_routers[model_name]
-            await request_router.update.remote(lora_adapters)
+        # TODO: update other config (if possible)
 
     async def exists(self, model_name: str):
         async with self.metadata_lock:
