@@ -102,20 +102,19 @@ class SllmController:
         lora_adapters = backend_config.get("lora_adapters", {})
         async with self.metadata_lock:
             if model_name in self.registered_models:
+                logger.info(f"Model {model_name} already registered")
                 if lora_adapters is not None:
                     await self.update(model_name, model_config)
-                else:
-                    logger.info(f"Model {model_name} already registered")
                 return
 
         logger.info(f"Registering new model {model_name}")
         try:
             await self.store_manager.register.remote(model_config)
-            for adapter_name, adapter_config in lora_adapters:
+            for lora_adapter_name, lora_adapter_path in lora_adapters.items():
                 await self.store_manager.register_lora_adapter.remote(
                     model_name,
-                    adapter_name,
-                    adapter_config["adapter_path"],
+                    lora_adapter_name,
+                    lora_adapter_path,
                     backend_config,
                 )
         except RuntimeError as e:
@@ -183,11 +182,11 @@ class SllmController:
             f"Try to update the LoRA adapters {lora_adapters} on model {model_name}"
         )
         backend_config = model_config.get("backend_config", {})
-        for adapter_name, adapter_config in lora_adapters:
+        for lora_adapter_name, lora_adapter_path in lora_adapters.items():
             await self.store_manager.register_lora_adapter.remote(
                 model_name,
-                adapter_name,
-                adapter_config["adapter_path"],
+                lora_adapter_name,
+                lora_adapter_path,
                 backend_config,
             )
         if lora_adapters is not None:

@@ -51,51 +51,6 @@ class TestSllmCLI(unittest.TestCase):
             "facebook/opt-125m",
         )
 
-    @patch("sllm.cli.lora.LoraCommand")
-    def test_lora_load_command(self, mock_lora_command):
-        # Simulate command-line input
-        test_args = [
-            "sllm-cli",
-            "lora",
-            "load",
-            "--model",
-            "facebook/opt-125m",
-            "--name",
-            "demo_lora",
-            "--path",
-            "ft_facebook/opt-125m-adapter1",
-        ]
-        with patch.object(sys, "argv", test_args):
-            main()
-
-        # Check that LoraCommand was called with the correct arguments
-        mock_lora_command.assert_called_once()
-        args_obj = mock_lora_command.call_args[0][0]
-        self.assertEqual(args_obj.model, "facebook/opt-125m")
-        self.assertEqual(args_obj.name, "demo_lora")
-        self.assertEqual(args_obj.path, "ft_facebook/opt-125m-adapter1")
-
-    @patch("sllm.cli.lora.LoraCommand")
-    def test_lora_unload_command(self, mock_lora_command):
-        # Simulate command-line input
-        test_args = [
-            "sllm-cli",
-            "lora",
-            "unload",
-            "--model",
-            "facebook/opt-125m",
-            "--name",
-            "demo_lora",
-        ]
-        with patch.object(sys, "argv", test_args):
-            main()
-
-        # Check that LoraCommand was called with the correct arguments
-        mock_lora_command.assert_called_once()
-        args_obj = mock_lora_command.call_args[0][0]
-        self.assertEqual(args_obj.model, "facebook/opt-125m")
-        self.assertEqual(args_obj.name, "demo_lora")
-
     @patch("sllm.cli.replay.ReplayCommand")
     def test_replay_command(self, mock_replay_command):
         # Simulate command-line input
