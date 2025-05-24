@@ -73,6 +73,49 @@ class TestDeleteCommand(unittest.TestCase):
         )
         self.assertEqual(mock_post.return_value.status_code, 500)
 
+    @patch("sllm.cli.delete.requests.post")
+    def test_delete_multiple_lora_adapters_success(self, mock_post):
+        # Mock the response of the requests.post
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        args = Namespace(models=["facebook/opt-1.3b"], lora_adapters=["adapter1", "adapter2"])
+        command = DeleteCommand(args)
+        command.run()
+
+        mock_post.assert_called_once_with(
+            "http://127.0.0.1:8343/delete/",
+            headers={"Content-Type": "application/json"},
+            json={
+                "model": "facebook/opt-1.3b",
+                "lora_adapters": ["adapter1", "adapter2"]
+            },
+        )
+        self.assertEqual(mock_post.return_value.status_code, 200)
+
+    @patch("sllm.cli.delete.requests.post")
+    def test_delete_lora_adapter_failure(self, mock_post):
+        # Mock the response of the requests.post
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "Failed to delete LoRA adapters"
+        mock_post.return_value = mock_response
+
+        args = Namespace(models=["facebook/opt-1.3b"], lora_adapters=["adapter1"])
+        command = DeleteCommand(args)
+        command.run()
+
+        mock_post.assert_called_once_with(
+            "http://127.0.0.1:8343/delete/",
+            headers={"Content-Type": "application/json"},
+            json={
+                "model": "facebook/opt-1.3b",
+                "lora_adapters": ["adapter1"]
+            },
+        )
+        self.assertEqual(mock_post.return_value.status_code, 500)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -44,7 +44,7 @@ class DeleteCommand:
 
     def __init__(self, args: Namespace) -> None:
         self.models = args.models
-        self.lora_adapters = args.lora_adapters
+        self.lora_adapters = getattr(args, "lora_adapters", None)
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "delete/"
         )

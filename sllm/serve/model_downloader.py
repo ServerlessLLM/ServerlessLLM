@@ -101,7 +101,7 @@ def download_lora_adapter(
     torch_dtype: str,
 ) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
-    adapter_path = os.path.join(storage_path, "transformers", adapter_name)
+    adapter_path = os.path.join(storage_path, "transformers", adapter_name_or_path)
 
     if os.path.exists(adapter_path):
         logger.info(f"{adapter_path} already exists")
