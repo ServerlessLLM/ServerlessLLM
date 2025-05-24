@@ -80,7 +80,9 @@ class TestDeleteCommand(unittest.TestCase):
         mock_response.status_code = 200
         mock_post.return_value = mock_response
 
-        args = Namespace(models=["facebook/opt-1.3b"], lora_adapters=["adapter1", "adapter2"])
+        args = Namespace(
+            models=["facebook/opt-1.3b"], lora_adapters=["adapter1", "adapter2"]
+        )
         command = DeleteCommand(args)
         command.run()
 
@@ -89,7 +91,7 @@ class TestDeleteCommand(unittest.TestCase):
             headers={"Content-Type": "application/json"},
             json={
                 "model": "facebook/opt-1.3b",
-                "lora_adapters": ["adapter1", "adapter2"]
+                "lora_adapters": ["adapter1", "adapter2"],
             },
         )
         self.assertEqual(mock_post.return_value.status_code, 200)
@@ -102,17 +104,16 @@ class TestDeleteCommand(unittest.TestCase):
         mock_response.text = "Failed to delete LoRA adapters"
         mock_post.return_value = mock_response
 
-        args = Namespace(models=["facebook/opt-1.3b"], lora_adapters=["adapter1"])
+        args = Namespace(
+            models=["facebook/opt-1.3b"], lora_adapters=["adapter1"]
+        )
         command = DeleteCommand(args)
         command.run()
 
         mock_post.assert_called_once_with(
             "http://127.0.0.1:8343/delete/",
             headers={"Content-Type": "application/json"},
-            json={
-                "model": "facebook/opt-1.3b",
-                "lora_adapters": ["adapter1"]
-            },
+            json={"model": "facebook/opt-1.3b", "lora_adapters": ["adapter1"]},
         )
         self.assertEqual(mock_post.return_value.status_code, 500)
 
