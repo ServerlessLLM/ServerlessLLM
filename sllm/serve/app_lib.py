@@ -94,6 +94,7 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=400, detail="Missing model_name in request body"
             )
+        lora_adapters = body.get("lora_adapters", None)
 
         controller = ray.get_actor("controller")
         if not controller:
@@ -101,8 +102,14 @@ def create_app() -> FastAPI:
                 status_code=500, detail="Controller not initialized"
             )
 
-        logger.info(f"Received request to delete model {model_name}")
-        await controller.delete.remote(model_name)
+        if lora_adapters is not None:
+            logger.info(
+                f"Received request to delete LoRA adapters {lora_adapters} on model {model_name}"
+            )
+            await controller.delete.remote(model_name, lora_adapters)
+        else:
+            logger.info(f"Received request to delete model {model_name}")
+            await controller.delete.remote(model_name)
 
         return {"status": f"deleted model {model_name}"}
 
@@ -143,38 +150,6 @@ def create_app() -> FastAPI:
     @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
-
-    @app.post("/v1/load-lora-adapter")
-    async def load_lora_adapter_handler(request: Request):
-        body = await request.json()
-        model_name = body.get("model_name")
-        logger.info(
-            f"Received request to load LoRA adapter for model {model_name}"
-        )
-        if not model_name:
-            raise HTTPException(
-                status_code=400, detail="Missing model_name in request body"
-            )
-
-        request_router = ray.get_actor(model_name, namespace="models")
-        await request_router.lora_adapter_operation.remote(body, "load")
-        return {"status": f"loaded adapter for {model_name}"}
-
-    @app.post("/v1/unload-lora-adapter")
-    async def unload_lora_adapter_handler(request: Request):
-        body = await request.json()
-        model_name = body.get("model_name")
-        logger.info(
-            f"Received request to unload LoRA adapter for model {model_name}"
-        )
-        if not model_name:
-            raise HTTPException(
-                status_code=400, detail="Missing model_name in request body"
-            )
-
-        request_router = ray.get_actor(model_name, namespace="models")
-        await request_router.lora_adapter_operation.remote(body, "unload")
-        return {"status": f"unloaded adapter for {model_name}"}
 
     @app.post("/fine-tuning")
     async def fine_tuning(request: Request):

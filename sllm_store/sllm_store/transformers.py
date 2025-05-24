@@ -57,7 +57,12 @@ from transformers.integrations.bitsandbytes import (
     replace_with_bnb_linear,
 )
 import importlib
-from peft import PeftModel, get_peft_model_state_dict, LoraConfig
+from peft import (
+    PeftModel,
+    get_peft_model,
+    get_peft_model_state_dict,
+    LoraConfig,
+)
 from peft.utils import set_peft_model_state_dict
 
 logger = init_logger(__name__)
@@ -516,12 +521,15 @@ def load_lora(
         if err_msg:
             logger.warning(err_msg)
 
+    # convert base model to PeftModel
+    peft_model = get_peft_model(model, lora_config)
+
     # synchronize
     client.confirm_model_loaded(adapter_path, replica_uuid)
 
     if lora_config.inference_mode:
-        model.eval()
+        peft_model.eval()
 
-    logger.info(f"Available adapters: {model.peft_config.keys()}")
+    logger.info(f"Available adapters: {peft_model.peft_config.keys()}")
 
-    return model
+    return peft_model

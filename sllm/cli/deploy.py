@@ -87,7 +87,11 @@ class DeployCommand:
         self.min_instances = args.min_instances
         self.max_instances = args.max_instances
         self.enable_lora = args.enable_lora
-        self.lora_adapters = self.parse_lora_adapters(args.lora_adapters)
+        self.lora_adapters = (
+            self.parse_lora_adapters(args.lora_adapters)
+            if args.lora_adapters
+            else None
+        )
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "register"
         )
@@ -104,13 +108,7 @@ class DeployCommand:
                         f"Invalid LoRA module format: {module}. Expected <name>=<path>."
                     )
                 name, path = module.split("=", 1)
-                parsed_modules[name] = {
-                    "request_data": {
-                        "model": self.model,
-                        "lora_name": name,
-                        "lora_path": path,
-                    }
-                }
+                parsed_modules[name] = path
         return parsed_modules
 
     def validate_config(self, config_data: dict) -> None:

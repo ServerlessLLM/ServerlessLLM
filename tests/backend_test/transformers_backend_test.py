@@ -354,3 +354,452 @@ def test_generate_without_init(transformers_backend):
         }
         response = transformers_backend.generate(request_data)
         assert "error" in response
+
+
+# LoRA-related fixtures and tests
+@pytest.fixture
+def base_model_name():
+    return "facebook/opt-125m"
+
+
+@pytest.fixture
+def lora_model_name():
+    return "peft-internal-testing/opt-125m-dummy-lora"
+
+
+@pytest.fixture
+def lora_model_name_2():
+    return "monsterapi/opt125M_alpaca"
+
+
+@pytest.fixture
+def lora_backend_config():
+    return {
+        "pretrained_model_name_or_path": "facebook/opt-125m",
+        "torch_dtype": "float16",
+        "hf_model_class": "AutoModelForCausalLM",
+        "device_map": "cpu",  # Use CPU for testing to avoid GPU memory issues
+    }
+
+
+@pytest.fixture
+def lora_backend(base_model_name, lora_backend_config):
+    backend = TransformersBackend(base_model_name, lora_backend_config)
+    yield backend
+
+
+@pytest.fixture
+def mock_peft_model():
+    """Create a mock PEFT model with the necessary attributes."""
+    from unittest.mock import MagicMock
+
+    model = AutoModelForCausalLM.from_pretrained("facebook/opt-125m").to("cpu")
+
+    # Add PEFT-like attributes
+    model.peft_config = {}
+    model.add_adapter = MagicMock()
+    model.set_adapter = MagicMock()
+
+    return model
+
+
+def test_load_lora_adapter_success(lora_backend, mock_peft_model):
+    """Test successful loading of a LoRA adapter."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.load_lora",
+        return_value=mock_peft_model,
+    ) as mock_load_lora:
+        lora_backend.init_backend()
+
+        # Simulate successful LoRA loading by updating peft_config
+        def mock_load_lora_side_effect(*args, **kwargs):
+            mock_peft_model.peft_config["test_lora"] = {
+                "adapter_name": "test_lora"
+            }
+            return mock_peft_model
+
+        mock_load_lora.side_effect = mock_load_lora_side_effect
+
+        # Load the LoRA adapter
+        result = lora_backend.load_lora_adapter("test_lora", "dummy_path")
+
+        # Verify the adapter is loaded
+        assert hasattr(lora_backend.model, "peft_config")
+        assert "test_lora" in lora_backend.model.peft_config
+        mock_load_lora.assert_called_once()
+
+
+def test_load_lora_adapter_repeated(lora_backend, mock_peft_model):
+    """Test that loading the same LoRA adapter multiple times doesn't cause issues."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.load_lora",
+        return_value=mock_peft_model,
+    ) as mock_load_lora:
+        lora_backend.init_backend()
+
+        # Simulate LoRA already loaded
+        mock_peft_model.peft_config["test_lora"] = {"adapter_name": "test_lora"}
+
+        # Load the LoRA adapter first time (should be skipped)
+        result = lora_backend.load_lora_adapter("test_lora", "dummy_path")
+
+        # Load the same adapter again - should not call load_lora
+        result = lora_backend.load_lora_adapter("test_lora", "dummy_path")
+
+        # Verify load_lora was not called since adapter already exists
+        mock_load_lora.assert_not_called()
+
+        # Verify the adapter is still loaded
+        assert hasattr(lora_backend.model, "peft_config")
+        assert "test_lora" in lora_backend.model.peft_config
+
+
+def test_load_multiple_lora_adapters(lora_backend, mock_peft_model):
+    """Test loading multiple LoRA adapters."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.load_lora",
+        return_value=mock_peft_model,
+    ) as mock_load_lora:
+        lora_backend.init_backend()
+
+        # Simulate successful LoRA loading by updating peft_config
+        def mock_load_lora_side_effect(*args, **kwargs):
+            adapter_name = args[1]  # Second argument is adapter_name
+            mock_peft_model.peft_config[adapter_name] = {
+                "adapter_name": adapter_name
+            }
+            return mock_peft_model
+
+        mock_load_lora.side_effect = mock_load_lora_side_effect
+
+        # Load first LoRA adapter
+        lora_backend.load_lora_adapter("test_lora_1", "dummy_path_1")
+
+        # Load second LoRA adapter
+        lora_backend.load_lora_adapter("test_lora_2", "dummy_path_2")
+
+        # Verify both adapters are loaded
+        assert hasattr(lora_backend.model, "peft_config")
+        assert "test_lora_1" in lora_backend.model.peft_config
+        assert "test_lora_2" in lora_backend.model.peft_config
+        assert mock_load_lora.call_count == 2
+
+
+def test_generate_with_lora_adapter(lora_backend, mock_peft_model):
+    """Test generation with a loaded LoRA adapter."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.load_lora",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize"
+    ) as mock_tokenize:
+        lora_backend.init_backend()
+
+        # Setup tokenizer mock
+        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
+        mock_inputs = tokenizer("test prompt", return_tensors="pt")
+        mock_tokenize.return_value = mock_inputs
+
+        # Simulate LoRA adapter loaded
+        mock_peft_model.peft_config["test_lora"] = {"adapter_name": "test_lora"}
+
+        # Mock model generation
+        with patch.object(mock_peft_model, "generate") as mock_generate:
+            # Create mock output tokens
+            mock_output = torch.tensor([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]])
+            mock_generate.return_value = mock_output
+
+            # Generate with LoRA adapter
+            input_data = {
+                "model": "facebook/opt-125m",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Hello, how are you?",
+                    }
+                ],
+                "temperature": 0.7,
+                "max_tokens": 10,
+                "lora_adapter_name": "test_lora",
+            }
+
+            result = lora_backend.generate(input_data)
+
+            # Verify successful generation
+            assert "error" not in result
+            assert "choices" in result and len(result["choices"]) == 1
+            assert "message" in result["choices"][0]
+            assert "content" in result["choices"][0]["message"]
+
+            # Verify generate was called with adapter_names
+            mock_generate.assert_called_once()
+            call_kwargs = mock_generate.call_args[1]
+            assert "adapter_names" in call_kwargs
+            assert call_kwargs["adapter_names"] == ["test_lora"]
+
+
+def test_generate_with_unloaded_lora_adapter(lora_backend, mock_peft_model):
+    """Test generation with an unloaded LoRA adapter should fail."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ):
+        lora_backend.init_backend()
+
+        input_data = {
+            "model": "facebook/opt-125m",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, how are you?",
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 10,
+            "lora_adapter_name": "nonexistent_lora",
+        }
+
+        result = lora_backend.generate(input_data)
+
+        # Verify error is returned
+        assert "error" in result
+        assert "LoRA adapter nonexistent_lora not found" in result["error"]
+
+
+def test_generate_base_model_without_lora(lora_backend, mock_peft_model):
+    """Test generation with base model (no LoRA adapter specified)."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize"
+    ) as mock_tokenize:
+        lora_backend.init_backend()
+
+        # Setup tokenizer mock
+        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
+        mock_inputs = tokenizer("test prompt", return_tensors="pt")
+        mock_tokenize.return_value = mock_inputs
+
+        # Mock model generation
+        with patch.object(mock_peft_model, "generate") as mock_generate:
+            # Create mock output tokens
+            mock_output = torch.tensor([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]])
+            mock_generate.return_value = mock_output
+
+            input_data = {
+                "model": "facebook/opt-125m",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Hello, how are you?",
+                    }
+                ],
+                "temperature": 0.7,
+                "max_tokens": 10,
+            }
+
+            result = lora_backend.generate(input_data)
+
+            # Verify successful generation
+            assert "error" not in result
+            assert "choices" in result and len(result["choices"]) == 1
+            assert "message" in result["choices"][0]
+            assert "content" in result["choices"][0]["message"]
+
+            # Verify generate was called without adapter_names
+            mock_generate.assert_called_once()
+            call_kwargs = mock_generate.call_args[1]
+            assert call_kwargs.get("adapter_names") is None
+
+
+def test_generate_with_lora_on_base_model_error(lora_backend, mock_peft_model):
+    """Test that requesting LoRA generation on a base model without LoRA loaded fails."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ):
+        lora_backend.init_backend()
+
+        # Don't load any LoRA adapter (peft_config is empty)
+
+        input_data = {
+            "model": "facebook/opt-125m",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, how are you?",
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 10,
+            "lora_adapter_name": "test_lora",
+        }
+
+        result = lora_backend.generate(input_data)
+
+        # Verify error is returned
+        assert "error" in result
+        assert "LoRA adapter test_lora not found" in result["error"]
+
+
+def test_load_lora_adapter_uninitialized_backend():
+    """Test that loading LoRA adapter on uninitialized backend fails."""
+    backend_config = {
+        "pretrained_model_name_or_path": "facebook/opt-125m",
+        "torch_dtype": "float16",
+        "hf_model_class": "AutoModelForCausalLM",
+    }
+    backend = TransformersBackend("facebook/opt-125m", backend_config)
+
+    # Try to load LoRA without initializing backend
+    result = backend.load_lora_adapter("test_lora", "dummy_path")
+
+    # Verify error is returned
+    assert result is not None
+    assert "error" in result
+    assert "Model not initialized" in result["error"]
+
+
+def test_generate_with_different_lora_adapters(lora_backend, mock_peft_model):
+    """Test generation with different LoRA adapters."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.load_lora",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize"
+    ) as mock_tokenize:
+        lora_backend.init_backend()
+
+        # Setup tokenizer mock
+        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
+        mock_inputs = tokenizer("test prompt", return_tensors="pt")
+        mock_tokenize.return_value = mock_inputs
+
+        # Simulate both LoRA adapters loaded
+        mock_peft_model.peft_config["test_lora_1"] = {
+            "adapter_name": "test_lora_1"
+        }
+        mock_peft_model.peft_config["test_lora_2"] = {
+            "adapter_name": "test_lora_2"
+        }
+
+        # Mock model generation
+        with patch.object(mock_peft_model, "generate") as mock_generate:
+            # Create mock output tokens
+            mock_output = torch.tensor([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]])
+            mock_generate.return_value = mock_output
+
+            input_data_base = {
+                "model": "facebook/opt-125m",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Hello, how are you?",
+                    }
+                ],
+                "temperature": 0.0,  # Use temperature 0 for deterministic output
+                "max_tokens": 10,
+            }
+
+            # Generate with first LoRA adapter
+            input_data_1 = input_data_base.copy()
+            input_data_1["lora_adapter_name"] = "test_lora_1"
+            result_1 = lora_backend.generate(input_data_1)
+
+            # Generate with second LoRA adapter
+            input_data_2 = input_data_base.copy()
+            input_data_2["lora_adapter_name"] = "test_lora_2"
+            result_2 = lora_backend.generate(input_data_2)
+
+            # Generate with base model (no LoRA)
+            result_base = lora_backend.generate(input_data_base)
+
+            # Verify all generations are successful
+            assert "error" not in result_1
+            assert "error" not in result_2
+            assert "error" not in result_base
+
+            # Extract generated content
+            content_1 = result_1["choices"][0]["message"]["content"]
+            content_2 = result_2["choices"][0]["message"]["content"]
+            content_base = result_base["choices"][0]["message"]["content"]
+
+            # Verify they're all valid strings
+            assert isinstance(content_1, str)
+            assert isinstance(content_2, str)
+            assert isinstance(content_base, str)
+
+            # Verify generate was called 3 times
+            assert mock_generate.call_count == 3
+
+
+def test_lora_adapter_persistence_across_generations(
+    lora_backend, mock_peft_model
+):
+    """Test that LoRA adapter remains loaded across multiple generations."""
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.load_lora",
+        return_value=mock_peft_model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize"
+    ) as mock_tokenize:
+        lora_backend.init_backend()
+
+        # Setup tokenizer mock
+        tokenizer = AutoTokenizer.from_pretrained("facebook/opt-125m")
+        mock_inputs = tokenizer("test prompt", return_tensors="pt")
+        mock_tokenize.return_value = mock_inputs
+
+        # Simulate LoRA adapter loaded
+        mock_peft_model.peft_config["test_lora"] = {"adapter_name": "test_lora"}
+
+        # Mock model generation
+        with patch.object(mock_peft_model, "generate") as mock_generate:
+            # Create mock output tokens
+            mock_output = torch.tensor([[1, 2, 3, 4, 5, 6]])
+            mock_generate.return_value = mock_output
+
+            input_data = {
+                "model": "facebook/opt-125m",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Hello, how are you?",
+                    }
+                ],
+                "temperature": 0.7,
+                "max_tokens": 5,
+                "lora_adapter_name": "test_lora",
+            }
+
+            # Generate multiple times
+            for i in range(3):
+                result = lora_backend.generate(input_data)
+                assert "error" not in result
+                assert "choices" in result and len(result["choices"]) == 1
+
+                # Verify adapter is still loaded
+                assert hasattr(lora_backend.model, "peft_config")
+                assert "test_lora" in lora_backend.model.peft_config
+
+            # Verify generate was called 3 times
+            assert mock_generate.call_count == 3

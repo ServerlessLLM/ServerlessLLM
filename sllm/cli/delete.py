@@ -34,19 +34,33 @@ class DeleteCommand:
         delete_parser.add_argument(
             "models", nargs="+", type=str, help="Model names to delete."
         )
+        delete_parser.add_argument(
+            "--lora-adapters",
+            nargs="+",
+            type=str,
+            help="LoRA adapters to delete.",
+        )
         delete_parser.set_defaults(func=DeleteCommand)
 
     def __init__(self, args: Namespace) -> None:
         self.models = args.models
+        self.lora_adapters = getattr(args, "lora_adapters", None)
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "delete/"
         )
 
     def run(self) -> None:
         headers = {"Content-Type": "application/json"}
+        if self.lora_adapters is not None and len(self.models) > 1:
+            logger.error(
+                "You can only delete one model when using --lora-adapters."
+            )
+            exit(1)
 
         for model in self.models:
             data = {"model": model}
+            if self.lora_adapters is not None:
+                data["lora_adapters"] = self.lora_adapters
             response = requests.post(self.url, headers=headers, json=data)
 
             if response.status_code == 200:
