@@ -8,8 +8,8 @@ sidebar_position: 2
 To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md).
 
 We will use the following example base model & LoRA adapter
-    - Model: `facebook/opt-125m`
-    - LoRA adapter: `peft-internal-testing/opt-125m-dummy-lora`
+- Base model: `facebook/opt-125m`
+- LoRA adapter: `peft-internal-testing/opt-125m-dummy-lora`
 
 ## Usage
 
@@ -32,7 +32,7 @@ export MODEL_FOLDER=/path/to/your/models
 
 Replace `/path/to/your/models` with the actual path where you want to store the models.
 
-### Step 4: Start the Services
+### Step 3: Start the Services
 
 Start the ServerlessLLM services using Docker Compose:
 
@@ -50,7 +50,7 @@ docker logs -f sllm_head
 ```
 :::
 
-### Step 5: Deploy Models with LoRA Adapters
+### Step 4: Deploy Models with LoRA Adapters
 1. Configuration
 ```
 conda activate sllm
@@ -58,7 +58,7 @@ export LLM_SERVER_URL=http://127.0.0.1:8343/
 ```
 2. Deploy models with specified lora adapters.
 ```
-sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora=peft-internal-testing/opt-125m-dummy-lora
+sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora1=peft-internal-testing/opt-125m-dummy-lora demo_lora2=ft_facebook/opt-125m_adapter1
 ```
 3. Verify the deployment.
 ```
@@ -70,7 +70,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
         ],
-        "lora_adapter_name": "demo_lora"
+        "lora_adapter_name": "demo_lora1"
     }'
 ```
 If no lora adapters specified, the system will use the base model to do inference
@@ -85,7 +85,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
         ]
     }'
 ```
-### Step 6: Update LoRA Adapters
+### Step 5: Update LoRA Adapters
 If you wish to switch to a different set of LoRA adapters, you can still use `sllm-cli deploy` command with updated adapter configurations. ServerlessLLM will automatically reload the new adapters without restarting the backend.
 
 For example, to update the adapter (located at `ft_facebook/opt-125m_adapter1`) used by facebook/opt-125m:
