@@ -52,16 +52,16 @@ docker logs -f sllm_head
 
 ### Step 4: Deploy Models with LoRA Adapters
 1. Configuration
-```
+```bash
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343/
 ```
 2. Deploy models with specified lora adapters.
-```
-sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora1=peft-internal-testing/opt-125m-dummy-lora demo_lora2=ft_facebook/opt-125m_adapter1
+```bash
+sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora1=peft-internal-testing/opt-125m-dummy-lora demo_lora2=monsterapi/opt125M_alpaca
 ```
 3. Verify the deployment.
-```
+```bash
 curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
@@ -74,7 +74,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
     }'
 ```
 If no lora adapters specified, the system will use the base model to do inference
-```
+```bash
 curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
