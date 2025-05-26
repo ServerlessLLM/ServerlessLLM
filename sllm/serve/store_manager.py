@@ -27,6 +27,7 @@ from sllm.serve.hardware_info_collector import collect_all_info
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
     VllmModelDownloader,
+    download_lora_adapter,
     download_transformers_model,
 )
 from sllm.serve.utils import get_worker_nodes
@@ -467,6 +468,35 @@ class StoreManager:
         else:
             # TODO: apply new placement config, if given
             pass
+
+    async def register_lora_adapter(
+        self,
+        base_model_name,
+        adapter_name,
+        adapter_path,
+        backend_config,
+    ) -> int:
+        if base_model_name not in self.model_storage_info:
+            logger.error(
+                f"Base model {base_model_name} not found in storage info"
+            )
+            return -1
+
+        # Get the first node_id where the model is stored
+        node_id = next(iter(self.model_storage_info[base_model_name].keys()))
+
+        hf_model_class = backend_config.get("hf_model_class", None)
+        torch_dtype = backend_config.get("torch_dtype", "float16")
+        logger.info(f"Downloading {adapter_path} to {node_id}")
+        return await download_lora_adapter.options(
+            resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
+        ).remote(
+            base_model_name,
+            adapter_name,
+            adapter_path,
+            hf_model_class,
+            torch_dtype,
+        )
 
     async def download_transformers_model(
         self,
