@@ -26,6 +26,7 @@ ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 
 - [Storage-Aware Scheduler](./features/storage_aware_scheduling.md)
 - [Live Migration](./features/live_migration.md)
+- [PEFT LoRA Serving](./features/peft_lora_serving.md)
 
 ### ServerlessLLM Store
 
