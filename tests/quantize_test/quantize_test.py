@@ -36,7 +36,7 @@ def model_path(model_name, storage_path):
 def setup_models(model_name, storage_path):
     """Save the original model before tests."""
     os.makedirs(storage_path, exist_ok=True)
-    model = AutoModelForCausalLM.from_pretrained("facebook/opt-1.3b")
+    model = AutoModelForCausalLM.from_pretrained("facebook/opt-1.3b", torch_dtype=torch.float16)
     save_model(model, os.path.join(storage_path, "facebook/opt-1.3b"))
 
 
@@ -74,6 +74,7 @@ def hf_model(get_quantization_config, model_name):
         model_name,
         quantization_config=get_quantization_config,
         device_map="auto",
+        torch_dtype=torch.float16,
     )
     yield model
     del model
@@ -87,6 +88,7 @@ def sllm_model(get_quantization_config, model_name, storage_path):
         storage_path=storage_path,
         quantization_config=get_quantization_config,
         device_map="auto",
+        torch_dtype=torch.float16,
     )
     yield model
     del model
