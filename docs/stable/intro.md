@@ -17,14 +17,15 @@ ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 
 ### Getting Started
 
-- [Install ServerlessLLM](./getting_started/installation.md)
-- [Quickstart](./getting_started/quickstart.md)
-- [Quickstart with Docker](./getting_started/docker_quickstart.md)
-- [Multi-machine Quickstart](./getting_started/multi_machine_setup.md)
+- [Quickstart](./gettting_started.md)
+- [Single Machine Deployment (From Scratch)](./deployment/single_machine.md)
+- [Multi-machine Deployment](./deployment/multi_machine.md)
+- [SLURM Cluster Deployment](./deployment/slurm_cluster.md)
 
-### ServerlessLLM Serve
+### Advanced Features
 
-- [Storage-Aware Scheduler](./serve/storage_aware_scheduling.md)
+- [Storage-Aware Scheduler](./features/storage_aware_scheduling.md)
+- [Live Migration](./features/live_migration.md)
 
 ### ServerlessLLM Store
 
@@ -33,4 +34,4 @@ ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 
 ### ServerlessLLM CLI
 
-- [ServerlessLLM CLI API](./cli/cli_api.md)
+- [ServerlessLLM CLI API](../api/cli.md)

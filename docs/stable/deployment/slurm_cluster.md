@@ -87,7 +87,7 @@ srun --partition <your-partition> --nodelist <JobNode> --gres <DEVICE>:1 --pty b
 ```
 This command requests a session on the specified node and provides an interactive shell. `--gres <DEVICE>:1` specifies the GPU device you will use, for example: `--gres gpu:gtx_1060:1`
 
-### Step 2: Install from source
+### Step 2: Install ServerlessLLM
 Firstly, please make sure CUDA driver available on the node. Here are some commands to check it.
 ```shell
 nvidia-smi
@@ -99,7 +99,7 @@ If `nvidia-smi` has listed GPU information, but `which nvcc` has no output. Then
 export PATH=/opt/cuda-12.2.0/bin:$PATH
 export LD_LIBRARY_PATH=/opt/cuda-12.2.0/lib64:$LD_LIBRARY_PATH
 ```
-Then, following the [installation guide](./installation.md) to install from source.
+Then, following the [installation guide](./single_machine.md#installation) to install ServerlessLLM.
 ### Step 3: Prepare multiple windows with `tmux`
 Since srun provides a single interactive shell, you can use tmux to create multiple windows. Start a tmux session:
 ```shell
