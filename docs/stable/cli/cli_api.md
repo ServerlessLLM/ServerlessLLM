@@ -45,6 +45,8 @@ After setting up the ServerlessLLM cluster, you can use the commands listed belo
 ### sllm-cli deploy
 Deploy a model using a configuration file or model name, with options to overwrite default configurations. The configuration file requires minimal specifications, as sensible defaults are provided for advanced configuration options.
 
+This command also supports [PEFT LoRA (Low-Rank Adaptation)](https://huggingface.co/docs/peft/main/en/index), allowing you to deploy adapters on top of a base model, either via CLI flags or directly in the configuration file.
+
 For more details on the advanced configuration options and their default values, please refer to the [Example Configuration File](#example-configuration-file-configjson) section.
 
 ##### Usage
@@ -74,6 +76,12 @@ sllm-cli deploy [OPTIONS]
 - `--max-instances <number>`
   - Overwrite the maximum instances in the default configuration.
 
+- `--enable-lora`
+  - Enable LoRA adapter support for the transformers backend.
+
+- `--lora-adapters`
+  - Add one or more LoRA adapters in the format `<name>=<path>`. This will overwrite any existing lora_adapters in the config.
+
 ##### Examples
 Deploy using a model name with default configuration:
 ```bash
@@ -95,6 +103,11 @@ Deploy using a model name and overwrite multiple configurations:
 sllm-cli deploy --model facebook/opt-1.3b --num-gpus 2 --target 5 --min-instances 1 --max-instances 5
 ```
 
+Deploy a base model with multiple LoRA adapters:
+```bash
+sllm-cli deploy --model facebook/opt-1.3b --backend transformers --enable-lora --lora-adapters demo_lora1=crumb/FLAN-OPT-1.3b-LoRA demo_lora2=GrantC/alpaca-opt-1.3b-lora
+```
+
 ##### Example Configuration File (`config.json`)
 This file can be incomplete, and missing sections will be filled in by the default configuration:
 ```json
@@ -113,7 +126,12 @@ This file can be incomplete, and missing sections will be filled in by the defau
         "pretrained_model_name_or_path": "facebook/opt-1.3b",
         "device_map": "auto",
         "torch_dtype": "float16",
-        "hf_model_class": "AutoModelForCausalLM"
+        "hf_model_class": "AutoModelForCausalLM",
+        "enable_lora": true,
+        "lora_adapters": {
+            "demo_lora1": "crumb/FLAN-OPT-1.3b-LoRA",
+            "demo_lora2": "GrantC/alpaca-opt-1.3b-lora"
+        }
     }
 }
 ```
@@ -136,22 +154,37 @@ Below is a description of all the fields in config.json.
 | backend_config.device_map | Device map config used to load the model, `auto` is suitable for most scenarios. |
 | backend_config.torch_dtype | Torch dtype of the model. |
 | backend_config.hf_model_class | HuggingFace model class. |
+| backend_config.enable_lora | Set to true to enable loading LoRA adapters when inference. |
+| backend_config.lora_adapters| A dictionary of LoRA adapters in the format `{name: path}`, where each path is a local or Hugging Face-hosted LoRA adapter directory. |
 
 ### sllm-cli delete
-Delete deployed models by name.
+Delete deployed models by name, or delete specific LoRA adapters associated with a base model.
+
+This command supports:
+  - Removing deployed models
+  - Removing specific LoRA adapters while preserving the base model
 
 ##### Usage
 ```bash
-sllm-cli delete [MODELS]
+sllm-cli delete [MODELS] [OPTIONS]
 ```
 
 ##### Arguments
 - `MODELS`
   - Space-separated list of model names to delete.
 
+##### Options
+- `--lora-adapters <adapter_names>`
+  - Space-separated list of LoRA adapter names to delete from the given model. If provided, the base model will not be deleted — only the specified adapters will be removed.
+
 ##### Example
+Delete multiple base models (and all their adapters):
 ```bash
 sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b meta/llama2
+```
+Delete specific LoRA adapters from a base model, keeping the base model:
+```bash
+sllm-cli delete facebook/opt-1.3b --lora-adapters demo_lora1 demo_lora2
 ```
 
 ### sllm-cli generate
@@ -355,27 +388,4 @@ sllm-cli status
 #### Example
 ```bash
 sllm-cli status
-```
-
-### sllm-cli lora load
-Manually load a LoRA adapter into the specified model.
-
-#### Usage
-```bash
-sllm-cli lora load --model <base_model_name> --name <lora_adapter_name> --path <lora_adapter_path>
-```
-#### Example
-```bash
-sllm-cli lora load --model facebook/opt-125m --name demo_lora --path ft_facebook/opt-125m-adapter1
-```
-### sllm-cli lora unload
-Manually unload a LoRA adapter from the specified model.
-
-#### Usage
-```bash
-sllm-cli lora unload --model <base_model_name> --name <lora_adapter_name>
-```
-#### Example
-```bash
-sllm-cli lora unload --model facebook/opt-125m --name demo_lora
 ```
