@@ -77,10 +77,10 @@ sllm-cli deploy [OPTIONS]
   - Overwrite the maximum instances in the default configuration.
 
 - `--enable-lora`
-  - Enable LoRA adapter support for the transformers backend. This will overwrite enable_lora in the default configuration.
+  - Enable LoRA adapter support for the transformers backend. Overwrite `enable_lora` in the default configuration.
 
 - `--lora-adapters`
-  - Add one or more LoRA adapters in the format `<name>=<path>`. This will overwrite any existing lora_adapters in the default configuration.
+  - Add one or more LoRA adapters in the format `<name>=<path>`. Overwrite any existing `lora_adapters` in the default configuration.
 
 ##### Examples
 Deploy using a model name with default configuration:
@@ -154,7 +154,7 @@ Below is a description of all the fields in config.json.
 | backend_config.device_map | Device map config used to load the model, `auto` is suitable for most scenarios. |
 | backend_config.torch_dtype | Torch dtype of the model. |
 | backend_config.hf_model_class | HuggingFace model class. |
-| backend_config.enable_lora | Set to true to enable loading LoRA adapters when inference. |
+| backend_config.enable_lora | Set to true to enable loading LoRA adapters during inference. |
 | backend_config.lora_adapters| A dictionary of LoRA adapters in the format `{name: path}`, where each path is a local or Hugging Face-hosted LoRA adapter directory. |
 
 ### sllm-cli delete
