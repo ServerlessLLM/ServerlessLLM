@@ -11,7 +11,7 @@ class TestFineTuningCommand(unittest.TestCase):
     def test_fine_tuning_with_model_only(self, mock_read_config, mock_post):
         # Mock read_config to return a sample fine-tuning configuration
         mock_read_config.return_value = {
-            "model": "bigscience/bloomz-560m",
+            "model": "facebook/opt-125m",
             "ft_backend": "peft",
             "dataset_config": {
                 "dataset_source": "hf_hub",
@@ -41,23 +41,23 @@ class TestFineTuningCommand(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "model": "bigscience/bloomz-560m",
-            "lora_save_path": "./models/ft_bigscience",
+            "model": "facebook/opt-125m",
+            "lora_save_path": "./models/ft_facebook/opt-125m",
         }
         mock_post.return_value = mock_response
 
-        args = Namespace(base_model="bigscience/bloomz-560m", config=None)
+        args = Namespace(base_model="facebook/opt-125m", config=None)
         command = FineTuningCommand(args)
         command.run()
 
         mock_read_config.assert_called_once_with(command.config_path)
         mock_post.assert_called_once()
         self.assertEqual(
-            mock_post.call_args[1]["json"]["model"], "bigscience/bloomz-560m"
+            mock_post.call_args[1]["json"]["model"], "facebook/opt-125m"
         )
         self.assertEqual(
             mock_response.json.return_value["lora_save_path"],
-            "./models/ft_bigscience",
+            "./models/ft_facebook/opt-125m",
         )
 
     @patch("sllm.cli.fine_tuning.read_config")
@@ -67,7 +67,7 @@ class TestFineTuningCommand(unittest.TestCase):
             "ft_backend": "peft",
             "dataset_config": {"dataset_source": "hf_hub"},
         }
-        args = Namespace(base_model="bigscience/bloomz-560m", config=None)
+        args = Namespace(base_model="facebook/opt-125m", config=None)
         command = FineTuningCommand(args)
 
         with self.assertRaises(ValueError) as context:
@@ -79,7 +79,7 @@ class TestFineTuningCommand(unittest.TestCase):
     def test_fine_tuning_request_failure(self, mock_read_config, mock_post):
         # Simulate configuration
         mock_read_config.return_value = {
-            "model": "bigscience/bloomz-560m",
+            "model": "facebook/opt-125m",
             "ft_backend": "peft",
             "dataset_config": {
                 "dataset_source": "hf_hub",
@@ -97,7 +97,7 @@ class TestFineTuningCommand(unittest.TestCase):
         mock_response.text = "Internal Server Error"
         mock_post.return_value = mock_response
 
-        args = Namespace(base_model="bigscience/bloomz-560m", config=None)
+        args = Namespace(base_model="facebook/opt-125m", config=None)
         command = FineTuningCommand(args)
 
         with self.assertLogs("sllm.cli.fine_tuning", level="ERROR") as log:

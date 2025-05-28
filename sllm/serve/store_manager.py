@@ -27,6 +27,7 @@ from sllm.serve.hardware_info_collector import collect_all_info
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
     VllmModelDownloader,
+    download_lora_adapter,
     download_transformers_model,
 )
 from sllm.serve.utils import get_worker_nodes
@@ -77,15 +78,18 @@ class SllmLocalStore:
             model_path = self._get_model_path(model_name, backend)
             if backend == "transformers":
                 model_size = self.client.register_model(model_path)
+                self.disk_models[model_name] = ([model_path], model_size)
             elif backend == "vllm":
                 tensor_parallel_size = backend_config.get(
                     "tensor_parallel_size", 1
                 )
                 model_size = 0
+                model_path_list = []
                 for rank in range(tensor_parallel_size):
                     model_rank_path = os.path.join(model_path, f"rank_{rank}")
                     model_size += self.client.register_model(model_rank_path)
-            self.disk_models[model_name] = (model_path, model_size)
+                    model_path_list.append(model_rank_path)
+                self.disk_models[model_name] = (model_path_list, model_size)
             logger.info(f"{model_name} registered, {self.disk_models}")
 
         return model_size
@@ -149,7 +153,7 @@ class SllmLocalStore:
                 )
 
             model_name = model_info["model_name"]
-            model_path, model_size = self.disk_models[model_name]
+            model_path_list, model_size = self.disk_models[model_name]
             can_load = await self._lru_eviction(model_size)
             if not can_load:
                 logger.warning(
@@ -158,13 +162,18 @@ class SllmLocalStore:
                 await asyncio.sleep(1)
                 continue
             logger.info(f"Loading {model_name} to node {self.node_id}")
-            ret = self.client.load_into_cpu(model_path)
+            ret = 1
+            for model_path in model_path_list:
+                ret = ret and self.client.load_into_cpu(model_path)
             self.io_queue.pop(0)
             self.queued_models.pop(model_name)
             if not ret:
                 logger.error(f"Failed to load {model_name}")
                 continue
             self.pinned_memory_pool[model_name] = time.time()
+            self.pinned_memory_pool_usage += (
+                model_size + self.chunk_size - 1
+            ) // self.chunk_size
             logger.info(f"{model_name} loaded to host")
 
     async def _lru_eviction(self, model_size):
@@ -188,14 +197,13 @@ class SllmLocalStore:
             ):
                 model_name, _ = sorted_models.pop(0)
                 if model_name not in self.queued_models:
-                    model_path, _ = self.disk_models[model_name]
-                    self.client.unload_from_cpu(model_path)
+                    model_path_list, _ = self.disk_models[model_name]
+                    for model_path in model_path_list:
+                        self.client.unload_from_cpu(model_path)
                     self.pinned_memory_pool.pop(model_name)
                     unloaded_chunks = (
-                        self.disk_models[model_name]
-                        + self.pinned_memory_pool_chunks
-                        - 1
-                    ) // self.pinned_memory_pool_chunks
+                        self.disk_models[model_name][1] + self.chunk_size - 1
+                    ) // self.chunk_size
                     self.pinned_memory_pool_usage -= unloaded_chunks
                     logger.info(
                         f"{model_name} evicted {unloaded_chunks} chunks"
@@ -460,6 +468,35 @@ class StoreManager:
         else:
             # TODO: apply new placement config, if given
             pass
+
+    async def register_lora_adapter(
+        self,
+        base_model_name,
+        adapter_name,
+        adapter_path,
+        backend_config,
+    ) -> int:
+        if base_model_name not in self.model_storage_info:
+            logger.error(
+                f"Base model {base_model_name} not found in storage info"
+            )
+            return -1
+
+        # Get the first node_id where the model is stored
+        node_id = next(iter(self.model_storage_info[base_model_name].keys()))
+
+        hf_model_class = backend_config.get("hf_model_class", None)
+        torch_dtype = backend_config.get("torch_dtype", "float16")
+        logger.info(f"Downloading {adapter_path} to {node_id}")
+        return await download_lora_adapter.options(
+            resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1}
+        ).remote(
+            base_model_name,
+            adapter_name,
+            adapter_path,
+            hf_model_class,
+            torch_dtype,
+        )
 
     async def download_transformers_model(
         self,
