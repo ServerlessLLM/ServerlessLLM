@@ -77,10 +77,10 @@ sllm-cli deploy [OPTIONS]
   - Overwrite the maximum instances in the default configuration.
 
 - `--enable-lora`
-  - Enable LoRA adapter support for the transformers backend.
+  - Enable LoRA adapter support for the transformers backend. This will overwrite enable_lora in the default configuration.
 
 - `--lora-adapters`
-  - Add one or more LoRA adapters in the format `<name>=<path>`. This will overwrite any existing lora_adapters in the config.
+  - Add one or more LoRA adapters in the format `<name>=<path>`. This will overwrite any existing lora_adapters in the default configuration.
 
 ##### Examples
 Deploy using a model name with default configuration:
