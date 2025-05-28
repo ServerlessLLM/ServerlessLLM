@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Getting Started
 
-This guide demonstrates how to quickly set up a local ServerlessLLM cluster using Docker Compose. We will initialize a minimal cluster, consisting of a head node and a single worker node. Then, we'll deploy a model using the `sllm-cli` and query the deployment through an OpenAI-compatible API.
+This guide demonstrates how to quickly set up a local ServerlessLLM cluster using Docker Compose on a single machine. We will initialize a minimal cluster, consisting of a head node and a single worker node. Then, we'll deploy a model using the `sllm-cli` and query the deployment through an OpenAI-compatible API.
 
 :::note
 We strongly recommend using Docker (Compose) to manage your ServerlessLLM cluster, whether you are using ServerlessLLM for testing or development. However, if Docker is not a viable option for you, please refer to the [deploy from scratch guide](./deployment/single_machine.md).
