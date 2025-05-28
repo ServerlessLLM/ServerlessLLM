@@ -131,17 +131,20 @@ def create_app() -> FastAPI:
     async def fine_tuning_handler(request: Request):
         body = await request.json()
         model_name = body.get("model")
-        logger.info(f"Received request for model {model_name}")
+        logger.info(f"Received fine tuning request for model {model_name}")
         if not model_name:
             raise HTTPException(
                 status_code=400, detail="Missing model_name in request body"
             )
+        controller = ray.get_actor("controller")
+        if not controller:
+            raise HTTPException(
+                status_code=500, detail="Controller not initialized"
+            )
 
-        request_router = ray.get_actor(model_name, namespace="models")
-        logger.info(f"Got request router for {model_name}")
-
-        result = request_router.fine_tuning.remote(body)
-        return await result
+        controller.register_ft_job.remote(body)
+        job_id = str(uuid.uuid4())
+        return {"job_id": job_id}
 
     @app.post("/v1/chat/completions")
     async def generate_handler(request: Request):

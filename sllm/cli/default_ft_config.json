@@ -1,6 +1,6 @@
 {
     "model": "",
-    "ft_backend": "peft",
+    "ft_backend": "peft_lora",
     "output_dir": "ft_facebook/opt-125m_adapter1",
     "dataset_config": {
         "dataset_source": "hf_hub",
