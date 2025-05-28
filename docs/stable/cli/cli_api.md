@@ -165,7 +165,12 @@ sllm deploy --model facebook/opt-1.3b --num-gpus 2 --target 5 --min-instances 1 
         "pretrained_model_name_or_path": "facebook/opt-1.3b",
         "device_map": "auto",
         "torch_dtype": "float16",
-        "hf_model_class": "AutoModelForCausalLM"
+        "hf_model_class": "AutoModelForCausalLM",
+        "enable_lora": true,
+        "lora_adapters": {
+            "demo_lora1": "crumb/FLAN-OPT-1.3b-LoRA",
+            "demo_lora2": "GrantC/alpaca-opt-1.3b-lora"
+        }
     }
 }
 ```
@@ -188,6 +193,8 @@ sllm deploy --model facebook/opt-1.3b --num-gpus 2 --target 5 --min-instances 1 
 | backend_config.device_map | Device map config used to load the model. |
 | backend_config.torch_dtype | Torch dtype of the model. |
 | backend_config.hf_model_class | HuggingFace model class. |
+| backend_config.enable_lora | Set to true to enable loading LoRA adapters during inference. |
+| backend_config.lora_adapters| A dictionary of LoRA adapters in the format `{name: path}`, where each path is a local or Hugging Face-hosted LoRA adapter directory. |
 
 ---
 
@@ -212,6 +219,10 @@ sllm delete facebook/opt-1.3b facebook/opt-2.7b meta/llama2
 [✓] Deleted model: facebook/opt-1.3b
 [✓] Deleted model: facebook/opt-2.7b
 [✓] Deleted model: meta/llama2
+```
+Delete specific LoRA adapters from a base model, keeping the base model:
+```bash
+sllm-cli delete facebook/opt-1.3b --lora-adapters demo_lora1 demo_lora2
 ```
 
 ---
