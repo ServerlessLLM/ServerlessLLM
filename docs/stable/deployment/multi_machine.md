@@ -109,9 +109,12 @@ Replace `/path/to/your/models` with the actual path where you want to store the 
 2. **Start the worker node:**
 
 ```bash
-# Replace with the actual IP address of the head node
+# Replace with the actual IP address of the head node from the previous step
+# DO NOT copy-paste this line directly - update with your actual head node IP
 export HEAD_IP=192.168.1.100
+```
 
+```bash
 # Get the worker machine's IP address that will be accessible to the head node
 export WORKER_IP=$(hostname -I | awk '{print $1}')
 echo "Worker node IP address: $WORKER_IP"
@@ -138,32 +141,39 @@ Make sure to replace `192.168.1.100` with the actual IP address of your head nod
 
 3. **Verify worker node is connected:**
 
-On the worker machine, check the container logs:
+On the worker machine, check if the worker has properly connected to the Ray cluster:
 
 ```bash
-docker logs sllm_worker_0
+docker exec -it sllm_worker_0 bash -c "source /opt/conda/etc/profile.d/conda.sh && conda activate worker && ray status"
 ```
 
-Expected output should include:
+Expected output should include both the head node and worker node resources:
 
-```bash
-Executing: ray start --address=192.168.1.100:6379 --resources='{"worker_node": 1, "worker_id_0": 1}'
-INFO 12-31 17:09:35 cli.py:58] Starting gRPC server
-INFO 12-31 17:09:35 server.py:34] StorageServicer: storage_path=/models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=true
-INFO 12-31 17:09:38 server.py:243] Starting gRPC server on 0.0.0.0:8073
+```
+======== Autoscaler status: ========
+Node status
+---------------------------------------------------------------
+Healthy:
+ 1 ray.head.default
+ 1 ray.worker.default
+Pending:
+ (no pending nodes)
+Recent failures:
+ (no failures)
+
+Resources
+---------------------------------------------------------------
+Usage:
+ 0.0/30.0 CPU
+ 0.0/1.0 GPU
+ 0.0/7.1 GiB memory
+ 0.0/3.3 GiB object_store_memory
+ 1.0/1.0 control_node
+ 1.0/1.0 worker_id_0
+ 1.0/1.0 worker_node
 ```
 
-You should see that the worker has successfully connected to the head node's IP address.
-
-4. **Verify the cluster status on the head node:**
-
-You can check if all nodes are properly connected by running:
-
-```bash
-docker exec -it sllm_head bash -c "source /opt/conda/etc/profile.d/conda.sh && conda activate head && ray status"
-```
-
-This should show information about all connected nodes, including their resources and status.
+This output confirms that both the head node and worker node are properly connected and their resources are recognized by the Ray cluster.
 
 :::tip
 **Adding more worker nodes:** You can add more worker nodes by repeating Step 2 on additional machines with GPUs. Just make sure to:
@@ -198,22 +208,6 @@ Expected output:
 INFO 07-24 06:51:32 deploy.py:83] Model registered successfully.
 ```
 
-#### Delete a Deployed Model Using `sllm-cli`
-
-- To delete a deployed model, use the following command:
-
-```bash
-sllm-cli delete facebook/opt-1.3b
-```
-
-This will remove the specified model from the ServerlessLLM server.
-
-- You can also remove several models at once by providing multiple model names separated by spaces:
-
-```bash
-sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
-```
-
 ### Step 4: Query the Model Using OpenAI API Client
 
 **You can query the model using any OpenAI API client. For example, use the following command:**
@@ -238,6 +232,22 @@ Expected output:
 
 ```json
 {"id":"chatcmpl-23d3c0e5-70a0-4771-acaf-bcb2851c6ea6","object":"chat.completion","created":1721706121,"model":"facebook/opt-1.3b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}
+```
+
+#### Delete a Deployed Model Using `sllm-cli`
+
+When you're done using a model, you can delete it:
+
+```bash
+sllm-cli delete facebook/opt-1.3b
+```
+
+This will remove the specified model from the ServerlessLLM server.
+
+You can also remove several models at once by providing multiple model names separated by spaces:
+
+```bash
+sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
 ```
 
 ## Clean Up
