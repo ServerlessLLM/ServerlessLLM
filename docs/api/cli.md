@@ -24,7 +24,7 @@ pip install serverless-llm
 
 Before using the `sllm-cli` commands, you need to start the ServerlessLLM cluster. Follow the guides below to set up your cluster:
 
-- [Single Machine Deployment](../stable/gettting_started.md)
+- [Single Machine Deployment](../stable/getting_started.md)
 - [Single Machine Deployment (From Scratch)](../stable/deployment/single_machine.md)
 - [Multi-Machine Deployment](../stable/deployment/multi_machine.md)
 - [SLURM Cluster Deployment](../stable/deployment/slurm_cluster.md)

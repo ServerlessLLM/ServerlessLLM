@@ -11,7 +11,7 @@ This example illustrates the live migration of inference instances in a Serverle
 
 ## Prerequisites
 
-To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md).
+To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Quickstart Guide](../getting_started.md).
 
 **Requirements:**
 
