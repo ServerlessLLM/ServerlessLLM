@@ -125,7 +125,6 @@ Before using ServerlessLLM with vLLM, you need to apply a compatibility patch to
 
 2. **Apply the patch**:
    ```bash
-   conda activate sllm-worker
    ./sllm_store/vllm_patch/patch.sh
    ```
 
