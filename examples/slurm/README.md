@@ -1,9 +1,9 @@
 # SLURM-based HPC Cluster Setup Guide
-This guide will help you deploy ServerlessLLM on a SLURM-based HPC (High Performance Computing) cluster. Please make sure you have installed the ServerlessLLM following the [installation guide](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) on all machines.
+This guide will help you deploy ServerlessLLM on a SLURM-based HPC (High Performance Computing) cluster. Please make sure you have installed the ServerlessLLM following the [installation guide](https://serverlessllm.github.io/docs/stable/deployment/single_machine#installation) on all machines.
 ## Some Tips about Installation
 - **Both installation and build require an internet connection**. please make sure the port 443 on the node you want to install is accessible.
-- We recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-with-pip) if there is no CUDA driver on the node you want to install.
-If you want to [install from source](https://serverlessllm.github.io/docs/stable/getting_started/installation#installing-from-source), please make sure CUDA driver available on the node you want to install.
+- We recommend using [installing with pip](https://serverlessllm.github.io/docs/stable/deployment/single_machine#installing-with-pip) if there is no CUDA driver on the node you want to install.
+If you want to [install from source](https://serverlessllm.github.io/docs/stable/deployment/single_machine#installing-from-source), please make sure CUDA driver available on the node you want to install.
 Here are some commands to check it.
 ```shell
 module avail cuda # if you can see some CUDA options, it means CUDA is available, then load the cuda module
