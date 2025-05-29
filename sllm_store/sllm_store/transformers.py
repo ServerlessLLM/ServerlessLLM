@@ -302,6 +302,13 @@ def fully_parallel_load(
                     except Exception:
                         load_parameter_into_model(model, name, param)
             hf_quantizer.postprocess_model(model)
+
+            for module in model.modules():
+                for attr_name in ("bias", "weight"):
+                    param = getattr(module, attr_name, None)
+                    if isinstance(param, torch.Tensor) and param.dtype != torch_dtype:
+                        param.data = param.data.to(torch_dtype)
+
             model.hf_quantizer = hf_quantizer
 
         else:
