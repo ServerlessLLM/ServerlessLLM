@@ -6,14 +6,14 @@ docker compose -f docker-compose.yml -f enable-migration.yml up -d
 
 ```bash
 conda activate sllm
-export LLM_SERVER_URL=http://127.0.0.1:8343/
+export LLM_SERVER_URL=http://127.0.0.1:8343
 
 sllm-cli deploy --config config-qwen-3b.json
 sllm-cli deploy --config config-qwen-1.5b.json
 ```
 
 ```bash
-curl http://127.0.0.1:8343/v1/chat/completions \
+curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "Qwen/Qwen2.5-3B-Instruct",
@@ -26,7 +26,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
 
 sleep 3
 
-curl http://127.0.0.1:8343/v1/chat/completions \
+curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "Qwen/Qwen2.5-1.5B-Instruct",

@@ -20,54 +20,53 @@ from argparse import Namespace, _SubParsersAction
 
 import requests
 
+from sllm.cli._cli_utils import read_config
 from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-class DeleteCommand:
+class StatusCommand:
     @staticmethod
     def register_subcommand(parser: _SubParsersAction):
-        delete_parser = parser.add_parser(
-            "delete", help="Delete deployed models by name."
+        status_parser = parser.add_parser(
+            "status",
+            help="Query the information of registered models.",
         )
-        delete_parser.add_argument(
-            "models", nargs="+", type=str, help="Model names to delete."
-        )
-        delete_parser.add_argument(
-            "--lora-adapters",
-            nargs="+",
-            type=str,
-            help="LoRA adapters to delete.",
-        )
-        delete_parser.set_defaults(func=DeleteCommand)
+        status_parser.set_defaults(func=StatusCommand)
 
     def __init__(self, args: Namespace) -> None:
-        self.models = args.models
-        self.lora_adapters = getattr(args, "lora_adapters", None)
+        self.endpoint = "/v1/models"  # TODO: as an argument
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343") + "/delete"
+            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343") + self.endpoint
         )
 
     def run(self) -> None:
-        headers = {"Content-Type": "application/json"}
-        if self.lora_adapters is not None and len(self.models) > 1:
-            logger.error(
-                "You can only delete one model when using --lora-adapters."
-            )
-            exit(1)
+        status = self.query_status()
+        if status:
+            print(f"Model status: {status}")
+        else:
+            logger.error("Failed to fetch model status.")
 
-        for model in self.models:
-            data = {"model": model}
-            if self.lora_adapters is not None:
-                data["lora_adapters"] = self.lora_adapters
-            response = requests.post(self.url, headers=headers, json=data)
+    def query_status(self) -> dict:
+        headers = {"Content-Type": "application/json"}
+        try:
+            # Send GET request to the status endpoint
+            response = requests.get(self.url, headers=headers)
 
             if response.status_code == 200:
-                logger.info(
-                    f"Successfully sent the request to delete model {model}"
-                )
+                logger.info("Status query successful.")
+                try:
+                    return response.json()
+                except ValueError:
+                    logger.error("Invalid JSON response received.")
+                    return None
             else:
                 logger.error(
-                    f"Failed to delete model: {model}. Status code: {response.status_code}. Response: {response.text}"
+                    f"Failed to query status. Status code: {response.status_code}"
                 )
+                logger.error(f"Response: {response.text}")
+                return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed:{str(e)}")
+            return None
