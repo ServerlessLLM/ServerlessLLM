@@ -1,0 +1,59 @@
+name: Sync Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ServerlessLLM repo
+        uses: actions/checkout@v3
+        with:
+          path: source
+
+      - name: Checkout Documentation repo
+        uses: actions/checkout@v3
+        with:
+          repository: ServerlessLLM/serverlessllm.github.io
+          path: docs-site
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Prepare documentation content
+        run: |
+          # Remove existing docs content in the docs-site
+          rm -rf docs-site/docs/*
+          rm -rf docs-site/static/img/*
+          # Copy new docs content
+          cp -r source/docs/* docs-site/docs/
+          # Copy images to the static/img directory (as mentioned in README)
+          if [ -d "source/docs/images" ]; then
+            mkdir -p docs-site/static/img
+            cp -r source/docs/images/* docs-site/static/img/
+          fi
+
+      - name: Commit and push changes
+        run: |
+          cd docs-site
+          git config user.name "${{ vars.GIT_USERNAME }}"
+          git config user.email "${{ vars.GIT_EMAIL }}"
+
+          # Check if there are changes to commit
+          if git status --porcelain | grep .; then
+            git add -A
+            git commit -m "Update documentation from main repository"
+
+            # Set up authentication with the PAT (this still needs to be a secret)
+            git remote set-url origin https://${{ vars.GIT_USERNAME }}:${{ secrets.DOCS_GITHUB_TOKEN }}@github.com/ServerlessLLM/serverlessllm.github.io.git
+            git push
+          else
+            echo "No changes to commit"
+          fi
