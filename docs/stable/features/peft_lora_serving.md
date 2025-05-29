@@ -5,7 +5,7 @@ sidebar_position: 2
 
 ## Pre-requisites
 
-To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md).
+To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Quickstart Guide](../getting_started.md).
 
 We will use the following example base model & LoRA adapter
 - Base model: `facebook/opt-125m`

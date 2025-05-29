@@ -56,7 +56,7 @@ conda activate sllm
 pip install serverless-llm
 ```
 
-2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/gettting_started.md).
+2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started.md).
 
 3. Want to try fast checkpoint loading in your own code? Check out the [ServerlessLLM Store Guide](https://serverlessllm.github.io/docs/stable/store/quickstart).
 

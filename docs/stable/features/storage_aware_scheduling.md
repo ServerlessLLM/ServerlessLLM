@@ -6,7 +6,7 @@ sidebar_position: 0
 
 ## Pre-requisites
 
-We will use Docker Compose to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md) before proceeding.
+We will use Docker Compose to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Quickstart Guide](../getting_started.md) before proceeding.
 
 ## Usage
 
