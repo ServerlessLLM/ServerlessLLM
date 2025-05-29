@@ -478,6 +478,7 @@ def best_effort_load(
                     logger.debug(f"Using precision: {quantization_config.bits}")
 
             torch_dtype = torch_dtype or torch.float16
+            model = model.to(torch_dtype)
             hf_quantizer = AutoHfQuantizer.from_config(
                 quantization_config, pre_quantized=False
             )
@@ -488,7 +489,6 @@ def best_effort_load(
             client = SllmStoreClient("127.0.0.1:8073")
             client.confirm_model_loaded(model_path, replica_uuid)
 
-            model = model.to(torch_dtype)
             for name, param in state_dict.items():
                 param = param.to(torch_dtype)
                 if hf_quantizer.check_quantized_param(
