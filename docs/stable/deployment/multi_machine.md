@@ -149,13 +149,14 @@ docker exec -it sllm_worker_0 bash -c "source /opt/conda/etc/profile.d/conda.sh 
 
 Expected output should include both the head node and worker node resources:
 
-```
-======== Autoscaler status: ========
+```bash
+> docker exec -it sllm_worker_0 bash -c "source /opt/conda/etc/profile.d/conda.sh && conda activate worker && ray status"
+======== Autoscaler status: 2025-05-29 14:42:30.434645 ========
 Node status
 ---------------------------------------------------------------
-Healthy:
- 1 ray.head.default
- 1 ray.worker.default
+Active:
+ 1 node_f0a8e97ca64c64cebd551f469a38d0d66ce304f7cc1cc9696fe33cf3
+ 1 node_3b7db178afb8bdb16460d0cb6463dc7b9b3afbcc00753c3be110c9b3
 Pending:
  (no pending nodes)
 Recent failures:
@@ -164,13 +165,16 @@ Recent failures:
 Resources
 ---------------------------------------------------------------
 Usage:
- 0.0/30.0 CPU
+ 3.0/52.0 CPU
  0.0/1.0 GPU
- 0.0/7.1 GiB memory
- 0.0/3.3 GiB object_store_memory
- 1.0/1.0 control_node
- 1.0/1.0 worker_id_0
- 1.0/1.0 worker_node
+ 0.30000000000000004/1.0 control_node
+ 0B/526.36GiB memory
+ 0B/18.63GiB object_store_memory
+ 0.0/1.0 worker_id_0
+ 0.0/1.0 worker_node
+
+Demands:
+ (no resource demands)
 ```
 
 This output confirms that both the head node and worker node are properly connected and their resources are recognized by the Ray cluster.
