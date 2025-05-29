@@ -65,6 +65,17 @@ class DeployCommand:
             type=int,
             help="Overwrite the maximum instances in the default configuration.",
         )
+        deploy_parser.add_argument(
+            "--enable-lora",
+            action="store_true",
+            help="Enable LoRA adapter support.",
+        )
+        deploy_parser.add_argument(
+            "--lora-adapters",
+            type=str,
+            nargs="+",
+            help="Specify LoRA adapters in the format <name>=<path>.",
+        )
         deploy_parser.set_defaults(func=DeployCommand)
 
     def __init__(self, args: Namespace) -> None:
@@ -75,12 +86,30 @@ class DeployCommand:
         self.target = args.target
         self.min_instances = args.min_instances
         self.max_instances = args.max_instances
+        self.enable_lora = args.enable_lora
+        self.lora_adapters = (
+            self.parse_lora_adapters(args.lora_adapters)
+            if args.lora_adapters
+            else None
+        )
         self.url = (
             os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "register"
         )
         self.default_config_path = os.path.join(
             os.path.dirname(__file__), "default_config.json"
         )
+
+    def parse_lora_adapters(self, lora_adapters):
+        parsed_modules = {}
+        if lora_adapters:
+            for module in lora_adapters:
+                if "=" not in module:
+                    raise ValueError(
+                        f"Invalid LoRA module format: {module}. Expected <name>=<path>."
+                    )
+                name, path = module.split("=", 1)
+                parsed_modules[name] = path
+        return parsed_modules
 
     def validate_config(self, config_data: dict) -> None:
         """Validate the provided configuration data to ensure correctness."""
@@ -156,12 +185,21 @@ class DeployCommand:
             logger.error("You must specify either --model or --config.")
             exit(1)
 
+        if self.enable_lora:
+            config_data["backend_config"]["enable_lora"] = True
+            config_data["backend_config"]["lora_adapters"] = self.lora_adapters
+
         self.validate_config(config_data)
         logger.info(f"Deploying model {config_data['model']}.")
         self.deploy_model(config_data)
 
     def deploy_model(self, config_data: dict) -> None:
         headers = {"Content-Type": "application/json"}
+
+        if "lora_adapters" in config_data["backend_config"]:
+            logger.info(
+                f"Using LoRA modules: {config_data['backend_config']['lora_adapters']}"
+            )
 
         # Send POST request to the /register endpoint
         response = requests.post(self.url, headers=headers, json=config_data)
