@@ -29,7 +29,7 @@ The CLI organizes commands into clearly scoped modules. This document outlines e
 
 Before using the `sllm` commands, you need to start the ServerlessLLM cluster. Follow the guides below to set up your cluster:
 
-- [Single Machine Deployment](../stable/gettting_started.md)
+- [Single Machine Deployment](../stable/getting_started.md)
 - [Single Machine Deployment (From Scratch)](../stable/deployment/single_machine.md)
 - [Multi-Machine Deployment](../stable/deployment/multi_machine.md)
 - [SLURM Cluster Deployment](../stable/deployment/slurm_cluster.md)

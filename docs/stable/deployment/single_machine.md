@@ -7,7 +7,7 @@ sidebar_position: 1
 This guide provides instructions for setting up ServerlessLLM from scratch on a single machine. This 'from scratch' approach means you will manually initialize and manage the Ray cluster components. It involves using multiple terminal sessions, each configured with a distinct Conda environment, to run the head and worker processes on the same physical machine, effectively simulating a multi-node deployment locally.
 
 :::note
-We strongly recommend using Docker (Compose) as detailed in the [Docker Compose guide](../gettting_started.md). Docker provides a smoother and generally easier setup process. Follow this guide only if Docker is not a suitable option for your environment.
+We strongly recommend using Docker (Compose) as detailed in the [Docker Compose guide](../getting_started.md). Docker provides a smoother and generally easier setup process. Follow this guide only if Docker is not a suitable option for your environment.
 :::
 
 ## Installation
