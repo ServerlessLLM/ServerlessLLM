@@ -6,7 +6,9 @@ import pytest
 import torch
 from transformers import (
     AutoModelForCausalLM,
+    AutoTokenizer,
     BitsAndBytesConfig,
+    GPTQConfig,
 )
 
 from sllm_store.transformers import load_model, save_model
@@ -31,12 +33,10 @@ def model_path(model_name, storage_path):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_models(model_name, storage_path):
+def setup_models(storage_path):
     """Save the original model before tests."""
     os.makedirs(storage_path, exist_ok=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        "facebook/opt-1.3b", torch_dtype=torch.float16
-    )
+    model = AutoModelForCausalLM.from_pretrained("facebook/opt-1.3b", torch_dtype=torch.float16)
     save_model(model, os.path.join(storage_path, "facebook/opt-1.3b"))
 
 
@@ -49,6 +49,17 @@ def setup_models(model_name, storage_path):
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_quant_type="nf4",
+        ),
+        GPTQConfig(
+            bits=4,
+            group_size=128,
+            desc_act=False,
+            sym=True,
+            true_sequential=True,
+            disable_exllama=True,
+            skip_modules=["lm_head"],
+            dataset="wikitext2",
+            tokenizer=AutoTokenizer.from_pretrained("facebook/opt-1.3b"),
         ),
     ]
 )
