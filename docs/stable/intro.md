@@ -17,7 +17,7 @@ ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 
 ### Getting Started
 
-- [Quickstart](./gettting_started.md)
+- [Quickstart](./getting_started.md)
 - [Single Machine Deployment (From Scratch)](./deployment/single_machine.md)
 - [Multi-machine Deployment](./deployment/multi_machine.md)
 - [SLURM Cluster Deployment](./deployment/slurm_cluster.md)
