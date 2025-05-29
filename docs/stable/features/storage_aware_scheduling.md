@@ -68,7 +68,7 @@ In the `examples/storage_aware_scheduling` directory, the example configuration 
 
 ```bash
 conda activate sllm
-export LLM_SERVER_URL=http://127.0.0.1:8343/
+export LLM_SERVER_URL=http://127.0.0.1:8343
 
 sllm-cli deploy --config config-opt-2.7b.json
 sllm-cli deploy --config config-opt-1.3b.json
@@ -77,7 +77,7 @@ sllm-cli deploy --config config-opt-1.3b.json
 3. Verify the deployment.
 
 ```bash
-curl http://127.0.0.1:8343/v1/chat/completions \
+curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-2.7b",
@@ -87,7 +87,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
         ]
     }'
 
-curl http://127.0.0.1:8343/v1/chat/completions \
+curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",

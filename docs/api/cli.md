@@ -1,15 +1,33 @@
+---
+sidebar_position: 2
+---
+
+# CLI API
+
 ## ServerlessLLM CLI Documentation
 
 ### Overview
 `sllm-cli` is a command-line interface (CLI) tool designed to manage and interact with ServerlessLLM models. This document provides an overview of the available commands and their usage.
 
+### Installation
+
+```bash
+# Create a new environment
+conda create -n sllm python=3.10 -y
+conda activate sllm
+
+# Install ServerlessLLM
+pip install serverless-llm
+```
+
 ### Getting Started
 
 Before using the `sllm-cli` commands, you need to start the ServerlessLLM cluster. Follow the guides below to set up your cluster:
 
-- [Installation Guide](../getting_started/installation.md)
-- [Docker Quickstart Guide](../getting_started/docker_quickstart.md)
-- [Quickstart Guide](../getting_started/quickstart.md)
+- [Single Machine Deployment](../stable/gettting_started.md)
+- [Single Machine Deployment (From Scratch)](../stable/deployment/single_machine.md)
+- [Multi-Machine Deployment](../stable/deployment/multi_machine.md)
+- [SLURM Cluster Deployment](../stable/deployment/slurm_cluster.md)
 
 After setting up the ServerlessLLM cluster, you can use the commands listed below to manage and interact with your models.
 

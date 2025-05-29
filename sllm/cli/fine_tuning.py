@@ -50,8 +50,8 @@ class FineTuningCommand:
         self.base_model = args.base_model
         self.config_path = args.config
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
-            + "fine-tuning"
+            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
+            + "/fine-tuning"
         )
 
     def validate_config(self, config_data: dict) -> None:
