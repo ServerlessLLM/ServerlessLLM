@@ -111,7 +111,7 @@ Replace `/path/to/your/models` with the actual path where you want to store the 
 ```bash
 # Replace with the actual IP address of the head node from the previous step
 # DO NOT copy-paste this line directly - update with your actual head node IP
-export HEAD_IP=192.168.1.100
+export HEAD_IP=<HEAD_NODE_IP>
 ```
 
 ```bash
@@ -243,12 +243,6 @@ sllm-cli delete facebook/opt-1.3b
 ```
 
 This will remove the specified model from the ServerlessLLM server.
-
-You can also remove several models at once by providing multiple model names separated by spaces:
-
-```bash
-sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
-```
 
 ## Clean Up
 
