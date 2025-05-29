@@ -22,6 +22,7 @@ from typing import Dict, List, Optional
 
 import ray
 
+from sllm.serve.fine_tuning_instance import start_ft_instance
 from sllm.serve.inference_instance import start_instance
 from sllm.serve.logger import init_logger
 
@@ -204,27 +205,24 @@ class RoundRobinRouter(SllmRouter):
         async with self.fine_tuning_count_lock:
             self.fine_tuning_count += 1
 
-        instance_allocation = self.loop.create_future()
-        await self.request_queue.put(instance_allocation)
-        logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
-
-        instance_id = await instance_allocation
-        logger.info(f"{request_data}, type: {type(request_data)}")
+        instance_id = await self._create_ft_instance()
         async with self.instance_management_lock:
             if instance_id not in self.ready_instances:
-                logger.error(f"Instance {instance_id} not found")
-                return {"error": "Instance not found"}
+                logger.error(f"Fine tuning instance {instance_id} not found")
+                return {"error": "Fine tuning instance not found"}
             instance = self.ready_instances[instance_id]
-            instance.concurrency = 1
 
         result = await instance.backend_instance.fine_tuning.remote(
             request_data=request_data
         )
 
-        logger.info(f"Finished processing fine-tuning")
+        logger.info(f"Finished processing fine-tuning {self.model_name}")
         await instance.add_requests(-1)
         async with self.fine_tuning_count_lock:
             self.fine_tuning_count -= 1
+
+        # the fine-tuning job is done, shutdown the instance
+        await self._shutdown_instance(instance_id)
         return result
 
     async def delete_adapters(self, lora_adapters: List[str]):
@@ -357,6 +355,23 @@ class RoundRobinRouter(SllmRouter):
 
         return instance_id
 
+    async def _create_ft_instance(self):
+        instance_id = self._new_instance_id()
+        logger.info(
+            f"Creating new FT instance {instance_id} for model {self.model_name}"
+        )
+
+        instance = InstanceHandle(
+            instance_id=instance_id,
+            max_queue_length=1,
+            num_gpu=self.resource_requirements["num_gpus"],
+        )
+        async with self.instance_management_lock:
+            self.starting_instances[instance_id] = instance
+
+        self.loop.create_task(self._start_ft_instance(instance_id))
+        return instance_id
+
     async def _start_instance(self, instance_id):
         async with self.instance_management_lock:
             if instance_id not in self.starting_instances:
@@ -397,6 +412,52 @@ class RoundRobinRouter(SllmRouter):
         logger.info(
             f"Started instance {instance_id} for model {self.model_name}"
         )
+        instance.backend_instance = ray.get_actor(instance_id)
+        async with instance.lock:
+            instance.ready = True
+            instance.node_id = startup_node
+        await instance.backend_instance.init_backend.remote()
+
+        async with self.instance_management_lock:
+            self.ready_instances[instance_id] = instance
+            self.starting_instances.pop(instance_id)
+        return instance_id
+
+    async def _start_ft_instance(self, instance_id: str):
+        async with self.instance_management_lock:
+            if instance_id not in self.starting_instances:
+                logger.error(f"FT Instance {instance_id} not found")
+                return
+            instance = self.starting_instances[instance_id]
+
+        logger.info(
+            f"Allocating FT resources for model {self.model_name} on {instance_id}"
+        )
+        startup_node = (
+            await self.model_loading_scheduler.allocate_resource.remote(
+                self.model_name, instance_id, self.resource_requirements
+            )
+        )
+
+        startup_config = {
+            "num_cpus": self.resource_requirements["num_cpus"],
+            "num_gpus": self.resource_requirements["num_gpus"],
+            "resources": {
+                "worker_node": 0.1,
+                f"worker_id_{startup_node}": 0.1,
+            },
+        }
+
+        await start_ft_instance.options(
+            resources=startup_config["resources"]
+        ).remote(
+            instance_id,
+            self.backend,
+            self.model_name,
+            self.backend_config,
+            startup_config,
+        )
+
         instance.backend_instance = ray.get_actor(instance_id)
         async with instance.lock:
             instance.ready = True

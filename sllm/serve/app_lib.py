@@ -142,8 +142,7 @@ def create_app() -> FastAPI:
                 status_code=500, detail="Controller not initialized"
             )
 
-        controller.register_ft_job.remote(body)
-        job_id = str(uuid.uuid4())
+        job_id = await controller.register_ft_job.remote(body)
         return {"job_id": job_id}
 
     @app.post("/v1/chat/completions")

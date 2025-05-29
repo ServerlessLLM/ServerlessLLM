@@ -23,7 +23,7 @@ from typing import List, Mapping, Optional
 
 import ray
 
-from sllm.serve.job_store import JobStore
+from sllm.serve.fine_tuning_job_store import JobStore
 from sllm.serve.logger import init_logger
 from sllm.serve.routers import MigrationRouter, RoundRobinRouter
 from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
@@ -183,8 +183,8 @@ class SllmController:
         job_info = {
             "config": job_config,
             "status": "pending",
-            "created_at": datetime.datetime.now().isoformat(),
-            "updated_at": datetime.datetime.now().isoformat(),
+            "created_time": datetime.datetime.now().isoformat(),
+            "updated_time": datetime.datetime.now().isoformat(),
         }
         await self.job_store.add_job.remote(job_id, job_info)
         return job_id
@@ -203,7 +203,7 @@ class SllmController:
                 # Sort jobs by priority/age
                 sorted_jobs = sorted(
                     pending_jobs.items(),
-                    key=lambda x: (x[1]["priority"], x[1]["created_at"]),
+                    key=lambda x: (x[1]["priority"], x[1]["created_time"]),
                 )
 
                 # Process jobs based on available resources
@@ -384,7 +384,7 @@ class SllmController:
             await self.job_store.update_status.remote(job_id, "running")
 
             # Create fine-tuning router with resource limits
-            ft_router = self.router_cls.options(
+            ft_request_router = self.router_cls.options(
                 name=f"ft_{job_id}",
                 namespace="fine_tuning",
                 num_cpus=1,
@@ -399,7 +399,7 @@ class SllmController:
             # Start fine-tuning with timeout
             try:
                 await asyncio.wait_for(
-                    ft_router.start_fine_tuning.remote(job_info["config"]),
+                    ft_request_router.fine_tuning.remote(job_info["config"]),
                     timeout=job_info["config"].get("timeout", 3600),
                 )
                 await self.job_store.update_status.remote(job_id, "completed")
@@ -414,8 +414,8 @@ class SllmController:
             )
         finally:
             # Cleanup resources
-            if "ft_router" in locals():
-                await ft_router.cleanup.remote()
+            if "ft_request_router" in locals():
+                await ft_request_router.cleanup.remote()
 
     async def get_ft_job_status(self, job_id):
         return await self.job_store.get_job.remote(job_id)
@@ -423,6 +423,8 @@ class SllmController:
     async def cancel_ft_job(self, job_id):
         job_info = await self.job_store.get_job.remote(job_id)
         if job_info["status"] == "running":
-            ft_router = ray.get_actor(f"ft_{job_id}", namespace="fine_tuning")
-            await ft_router.cancel.remote()
+            ft_request_router = ray.get_actor(
+                f"ft_{job_id}", namespace="fine_tuning"
+            )
+            await ft_request_router.cancel.remote()
             await self.job_store.update_status.remote(job_id, "cancelled")
