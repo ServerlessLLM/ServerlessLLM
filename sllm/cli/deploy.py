@@ -93,7 +93,7 @@ class DeployCommand:
             else None
         )
         self.url = (
-            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/") + "register"
+            os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343") + "/register"
         )
         self.default_config_path = os.path.join(
             os.path.dirname(__file__), "default_config.json"

@@ -1,0 +1,72 @@
+name: Documentation Validation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-validation.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+
+jobs:
+  validate-docs:
+    runs-on: ubuntu-latest
+    name: Validate Documentation Build
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout documentation repository
+        uses: actions/checkout@v4
+        with:
+          repository: ServerlessLLM/serverlessllm.github.io
+          path: docs-site
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd docs-site
+          npm ci
+
+      - name: Prepare documentation content
+        run: |
+          # Remove existing docs content in the docs-site
+          rm -rf docs-site/docs/*
+          rm -rf docs-site/static/img/*
+
+          # Copy new docs content
+          cp -r source/docs/* docs-site/docs/
+
+          # Copy images to the static/img directory (as mentioned in README)
+          if [ -d "source/docs/images" ]; then
+            mkdir -p docs-site/static/img
+            cp -r source/docs/images/* docs-site/static/img/
+          fi
+
+      - name: Build documentation
+        run: |
+          cd docs-site
+          npm run build
+          echo "✅ Documentation build completed successfully"
+
+      - name: Upload build artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-build-logs
+          path: |
+            docs-site/build
+            docs-site/npm-debug.log*
+          retention-days: 5

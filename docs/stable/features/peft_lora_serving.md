@@ -5,7 +5,7 @@ sidebar_position: 2
 
 ## Pre-requisites
 
-To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Docker Quickstart Guide](../getting_started/docker_quickstart.md).
+To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Quickstart Guide](../getting_started.md).
 
 We will use the following example base model & LoRA adapter
 - Base model: `facebook/opt-125m`
@@ -54,7 +54,7 @@ docker logs -f sllm_head
 1. Configuration
 ```bash
 conda activate sllm
-export LLM_SERVER_URL=http://127.0.0.1:8343/
+export LLM_SERVER_URL=http://127.0.0.1:8343
 ```
 2. Deploy models with specified lora adapters.
 ```bash
@@ -62,7 +62,7 @@ sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora -
 ```
 3. Verify the deployment.
 ```bash
-curl http://127.0.0.1:8343/v1/chat/completions \
+curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-125m",
@@ -75,7 +75,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
 ```
 If no lora adapters specified, the system will use the base model to do inference
 ```bash
-curl http://127.0.0.1:8343/v1/chat/completions \
+curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-125m",

@@ -1,5 +1,5 @@
 # ServerlessLLM Example Scripts
-Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/getting_started/installation) to have ServerlessLLM successfully installed.
+Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/deployment/single_machine#installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
 This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using transformers backend of ServerlessLLM.
 
@@ -49,14 +49,14 @@ We have created the file `transformers_embed_config.json`. Feel free use it. You
 Next, set the ServerlessLLM Server URL `LLM_SERVER_URL` and deploy this model with the configuration:
 ```bash
 conda activate sllm
-export LLM_SERVER_URL=http://127.0.0.1:8343/
+export LLM_SERVER_URL=http://127.0.0.1:8343
 sllm-cli deploy --config transformers_embed_config.json
 ```
 
 ### 3. Service Request
 Post a request by:
 ```bash
-curl http://127.0.0.1:8343/v1/embeddings \
+curl $LLM_SERVER_URL/v1/embeddings \
 -H "Content-Type: application/json" \
 -d '{
         "model": "sentence-transformers/all-MiniLM-L12-v2",

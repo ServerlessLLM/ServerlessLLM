@@ -110,21 +110,31 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
 ## Usage with vLLM
 
-:::tip
-To use ServerlessLLM as the load format for vLLM, you need to apply our patch `sllm_store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please ensure you have applied our `vLLM Patch` as instructed in [installation guide](../getting_started/installation.md).
+ServerlessLLM integrates with vLLM to provide fast model loading capabilities. Follow these steps to set up and use ServerlessLLM with vLLM.
 
-You may check the patch status by running the following command:
-``` bash
-./sllm_store/vllm_patch/check_patch.sh
-```
-If the patch is not applied, you can apply it by running the following command:
-```bash
-./sllm_store/vllm_patch/patch.sh
-```
-To remove the applied patch, you can run the following command:
-```bash
-./sllm_store/vllm_patch/remove_patch.sh
-```
+### Prerequisites
+
+Before using ServerlessLLM with vLLM, you need to apply a compatibility patch to your vLLM installation. This patch has been tested with vLLM version `0.6.6`.
+
+### Apply the vLLM Patch
+
+1. **Check patch status** (optional):
+   ```bash
+   ./sllm_store/vllm_patch/check_patch.sh
+   ```
+
+2. **Apply the patch**:
+   ```bash
+   ./sllm_store/vllm_patch/patch.sh
+   ```
+
+3. **Remove the patch** (if needed):
+   ```bash
+   ./sllm_store/vllm_patch/remove_patch.sh
+   ```
+
+:::note
+The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` in the ServerlessLLM repository.
 :::
 
 

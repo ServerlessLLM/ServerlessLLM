@@ -1,10 +1,10 @@
 ---
-sidebar_position: 4
+sidebar_position: 3
 ---
 
-# SLURM-based cluster setup guide
+# SLURM cluster
 
-This guide will help you get started with running ServerlessLLM on SLURM cluster. It provides two deployment methods, based on `sbatch` and `srun`. If you are in development, we recommend using `srun`, as it is easier to debug than `sbatch`, and if you are in production mode, `sbatch` is recommended. Please make sure you have installed the ServerlessLLM following the [installation guide](./installation.md) on all machines.
+This guide will help you get started with running ServerlessLLM on SLURM cluster. It provides two deployment methods, based on `sbatch` and `srun`. If you are in development, we recommend using `srun`, as it is easier to debug than `sbatch`, and if you are in production mode, `sbatch` is recommended. Please make sure you have installed the ServerlessLLM following the [installation guide](./single_machine.md#installation) on all machines.
 
 ## Pre-requisites
 Before you begin, make sure you have checked the following:
@@ -87,7 +87,7 @@ srun --partition <your-partition> --nodelist <JobNode> --gres <DEVICE>:1 --pty b
 ```
 This command requests a session on the specified node and provides an interactive shell. `--gres <DEVICE>:1` specifies the GPU device you will use, for example: `--gres gpu:gtx_1060:1`
 
-### Step 2: Install from source
+### Step 2: Install ServerlessLLM
 Firstly, please make sure CUDA driver available on the node. Here are some commands to check it.
 ```shell
 nvidia-smi
@@ -99,7 +99,7 @@ If `nvidia-smi` has listed GPU information, but `which nvcc` has no output. Then
 export PATH=/opt/cuda-12.2.0/bin:$PATH
 export LD_LIBRARY_PATH=/opt/cuda-12.2.0/lib64:$LD_LIBRARY_PATH
 ```
-Then, following the [installation guide](./installation.md) to install from source.
+Then, following the [installation guide](./single_machine.md#installation) to install ServerlessLLM.
 ### Step 3: Prepare multiple windows with `tmux`
 Since srun provides a single interactive shell, you can use tmux to create multiple windows. Start a tmux session:
 ```shell
@@ -373,7 +373,7 @@ We will start the worker node and store in the same script. Because the server l
 1. **You can do this step on login node, and set the ```LLM_SERVER_URL``` environment variable:**
    ```shell
    $ conda activate sllm
-   (sllm)$ export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343/
+   (sllm)$ export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343
    ```
    - Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
    - Replace ```8343``` with the actual port number (`<avail_port>` in Step1) if you have changed it.
@@ -384,7 +384,7 @@ We will start the worker node and store in the same script. Because the server l
 ### Step 5: Query the Model Using OpenAI API Client
    **You can use the following command to query the model:**
    ```shell
-   curl http://<HEAD_NODE_IP>:8343/v1/chat/completions \
+   curl $LLM_SERVER_URL/v1/chat/completions \
    -H "Content-Type: application/json" \
    -d '{
          "model": "facebook/opt-1.3b",

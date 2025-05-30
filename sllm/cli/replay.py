@@ -59,8 +59,8 @@ class ReplayCommand:
         self.workload_path = args.workload
         self.dataset_path = args.dataset
         self.output_path = args.output
-        self.url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
-        self.base_url = self.url + "v1/"
+        self.url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
+        self.base_url = self.url + "/v1"
 
         self.client = AsyncOpenAI(
             base_url=self.base_url,

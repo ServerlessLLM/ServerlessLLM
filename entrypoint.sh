@@ -45,6 +45,14 @@ initialize_head_node() {
   # Construct the command
   CMD="ray start --head --port=$RAY_PORT --resources='$RAY_RESOURCES' --num-cpus=$RAY_NUM_CPUS"
 
+  # Add node IP if specified
+  if [ ! -z "$RAY_NODE_IP" ]; then
+    echo "Using specified node IP: $RAY_NODE_IP"
+    CMD="$CMD --node-ip-address=$RAY_NODE_IP"
+  else
+    echo "No node IP specified. Ray will attempt to determine the best IP automatically."
+  fi
+
   # Display and execute the command
   echo "Executing: $CMD"
   eval "$CMD"
@@ -74,6 +82,14 @@ initialize_worker_node() {
 
   # Construct the command
   CMD="ray start --address=$RAY_HEAD_ADDRESS --resources='$RAY_RESOURCES'"
+
+  # Add node IP if specified
+  if [ ! -z "$RAY_NODE_IP" ]; then
+    echo "Using specified node IP: $RAY_NODE_IP"
+    CMD="$CMD --node-ip-address=$RAY_NODE_IP"
+  else
+    echo "No node IP specified. Ray will attempt to determine the best IP automatically."
+  fi
 
   # Display and execute the command
   echo "Executing: $CMD"
