@@ -84,8 +84,11 @@ class FineTuningCommand:
         response = requests.post(self.url, headers=headers, json=config)
 
         if response.status_code == 200:
-            logger.info(f"{config['model']} fine-tuned successful.")
-            return response.json()
+            job_id = response.json()["job_id"]
+            logger.info(
+                f"{config['model']} fine-tuning job submitted, job id: {job_id}"
+            )
+            return None
         else:
             logger.error(
                 f"Failed to do fine-tuning. Status code: {response.status_code}"
