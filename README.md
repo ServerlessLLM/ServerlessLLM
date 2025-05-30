@@ -48,7 +48,7 @@ ServerlessLLM is designed to support multiple LLMs in efficiently sharing limite
 
 ## Getting Started
 
-1. Install ServerlessLLM with pip or [from source](https://serverlessllm.github.io/docs/stable/deployment/single_machine.md#installation).
+1. Install ServerlessLLM with pip or [from source](https://serverlessllm.github.io/docs/stable/deployment/single_machine#installation).
 
 ```bash
 conda create -n sllm python=3.10 -y
@@ -56,7 +56,7 @@ conda activate sllm
 pip install serverless-llm
 ```
 
-2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started.md).
+2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started).
 
 3. Want to try fast checkpoint loading in your own code? Check out the [ServerlessLLM Store Guide](https://serverlessllm.github.io/docs/stable/store/quickstart).
 
