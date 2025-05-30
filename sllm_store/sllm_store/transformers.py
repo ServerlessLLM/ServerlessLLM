@@ -306,7 +306,10 @@ def fully_parallel_load(
             for module in model.modules():
                 for attr_name in ("bias", "weight"):
                     param = getattr(module, attr_name, None)
-                    if isinstance(param, torch.Tensor) and param.dtype != torch_dtype:
+                    if (
+                        isinstance(param, torch.Tensor)
+                        and param.dtype != torch_dtype
+                    ):
                         param.data = param.data.to(torch_dtype)
 
             model.hf_quantizer = hf_quantizer
