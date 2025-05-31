@@ -82,7 +82,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8343 (Press CTRL+C to quit)
 Set the `LLM_SERVER_URL` environment variable:
 
 ```bash
-export LLM_SERVER_URL=http://127.0.0.1:8343
+export LLM_SERVER_URL=http://127.0.0.1:8343/
 ```
 
 Deploy a model to the ServerlessLLM cluster using the `sllm-cli`:
@@ -104,7 +104,7 @@ INFO 08-01 07:39:00 deploy.py:49] Model registered successfully.
 
 You can now query the model using any OpenAI API client. For example, use the following `curl` command:
 ```bash
-curl $LLM_SERVER_URL/v1/chat/completions \
+curl ${LLM_SERVER_URL%/}/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",
