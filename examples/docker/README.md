@@ -6,7 +6,7 @@ export MODEL_FOLDER=/path/to/models
 docker compose up -d
 ```
 
-Note: Make sure you have Docker installed on your system and NVIDIA GPUs available. For detailed instructions, refer to the [Docker Quickstart Guide](https://serverlessllm.github.io/docs/stable/getting_started/docker_quickstart).
+Note: Make sure you have Docker installed on your system and NVIDIA GPUs available. For detailed instructions, refer to the [Docker Quickstart Guide](https://serverlessllm.github.io/docs/stable/getting_started).
 
 ## Customizing Configuration Options
 

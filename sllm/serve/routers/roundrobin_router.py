@@ -18,7 +18,7 @@
 import asyncio
 import logging
 import uuid
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import ray
 
@@ -62,6 +62,8 @@ class RoundRobinRouter(SllmRouter):
         backend: str,
         backend_config: Dict,
         router_config: Dict,
+        enable_lora: bool = False,
+        lora_adapters: Optional[Dict[str, str]] = None,
     ) -> None:
         self.model_name = model_name
         self.resource_requirements = resource_requirements
@@ -92,6 +94,10 @@ class RoundRobinRouter(SllmRouter):
         self.idle_time = 0
         self.idle_time_lock = asyncio.Lock()
 
+        self.enable_lora = enable_lora
+        self.loaded_lora_adapters = lora_adapters
+        self.lora_lock = asyncio.Lock()
+
         self.auto_scaler = None
         logger.info(f"Created new handler for model {self.model_name}")
 
@@ -105,9 +111,19 @@ class RoundRobinRouter(SllmRouter):
             self.running = True
         logger.info(f"Started handler for model {self.model_name}")
 
-    async def update(self, auto_scaling_config: Dict[str, int]):
-        async with self.auto_scaling_lock:
-            self.auto_scaling_config = auto_scaling_config
+    async def update(
+        self,
+        auto_scaling_config: Optional[Dict[str, int]] = None,
+        lora_adapters: Optional[Dict[str, str]] = None,
+    ):
+        if auto_scaling_config is not None:
+            async with self.auto_scaling_lock:
+                self.auto_scaling_config = auto_scaling_config
+
+        if lora_adapters is not None:
+            async with self.lora_lock:
+                self.loaded_lora_adapters = lora_adapters
+
         logger.info(
             f"Model {self.model_name}'s auto scaling config updated to {auto_scaling_config}"
         )
@@ -144,6 +160,17 @@ class RoundRobinRouter(SllmRouter):
                 logger.error(f"Instance {instance_id} not found")
                 return {"error": "Instance not found"}
             instance = self.ready_instances[instance_id]
+
+        # sanity check
+        if self.enable_lora and "lora_adapter_name" in request_data:
+            lora_adapter_name = request_data["lora_adapter_name"]
+            if lora_adapter_name not in self.loaded_lora_adapters:
+                logger.error(f"Lora adapter {lora_adapter_name} not found")
+                return {"error": f"Lora adapter {lora_adapter_name} not found"}
+            await instance.backend_instance.load_lora_adapter.remote(
+                lora_name=lora_adapter_name,
+                lora_path=self.loaded_lora_adapters[lora_adapter_name],
+            )
         # NOTE: `.remote(request_data)` does not work, don't know why.
         # Looks like a known issue:
         # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
@@ -199,6 +226,15 @@ class RoundRobinRouter(SllmRouter):
         async with self.fine_tuning_count_lock:
             self.fine_tuning_count -= 1
         return result
+
+    async def delete_adapters(self, lora_adapters: List[str]):
+        async with self.lora_lock:
+            for adapter_name in lora_adapters:
+                if adapter_name in self.loaded_lora_adapters:
+                    del self.loaded_lora_adapters[adapter_name]
+        logger.info(
+            f"Deleted LoRA adapters {lora_adapters} on model {self.model_name}"
+        )
 
     async def shutdown(self):
         async with self.running_lock:
@@ -366,6 +402,7 @@ class RoundRobinRouter(SllmRouter):
             instance.ready = True
             instance.node_id = startup_node
         await instance.backend_instance.init_backend.remote()
+
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
             self.starting_instances.pop(instance_id)

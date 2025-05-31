@@ -125,9 +125,9 @@ Install Conda to manage dependencies for ServerlessLLM:
 
 ## 3. Installing ServerlessLLM
 
-Follow the [ServerlessLLM installation guide](https://serverlessllm.github.io/docs/stable/getting_started/installation/) to set up the software.
+Follow the [ServerlessLLM installation guide](https://serverlessllm.github.io/docs/stable/deployment/single_machine/) to set up the software.
 
-Once installed, refer to the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started/quickstart) for usage instructions.
+Once installed, refer to the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started/) for usage instructions.
 
 ## 4. Potential Issues and Troubleshooting
 

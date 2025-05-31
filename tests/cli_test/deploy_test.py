@@ -39,6 +39,8 @@ class TestDeployCommand(unittest.TestCase):
             target=None,
             min_instances=None,
             max_instances=None,
+            enable_lora=False,
+            lora_adapters=None,
         )
         command = DeployCommand(args)
         command.run()
@@ -86,6 +88,8 @@ class TestDeployCommand(unittest.TestCase):
             target=None,
             min_instances=None,
             max_instances=None,
+            enable_lora=False,
+            lora_adapters=None,
         )
         command = DeployCommand(args)
         command.run()
@@ -132,6 +136,8 @@ class TestDeployCommand(unittest.TestCase):
             target=None,
             min_instances=None,
             max_instances=None,
+            enable_lora=False,
+            lora_adapters=None,
         )
         command = DeployCommand(args)
 
@@ -208,6 +214,8 @@ class TestDeployCommand(unittest.TestCase):
             target=None,
             min_instances=None,
             max_instances=None,
+            enable_lora=False,
+            lora_adapters=None,
         )
         command = DeployCommand(args)
         updated_config = command.update_config(default_config, provided_config)
@@ -249,6 +257,8 @@ class TestDeployCommand(unittest.TestCase):
             target=None,
             min_instances=None,
             max_instances=None,
+            enable_lora=False,
+            lora_adapters=None,
         )
         command = DeployCommand(args)
         command.deploy_model(config_data)
