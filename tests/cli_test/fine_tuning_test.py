@@ -37,18 +37,15 @@ class TestFineTuningCommand(unittest.TestCase):
             },
         }
 
-        # Mock a successful POST response
+        # Mock a successful POST response returning job ID
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "model": "facebook/opt-125m",
-            "lora_save_path": "./models/ft_facebook/opt-125m",
-        }
+        mock_response.json.return_value = {"job_id": "job-abc123"}
         mock_post.return_value = mock_response
 
         args = Namespace(base_model="facebook/opt-125m", config=None)
         command = FineTuningCommand(args)
-        command.run()
+        result = command.run()
 
         mock_read_config.assert_called_once_with(command.config_path)
         mock_post.assert_called_once()
@@ -56,13 +53,12 @@ class TestFineTuningCommand(unittest.TestCase):
             mock_post.call_args[1]["json"]["model"], "facebook/opt-125m"
         )
         self.assertEqual(
-            mock_response.json.return_value["lora_save_path"],
-            "./models/ft_facebook/opt-125m",
+            mock_response.json.return_value["job_id"],
+            "job-abc123",
         )
 
     @patch("sllm.cli.fine_tuning.read_config")
     def test_validate_config_missing_key(self, mock_read_config):
-        # Missing required key in the configuration
         mock_read_config.return_value = {
             "ft_backend": "peft",
             "dataset_config": {"dataset_source": "hf_hub"},
@@ -77,7 +73,6 @@ class TestFineTuningCommand(unittest.TestCase):
     @patch("sllm.cli.fine_tuning.requests.post")
     @patch("sllm.cli.fine_tuning.read_config")
     def test_fine_tuning_request_failure(self, mock_read_config, mock_post):
-        # Simulate configuration
         mock_read_config.return_value = {
             "model": "facebook/opt-125m",
             "ft_backend": "peft",
@@ -91,7 +86,6 @@ class TestFineTuningCommand(unittest.TestCase):
             "training_config": {"num_train_epochs": 2},
         }
 
-        # Simulate a failed request
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal Server Error"
