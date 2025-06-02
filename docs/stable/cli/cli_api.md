@@ -14,6 +14,24 @@ Before using the `sllm-cli` commands, you need to start the ServerlessLLM cluste
 - [Quickstart Guide](../getting_started/quickstart.md)
 
 After setting up the ServerlessLLM cluster, you can use the commands listed below to manage and interact with your models.
+### Available commands
+After installation, running the following command will display the available CLI commands:
+
+```bash
+python -m sllm.clic
+
+Usage: python -m sllm.clic [OPTIONS] COMMAND [ARGS]...
+
+  Unified CLI for ServerlessLLM.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  delete  Delete deployed models by name.
+  deploy  Deploy a model using a config file or model name.
+  start   Start the head node of the SLLM cluster.
+  status  Show all deployed models.
 
 ### Example Workflow
 
