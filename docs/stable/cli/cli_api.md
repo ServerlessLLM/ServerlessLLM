@@ -222,51 +222,6 @@ sllm-cli encode --threads 4 /path/to/request.json
 }
 ```
 
-### sllm-cli replay
-Replay requests based on workload and dataset.
-
-##### Usage
-```bash
-sllm-cli replay [OPTIONS]
-```
-
-##### Options
-- `--workload <workload_path>`
-  - Path to the JSON workload file.
-
-- `--dataset <dataset_path>`
-  - Path to the JSON dataset file.
-
-- `--output <output_path>`
-  - Path to the output JSON file for latency results. Default is `latency_results.json`.
-
-##### Example
-```bash
-sllm-cli replay --workload /path/to/workload.json --dataset /path/to/dataset.json --output /path/to/output.json
-```
-
-#### sllm-cli update
-Update a deployed model using a configuration file or model name.
-
-##### Usage
-```bash
-sllm-cli update [OPTIONS]
-```
-
-##### Options
-- `--model <model_name>`
-  - Model name to update with default configuration.
-
-- `--config <config_path>`
-  - Path to the JSON configuration file.
-
-##### Example
-```bash
-sllm-cli update --model facebook/opt-1.3b
-sllm-cli update --config /path/to/config.json
-```
-
-
 
 
 
