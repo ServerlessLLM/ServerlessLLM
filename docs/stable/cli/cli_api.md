@@ -1,7 +1,9 @@
 ## ServerlessLLM CLI Documentation
 
 ### Overview
-`sllm-cli` is a command-line interface (CLI) tool designed for managing and interacting with ServerlessLLM models. This document provides an overview of the available commands and their usage.
+`sllm-cli` is the official command-line interface for interacting with ServerlessLLM. It is implemented using the [Click](https://click.palletsprojects.com/) framework to provide a flexible and extensible interface for managing model start,deploy, delete and system status.
+
+The CLI organizes commands into clearly scoped modules, and this document outlines each available command along with its usage and configuration options.
 
 ### Getting Started
 
