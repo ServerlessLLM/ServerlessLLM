@@ -6,9 +6,7 @@ import pytest
 import torch
 from transformers import (
     AutoModelForCausalLM,
-    AutoTokenizer,
     BitsAndBytesConfig,
-    GPTQConfig,
 )
 
 from sllm_store.transformers import load_model, save_model
@@ -49,17 +47,6 @@ def setup_models(storage_path):
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_quant_type="nf4",
-        ),
-        GPTQConfig(
-            bits=4,
-            group_size=128,
-            desc_act=False,
-            sym=True,
-            true_sequential=True,
-            disable_exllama=True,
-            skip_modules=["lm_head"],
-            dataset="wikitext2",
-            tokenizer=AutoTokenizer.from_pretrained("facebook/opt-1.3b"),
         ),
     ]
 )

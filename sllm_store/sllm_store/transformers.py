@@ -255,17 +255,17 @@ def fully_parallel_load(
             ]:
                 raise ValueError(f"{quant_method} is not supported.")
 
-            logger.debug(f"Using quantization method: {quant_method}")
+            logger.info(f"Using quantization method: {quant_method}")
             if quantization_config.quant_method == "bitsandbytes":
                 precision = quantization_config.quantization_method()
-                logger.debug(f"Using precision: {precision}")
+                logger.info(f"Using precision: {precision}")
 
                 if quantization_config.llm_int8_enable_fp32_cpu_offload:
                     logger.debug("Offloading is not supported yet")
                     quantization_config.llm_int8_enable_fp32_cpu_offload = False
             else:
                 with suppress(Exception):
-                    logger.debug(f"Using precision: {quantization_config.bits}")
+                    logger.info(f"Using precision: {quantization_config.bits}")
 
             torch_dtype = torch_dtype or torch.float16
             model = model.to(torch_dtype)
@@ -302,16 +302,6 @@ def fully_parallel_load(
                     except Exception:
                         load_parameter_into_model(model, name, param)
             hf_quantizer.postprocess_model(model)
-
-            for module in model.modules():
-                for attr_name in ("bias", "weight"):
-                    param = getattr(module, attr_name, None)
-                    if (
-                        isinstance(param, torch.Tensor)
-                        and param.dtype != torch_dtype
-                    ):
-                        param.data = param.data.to(torch_dtype)
-
             model.hf_quantizer = hf_quantizer
 
         else:
@@ -519,6 +509,7 @@ def best_effort_load(
                             model, name, param.device, param
                         )
                     except Exception:
+                        print(f"exception occured, param dtype: {param.dtype}")
                         load_parameter_into_model(model, name, param)
             hf_quantizer.postprocess_model(model)
             model.hf_quantizer = hf_quantizer
