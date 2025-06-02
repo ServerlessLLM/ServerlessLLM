@@ -266,25 +266,9 @@ sllm-cli update --model facebook/opt-1.3b
 sllm-cli update --config /path/to/config.json
 ```
 
-### sllm-cli fine-tuning
-Fine-tuning the deployed model.
 
-##### Usage
-```bash
-sllm-cli fine-tuning [OPTIONS]
-```
 
-##### Options
-- `--base-model <model_name>`
-  - Base model name to be fine-tuned
-- `--config <config_path>`
-  - Path to the JSON configuration file.
 
-##### Example
-```bash
-sllm-cli fine-tuning --base-model <model_name>
-sllm-cli fine-tuning --base-model <model_name> --config <path_to_ft_config_file>
-```
 
 ##### Example Configuration File (`ft_config.json`)
 ```json
