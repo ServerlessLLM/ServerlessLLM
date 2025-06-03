@@ -83,7 +83,7 @@ class TestStatusCommand(unittest.TestCase):
         mock_get.return_value = mock_response
 
         # Set custom environment variable for server URL
-        custom_url = "http://custom-server-url:1234/"
+        custom_url = "http://custom-server-url:1234"
         with patch.dict("os.environ", {"LLM_SERVER_URL": custom_url}):
             args = Namespace()
             command = StatusCommand(args)
@@ -93,7 +93,7 @@ class TestStatusCommand(unittest.TestCase):
 
             # Assertions
             mock_get.assert_called_once_with(
-                custom_url + "v1/models",
+                custom_url + "/v1/models",
                 headers={"Content-Type": "application/json"},
             )
             self.assertEqual(status, {"data": "mocked_model_status"})

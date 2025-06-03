@@ -110,21 +110,31 @@ print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 
 ## Usage with vLLM
 
-:::tip
-To use ServerlessLLM as the load format for vLLM, you need to apply our patch `sllm_store/vllm_patch/sllm_load.patch` to the installed vLLM library. Therefore, please ensure you have applied our `vLLM Patch` as instructed in [installation guide](../getting_started/installation.md).
+ServerlessLLM integrates with vLLM to provide fast model loading capabilities. Follow these steps to set up and use ServerlessLLM with vLLM.
 
-You may check the patch status by running the following command:
-``` bash
-./sllm_store/vllm_patch/check_patch.sh
-```
-If the patch is not applied, you can apply it by running the following command:
-```bash
-./sllm_store/vllm_patch/patch.sh
-```
-To remove the applied patch, you can run the following command:
-```bash
-./sllm_store/vllm_patch/remove_patch.sh
-```
+### Prerequisites
+
+Before using ServerlessLLM with vLLM, you need to apply a compatibility patch to your vLLM installation. This patch has been tested with vLLM version `0.6.6`.
+
+### Apply the vLLM Patch
+
+1. **Check patch status** (optional):
+   ```bash
+   ./sllm_store/vllm_patch/check_patch.sh
+   ```
+
+2. **Apply the patch**:
+   ```bash
+   ./sllm_store/vllm_patch/patch.sh
+   ```
+
+3. **Remove the patch** (if needed):
+   ```bash
+   ./sllm_store/vllm_patch/remove_patch.sh
+   ```
+
+:::note
+The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` in the ServerlessLLM repository.
 :::
 
 
@@ -228,3 +238,57 @@ model = load_model(
     quantization_config=quantization_config,
 )
 ```
+
+
+# Fine-tuning
+ServerlessLLM currently supports LoRA fine-tuning using peft through the Hugging Face Transformers PEFT.
+
+ServerlessLLM Store provides a model manager and two key functions:
+- save_lora: Convert an LoRA adapter into a loading-optimized format and save it to a local path.
+- load_lora: Load an adapter into loaded model.
+
+> Note: Fine-tuning is currently experimental, especially on multi-GPU machines. You may encounter issues when using this feature in multi-GPU environments.
+
+## Usage Examples
+
+1. Convert an adapter to ServerlessLLM format and save it to a local path:
+```
+from sllm_store.transformers import save_lora
+
+# TODO: Load an adapter from HuggingFace model hub.
+<!-- import torch
+from transformers import AutoModelForCausalLM
+model = AutoModelForCausalLM.from_pretrained('facebook/opt-1.3b', torch_dtype=torch.float16) -->
+
+# Replace './models' with your local path.
+save_lora(adapter, './models/facebook/opt-1.3b')
+```
+
+2. Launch the checkpoint store server in a separate process:
+```
+# 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.
+sllm-store start --storage-path $PWD/models --mem-pool-size 4GB
+```
+
+3. Load the adapter on your model and make inference:
+```
+import time
+import torch
+from sllm_store.transformers import load_model, load_lora
+
+model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path="./models/", fully_parallel=True)
+
+model = load_lora("facebook/opt-1.3b", adapter_name="demo_lora", adapter_path="ft_facebook/opt-1.3b_adapter1", device_map="auto", torch_dtype=torch.float16, storage_path="./models/")
+
+# Please note the loading time depends on the base model size and the hardware bandwidth.
+print(f"Model loading time: {time.time() - start:.2f}s")
+
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained('facebook/opt-1.3b')
+inputs = tokenizer('Hello, my dog is cute', return_tensors='pt').to("cuda")
+outputs = model.generate(**inputs)
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+```
+
+4. Clean up by `Ctrl+C` the server process.

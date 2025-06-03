@@ -39,7 +39,7 @@ class TestSllmCLI(unittest.TestCase):
             "sllm-cli",
             "fine-tuning",
             "--base-model",
-            "bigscience/bloomz-560m",
+            "facebook/opt-125m",
         ]
         with patch.object(sys, "argv", test_args):
             main()
@@ -48,7 +48,7 @@ class TestSllmCLI(unittest.TestCase):
         mock_fine_tuning_command.assert_called_once()
         self.assertEqual(
             mock_fine_tuning_command.call_args[0][0].base_model,
-            "bigscience/bloomz-560m",
+            "facebook/opt-125m",
         )
 
     @patch("sllm.cli.replay.ReplayCommand")

@@ -1,6 +1,6 @@
 # ServerlessLLM documents
 
-Please find our documents in [ServerlessLLM](https://serverlessllm.github.io/docs/stable/getting_started/quickstart).
+Please find our documents in [ServerlessLLM](https://serverlessllm.github.io/docs/stable/getting_started).
 
 ## How to build ServerlessLLM Docs
 

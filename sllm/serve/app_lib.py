@@ -94,6 +94,7 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=400, detail="Missing model_name in request body"
             )
+        lora_adapters = body.get("lora_adapters", None)
 
         controller = ray.get_actor("controller")
         if not controller:
@@ -101,8 +102,14 @@ def create_app() -> FastAPI:
                 status_code=500, detail="Controller not initialized"
             )
 
-        logger.info(f"Received request to delete model {model_name}")
-        await controller.delete.remote(model_name)
+        if lora_adapters is not None:
+            logger.info(
+                f"Received request to delete LoRA adapters {lora_adapters} on model {model_name}"
+            )
+            await controller.delete.remote(model_name, lora_adapters)
+        else:
+            logger.info(f"Received request to delete model {model_name}")
+            await controller.delete.remote(model_name)
 
         return {"status": f"deleted model {model_name}"}
 
