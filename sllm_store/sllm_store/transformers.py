@@ -229,6 +229,7 @@ def fully_parallel_load(
                 QuantizationConfigMixin,
             )
             from transformers.quantizers.auto import AutoHfQuantizer
+            import bitsandbytes as bnb
 
             if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
@@ -268,7 +269,6 @@ def fully_parallel_load(
                     logger.info(f"Using precision: {quantization_config.bits}")
 
             torch_dtype = torch_dtype or torch.float16
-            model = model.to(torch_dtype)
             hf_quantizer = AutoHfQuantizer.from_config(
                 quantization_config, pre_quantized=False
             )
@@ -301,6 +301,15 @@ def fully_parallel_load(
                         )
                     except Exception:
                         load_parameter_into_model(model, name, param)
+
+            # converting new biases 
+            for module in model.modules():
+                if isinstance(module, (bnb.nn.Linear8bitLt,
+                                    bnb.nn.Linear4bit)):
+                    b = getattr(module, "bias", None)
+                    if b is not None and b.dtype != torch_dtype:
+                        b.data = b.data.to(torch_dtype)
+
             hf_quantizer.postprocess_model(model)
             model.hf_quantizer = hf_quantizer
 
@@ -439,6 +448,7 @@ def best_effort_load(
                 QuantizationConfigMixin,
             )
             from transformers.quantizers.auto import AutoHfQuantizer
+            import bitsandbytes as bnb
 
             if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
@@ -465,20 +475,19 @@ def best_effort_load(
             ]:
                 raise ValueError(f"{quant_method} is not supported.")
 
-            logger.debug(f"Using quantization method: {quant_method}")
+            logger.info(f"Using quantization method: {quant_method}")
             if quantization_config.quant_method == "bitsandbytes":
                 precision = quantization_config.quantization_method()
-                logger.debug(f"Using precision: {precision}")
+                logger.info(f"Using precision: {precision}")
 
                 if quantization_config.llm_int8_enable_fp32_cpu_offload:
                     logger.debug("Offloading is not supported yet")
                     quantization_config.llm_int8_enable_fp32_cpu_offload = False
             else:
                 with suppress(Exception):
-                    logger.debug(f"Using precision: {quantization_config.bits}")
+                    logger.info(f"Using precision: {quantization_config.bits}")
 
             torch_dtype = torch_dtype or torch.float16
-            model = model.to(torch_dtype)
             hf_quantizer = AutoHfQuantizer.from_config(
                 quantization_config, pre_quantized=False
             )
@@ -503,14 +512,22 @@ def best_effort_load(
                         state_dict,
                         unexpected_keys=[],
                     )
+
                 else:
                     try:
                         set_module_tensor_to_device(
                             model, name, param.device, param
                         )
                     except Exception:
-                        print(f"exception occured, param dtype: {param.dtype}")
                         load_parameter_into_model(model, name, param)
+
+            for module in model.modules():
+                if isinstance(module, (bnb.nn.Linear8bitLt,
+                                    bnb.nn.Linear4bit)):
+                    b = getattr(module, "bias", None)
+                    if b is not None and b.dtype != torch_dtype:
+                        b.data = b.data.to(torch_dtype)
+
             hf_quantizer.postprocess_model(model)
             model.hf_quantizer = hf_quantizer
         else:

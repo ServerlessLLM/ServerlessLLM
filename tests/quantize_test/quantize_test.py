@@ -67,12 +67,13 @@ def hf_model(get_quantization_config, model_name):
     torch.cuda.empty_cache()
 
 
-@pytest.fixture
-def sllm_model(get_quantization_config, model_name, storage_path):
+@pytest.fixture(params=[True, False], ids=["fully_parallel", "best_effort"])
+def sllm_model(get_quantization_config, model_name, storage_path, request):
     model = load_model(
         model_name,
         storage_path=storage_path,
         quantization_config=get_quantization_config,
+        fully_parallel=request.param,
         device_map="auto",
     )
     yield model
@@ -122,7 +123,6 @@ def compare_state_dicts(transformers_model, sllm_model):
             f"Param mismatch for {key}: "
             f"Transformers={t_param.dtype}, SLLM={s_param.dtype}"
         )
-
 
 def test_valid_quantization(hf_model, sllm_model):
     compare_state_dicts(hf_model, sllm_model)

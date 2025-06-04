@@ -1,6 +1,6 @@
 accelerate==1.2.1
 auto-gptq==0.7.1
-bitsandbytes==0.45.1
+bitsandbytes==0.46.0
 click>=8.1.7
 grpcio==1.49.1
 grpcio-tools==1.49.1
