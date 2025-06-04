@@ -3,6 +3,8 @@ sidebar_position: 2
 ---
 # PEFT LoRA Serving
 
+This example illustrates the process of deploying and serving a base large language model enhanced with LoRA (Low-Rank Adaptation) adapters in a ServerlessLLM cluster. It demonstrates how to start the cluster, deploy a base model with multiple LoRA adapters, perform inference using different adapters, and update or remove the adapters dynamically.
+
 ## Pre-requisites
 
 To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Quickstart Guide](../getting_started.md).
@@ -15,14 +17,7 @@ We will use the following example base model & LoRA adapter
 
 Start a local Docker-based ray cluster using Docker Compose.
 
-### Step 1: Clone the ServerlessLLM Repository
-
-If you haven't already, clone the ServerlessLLM repository:
-```bash
-git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-```
-
-### Step 2: Configuration
+### Step 1: Configuration
 
 Set the Model Directory. Create a directory on your host machine where models will be stored and set the `MODEL_FOLDER` environment variable to point to this directory:
 
@@ -32,7 +27,7 @@ export MODEL_FOLDER=/path/to/your/models
 
 Replace `/path/to/your/models` with the actual path where you want to store the models.
 
-### Step 3: Start the Services
+### Step 2: Start the Services
 
 Start the ServerlessLLM services using Docker Compose:
 
@@ -50,7 +45,7 @@ docker logs -f sllm_head
 ```
 :::
 
-### Step 4: Deploy Models with LoRA Adapters
+### Step 3: Deploy Models with LoRA Adapters
 1. Configuration
 ```bash
 conda activate sllm
@@ -85,15 +80,13 @@ curl $LLM_SERVER_URL/v1/chat/completions \
         ]
     }'
 ```
-### Step 5: Update LoRA Adapters
+### Step 4: Update LoRA Adapters
 If you wish to switch to a different set of LoRA adapters, you can still use `sllm-cli deploy` command with updated adapter configurations. ServerlessLLM will automatically reload the new adapters without restarting the backend.
-
-For example, to update the adapter (located at `ft_facebook/opt-125m_adapter1`) used by facebook/opt-125m:
 ```bash
-sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora=ft_facebook/opt-125m_adapter1
+sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora1=edbeeching/opt-125m-lora demo_lora2=Hagatiana/opt-125m-lora
 ```
 
-### Step 6: Clean Up
+### Step 5: Clean Up
 
 Delete the lora adapters by running the following command (this command will only delete lora adapters, the base model won't be deleted):
 ```bash

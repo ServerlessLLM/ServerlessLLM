@@ -19,9 +19,7 @@ To run this example, we will use Docker Compose to set up a ServerlessLLM cluste
 - **At least 20 GB of host memory** (this can be adjusted by using smaller models).
 - **ServerlessLLM version 0.6**: Ensure you have `sllm==0.6` and `sllm-store==0.6` installed.
 
-##
-
-Start a local Docker-based ray cluster using Docker Compose.
+## Start a local Docker-based ray cluster using Docker Compose.
 
 ### Clone the ServerlessLLM Repository
 
