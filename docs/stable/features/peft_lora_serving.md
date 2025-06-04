@@ -83,7 +83,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 ### Step 4: Update LoRA Adapters
 If you wish to switch to a different set of LoRA adapters, you can still use `sllm-cli deploy` command with updated adapter configurations. ServerlessLLM will automatically reload the new adapters without restarting the backend.
 ```bash
-sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora1=edbeeching/opt-125m-lora demo_lora2=Hagatiana/opt-125m-lora
+sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo-lora1=edbeeching/opt-125m-lora demo-lora2=Hagatiana/opt-125m-lora
 ```
 
 ### Step 5: Clean Up
