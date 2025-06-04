@@ -54,7 +54,7 @@ def check_nvcc_installed(cuda_home: str) -> None:
         raise RuntimeError(
             "nvcc is not installed or not found in your PATH. "
             "Please ensure that the CUDA toolkit is installed and nvcc is available in your PATH."  # noqa: E501
-            f"Error: {e}"
+            f" Error: {e}"
         ) from None
 
 
