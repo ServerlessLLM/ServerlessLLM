@@ -21,10 +21,11 @@ from typing import Any, Dict, List, Optional
 
 
 class FineTuningBackendStatus(Enum):
-    UNINITIALIZED = auto()
-    RUNNING = auto()
-    STOPPING = auto()
-    DELETING = auto()
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    ABORTED = "aborted"
 
 
 class SllmFineTuningBackend(ABC):

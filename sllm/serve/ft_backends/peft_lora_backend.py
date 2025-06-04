@@ -28,9 +28,8 @@ import torch
 import torch.nn.functional as F
 import transformers
 from datasets import load_dataset
-from peft import LoraConfig, PeftModel, get_peft_model
+from peft import LoraConfig, get_peft_model
 from transformers import (
-    AutoModelForCausalLM,
     AutoTokenizer,
     PreTrainedTokenizerBase,
     Trainer,
@@ -51,34 +50,62 @@ class DeletingException(Exception):
     pass
 
 
-class FineTuningStatus(BaseStreamer):
-    def __init__(self, status: FineTuningBackendStatus):
-        super().__init__()
-        self.status = status
-        self.intermediate = []
+class FineTuningStatus:
+    def __init__(self, job_id: str):
+        self.job_id = job_id
+        self.state = FineTuningBackendStatus.PENDING
+        self.logs = []
+        self.metrics = {}  # e.g., {"epoch": 1, "loss": 0.231}
+        self.created_at = time.time()
+        self.updated_at = self.created_at
+        self.lock = threading.Lock()
 
-    def put(self, value):
-        value = value.tolist()
-        if not self.intermediate:
-            self.intermediate = value
-        else:
-            # NOTE: This does not support in-flight batching
-            # or dynamic batch size
-            for i, v in enumerate(value):
-                self.intermediate[i].append(v)
-        logger.warning(f"Intermediate output: {self.intermediate}")
-        if self.status == FineTuningBackendStatus.DELETING:
-            raise DeletingException("Fine tuning backend is deleting")
+    def start(self):
+        with self.lock:
+            self.state = FineTuningBackendStatus.RUNNING
+            self.updated_at = time.time()
 
-    def end(self):
-        logger.error("Fine tuning completed")
+    def update_metrics(self, epoch=None, loss=None):
+        with self.lock:
+            if epoch is not None:
+                self.metrics["epoch"] = epoch
+            if loss is not None:
+                self.metrics["loss"] = loss
+            self.updated_at = time.time()
 
-    def get(self):
-        return deepcopy(self.intermediate)
+    def log(self, message: str):
+        with self.lock:
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            self.logs.append(f"[{timestamp}] {message}")
+            self.updated_at = time.time()
 
-    def delete(self):
-        logger.info("Deleting intermediate output")
-        self.intermediate = []
+    def complete(self):
+        with self.lock:
+            self.state = FineTuningBackendStatus.COMPLETED
+            self.updated_at = time.time()
+
+    def fail(self, reason=""):
+        with self.lock:
+            self.state = FineTuningBackendStatus.FAILED
+            self.logs.append(f"Job failed: {reason}")
+            self.updated_at = time.time()
+
+    def abort(self):
+        with self.lock:
+            self.state = FineTuningBackendStatus.ABORTED
+            self.logs.append("Job aborted by user")
+            self.updated_at = time.time()
+
+    def get_status(self):
+        with self.lock:
+            return {
+                "job_id": self.job_id,
+                "state": self.state.value,
+                "metrics": self.metrics,
+                "logs": self.logs[-10:],  # return last 10 logs
+                "created_at": self.created_at,
+                "updated_at": self.updated_at,
+            }
 
 
 class PeftLoraBackend(SllmFineTuningBackend):
