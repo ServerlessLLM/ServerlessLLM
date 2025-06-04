@@ -122,12 +122,12 @@ jobs:
           TORCH_CUDA_ARCH_LIST: "8.0 8.6 8.9 9.0"
         run: |
           # Install build dependencies
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements-build.txt
-          python3 -m pip install setuptools wheel twine
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+          python -m pip install setuptools wheel twine
 
           # Build the wheel
-          python3 setup.py sdist bdist_wheel
+          python setup.py sdist bdist_wheel
 
           # Set wheel name environment variables using portable approach
           wheel_name=$(ls dist/*.whl | xargs -n 1 basename)
