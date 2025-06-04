@@ -102,7 +102,7 @@ sllm status
 **Example output:**
 ```text
 [✓] Deployed Models:
-- facebook/opt-1.3b   
+- facebook/opt-1.3b
 ```
 
 ---
@@ -142,19 +142,19 @@ sllm deploy [OPTIONS]
 ```
 
 **Options:**
-- `--model <model_name>`  
+- `--model <model_name>`
   Model name to deploy (must be a HuggingFace pretrained model name).
-- `--config <config_path>`  
+- `--config <config_path>`
   Path to the JSON configuration file.
-- `--backend <backend_name>`  
+- `--backend <backend_name>`
   Overwrite the backend in the configuration.
-- `--num-gpus <number>`  
+- `--num-gpus <number>`
   Number of GPUs to allocate.
-- `--target <number>`  
+- `--target <number>`
   Target concurrency.
-- `--min-instances <number>`  
+- `--min-instances <number>`
   Minimum number of instances.
-- `--max-instances <number>`  
+- `--max-instances <number>`
   Maximum number of instances.
 
 **Examples:**
@@ -225,7 +225,7 @@ Delete deployed models by name.
 sllm delete [MODELS...]
 ```
 **Arguments:**
-- `MODELS...`  
+- `MODELS...`
   One or more space-separated model names to delete.
 
 **Example:**
@@ -256,8 +256,8 @@ sllm status
 **Example output:**
 ```text
 [✓] Deployed Models:
-- facebook/opt-1.3b    Running     
-- meta/llama2          Running     
+- facebook/opt-1.3b    Running
+- meta/llama2          Running
 
 ---
 
