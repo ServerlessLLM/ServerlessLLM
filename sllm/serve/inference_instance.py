@@ -43,9 +43,12 @@ def start_instance(
     else:
         logger.error(f"Unknown backend: {backend}")
         raise ValueError(f"Unknown backend: {backend}")
-    
+
     model_actor_cls = ray.remote(model_backend_cls)
 
     return model_actor_cls.options(
-        name=instance_id, **startup_config, max_concurrency=10, lifetime="detached"
+        name=instance_id,
+        **startup_config,
+        max_concurrency=10,
+        lifetime="detached",
     ).remote(model_name, backend_config)
