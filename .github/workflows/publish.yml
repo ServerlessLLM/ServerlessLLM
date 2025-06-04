@@ -90,7 +90,7 @@ jobs:
 
   sllm-store:
     name: Build Wheel For ServerlessLLM Store
-    runs-on: [self-hosted, linux]  # Use self-hosted runner with GPU
+    runs-on: [self-hosted, cpu]
     needs: release
     container:
       image: nvidia/cuda:12.3.0-devel-ubuntu20.04
@@ -159,7 +159,7 @@ jobs:
 
   build_and_push_docker:
     name: Build and Push Docker Images
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, cpu]
     needs: release
     container:
       image: docker:24-dind
