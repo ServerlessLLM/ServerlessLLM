@@ -3,13 +3,15 @@ name: Test Store and Inference
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, labeled]
     paths:
       - 'tests/inference_test/**'
+      - 'sllm_store/**'
 
 jobs:
   inference_store_tests:
     runs-on: [self-hosted, nvidia]
+    if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')
     timeout-minutes: 90
     container:
       image: nvcr.io/nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
