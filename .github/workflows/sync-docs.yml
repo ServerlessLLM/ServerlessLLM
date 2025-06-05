@@ -47,8 +47,8 @@ jobs:
       - name: Commit and push changes
         run: |
           cd docs-site
-          git config user.name "${{ vars.GIT_USERNAME || 'github-actions[bot]' }}"
-          git config user.email "${{ vars.GIT_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+          git config user.name "${{ vars.GIT_USERNAME }}"
+          git config user.email "${{ vars.GIT_EMAIL }}"
 
           # Check if there are changes to commit
           if git status --porcelain | grep .; then
