@@ -58,7 +58,7 @@ export LLM_SERVER_URL=http://127.0.0.1:8343
 ```
 2. Deploy models with specified lora adapters.
 ```bash
-sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora1=peft-internal-testing/opt-125m-dummy-lora demo_lora2=monsterapi/opt125M_alpaca
+sllm deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora1=peft-internal-testing/opt-125m-dummy-lora demo_lora2=monsterapi/opt125M_alpaca
 ```
 3. Verify the deployment.
 ```bash
@@ -86,18 +86,18 @@ curl $LLM_SERVER_URL/v1/chat/completions \
     }'
 ```
 ### Step 5: Update LoRA Adapters
-If you wish to switch to a different set of LoRA adapters, you can still use `sllm-cli deploy` command with updated adapter configurations. ServerlessLLM will automatically reload the new adapters without restarting the backend.
+If you wish to switch to a different set of LoRA adapters, you can still use `sllm deploy` command with updated adapter configurations. ServerlessLLM will automatically reload the new adapters without restarting the backend.
 
 For example, to update the adapter (located at `ft_facebook/opt-125m_adapter1`) used by facebook/opt-125m:
 ```bash
-sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora=ft_facebook/opt-125m_adapter1
+sllm deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo_lora=ft_facebook/opt-125m_adapter1
 ```
 
 ### Step 6: Clean Up
 
 Delete the lora adapters by running the following command (this command will only delete lora adapters, the base model won't be deleted):
 ```bash
-sllm-cli delete facebook/opt-125m --lora-adapters demo-lora1 demo-lora2
+sllm delete facebook/opt-125m --lora-adapters demo-lora1 demo-lora2
 ```
 If you need to stop and remove the containers, you can use the following commands:
 ```bash

@@ -6,7 +6,12 @@ sidebar_position: 2
 
 ## ServerlessLLM CLI Documentation
 
+<<<<<<< HEAD
 ## Overview
+=======
+### Overview
+`sllm` is the official command-line interface for interacting with ServerlessLLM. It is implemented using the [Click](https://click.palletsprojects.com/) framework to provide a flexible and extensible interface for managing model start, deploy, delete, and system status.
+>>>>>>> 101b2ee (Refactor: unify CLI by replacing all sllm-cli references)
 
 ### Installation
 
@@ -19,7 +24,6 @@ conda activate sllm
 pip install serverless-llm
 ```
 
-### Getting Started
 
 The CLI organizes commands into clearly scoped modules. This document outlines each available command along with its usage and configuration options.
 
@@ -237,10 +241,6 @@ sllm delete facebook/opt-1.3b facebook/opt-2.7b meta/llama2
 [✓] Deleted model: facebook/opt-1.3b
 [✓] Deleted model: facebook/opt-2.7b
 [✓] Deleted model: meta/llama2
-```
-Delete specific LoRA adapters from a base model, keeping the base model:
-```bash
-sllm-cli delete facebook/opt-1.3b --lora-adapters demo_lora1 demo_lora2
 ```
 
 ---

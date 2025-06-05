@@ -55,5 +55,5 @@ In another terminal:
     ```sh
     python deploy_dummy_models.py --num-models 7
     python generate_random_workload.py --num-models 7 --request-rate 1 --duration-minutes 1
-    sllm-cli replay --workload workload.json --dataset gsm8k_dataset.json
+    sllm replay --workload workload.json --dataset gsm8k_dataset.json
     ```
