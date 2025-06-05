@@ -18,7 +18,7 @@ After that, you may either use the Docker image or build the `sllm-store` wheel 
 
 ## Use the Docker image
 
-We provide a Docker file with ROCm support. Currently, it's built on base image `rocm/vllm-dev:base_ROCm-6.3.1_20250528_tuned_20250530`
+We provide a Dockerfile with ROCm support. Currently, it's built on base image `rocm/vllm-dev:base_ROCm-6.3.1_20250528_tuned_20250530`
 
 2. Build the Docker image:
 
