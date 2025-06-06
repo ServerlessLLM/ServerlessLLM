@@ -62,6 +62,12 @@ from peft import (
     LoraConfig,
 )
 from peft.utils import set_peft_model_state_dict
+from transformers.utils.quantization_config import (
+    QuantizationConfigMixin,
+)
+from transformers.quantizers.auto import AutoHfQuantizer
+import bitsandbytes as bnb
+
 
 logger = init_logger(__name__)
 
@@ -225,12 +231,6 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers.utils.quantization_config import (
-                QuantizationConfigMixin,
-            )
-            from transformers.quantizers.auto import AutoHfQuantizer
-            import bitsandbytes as bnb
-
             if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
                     f"Invalid config type: {type(quantization_config)}"
@@ -448,12 +448,6 @@ def best_effort_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers.utils.quantization_config import (
-                QuantizationConfigMixin,
-            )
-            from transformers.quantizers.auto import AutoHfQuantizer
-            import bitsandbytes as bnb
-
             if not isinstance(quantization_config, QuantizationConfigMixin):
                 raise ValueError(
                     f"Invalid config type: {type(quantization_config)}"
