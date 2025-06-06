@@ -66,7 +66,6 @@ from transformers.utils.quantization_config import (
     QuantizationConfigMixin,
 )
 from transformers.quantizers.auto import AutoHfQuantizer
-import bitsandbytes as bnb
 
 
 logger = init_logger(__name__)
@@ -283,7 +282,7 @@ def fully_parallel_load(
 
             for name, param in state_dict.items():
                 if param.is_floating_point():
-                    param = param.to(torch_dtype)  
+                    param = param.to(torch_dtype)
                 if hf_quantizer.check_quantized_param(
                     model, param, name, state_dict
                 ):
@@ -305,7 +304,7 @@ def fully_parallel_load(
                     except Exception:
                         load_parameter_into_model(model, name, param)
 
-            # converting new biases 
+            # converting new biases
             for module in model.modules():
                 b = getattr(module, "bias", None)
                 if b is not None and b.dtype != torch_dtype:
@@ -500,7 +499,7 @@ def best_effort_load(
 
             for name, param in state_dict.items():
                 if param.is_floating_point():
-                    param = param.to(torch_dtype)  
+                    param = param.to(torch_dtype)
                 if hf_quantizer.check_quantized_param(
                     model, param, name, state_dict
                 ):
@@ -522,7 +521,7 @@ def best_effort_load(
                     except Exception:
                         load_parameter_into_model(model, name, param)
 
-            # converting new biases 
+            # converting new biases
             for module in model.modules():
                 b = getattr(module, "bias", None)
                 if b is not None and b.dtype != torch_dtype:

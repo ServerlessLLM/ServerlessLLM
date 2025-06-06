@@ -49,7 +49,7 @@ def setup_models(storage_path):
             bnb_4bit_quant_type="nf4",
         ),
     ],
-    ids=["fp4", "int8", "nf4"]
+    ids=["fp4", "int8", "nf4"],
 )
 def get_quantization_config(request):
     return request.param
@@ -126,6 +126,7 @@ def compare_state_dicts(transformers_model, sllm_model):
             f"Param mismatch for {key}: "
             f"Transformers={t_param.dtype}, SLLM={s_param.dtype}",
         )
+
 
 def test_valid_quantization(hf_model, sllm_model):
     compare_state_dicts(hf_model, sllm_model)
