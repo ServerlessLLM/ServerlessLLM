@@ -297,12 +297,9 @@ def fully_parallel_load(
                     )
 
                 else:
-                    try:
-                        set_module_tensor_to_device(
-                            model, name, param.device, param
-                        )
-                    except Exception:
-                        load_parameter_into_model(model, name, param)
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
 
             # converting new biases
             for module in model.modules():
