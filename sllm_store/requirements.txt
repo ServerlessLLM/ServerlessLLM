@@ -4,7 +4,6 @@ bitsandbytes==0.46.0
 click>=8.1.7
 grpcio==1.49.1
 grpcio-tools==1.49.1
-optimum==1.25.3
 peft==0.15.2
 torch==2.5.1
 transformers==4.47.1
