@@ -272,6 +272,8 @@ def fully_parallel_load(
             hf_quantizer = AutoHfQuantizer.from_config(
                 quantization_config, pre_quantized=False
             )
+            model.hf_device_map = device_map
+            model.hf_quantizer = hf_quantizer
             hf_quantizer.validate_environment(device_map=device_map)
             hf_quantizer.preprocess_model(model, device_map=device_map)
 
@@ -280,7 +282,8 @@ def fully_parallel_load(
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
-                param = param.to(torch_dtype)
+                if param.is_floating_point():
+                    param = param.to(torch_dtype)  
                 if hf_quantizer.check_quantized_param(
                     model, param, name, state_dict
                 ):
@@ -304,14 +307,14 @@ def fully_parallel_load(
 
             # converting new biases 
             for module in model.modules():
-                if isinstance(module, (bnb.nn.Linear8bitLt,
-                                    bnb.nn.Linear4bit)):
-                    b = getattr(module, "bias", None)
-                    if b is not None and b.dtype != torch_dtype:
-                        b.data = b.data.to(torch_dtype)
+                b = getattr(module, "bias", None)
+                if b is not None and b.dtype != torch_dtype:
+                    b.data = b.data.to(torch_dtype)
+
+            if quant_method == "gptq":
+                model = model.to("cuda")
 
             hf_quantizer.postprocess_model(model)
-            model.hf_quantizer = hf_quantizer
 
         else:
             if quantization_config is not None:
@@ -328,6 +331,7 @@ def fully_parallel_load(
     )
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
+    model.hf_device_map = device_map
     model.eval()
     return model
 
@@ -491,6 +495,8 @@ def best_effort_load(
             hf_quantizer = AutoHfQuantizer.from_config(
                 quantization_config, pre_quantized=False
             )
+            model.hf_device_map = device_map
+            model.hf_quantizer = hf_quantizer
             hf_quantizer.validate_environment(device_map=device_map)
             hf_quantizer.preprocess_model(model, device_map=device_map)
 
@@ -499,7 +505,8 @@ def best_effort_load(
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
-                param = param.to(torch_dtype)
+                if param.is_floating_point():
+                    param = param.to(torch_dtype)  
                 if hf_quantizer.check_quantized_param(
                     model, param, name, state_dict
                 ):
@@ -521,15 +528,17 @@ def best_effort_load(
                     except Exception:
                         load_parameter_into_model(model, name, param)
 
+            # converting new biases 
             for module in model.modules():
-                if isinstance(module, (bnb.nn.Linear8bitLt,
-                                    bnb.nn.Linear4bit)):
-                    b = getattr(module, "bias", None)
-                    if b is not None and b.dtype != torch_dtype:
-                        b.data = b.data.to(torch_dtype)
+                b = getattr(module, "bias", None)
+                if b is not None and b.dtype != torch_dtype:
+                    b.data = b.data.to(torch_dtype)
+
+            if quant_method == "gptq":
+                model = model.to("cuda")
 
             hf_quantizer.postprocess_model(model)
-            model.hf_quantizer = hf_quantizer
+
         else:
             if quantization_config is not None:
                 logger.debug(

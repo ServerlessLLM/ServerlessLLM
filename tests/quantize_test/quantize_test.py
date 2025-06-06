@@ -48,7 +48,8 @@ def setup_models(storage_path):
             bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_quant_type="nf4",
         ),
-    ]
+    ],
+    ids=["fp4", "int8", "nf4"]
 )
 def get_quantization_config(request):
     return request.param
@@ -60,6 +61,7 @@ def hf_model(get_quantization_config, model_name):
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=get_quantization_config,
+        torch_dtype=torch.float16,
         device_map="auto",
     )
     yield model
@@ -73,6 +75,7 @@ def sllm_model(get_quantization_config, model_name, storage_path, request):
         model_name,
         storage_path=storage_path,
         quantization_config=get_quantization_config,
+        torch_dtype=torch.float16,
         fully_parallel=request.param,
         device_map="auto",
     )
@@ -119,9 +122,9 @@ def compare_state_dicts(transformers_model, sllm_model):
         )
 
         # individual parameter check
-        assert torch.allclose(t_param, s_param, rtol=1e-02, atol=1e-03), (
+        assert torch.allclose(t_param, s_param, rtol=1e-2, atol=1e-3), (
             f"Param mismatch for {key}: "
-            f"Transformers={t_param.dtype}, SLLM={s_param.dtype}"
+            f"Transformers={t_param.dtype}, SLLM={s_param.dtype}",
         )
 
 def test_valid_quantization(hf_model, sllm_model):
