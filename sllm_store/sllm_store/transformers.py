@@ -49,7 +49,6 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
-    load_parameter_into_model,
 )
 from torch import nn
 from transformers import AutoConfig
@@ -515,8 +514,6 @@ def best_effort_load(
                         set_module_tensor_to_device(
                             model, name, param.device, param
                         )
-                    except Exception:
-                        load_parameter_into_model(model, name, param)
 
             # converting new biases
             for module in model.modules():
