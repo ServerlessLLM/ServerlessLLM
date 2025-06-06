@@ -510,10 +510,9 @@ def best_effort_load(
                     )
 
                 else:
-                    try:
-                        set_module_tensor_to_device(
-                            model, name, param.device, param
-                        )
+                    set_module_tensor_to_device(
+                        model, name, param.device, param
+                    )
 
             # converting new biases
             for module in model.modules():
