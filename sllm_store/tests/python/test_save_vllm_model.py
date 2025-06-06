@@ -70,7 +70,7 @@ class TestSaveModelIntegration(unittest.TestCase):
             num_gpu_blocks_override=1,
             enforce_eager=True,
             max_model_len=1,
-        ).llm_engine.model_executor
+        ).llm_engine.engine_core  # For engine V1
         # save the models in the ServerlessLLM format
         model_executer.save_serverless_llm_state(path=self.model_path)
 

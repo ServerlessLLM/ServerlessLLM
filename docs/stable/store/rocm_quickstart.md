@@ -18,7 +18,7 @@ After that, you may either use the Docker image or build the `sllm-store` wheel 
 
 ## Use the Docker image
 
-We provide a Docker file with ROCm support. Currently, it's built on base image `rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0`
+We provide a Dockerfile with ROCm support. Currently, it's built on base image `rocm/vllm-dev:base_ROCm-6.3.1_20250528_tuned_20250530`
 
 2. Build the Docker image:
 
@@ -43,16 +43,16 @@ docker run --name sllm_store_server --rm -it \
 Expected output:
 
 ``` bash
-INFO 02-13 04:52:36 cli.py:76] Starting gRPC server
-INFO 02-13 04:52:36 server.py:40] StorageServicer: storage_path=/models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
+INFO 06-05 12:59:07 cli.py:76] Starting gRPC server
+INFO 06-05 12:59:07 server.py:40] StorageServicer: storage_path=/models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
 WARNING: Logging before InitGoogleLogging() is written to STDERR
-I20250213 04:52:36.284631     1 checkpoint_store_hip.cpp:42] Number of GPUs: 1
-I20250213 04:52:36.284652     1 checkpoint_store_hip.cpp:44] I/O threads: 4, chunk size: 32MB
-I20250213 04:52:36.284659     1 checkpoint_store_hip.cpp:46] Storage path: "/models"
-I20250213 04:52:36.284674     1 checkpoint_store_hip.cpp:72] GPU 0 UUID: 61363865-3865-3038-3831-366132376261
-I20250213 04:52:36.425267     1 pinned_memory_pool_hip.cpp:30] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
-I20250213 04:52:37.333868     1 checkpoint_store_hip.cpp:84] Memory pool created with 4GB
-INFO 02-13 04:52:37 server.py:231] Starting gRPC server on 0.0.0.0:8073
+I20250605 12:59:11.141070     1 checkpoint_store_hip.cpp:42] Number of GPUs: 1
+I20250605 12:59:11.141098     1 checkpoint_store_hip.cpp:44] I/O threads: 4, chunk size: 32MB
+I20250605 12:59:11.141103     1 checkpoint_store_hip.cpp:46] Storage path: "/models"
+I20250605 12:59:11.141119     1 checkpoint_store_hip.cpp:72] GPU 0 UUID: 61363865-3865-3038-3831-366132376261
+I20250605 12:59:11.519277     1 pinned_memory_pool_hip.cpp:30] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
+I20250605 12:59:12.487957     1 checkpoint_store_hip.cpp:84] Memory pool created with 4GB
+INFO 06-05 12:59:12 server.py:231] Starting gRPC server on 0.0.0.0:8073
 
 ```
 
@@ -71,25 +71,23 @@ python3 examples/load_transformers_model.py --model-name "facebook/opt-1.3b" --s
 Expected output:
 
 ``` bash
-DEBUG 02-13 04:58:09 transformers.py:178] load_dict_non_blocking takes 0.005706787109375 seconds
-DEBUG 02-13 04:58:09 transformers.py:189] load config takes 0.0013949871063232422 seconds
-DEBUG 02-13 04:58:09 torch.py:137] allocate_cuda_memory takes 0.001325368881225586 seconds
-DEBUG 02-13 04:58:09 client.py:72] load_into_gpu: facebook/opt-1.3b, d34e8994-37da-4357-a86c-2205175e3b3f
-INFO 02-13 04:58:09 client.py:113] Model loaded: facebook/opt-1.3b, d34e8994-37da-4357-a86c-2205175e3b3f
-INFO 02-13 04:58:09 torch.py:160] restore state_dict takes 0.0004620552062988281 seconds
-DEBUG 02-13 04:58:09 transformers.py:199] load model takes 0.06779956817626953 seconds
-INFO 02-13 04:58:09 client.py:117] confirm_model_loaded: facebook/opt-1.3b, d34e8994-37da-4357-a86c-2205175e3b3f
-INFO 02-13 04:58:14 client.py:125] Model loaded
-Model loading time: 5.14s
-tokenizer_config.json: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 685/685 [00:00<00:00, 8.26MB/s]
-vocab.json: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 899k/899k [00:00<00:00, 4.05MB/s]
-merges.txt: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 456k/456k [00:00<00:00, 3.07MB/s]
-special_tokens_map.json: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 441/441 [00:00<00:00, 4.59MB/s]
-/opt/conda/envs/py_3.10/lib/python3.10/site-packages/transformers/generation/utils.py:1249: UserWarning: Using the model-agnostic default `max_length` (=20) to control the generation length. We recommend setting `
-max_new_tokens` to control the maximum length of the generation.
-  warnings.warn(
-Hello, my dog is cute and I want to give him a good home. I have a
-
+DEBUG 06-05 13:01:01 transformers.py:203] load_dict_non_blocking takes 0.0071375370025634766 seconds
+DEBUG 06-05 13:01:01 transformers.py:213] load config takes 0.003943443298339844 seconds
+DEBUG 06-05 13:01:01 torch.py:137] allocate_cuda_memory takes 0.0012660026550292969 seconds
+DEBUG 06-05 13:01:01 client.py:72] load_into_gpu: facebook/opt-1.3b, 93b1932e-4b43-42cb-b82d-7228ef21810b
+INFO 06-05 13:01:01 client.py:113] Model loaded: facebook/opt-1.3b, 93b1932e-4b43-42cb-b82d-7228ef21810b
+INFO 06-05 13:01:01 torch.py:160] restore state_dict takes 0.0004298686981201172 seconds
+DEBUG 06-05 13:01:02 transformers.py:224] load model takes 0.9706132411956787 seconds
+INFO 06-05 13:01:02 client.py:117] confirm_model_loaded: facebook/opt-1.3b, 93b1932e-4b43-42cb-b82d-7228ef21810b
+INFO 06-05 13:01:06 client.py:125] Model loaded
+Model loading time: 5.28s
+tokenizer_config.json: 100%|██████████████████████████████| 685/685 [00:00<00:00, 6.68MB/s]
+vocab.json: 100%|███████████████████████████████████████| 899k/899k [00:00<00:00, 4.05MB/s]
+merges.txt: 100%|███████████████████████████████████████| 456k/456k [00:00<00:00, 3.05MB/s]
+special_tokens_map.json: 100%|████████████████████████████| 441/441 [00:00<00:00, 4.10MB/s]
+/usr/local/lib/python3.12/dist-packages/torch/nn/modules/linear.py:125: UserWarning: Failed validator: GCN_ARCH_NAME (Triggered internally at /app/pytorch/aten/src/ATen/hip/tunable/Tunable.cpp:366.)
+  return F.linear(input, self.weight, self.bias)
+Hello, my dog is cute and I want to give him a good home. I have a lot of experience with dogs and I
 ```
 
 Try to save and load a model in vLLM:
@@ -101,48 +99,43 @@ python3 examples/load_vllm_model.py --model-name "facebook/opt-125m" --storage-p
 Expected output:
 
 ``` bash
-WARNING 03-13 09:37:29 rocm.py:31] `fork` method is not supported by ROCm. VLLM_WORKER_MULTIPROC_METHOD is overridden to `spawn` instead.
-INFO 03-13 09:37:35 config.py:510] This model supports multiple tasks: {'embed', 'classify', 'generate', 'reward', 'score'}. Defaulting to 'generate'.
-INFO 03-13 09:37:35 config.py:1339] Disabled the custom all-reduce kernel because it is not supported on AMD GPUs.
-INFO 03-13 09:37:35 llm_engine.py:234] Initializing an LLM engine (v0.6.6) with config: model='/models/facebook/opt-125m', speculative_config=None, tokenizer='/models/facebook/opt-125m', skip_tokenizer_init=False,
- tokenizer_mode=auto, revision=None, override_neuron_config=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.float16, max_seq_len=2048, download_dir=None, load_format=serverless_llm, tensor_para
-llel_size=1, pipeline_parallel_size=1, disable_custom_all_reduce=True, quantization=None, enforce_eager=False, kv_cache_dtype=auto, quantization_param_path=None, device_config=cuda, decoding_config=DecodingConfig(
-guided_decoding_backend='xgrammar'), observability_config=ObservabilityConfig(otlp_traces_endpoint=None, collect_model_forward_time=False, collect_model_execute_time=False), seed=0, served_model_name=/models/faceb
-ook/opt-125m, num_scheduler_steps=1, multi_step_stream_outputs=True, enable_prefix_caching=False, chunked_prefill_enabled=False, use_async_output_proc=True, disable_mm_preprocessor_cache=False, mm_processor_kwargs
-=None, pooler_config=None, compilation_config={"splitting_ops":["vllm.unified_attention","vllm.unified_attention_with_output"],"candidate_compile_sizes":[],"compile_sizes":[],"capture_sizes":[256,248,240,232,224,2
-16,208,200,192,184,176,168,160,152,144,136,128,120,112,104,96,88,80,72,64,56,48,40,32,24,16,8,4,2,1],"max_capture_size":256}, use_cached_outputs=False,
-INFO 03-13 09:37:38 selector.py:134] Using ROCmFlashAttention backend.
-INFO 03-13 09:37:39 model_runner.py:1094] Starting to load model /models/facebook/opt-125m...
-DEBUG 03-13 09:37:39 torch.py:137] allocate_cuda_memory takes 0.0004572868347167969 seconds
-DEBUG 03-13 09:37:39 client.py:72] load_into_gpu: facebook/opt-125m/rank_0, 8554547c-25d3-4a01-92b6-27d69d91d3b8
-INFO 03-13 09:37:39 client.py:113] Model loaded: facebook/opt-125m/rank_0, 8554547c-25d3-4a01-92b6-27d69d91d3b8
-INFO 03-13 09:37:39 torch.py:160] restore state_dict takes 0.00017452239990234375 seconds
-INFO 03-13 09:37:39 client.py:117] confirm_model_loaded: facebook/opt-125m/rank_0, 8554547c-25d3-4a01-92b6-27d69d91d3b8
-INFO 03-13 09:37:39 client.py:125] Model loaded
-INFO 03-13 09:37:39 model_runner.py:1099] Loading model weights took 0.0000 GB
-/app/third_party/vllm/vllm/model_executor/layers/linear.py:140: UserWarning: Attempting to use hipBLASLt on an unsupported architecture! Overriding blas backend to hipblas (Triggered internally at ../aten/src/ATen
-/Context.cpp:296.)
-  return F.linear(x, layer.weight, bias)
-INFO 03-13 09:37:42 worker.py:253] Memory profiling takes 2.68 seconds
-INFO 03-13 09:37:42 worker.py:253] the current vLLM instance can use total_gpu_memory (23.98GiB) x gpu_memory_utilization (0.90) = 21.59GiB
-INFO 03-13 09:37:42 worker.py:253] model weights take 0.00GiB; non_torch_memory takes 0.62GiB; PyTorch activation peak memory takes 0.46GiB; the rest of the memory reserved for KV Cache is 20.50GiB.
-INFO 03-13 09:37:42 gpu_executor.py:76] # GPU blocks: 37326, # CPU blocks: 7281
-INFO 03-13 09:37:42 gpu_executor.py:80] Maximum concurrency for 2048 tokens per request: 291.61x
-INFO 03-13 09:37:43 model_runner.py:1429] Capturing cudagraphs for decoding. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--
-enforce-eager' in the CLI. If out-of-memory error occurs during cudagraph capture, consider decreasing `gpu_memory_utilization` or switching to eager mode. You can also reduce the `max_num_seqs` as needed to decre
-ase memory usage.
-Capturing CUDA graph shapes: 100%|████████████████████████████████████████| 35/35 [00:09<00:00,  3.73it/s]
-INFO 03-13 09:37:52 model_runner.py:1549] Graph capturing finished in 9 secs, took 0.06 GiB
-INFO 03-13 09:37:52 llm_engine.py:431] init engine (profile, create kv cache, warmup model) took 12.80 seconds
-Processed prompts: 100%|█| 4/4 [00:00<00:00, 50.16it/s, est. speed input: 326.19 toks/s, output: 802.89 to
+INFO 06-05 13:02:51 [__init__.py:243] Automatically detected platform rocm.
+INFO 06-05 13:02:52 [__init__.py:31] Available plugins for group vllm.general_plugins:
+INFO 06-05 13:02:52 [__init__.py:33] - lora_filesystem_resolver -> vllm.plugins.lora_resolvers.filesystem_resolver:register_filesystem_resolver
+INFO 06-05 13:02:52 [__init__.py:36] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+INFO 06-05 13:03:00 [config.py:793] This model supports multiple tasks: {'reward', 'embed', 'generate', 'classify', 'score'}. Defaulting to 'generate'.
+INFO 06-05 13:03:00 [arg_utils.py:1594] rocm is experimental on VLLM_USE_V1=1. Falling back to V0 Engine.
+INFO 06-05 13:03:04 [config.py:1910] Disabled the custom all-reduce kernel because it is not supported on current platform.
+INFO 06-05 13:03:04 [llm_engine.py:230] Initializing a V0 LLM engine (v0.9.0.1) with config: model='/models/facebook/opt-125m', speculative_config=None, tokenizer='/models/facebook/opt-125m', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, override_neuron_config={}, tokenizer_revision=None, trust_remote_code=False, dtype=torch.float16, max_seq_len=2048, download_dir=None, load_format=LoadFormat.SERVERLESS_LLM, tensor_parallel_size=1, pipeline_parallel_size=1, disable_custom_all_reduce=True, quantization=None, enforce_eager=False, kv_cache_dtype=auto,  device_config=cuda, decoding_config=DecodingConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_backend=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=/models/facebook/opt-125m, num_scheduler_steps=1, multi_step_stream_outputs=True, enable_prefix_caching=None, chunked_prefill_enabled=False, use_async_output_proc=True, pooler_config=None, compilation_config={"compile_sizes": [], "inductor_compile_config": {"enable_auto_functionalized_v2": false}, "cudagraph_capture_sizes": [256, 248, 240, 232, 224, 216, 208, 200, 192, 184, 176, 168, 160, 152, 144, 136, 128, 120, 112, 104, 96, 88, 80, 72, 64, 56, 48, 40, 32, 24, 16, 8, 4, 2, 1], "max_capture_size": 256}, use_cached_outputs=False,
+INFO 06-05 13:03:04 [rocm.py:208] None is not supported in AMD GPUs.
+INFO 06-05 13:03:04 [rocm.py:209] Using ROCmFlashAttention backend.
+INFO 06-05 13:03:05 [parallel_state.py:1064] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+INFO 06-05 13:03:05 [model_runner.py:1170] Starting to load model /models/facebook/opt-125m...
+DEBUG 06-05 13:03:05 torch.py:137] allocate_cuda_memory takes 0.0004763603210449219 seconds
+DEBUG 06-05 13:03:05 client.py:72] load_into_gpu: facebook/opt-125m/rank_0, e8e7d900-652d-4822-8992-ad22f734b9c8
+INFO 06-05 13:03:05 client.py:113] Model loaded: facebook/opt-125m/rank_0, e8e7d900-652d-4822-8992-ad22f734b9c8
+INFO 06-05 13:03:05 torch.py:160] restore state_dict takes 0.00021338462829589844 seconds
+INFO 06-05 13:03:05 client.py:117] confirm_model_loaded: facebook/opt-125m/rank_0, e8e7d900-652d-4822-8992-ad22f734b9c8
+INFO 06-05 13:03:05 client.py:125] Model loaded
+INFO 06-05 13:03:05 [model_runner.py:1202] Model loading took 0.2363 GiB and 0.711783 seconds
+/app/third_party/vllm/vllm/model_executor/layers/utils.py:80: UserWarning: Failed validator: GCN_ARCH_NAME (Triggered internally at /app/pytorch/aten/src/ATen/hip/tunable/Tunable.cpp:366.)
+  return torch.nn.functional.linear(x, weight, bias)
+INFO 06-05 13:03:17 [worker.py:303] Memory profiling takes 11.68 seconds
+INFO 06-05 13:03:17 [worker.py:303] the current vLLM instance can use total_gpu_memory (23.98GiB) x gpu_memory_utilization (0.90) = 21.59GiB
+INFO 06-05 13:03:17 [worker.py:303] model weights take 0.24GiB; non_torch_memory takes 0.53GiB; PyTorch activation peak memory takes 0.49GiB; the rest of the memory reserved for KV Cache is 20.33GiB.
+INFO 06-05 13:03:17 [executor_base.py:112] # rocm blocks: 37011, # CPU blocks: 7281
+INFO 06-05 13:03:17 [executor_base.py:117] Maximum concurrency for 2048 tokens per request: 289.15x
+INFO 06-05 13:03:18 [model_runner.py:1526] Capturing cudagraphs for decoding. This may lead to unexpected consequences if the model is not static. To run the model in eager mode, set 'enforce_eager=True' or use '--enforce-eager' in the CLI. If out-of-memory error occurs during cudagraph capture, consider decreasing `gpu_memory_utilization` or switching to eager mode. You can also reduce the `max_num_seqs` as needed to decrease memory usage.
+Capturing CUDA graph shapes: 100%|█████████████████████████| 35/35 [00:09<00:00,  3.55it/s]
+INFO 06-05 13:03:28 [model_runner.py:1684] Graph capturing finished in 10 secs, took 0.13 GiB
+INFO 06-05 13:03:28 [llm_engine.py:428] init engine (profile, create kv cache, warmup model) took 22.81 seconds
+Adding requests: 100%|█████████████████████████████████████| 4/4 [00:00<00:00, 2079.22it/s]
+Processed prompts: 100%|█| 4/4 [00:00<00:00,  6.71it/s, est. speed input: 43.59 toks/s, out
 Prompt: 'Hello, my name is', Generated text: ' Joel, my dad is my friend and we are in a relationship. I am'
 Prompt: 'The president of the United States is', Generated text: ' speaking out against the release of some State Department documents which show the Russians were involved'
 Prompt: 'The capital of France is', Generated text: ' a worldwide knowledge center. What better place to learn about the history and culture of'
 Prompt: 'The future of AI is', Generated text: " here: it's the future of everything\nIf you want to test your minds"
-[rank0]:[W313 09:37:53.050846849 ProcessGroupNCCL.cpp:1250] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_p
-rocess_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This cons
-traint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
-
+[rank0]:[W605 13:03:30.532018298 ProcessGroupNCCL.cpp:1476] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
 ```
 
 ## Build the wheel from source and install
@@ -169,6 +162,3 @@ python setup.py sdist bdist_wheel
 
 This issue is due to an internal bug in ROCm. After the inference instance is completed, the GPU memory is still occupied and not released. For more information, please refer to [issue](https://github.com/ROCm/HIP/issues/3580).
 
-2. vLLM v0.5.0.post1 can not be built in ROCm 6.2.0
-
-This issue is due to the ambiguity of a function call in ROCm 6.2.0. You may change the vLLM's source code as in this [commit](https://github.com/vllm-project/vllm/commit/9984605412de1171a72d955cfcb954725edd4d6f).

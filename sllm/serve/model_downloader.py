@@ -208,7 +208,8 @@ class VllmModelDownloader:
                 enforce_eager=True,
                 max_model_len=1,
             )
-            model_executer = llm_writer.llm_engine.model_executor
+            # model_executer = llm_writer.llm_engine.model_executor #V0
+            model_executer = llm_writer.llm_engine.engine_core  # For engine V1
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
                 path=model_path, pattern=pattern, max_size=max_size
