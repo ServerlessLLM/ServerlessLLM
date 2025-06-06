@@ -40,7 +40,7 @@ jobs:
         run: |
           export MODEL_FOLDER="./models"
           mkdir -p $MODEL_FOLDER
-          nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 16GB > server.log 2>&1 &
+          nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 20GB > server.log 2>&1 &
           sleep 10
 
       - name: Run Python Tests
