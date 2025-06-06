@@ -17,7 +17,21 @@ We will use the following example base model & LoRA adapter
 
 Start a local Docker-based ray cluster using Docker Compose.
 
-### Step 1: Configuration
+### Step 1: Download the Docker Compose File
+
+Download the `docker-compose.yml` file from the ServerlessLLM repository:
+```bash
+# Create a directory for the ServerlessLLM Docker setup
+mkdir serverless-llm-docker && cd serverless-llm-docker
+
+# Download the docker-compose.yml file
+curl -O https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
+
+# Alternatively, you can use wget:
+# wget https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
+```
+
+### Step 2: Configuration
 
 Set the Model Directory. Create a directory on your host machine where models will be stored and set the `MODEL_FOLDER` environment variable to point to this directory:
 
@@ -27,7 +41,7 @@ export MODEL_FOLDER=/path/to/your/models
 
 Replace `/path/to/your/models` with the actual path where you want to store the models.
 
-### Step 2: Start the Services
+### Step 3: Start the Services
 
 Start the ServerlessLLM services using Docker Compose:
 
@@ -45,7 +59,7 @@ docker logs -f sllm_head
 ```
 :::
 
-### Step 3: Deploy Models with LoRA Adapters
+### Step 4: Deploy Models with LoRA Adapters
 1. Configuration
 ```bash
 conda activate sllm
@@ -80,13 +94,13 @@ curl $LLM_SERVER_URL/v1/chat/completions \
         ]
     }'
 ```
-### Step 4: Update LoRA Adapters
+### Step 5: Update LoRA Adapters
 If you wish to switch to a different set of LoRA adapters, you can still use `sllm-cli deploy` command with updated adapter configurations. ServerlessLLM will automatically reload the new adapters without restarting the backend.
 ```bash
 sllm-cli deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters demo-lora1=edbeeching/opt-125m-lora demo-lora2=Hagatiana/opt-125m-lora
 ```
 
-### Step 5: Clean Up
+### Step 6: Clean Up
 
 Delete the lora adapters by running the following command (this command will only delete lora adapters, the base model won't be deleted):
 ```bash
