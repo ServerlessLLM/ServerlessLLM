@@ -14,7 +14,7 @@ jobs:
   release:
     # Retrieve tag and create release
     name: Create Release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
