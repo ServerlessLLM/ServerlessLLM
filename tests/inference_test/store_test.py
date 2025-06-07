@@ -26,11 +26,11 @@ def storage_path(tmp_path_factory):
 def store_and_compare(model_name, storage_path):
     try:
         os.makedirs(storage_path, exist_ok=True)
-        cache_dir = os.path.join(storage_path, model_name)
+        cache_dir = storage_path / model_name
         hf_model = AutoModelForCausalLM.from_pretrained(
             model_name, torch_dtype=torch.float16, trust_remote_code=True
         )
-        save_model(hf_model, cache_dir)
+        save_model(hf_model, str(cache_dir))
 
         test_model = load_model(
             model_name,
