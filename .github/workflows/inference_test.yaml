@@ -60,3 +60,8 @@ jobs:
             echo "::error::Tests failed - see above for details"
             exit 1
           fi
+
+      - name: Clean up model storage
+        if: always()
+        run: |
+          rm -rf ./models
