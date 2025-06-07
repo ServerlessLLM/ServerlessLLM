@@ -50,4 +50,8 @@ jobs:
         timeout-minutes: 30
         run: |
           export MODEL_FOLDER="./models"
-          pytest tests/quantize_test
+
+      - name: Clean up model storage
+        if: always()
+        run: |
+          rm -rf ./models
