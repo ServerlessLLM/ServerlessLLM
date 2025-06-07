@@ -140,7 +140,9 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization_config: Optional[Union[BitsAndBytesConfig, Dict[str, Any]]] = None,
+    quantization_config: Optional[
+        Union[BitsAndBytesConfig, Dict[str, Any]]
+    ] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -171,7 +173,9 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization_config: Optional[Union[BitsAndBytesConfig, Dict[str, Any]]] = None,
+    quantization_config: Optional[
+        Union[BitsAndBytesConfig, Dict[str, Any]]
+    ] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -228,7 +232,9 @@ def fully_parallel_load(
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
             if isinstance(quantization_config, dict):
-                quantization_config = BitsAndBytesConfig.from_dict(quantization_config)
+                quantization_config = BitsAndBytesConfig.from_dict(
+                    quantization_config
+                )
 
             logger.debug(
                 f"using precision: {quantization_config.quantization_method()}"
@@ -280,7 +286,9 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization_config: Optional[Union[BitsAndBytesConfig, Dict[str, Any]]] = None,
+    quantization_config: Optional[
+        Union[BitsAndBytesConfig, Dict[str, Any]]
+    ] = None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -388,7 +396,9 @@ def best_effort_load(
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
             if isinstance(quantization_config, dict):
-                quantization_config = BitsAndBytesConfig.from_dict(quantization_config)
+                quantization_config = BitsAndBytesConfig.from_dict(
+                    quantization_config
+                )
 
             logger.debug(
                 f"using precision: {quantization_config.quantization_method()}"
