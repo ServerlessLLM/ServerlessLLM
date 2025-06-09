@@ -160,7 +160,8 @@ INFO 12-31 17:13:25 server.py:243] Starting gRPC server on 0.0.0.0:8073
 
 ### 3. Start ServerlessLLM
 
-Now, start the ServerlessLLM Serve process.
+Now, start the ServerlessLLM service process using `sllm start`.
+
 
 Open a new terminal and run:
 
@@ -168,7 +169,7 @@ Open a new terminal and run:
 sllm start
 ```
 
-At this point, you should have four terminals open: one for the Ray head node, one for the Ray worker node, one for the ServerlessLLM Store server, and one for ServerlessLLM Serve.
+At this point, you should have four terminals open: one for the Ray head node, one for the Ray worker node, one for the ServerlessLLM Store server, and one for the ServerlessLLM service (started via `sllm start`).
 
 ### 4. Deploy a Model
 
