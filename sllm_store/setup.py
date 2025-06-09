@@ -50,10 +50,11 @@ def check_nvcc_installed(cuda_home: str) -> None:
         _ = subprocess.check_output(
             [cuda_home + "/bin/nvcc", "-V"], universal_newlines=True
         )
-    except Exception:
+    except Exception as e:
         raise RuntimeError(
             "nvcc is not installed or not found in your PATH. "
             "Please ensure that the CUDA toolkit is installed and nvcc is available in your PATH."  # noqa: E501
+            f" Error: {e}"
         ) from None
 
 
@@ -232,7 +233,7 @@ cmdclass = {
 
 setup(
     name="serverless-llm-store",
-    version="0.6.3",
+    version="0.7.0",
     ext_modules=[
         CMakeExtension(name="sllm_store._C"),
         CMakeExtension(name="sllm_store._checkpoint_store"),

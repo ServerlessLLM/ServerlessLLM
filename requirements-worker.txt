@@ -1,8 +1,6 @@
 accelerate==1.7.0
 datasets==3.6.0
 GPUtil==1.4.0
-grpcio==1.72.1
-grpcio-tools==1.64.0
 # ServerlessLLM does not directly depend on outlines.
 # This is to fix issue: https://github.com/dottxt-ai/outlines/issues/1198
 outlines==0.1.11

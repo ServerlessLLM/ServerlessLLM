@@ -1,7 +1,5 @@
 fastapi==0.115.12
 GPUtil==1.4.0
-grpcio==1.72.1
-grpcio-tools==1.64.0
 openai==1.52.0
 pydantic==2.11.5
 pydantic_core==2.33.2
