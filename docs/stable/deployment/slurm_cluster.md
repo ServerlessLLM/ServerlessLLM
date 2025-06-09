@@ -67,14 +67,14 @@ compute    up        2  down   infinite   JobNode[16-17]
 Only one JobNode is enough.
 
 **`sbatch` Node Selection**
-Let's start a head on the main job node (`JobNode01`) and add the worker on another job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` is started on the job node that runs the worker (`JobNode02`) to pass the model weights, and `sllm start` is run on the main job node (`JobNode01`). Finally, you can use `sllm` to manage the models on the login node.
+Let's start a head on the main job node (`JobNode01`) and add the worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs worker (`JobNode02`), for passing the model weights, and the `sllm-serve` should be started on the main job node (`JobNode01`), finally you can use `sllm` to manage the models on the login node.
 
 
 Note: `JobNode02` requires GPU, but `JobNode01` does not.
 - **Head**: JobNode01
 - **Worker**: JobNode02
 - **sllm-store**: JobNode02
-- **sllm start**: JobNode01
+- **sllm-serve**: JobNode01
 - **sllm**: Login Node
 
 ---
@@ -158,7 +158,7 @@ In the 4th window, start ServerlessLLM Serve:
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm
-sllm start
+sllm-serve start
 ```
 Everything is set!
 
@@ -403,7 +403,7 @@ $ squeue -u your_username
 JOBID    PARTITION     NAME                USER       ST  TIME  NODES NODELIST(REASON)
   1234    compute   sllm-head         your_username  R   0:01      1    JobNode01
   1235    compute   sllm-worker-store your_username  R   0:01      1    JobNode02
-  1236    compute   sllm start        your_username  R   0:01      1    JobNode01
+  1236    compute   sllm-serve        your_username  R   0:01      1    JobNode01
 ```
 Then, use ```scancel``` to stop the job (```1234```, ```1235``` and ```1236``` are JOBIDs):
 ```shell

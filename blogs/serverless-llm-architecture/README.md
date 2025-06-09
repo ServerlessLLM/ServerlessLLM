@@ -5,13 +5,14 @@
 - [ServerlessLLM Architecture Overview](#serverlessllm-architecture-overview)
   - [Table of Contents](#table-of-contents)
   - [Introduction](#introduction)
+  - [ServerlessLLM Serve](#serverlessllm-serve)
   - [ServerlessLLM Store](#serverlessllm-store)
   - [Conclusion and Future Work](#conclusion-and-future-work)
 
 
 ## Introduction
 
-ServerlessLLM (SLLM, pronounced “sllm”) enables low-latency, serverless LLM inference via two core components: **sllm click** and **sllm-store**. The sllm CLICK provides a unified interface to manage serverless LLM services. It supports starting the system, deploying and deleting models, and checking service status with simple commands.. *sllm-store*, built in C++, serves as a high-performance checkpoint store optimized for cold-start with efficient model loading and caching.
+ServerlessLLM (SLLM, pronounced “slim”) enables low-latency, serverless LLM inference via two core components: **sllm-serve** and **sllm-store**. **sllm-serve** is a serving platform that manages auto-scaling, load-balancing, and resource allocation for deployed LLMs across a distributed GPU cluster. *sllm-store*, built in C++, serves as a high-performance checkpoint store optimized for cold-start with efficient model loading and caching.
 
 This article will walk you through the system architecture of *sllm* and aims to answer the following questions:
 
