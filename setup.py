@@ -68,7 +68,6 @@ setup(
     entry_points={
         "console_scripts": [
             "sllm = sllm.clic:cli",
-            "sllm-serve = sllm.serve.commands.serve.sllm_serve:main",
         ],
     },
     include_package_data=True,

@@ -5,7 +5,6 @@
 - [ServerlessLLM Architecture Overview](#serverlessllm-architecture-overview)
   - [Table of Contents](#table-of-contents)
   - [Introduction](#introduction)
-  - [ServerlessLLM Serve](#serverlessllm-serve)
   - [ServerlessLLM Store](#serverlessllm-store)
   - [Conclusion and Future Work](#conclusion-and-future-work)
 
