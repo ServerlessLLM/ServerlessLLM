@@ -11,7 +11,12 @@ from sllm_store.server import serve
 from sllm_store.logger import init_logger
 from sllm_store.utils import to_num_bytes
 from sllm_store.transformers import save_model, save_lora, load_model, load_lora
-from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer, BitsAndBytesConfig
+from transformers import (
+    AutoModelForCausalLM,
+    AutoConfig,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+)
 from vllm import LLM, SamplingParams
 from peft import PeftModel
 
@@ -83,14 +88,37 @@ def start(
 
 
 @cli.command()
-@click.option("--model", type=str, required=True, help="Model name from HuggingFace model hub")
-@click.option("--backend", type=str, required=True, default="vllm", help="Backend")
-@click.option("--adapter", is_flag=True, help="Indicate if the model is an adapter")
+@click.option(
+    "--model",
+    type=str,
+    required=True,
+    help="Model name from HuggingFace model hub",
+)
+@click.option(
+    "--backend", type=str, required=True, default="vllm", help="Backend"
+)
+@click.option(
+    "--adapter", is_flag=True, help="Indicate if the model is an adapter"
+)
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
-@click.option("--tensor-parallel-size", type=int, default=1, help="Tensor parallel size")
-@click.option("--local-model-path", type=str, help="Local path to the model snapshot")
-@click.option("--storage-path", default="./models", help="Local path to save the model")
-def save(model, backend, adapter, adapter_name, tensor_parallel_size, local_model_path, storage_path):
+@click.option(
+    "--tensor-parallel-size", type=int, default=1, help="Tensor parallel size"
+)
+@click.option(
+    "--local-model-path", type=str, help="Local path to the model snapshot"
+)
+@click.option(
+    "--storage-path", default="./models", help="Local path to save the model"
+)
+def save(
+    model,
+    backend,
+    adapter,
+    adapter_name,
+    tensor_parallel_size,
+    local_model_path,
+    storage_path,
+):
     """
     Saves a model to the sllm-store's storage.
 
@@ -132,14 +160,38 @@ def save(model, backend, adapter, adapter_name, tensor_parallel_size, local_mode
 
 
 @cli.command()
-@click.option("--model", type=str, required=True, help="Model name from HuggingFace model hub")
-@click.option("--backend", type=str, required=True, default="vllm", help="Backend")
-@click.option("--adapter", is_flag=True, help="Indicate if the model is an adapter")
+@click.option(
+    "--model",
+    type=str,
+    required=True,
+    help="Model name from HuggingFace model hub",
+)
+@click.option(
+    "--backend", type=str, required=True, default="vllm", help="Backend"
+)
+@click.option(
+    "--adapter", is_flag=True, help="Indicate if the model is an adapter"
+)
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
 @click.option("--adapter-path", type=str, help="Path to the LoRA adapter")
-@click.option("--precision", type=str, default="int8", help="Precision of quantized model. Supports int8, fp4, and nf4")
-@click.option("--storage-path", default="./models", help="Local path to save the model")
-def load(model_name, backend, adapter, adapter_name, adapter_path, precision, storage_path):
+@click.option(
+    "--precision",
+    type=str,
+    default="int8",
+    help="Precision of quantized model. Supports int8, fp4, and nf4",
+)
+@click.option(
+    "--storage-path", default="./models", help="Local path to save the model"
+)
+def load(
+    model_name,
+    backend,
+    adapter,
+    adapter_name,
+    adapter_path,
+    precision,
+    storage_path,
+):
     """
     Loads a model from the sllm-store's storage.
 
@@ -155,9 +207,14 @@ def load(model_name, backend, adapter, adapter_name, adapter_path, precision, st
         elif precision == "fp4":
             quantization_config = BitsAndBytesConfig(load_in_4bit=True)
         elif precision == "nf4":
-            quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4")
+            quantization_config = BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type="nf4"
+            )
         else:
-            logger.error(f"Unsupported precision: {precision}. Supports int8, fp4, and nf4.")
+            logger.error(
+                f"Unsupported precision: {precision}. "
+                f"Supports int8, fp4, and nf4."
+            )
             sys.exit(1)
 
     try:
@@ -165,8 +222,14 @@ def load(model_name, backend, adapter, adapter_name, adapter_path, precision, st
 
         if backend == "vllm":
             model_full_path = os.path.join(storage_path, model_name)
-            llm = LLM(model=model_full_path, load_format="serverless_llm", dtype="float16")
-            logger.info(f"Model loading time: {time.time() - start_load_time:.2f}s")
+            llm = LLM(
+                model=model_full_path,
+                load_format="serverless_llm",
+                dtype="float16",
+            )
+            logger.info(
+                f"Model loading time: {time.time() - start_load_time:.2f}s"
+            )
 
             prompts = [
                 "Hello, my name is",
@@ -214,11 +277,17 @@ def load(model_name, backend, adapter, adapter_name, adapter_path, precision, st
                     torch_dtype=torch.float16,
                     storage_path=storage_path,
                     fully_parallel=True,
-                    quantization_config=quantization_config if precision else None
+                    quantization_config=quantization_config
+                    if precision
+                    else None,
                 )
-            logger.info(f"Model loading time: {time.time() - start_load_time:.2f}s")
+            logger.info(
+                f"Model loading time: {time.time() - start_load_time:.2f}s"
+            )
             tokenizer = AutoTokenizer.from_pretrained(model_name)
-            inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to("cuda")
+            inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
+                "cuda"
+            )
             generate_kwargs = {"adapter_names": [adapter_name]}
             outputs = model.generate(**inputs, **generate_kwargs)
             print(tokenizer.decode(outputs[0], skip_special_tokens=True))
@@ -227,7 +296,9 @@ def load(model_name, backend, adapter, adapter_name, adapter_path, precision, st
             sys.exit(1)
 
     except Exception as e:
-        logger.error(f"Failed to load model or perform inference: {e}", exc_info=True)
+        logger.error(
+            f"Failed to load model or perform inference: {e}", exc_info=True
+        )
         sys.exit(1)
 
     logger.info(f"Model {model_name} saved successfully to {storage_path}")
