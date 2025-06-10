@@ -90,6 +90,7 @@ def start(
 @cli.command()
 @click.option(
     "--model",
+    "model_name",
     type=str,
     required=True,
     help="Model name from HuggingFace model hub",
@@ -108,10 +109,13 @@ def start(
     "--local-model-path", type=str, help="Local path to the model snapshot"
 )
 @click.option(
-    "--storage-path", default="./models", help="Local path to save the model"
+    "--storage-path",
+    required=True,
+    default="./models",
+    help="Local path to save the model",
 )
 def save(
-    model,
+    model_name,
     backend,
     adapter,
     adapter_name,
@@ -125,11 +129,11 @@ def save(
     This command is for adding new models to the sllm-store's local storage.
     """
 
-    logger.info(f"Saving model {model} to {storage_path}")
+    logger.info(f"Saving model {model_name} to {storage_path}")
 
     if adapter:
         config = AutoConfig.from_pretrained(
-            os.path.join(storage_path, "transformers", model),
+            os.path.join(storage_path, "transformers", model_name),
             trust_remote_code=True,
         )
         config.torch_dtype = torch.float16
@@ -149,19 +153,20 @@ def save(
     else:
         # Load a model from HuggingFace model hub
         model = AutoModelForCausalLM.from_pretrained(
-            model, torch_dtype=torch.float16
+            model_name, torch_dtype=torch.float16
         )
 
         # Save the model to the local path
-        model_path = os.path.join(storage_path, model)
+        model_path = os.path.join(storage_path, model_name)
         save_model(model, model_path)
 
-    logger.info(f"Model {model} saved successfully to {storage_path}")
+    logger.info(f"Model {model_name} saved successfully to {storage_path}")
 
 
 @cli.command()
 @click.option(
     "--model",
+    "model_name",
     type=str,
     required=True,
     help="Model name from HuggingFace model hub",
@@ -181,7 +186,10 @@ def save(
     help="Precision of quantized model. Supports int8, fp4, and nf4",
 )
 @click.option(
-    "--storage-path", default="./models", help="Local path to save the model"
+    "--storage-path",
+    required=True,
+    default="./models",
+    help="Local path to save the model",
 )
 def load(
     model_name,
@@ -288,7 +296,9 @@ def load(
             inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
                 "cuda"
             )
-            generate_kwargs = {"adapter_names": [adapter_name]}
+            generate_kwargs = {}
+            if adapter and adapter_name:
+                generate_kwargs["adapter_names"] = [adapter_name]
             outputs = model.generate(**inputs, **generate_kwargs)
             print(tokenizer.decode(outputs[0], skip_special_tokens=True))
         else:
@@ -301,7 +311,7 @@ def load(
         )
         sys.exit(1)
 
-    logger.info(f"Model {model_name} saved successfully to {storage_path}")
+    logger.info(f"Model {model_name} loaded successfully from {storage_path}")
 
 
 # Entry point for the 'sllm-store' CLI
