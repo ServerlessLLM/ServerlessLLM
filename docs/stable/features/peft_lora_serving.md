@@ -9,9 +9,13 @@ This example illustrates the process of deploying and serving a base large langu
 
 To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Quickstart Guide](../getting_started.md).
 
-We will use the following example base model & LoRA adapter
+We will use the following example base model & LoRA adapters
 - Base model: `facebook/opt-125m`
-- LoRA adapter: `peft-internal-testing/opt-125m-dummy-lora`
+- LoRA adapters:
+    - `peft-internal-testing/opt-125m-dummy-lora`
+    - `monsterapi/opt125M_alpaca`
+    - `edbeeching/opt-125m-lora`
+    - `Hagatiana/opt-125m-lora`
 
 ## Usage
 
