@@ -67,8 +67,7 @@ setup(
     extras_require=extras,
     entry_points={
         "console_scripts": [
-            "sllm-cli=sllm.cli.sllm_cli:main",
-            "sllm-serve=sllm.serve.commands.serve.sllm_serve:main",
+            "sllm = sllm.clic:cli",
         ],
     },
     include_package_data=True,
@@ -77,8 +76,8 @@ setup(
         "sllm.cli": ["default_config.json"],
     },
     packages=[
+        "sllm",
         "sllm.serve",
-        "sllm.cli",
         "sllm.serve.commands.serve",
         "sllm.serve.backends",
         "sllm.serve.routers",
