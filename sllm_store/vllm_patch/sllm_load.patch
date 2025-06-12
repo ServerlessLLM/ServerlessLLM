@@ -102,10 +102,10 @@ index a443a652d..c1869a54a 100644
  
 diff --git a/vllm/model_executor/model_loader/sllm_loader.py b/vllm/model_executor/model_loader/sllm_loader.py
 new file mode 100644
-index 000000000..baea12c06
+index 000000000..9bd2fd7f9
 --- /dev/null
 +++ b/vllm/model_executor/model_loader/sllm_loader.py
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,150 @@
 +import torch
 +from torch import nn
 +import collections
@@ -221,6 +221,10 @@ index 000000000..baea12c06
 +            if state_dict:
 +                raise ValueError(
 +                    f"Missing keys {tuple(state_dict)} in loaded state!")
++            
++            for name, buffer in model.named_buffers(recurse=True):
++                if buffer.device.type != 'cuda':
++                    buffer.data = buffer.data.to(f'cuda:{device_id}')
 +            
 +        return model
 +    
