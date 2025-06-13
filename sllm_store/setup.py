@@ -26,19 +26,9 @@ from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.install import install
 
-try:
-    torch_available = True
-    # The assert is not needed since Github CI does not use GPU server,
-    # install cuda library is sufficient
-    # assert torch.cuda.is_available() == True
-    from torch.utils.cpp_extension import CUDA_HOME
-    from torch.utils.cpp_extension import ROCM_HOME
-except Exception:
-    torch_available = False
-    print(
-        "[WARNING] Unable to import torch, pre-compiling ops will be disabled. "
-        "Please visit https://pytorch.org/ to see how to properly install torch on your system."  # noqa: E501
-    )
+
+from torch.utils.cpp_extension import CUDA_HOME
+from torch.utils.cpp_extension import ROCM_HOME
 
 
 ROOT_DIR = os.path.dirname(__file__)
