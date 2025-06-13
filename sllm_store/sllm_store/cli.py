@@ -339,7 +339,7 @@ def load(
                 f"Model loading time: {time.time() - start_load_time:.2f}s"
             )
 
-            example_inferences("vllm", llm=llm)
+            example_inferences("vllm", model=llm)
 
         elif backend == "transformers":
             # warm up the GPU
