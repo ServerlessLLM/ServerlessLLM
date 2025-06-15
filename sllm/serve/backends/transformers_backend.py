@@ -127,6 +127,9 @@ class TransformersBackend(SllmBackend):
                 raise ValueError(
                     "hf_model_class cannot be None. Please provide a valid model class"
                 )
+            quantization_config = self.backend_config.get(
+                "quantization_config", None
+            )
 
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = os.path.join("transformers", self.model_name)
@@ -136,6 +139,7 @@ class TransformersBackend(SllmBackend):
                 torch_dtype=torch_dtype,
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
+                quantization_config=quantization_config,
             )
             tokenizer_path = os.path.join(
                 storage_path, "transformers", self.model_name, "tokenizer"
