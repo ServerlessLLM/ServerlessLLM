@@ -92,7 +92,7 @@ To install ServerlessLLM from source, follow these steps:
 
 ### vLLM Patch
 
-To use vLLM with ServerlessLLM, you must apply a patch. The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` within the ServerlessLLM repository. This patch has been tested with vLLM version `0.6.6`.
+To use vLLM with ServerlessLLM, you must apply a patch. The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` within the ServerlessLLM repository. This patch has been tested with vLLM version `0.9.0.1`.
 
 Apply the patch using the following script:
 
