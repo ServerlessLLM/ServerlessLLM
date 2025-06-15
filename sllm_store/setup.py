@@ -26,19 +26,9 @@ from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.install import install
 
-try:
-    torch_available = True
-    # The assert is not needed since Github CI does not use GPU server,
-    # install cuda library is sufficient
-    # assert torch.cuda.is_available() == True
-    from torch.utils.cpp_extension import CUDA_HOME
-    from torch.utils.cpp_extension import ROCM_HOME
-except Exception:
-    torch_available = False
-    print(
-        "[WARNING] Unable to import torch, pre-compiling ops will be disabled. "
-        "Please visit https://pytorch.org/ to see how to properly install torch on your system."  # noqa: E501
-    )
+
+from torch.utils.cpp_extension import CUDA_HOME
+from torch.utils.cpp_extension import ROCM_HOME
 
 
 ROOT_DIR = os.path.dirname(__file__)
@@ -50,10 +40,11 @@ def check_nvcc_installed(cuda_home: str) -> None:
         _ = subprocess.check_output(
             [cuda_home + "/bin/nvcc", "-V"], universal_newlines=True
         )
-    except Exception:
+    except Exception as e:
         raise RuntimeError(
             "nvcc is not installed or not found in your PATH. "
             "Please ensure that the CUDA toolkit is installed and nvcc is available in your PATH."  # noqa: E501
+            f" Error: {e}"
         ) from None
 
 
@@ -232,7 +223,7 @@ cmdclass = {
 
 setup(
     name="serverless-llm-store",
-    version="0.6.3",
+    version="0.7.0",
     ext_modules=[
         CMakeExtension(name="sllm_store._C"),
         CMakeExtension(name="sllm_store._checkpoint_store"),

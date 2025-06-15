@@ -31,19 +31,24 @@ def start_instance(
     if backend == "vllm":
         from sllm.serve.backends import VllmBackend
 
-        model_backend_cls = ray.remote(VllmBackend)
+        model_backend_cls = VllmBackend
     elif backend == "dummy":
         from sllm.serve.backends import DummyBackend
 
-        model_backend_cls = ray.remote(DummyBackend)
+        model_backend_cls = DummyBackend
     elif backend == "transformers":
         from sllm.serve.backends import TransformersBackend
 
-        model_backend_cls = ray.remote(TransformersBackend)
+        model_backend_cls = TransformersBackend
     else:
         logger.error(f"Unknown backend: {backend}")
         raise ValueError(f"Unknown backend: {backend}")
 
-    return model_backend_cls.options(
-        name=instance_id, **startup_config, max_concurrency=10
+    model_actor_cls = ray.remote(model_backend_cls)
+
+    return model_actor_cls.options(
+        name=instance_id,
+        **startup_config,
+        max_concurrency=10,
+        lifetime="detached",
     ).remote(model_name, backend_config)

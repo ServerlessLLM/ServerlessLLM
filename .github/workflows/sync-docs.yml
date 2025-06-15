@@ -12,20 +12,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout ServerlessLLM repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: source
+          fetch-depth: 0
 
       - name: Checkout Documentation repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: ServerlessLLM/serverlessllm.github.io
           path: docs-site
+          token: ${{ secrets.DOCS_GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: docs-site/package-lock.json
 
       - name: Prepare documentation content
         run: |
@@ -51,9 +56,28 @@ jobs:
             git add -A
             git commit -m "Update documentation from main repository"
 
-            # Set up authentication with the PAT (this still needs to be a secret)
-            git remote set-url origin https://${{ vars.GIT_USERNAME }}:${{ secrets.DOCS_GITHUB_TOKEN }}@github.com/ServerlessLLM/serverlessllm.github.io.git
-            git push
+            # Set up authentication with the PAT or fallback to GITHUB_TOKEN
+            TOKEN="${{ secrets.DOCS_GITHUB_TOKEN }}"
+            git remote set-url origin "https://x-access-token:${TOKEN}@github.com/ServerlessLLM/serverlessllm.github.io.git"
+
+            # Push with retry logic
+            max_retries=3
+            retry_count=0
+            while [ $retry_count -lt $max_retries ]; do
+              if git push; then
+                echo "Successfully pushed changes"
+                break
+              else
+                retry_count=$((retry_count + 1))
+                echo "Push attempt $retry_count failed, retrying in 5 seconds..."
+                sleep 5
+              fi
+            done
+
+            if [ $retry_count -eq $max_retries ]; then
+              echo "Failed to push after $max_retries attempts"
+              exit 1
+            fi
           else
             echo "No changes to commit"
           fi
