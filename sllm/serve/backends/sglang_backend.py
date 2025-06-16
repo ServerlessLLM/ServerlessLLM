@@ -1,63 +1,46 @@
 """
-SGLang Backend for ServerlessLLM
+Refined SGLang Backend for ServerlessLLM (without mock)
 """
 import asyncio
 import hashlib
-import json
 import logging
 import time
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 
-# Enhanced SGLang imports with comprehensive error handling
+# Optional imports
 try:
-    import sglang as sgl
-    from sglang import (
-        Runtime, Engine, 
-        function, gen, select, assistant, system, user,
-        flush_cache, get_server_info, set_default_backend
-    )
+    import sglang
     from sglang.lang.backend.runtime_endpoint import RuntimeEndpoint
-    from sglang.lang.backend.base_backend import BaseBackend
+    from sglang import function, gen, select, assistant, system, user
+    from sglang import flush_cache, set_default_backend
     SGLANG_AVAILABLE = True
-    logger = logging.getLogger("sglang_backend")
-    logger.info("SGLang native components imported successfully")
-except ImportError as e:
+except ImportError:
     SGLANG_AVAILABLE = False
-    sgl = None
-    Runtime = Engine = RuntimeEndpoint = BaseBackend = None
-    function = gen = select = assistant = system = user = None
-    flush_cache = get_server_info = set_default_backend = None
-    logger = logging.getLogger("sglang_backend")
-    logger.warning(f"SGLang not available: {e}")
+
+logger = logging.getLogger("sglang_backend")
 
 
 class SGLangMode(Enum):
-    """SGLang operation modes"""
-    SERVER = "server"           # Connect to external SGLang server via HTTP
-    NATIVE_ENDPOINT = "endpoint" # Use SGLang RuntimeEndpoint
-    MOCK = "mock"               # Mock mode for testing/fallback
+    SERVER = "server"            # HTTP API
+    NATIVE_ENDPOINT = "endpoint" # RuntimeEndpoint
 
 
 @dataclass
 class RequestMetrics:
-    """Request metrics tracking"""
     request_id: str
     start_time: float
     prompt_tokens: int = 0
     completion_tokens: int = 0
-    cached: bool = False
     success: bool = False
     method: str = "unknown"
 
 
 class OptimizedCache:
-    """Optimized cache with better performance and memory management"""
-    
     def __init__(self, max_size: int = 500, ttl: float = 1800):
         self.cache: Dict[str, Dict] = {}
         self.access_times: Dict[str, float] = {}
@@ -65,613 +48,277 @@ class OptimizedCache:
         self.ttl = ttl
         self.hits = 0
         self.misses = 0
-        self._cleanup_counter = 0
-    
-    def _generate_key(self, prompt: str, params: Dict) -> str:
-        """Generate optimized cache key"""
-        key_data = {
-            "prompt": prompt[:200],  # Optimized length
-            "max_tokens": params.get("max_tokens", 100),
-            "temperature": round(params.get("temperature", 0.7), 2),
-            "top_p": round(params.get("top_p", 1.0), 2),
-            "model": params.get("model", "default")
+        self._counter = 0
+
+    def _key(self, prompt: str, params: Dict[str, Any]) -> str:
+     
+        cache_params = {
+            "max_tokens": params.get("max_tokens", 128),
+            "temperature": round(params.get("temperature", 0.7), 2),  # 四舍五入避免浮点精度问题
+            "top_p": round(params.get("top_p", 1.0), 2)
         }
-        return hashlib.md5(json.dumps(key_data, sort_keys=True).encode()).hexdigest()[:12]
-    
-    def _cleanup_expired(self):
-        """Clean up expired entries periodically"""
-        current_time = time.time()
-        expired_keys = [
-            key for key, entry in self.cache.items()
-            if current_time - entry["timestamp"] > self.ttl
-        ]
-        
-        for key in expired_keys:
-            self.cache.pop(key, None)
-            self.access_times.pop(key, None)
-    
-    def get(self, prompt: str, params: Dict) -> Optional[str]:
-        """Get cached response with automatic cleanup"""
-        # Periodic cleanup
-        self._cleanup_counter += 1
-        if self._cleanup_counter % 100 == 0:
-            self._cleanup_expired()
-        
-        key = self._generate_key(prompt, params)
-        
-        if key in self.cache:
-            cache_entry = self.cache[key]
-            if time.time() - cache_entry["timestamp"] < self.ttl:
-                self.access_times[key] = time.time()
-                self.hits += 1
-                return cache_entry["response"]
-            else:
-                # Expired
-                del self.cache[key]
-                self.access_times.pop(key, None)
-        
+        data = {"prompt": prompt[:100], **cache_params}  # 缩短prompt长度
+        return hashlib.md5(str(sorted(data.items())).encode()).hexdigest()[:12]
+
+    def get(self, prompt: str, params: Dict[str, Any]) -> Any:
+        self._counter += 1
+        if self._counter % 100 == 0:
+            self._cleanup()
+        k = self._key(prompt, params)
+        entry = self.cache.get(k)
+        if entry and time.time() - entry["ts"] < self.ttl:
+            self.access_times[k] = time.time()
+            self.hits += 1
+            return entry["resp"]
         self.misses += 1
         return None
-    
-    def put(self, prompt: str, params: Dict, response: str):
-        """Store response with LRU eviction"""
-        key = self._generate_key(prompt, params)
-        
-        # LRU eviction
+
+    def put(self, prompt: str, params: Dict[str, Any], resp: str):
         if len(self.cache) >= self.max_size:
-            if self.access_times:
-                oldest_key = min(self.access_times.items(), key=lambda x: x[1])[0]
-                self.cache.pop(oldest_key, None)
-                self.access_times.pop(oldest_key, None)
-        
-        self.cache[key] = {
-            "response": response,
-            "timestamp": time.time()
-        }
-        self.access_times[key] = time.time()
-    
-    def get_stats(self) -> Dict:
-        """Get cache statistics"""
+            oldest = min(self.access_times, key=self.access_times.get)
+            self.cache.pop(oldest, None)
+            self.access_times.pop(oldest, None)
+        k = self._key(prompt, params)
+        self.cache[k] = {"resp": resp, "ts": time.time()}
+        self.access_times[k] = time.time()
+
+    def _cleanup(self):
+        now = time.time()
+        for k, e in list(self.cache.items()):
+            if now - e["ts"] > self.ttl:
+                self.cache.pop(k, None)
+                self.access_times.pop(k, None)
+
+    def get_stats(self) -> Dict[str, Any]:
+      
         total = self.hits + self.misses
         return {
-            "size": len(self.cache),
-            "max_size": self.max_size,
+            "size": len(self.cache), 
             "hits": self.hits,
-            "misses": self.misses,
-            "hit_rate": self.hits / total if total > 0 else 0,
-            "ttl": self.ttl
+            "misses": self.misses, 
+            "hit_rate": self.hits / total if total else 0
         }
-    
-    def clear(self):
-        """Clear all cache"""
-        self.cache.clear()
-        self.access_times.clear()
+
+    def stats(self) -> Dict[str, Any]:
+ 
+        return self.get_stats()
 
 
 class SGLangBackend(SllmBackend):
-    """
-    Production-ready SGLang Backend with comprehensive feature support
-    """
-    
-    def __init__(self, model: str, backend_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, model: str, backend_config: Dict[str, Any] = None):
         super().__init__(model)
-        
         self.model_name = model
-        self.backend_config = backend_config or {}
+        cfg = backend_config or {}
+        
+      
+        if not cfg.get("server_url"):
+            raise ValueError("server_url is required in backend_config")
+            
+        self.server_url: str = cfg.get("server_url", "")
+        self.timeout = cfg.get("timeout", 30)
+        self.use_native = cfg.get("use_native_sglang", False)  # 修复：默认使用HTTP模式
+
         self.status = BackendStatus.UNINITIALIZED
-        
-        # Configuration
-        self.server_url = self.backend_config.get("server_url")
-        self.force_mock = self.backend_config.get("force_mock", False)
-        self.timeout = self.backend_config.get("timeout", 30)
-        self.use_native_sglang = self.backend_config.get("use_native_sglang", True)
-        
-        # Runtime state
-        self.mode = SGLangMode.MOCK
-        self.runtime_endpoint = None
-        self.use_real_sglang = False
-        self.active_requests: Dict[str, RequestMetrics] = {}
-        
-        # Cache system
-        cache_size = self.backend_config.get("cache_size", 500)
-        cache_ttl = self.backend_config.get("cache_ttl", 1800)
-        self.cache = OptimizedCache(cache_size, cache_ttl)
-        
-        # Statistics
+        self.mode = None
+        self.endpoint: RuntimeEndpoint = None
+        self.cache = OptimizedCache(cfg.get("cache_size", 500), cfg.get("cache_ttl", 1800))
+
+        self.metrics: Dict[str, RequestMetrics] = {}
         self.total_requests = 0
-        self.successful_requests = 0
-        self.start_time = time.time()
-        
-        # SGLang functions
+        self.successful = 0
         self.sglang_functions = {}
-        
-        # Initialize components
-        self._init_smart_responses()
-        self._init_sglang_functions()
-        
-        logger.info(f"SGLang Backend initialized: {model}")
-        logger.info(f"Config: server_url={self.server_url}, native={self.use_native_sglang}")
-    
-    def _init_smart_responses(self):
-        """Initialize intelligent response system"""
-        self.smart_responses = {
-            "hello": [
-                "Hello! I'm SGLang backend ready to assist you with advanced language generation.",
-                "Hi there! How can I help you with SGLang's powerful features today?",
-                "Greetings! I'm here to help with structured generation and language tasks."
-            ],
-            
-            "sglang": [
-                "SGLang is a high-performance serving framework for large language models with structured generation!",
-                "SGLang provides efficient LLM serving with features like RadixCache, structured outputs, and function composition."
-            ],
-            
-            "code": [
-                "I can help you with code generation, programming questions, and software development tasks!",
-                "Let me assist you with writing, reviewing, or explaining code in various programming languages."
-            ],
-            
-            "question": [
-                "I'd be happy to answer your question! Please provide more details and I'll give you a comprehensive response.",
-                "Great question! Let me provide you with a detailed and helpful answer."
-            ],
-            
-            "default": [
-                "I understand your request. How can I assist you with language generation tasks?",
-                "Thank you for your message. I'm ready to help with advanced text generation.",
-                "I'm here to help! What would you like me to generate or assist you with?"
-            ]
-        }
-    
-    def _init_sglang_functions(self):
-        """Initialize SGLang native functions"""
+        self._register_functions()
+        logger.info(f"SGLangBackend init: server_url={self.server_url}, use_native={self.use_native}")
+
+    def _register_functions(self):
+      
         if not SGLANG_AVAILABLE:
-            logger.info("SGLang not available, skipping function initialization")
             return
         
-        try:
-            # Define optimized SGLang functions
-            
-            @function
-            def simple_chat(s, user_message):
-                s += user(user_message)
-                s += assistant(gen("response", max_tokens=100))
-            
-            @function
-            def structured_qa(s, question):
-                s += system("You are a helpful AI assistant. Provide clear and accurate answers.")
-                s += user(question)
-                s += assistant("Answer: " + gen("answer", max_tokens=150))
-                s += assistant("\nConfidence: " + gen("confidence", max_tokens=20))
-            
-            @function  
-            def multi_choice_qa(s, question, choices):
-                s += user(f"Question: {question}")
-                s += assistant("The answer is: " + select("choice", choices=choices))
-            
-            @function
-            def code_generation(s, task):
-                s += system("You are an expert programmer. Generate clean, well-documented code.")
-                s += user(f"Task: {task}")
-                s += assistant("```python\n" + gen("code", max_tokens=200) + "\n```")
-            
-            # Store functions
-            self.sglang_functions = {
-                "simple_chat": simple_chat,
-                "structured_qa": structured_qa,
-                "multi_choice_qa": multi_choice_qa,
-                "code_generation": code_generation
-            }
-            
-            logger.info(f"Initialized {len(self.sglang_functions)} SGLang functions")
-            
-        except Exception as e:
-            logger.warning(f"Failed to initialize SGLang functions: {e}")
-            self.sglang_functions = {}
-    
+ 
+        @function
+        def simple_chat(s, msg):
+            s += user(msg)
+            s += assistant(gen("response", max_tokens=128, stop=["\n\n", "User:", "Assistant:"]))
+
+        @function
+        def code_gen(s, task):
+            s += system("You are a helpful coding assistant.")
+            s += user(task)
+            s += assistant("```python\n" + gen("code", max_tokens=256, stop=["```", "\n\n"]) + "\n```")
+
+        self.sglang_functions = {"simple_chat": simple_chat, "code_gen": code_gen}
+
     async def init_backend(self):
-        """Initialize backend with intelligent connection strategy"""
-        logger.info("Initializing SGLang Backend...")
+      
+        if not SGLANG_AVAILABLE:
+            logger.error("SGLang not installed")
+            raise RuntimeError("Missing sglang package")
         
-        if self.force_mock or not SGLANG_AVAILABLE:
-            logger.info("Using Mock mode")
-            self.mode = SGLangMode.MOCK
-            self.status = BackendStatus.RUNNING
-            return
-        
-        # Try connection strategies in order
-        if self.server_url:
-            # Strategy 1: Native SGLang RuntimeEndpoint
-            if self.use_native_sglang and await self._init_runtime_endpoint():
-                self.mode = SGLangMode.NATIVE_ENDPOINT
-                self.use_real_sglang = True
-                logger.info(f"Connected via SGLang RuntimeEndpoint: {self.server_url}")
-            
-            # Strategy 2: HTTP API
-            elif await self._connect_server():
-                self.mode = SGLangMode.SERVER
-                self.use_real_sglang = True
-                logger.info(f"Connected via HTTP API: {self.server_url}")
-            
-            # Strategy 3: Fallback to Mock
-            else:
-                logger.warning("All connection methods failed, using Mock mode")
-                self.mode = SGLangMode.MOCK
+       
+        if await self._test_http():
+            self.mode = SGLangMode.SERVER
+            logger.info("HTTP API")
+        elif self.use_native and await self._init_endpoint():
+            self.mode = SGLangMode.NATIVE_ENDPOINT
+            logger.info("Native")
         else:
-            logger.info("No server URL provided, using Mock mode")
-            self.mode = SGLangMode.MOCK
-            
+            raise RuntimeError("Cannot connect to SGLang backend")
+        
         self.status = BackendStatus.RUNNING
-        logger.info(f"SGLang Backend ready, mode: {self.mode.value}")
-    
-    async def _init_runtime_endpoint(self) -> bool:
-        """Initialize SGLang RuntimeEndpoint with error handling"""
+        logger.info(f"Backend running in {self.mode.value} mode")
+
+    async def _init_endpoint(self) -> bool:
+        
         try:
-            if not RuntimeEndpoint:
-                logger.debug("RuntimeEndpoint not available")
-                return False
-            
-            self.runtime_endpoint = RuntimeEndpoint(
-                base_url=self.server_url,
-                api_key=self.backend_config.get("api_key"),
-                verify=self.backend_config.get("verify"),
-                chat_template_name=self.backend_config.get("chat_template_name")
-            )
-            
-            # Test connection
-            server_info = await asyncio.to_thread(self.runtime_endpoint.get_server_info)
-            logger.debug(f"SGLang server info: {server_info}")
-            
-            # Set as default backend
+            self.endpoint = RuntimeEndpoint(base_url=self.server_url)
+            info = await asyncio.to_thread(self.endpoint.get_server_info)
             if set_default_backend:
-                set_default_backend(self.runtime_endpoint)
-            
+                set_default_backend(self.endpoint)
             return True
-            
         except Exception as e:
-            logger.debug(f"RuntimeEndpoint initialization failed: {e}")
-            self.runtime_endpoint = None
+            logger.debug(f"Native endpoint init failed: {e}")
             return False
-    
-    async def _connect_server(self) -> bool:
-        """Test server connection via HTTP endpoints"""
+
+    async def _test_http(self) -> bool:
+  
         try:
             import aiohttp
-            
-            test_endpoints = ["/health", "/v1/models", "/get_model_info"]
-            
-            async with aiohttp.ClientSession() as session:
-                for endpoint in test_endpoints:
-                    try:
-                        url = f"{self.server_url.rstrip('/')}{endpoint}"
-                        async with session.get(url, timeout=5) as resp:
-                            if resp.status == 200:
-                                logger.debug(f"Server accessible via {endpoint}")
-                                return True
-                    except Exception as e:
-                        logger.debug(f"Endpoint {endpoint} failed: {e}")
-                        continue
-            
+            url = self.server_url.rstrip('/') + '/health'
+            async with aiohttp.ClientSession() as s:
+                async with s.get(url, timeout=5) as r:
+                    return r.status == 200
+        except Exception as e:
+            logger.debug(f"HTTP test failed: {e}")
             return False
-            
-        except Exception as e:
-            logger.warning(f"Server connection test failed: {e}")
-            return False
-    
-    async def generate(self, request_data: Dict[str, Any]):
-        """Main generation method with comprehensive error handling"""
-        if self.status != BackendStatus.RUNNING:
-            return {"error": "Backend not running", "status": self.status.value}
-        
-        start_time = time.time()
-        self.total_requests += 1
-        request_id = f"chatcmpl-{uuid.uuid4()}"
-        
-        try:
-            # Parameter validation and extraction
-            messages = request_data.get("messages", [])
-            max_tokens = min(max(request_data.get("max_tokens", 100), 1), 4096)
-            temperature = max(0.0, min(request_data.get("temperature", 0.7), 2.0))
-            
-            # Extract prompt
-            prompt = self._extract_prompt(request_data)
-            if not prompt.strip():
-                return {"error": "Empty prompt provided"}
-            
-            # Create metrics
-            metrics = RequestMetrics(
-                request_id=request_id,
-                start_time=start_time,
-                prompt_tokens=len(prompt.split()),
-                method=self.mode.value
-            )
-            self.active_requests[request_id] = metrics
-            
-            # Cache check (for low temperature requests)
-            cached_response = None
-            if temperature < 0.5:
-                cached_response = self.cache.get(prompt, {
-                    "max_tokens": max_tokens,
-                    "temperature": temperature,
-                    "model": self.model_name
-                })
-            
-            if cached_response:
-                # Return cached result
-                result = {
-                    "text": cached_response,
-                    "request_id": request_id,
-                    "prompt_tokens": len(prompt.split()),
-                    "completion_tokens": len(cached_response.split()),
-                    "cached": True,
-                    "method": "cached"
-                }
-                metrics.cached = True
-                metrics.method = "cached"
-                logger.debug(f"Cache hit for request {request_id}")
-            else:
-                # Generate new response
-                if self.mode == SGLangMode.NATIVE_ENDPOINT:
-                    result = await self._native_endpoint_generate(prompt, request_data, request_id)
-                elif self.mode == SGLangMode.SERVER:
-                    result = await self._real_generate(prompt, request_data, request_id)
-                else:
-                    result = await self._mock_generate(prompt, request_data, request_id)
-                
-                # Cache the result
-                if "error" not in result and temperature < 0.5:
-                    self.cache.put(prompt, {
-                        "max_tokens": max_tokens,
-                        "temperature": temperature,
-                        "model": self.model_name
-                    }, result["text"])
-            
-            # Update metrics
-            metrics.completion_tokens = result.get("completion_tokens", 0)
-            metrics.success = "error" not in result
-            metrics.method = result.get("method", self.mode.value)
-            
-            if metrics.success:
-                self.successful_requests += 1
-            
-            return self._format_openai_response(result, request_id)
-            
-        except Exception as e:
-            logger.error(f"Generation failed for {request_id}: {e}")
-            return {"error": f"Generation failed: {str(e)}"}
-        
-        finally:
-            # Cleanup
-            if request_id in self.active_requests:
-                response_time = time.time() - start_time
-                logger.debug(f"Request {request_id} completed in {response_time:.3f}s")
-                del self.active_requests[request_id]
-    
-    def _parse_sglang_state(self, state, function_type: str) -> str:
-        """Parse SGLang state object to extract response text"""
-        try:
-            # Debug logging
-            logger.debug(f"Parsing SGLang state type: {type(state)}")
-            
-            # Try function-specific attribute access
-            if function_type == "simple_chat":
-                if hasattr(state, 'response'):
-                    return str(state.response)
-            
-            elif function_type == "structured_qa":
-                parts = []
-                if hasattr(state, 'answer'):
-                    parts.append(str(state.answer))
-                if hasattr(state, 'confidence'):
-                    parts.append(f"Confidence: {state.confidence}")
-                if parts:
-                    return "\n".join(parts)
-            
-            elif function_type == "multi_choice_qa":
-                if hasattr(state, 'choice'):
-                    return str(state.choice)
-            
-            elif function_type == "code_generation":
-                if hasattr(state, 'code'):
-                    return str(state.code)
-            
-            # Generic attribute search
-            common_attrs = ['response', 'answer', 'choice', 'code', 'text', 'content', 'output']
-            for attr in common_attrs:
-                if hasattr(state, attr):
-                    value = getattr(state, attr)
-                    if value and str(value).strip():
-                        return str(value)
-            
-            # Dictionary-style access
-            if hasattr(state, '__getitem__'):
-                for key in common_attrs:
-                    try:
-                        value = state[key]
-                        if value and str(value).strip():
-                            return str(value)
-                    except (KeyError, TypeError):
-                        continue
-            
-            # Last resort: string representation
-            state_str = str(state)
-            if state_str and state_str != str(type(state)):
-                return state_str
-            
-            # Default fallback
-            return f"Response generated using {function_type} function."
-            
-        except Exception as e:
-            logger.warning(f"State parsing failed: {e}")
-            return f"Response generated successfully (state parsing error)."
-    
-    async def _native_endpoint_generate(self, prompt: str, params: Dict[str, Any], request_id: str):
-        """Generate using SGLang native endpoint"""
-        try:
-            if not self.runtime_endpoint:
-                raise Exception("RuntimeEndpoint not initialized")
-            
-            # Select appropriate function
-            function_type = self._determine_function_type(prompt, params)
-            sglang_func = self.sglang_functions.get(function_type)
-            
-            if not sglang_func:
-                raise Exception(f"SGLang function '{function_type}' not available")
-            
-            # Execute SGLang function with timeout
-            state = await asyncio.wait_for(
-                asyncio.to_thread(sglang_func.run, user_message=prompt),
-                timeout=self.timeout
-            )
-            
-            # Parse response from state
-            response_text = self._parse_sglang_state(state, function_type)
-            
-            return {
-                "text": response_text,
-                "request_id": request_id,
-                "prompt_tokens": len(prompt.split()),
-                "completion_tokens": len(response_text.split()),
-                "method": "native_endpoint",
-                "function_used": function_type
-            }
-            
-        except Exception as e:
-            logger.warning(f"Native endpoint generation failed: {e}, falling back")
-            return await self._real_generate(prompt, params, request_id)
-    
-    def _determine_function_type(self, prompt: str, params: Dict[str, Any]) -> str:
-        """Intelligently determine which SGLang function to use"""
-        prompt_lower = prompt.lower()
-        
-        # Check for specific keywords
-        if any(word in prompt_lower for word in ["code", "program", "function", "python", "javascript"]):
-            return "code_generation"
-        elif "question:" in prompt_lower or ("question" in prompt_lower and "answer" in prompt_lower):
-            return "structured_qa"
-        elif params.get("choices") or "choice" in prompt_lower:
-            return "multi_choice_qa"
-        else:
-            return "simple_chat"
-    
-    def _extract_prompt(self, request_data: Dict[str, Any]) -> str:
-        """Extract and format prompt from request data"""
-        messages = request_data.get("messages", [])
-        if messages:
-            prompt_parts = []
-            for msg in messages:
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-                if content.strip():
-                    if role == "system":
-                        prompt_parts.append(f"System: {content}")
-                    elif role == "user":
-                        prompt_parts.append(f"User: {content}")
-                    elif role == "assistant":
-                        prompt_parts.append(f"Assistant: {content}")
-                    else:
-                        prompt_parts.append(f"{role.title()}: {content}")
-            return "\n".join(prompt_parts)
-        else:
-            return request_data.get("prompt", "")
-    
-    async def _real_generate(self, prompt: str, params: Dict[str, Any], request_id: str):
-        """Generate using HTTP API"""
-        try:
-            import aiohttp
-            
-            # Prepare request
-            messages = params.get("messages", [])
-            if not messages:
-                messages = [{"role": "user", "content": prompt}]
-            
-            payload = {
-                "model": self.model_name,
-                "messages": messages,
-                "max_tokens": params.get("max_tokens", 100),
-                "temperature": params.get("temperature", 0.7),
-                "top_p": params.get("top_p", 1.0),
-                "stop": params.get("stop"),
-                "stream": False
-            }
-            
-            # Make request
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.server_url.rstrip('/')}/v1/chat/completions",
-                    json=payload,
-                    timeout=self.timeout
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        content = data["choices"][0]["message"]["content"]
-                        usage = data.get("usage", {})
-                        
-                        return {
-                            "text": content,
-                            "request_id": request_id,
-                            "prompt_tokens": usage.get("prompt_tokens", len(prompt.split())),
-                            "completion_tokens": usage.get("completion_tokens", len(content.split())),
-                            "method": "http_api"
-                        }
-                    else:
-                        error_text = await resp.text()
-                        raise Exception(f"Server error {resp.status}: {error_text}")
-                        
-        except Exception as e:
-            logger.error(f"HTTP API generation failed: {e}")
-            return await self._mock_generate(prompt, params, request_id)
-    
-    async def _mock_generate(self, prompt: str, params: Dict[str, Any], request_id: str):
-        """Generate using intelligent mock responses"""
-        # Simulate processing delay
-        base_delay = 0.05
-        content_delay = min(0.1, len(prompt.split()) * 0.002)
-        await asyncio.sleep(base_delay + content_delay)
-        
-        # Smart response selection
-        prompt_lower = prompt.lower()
-        response = None
-        
-        # Keyword-based response selection
-        for keyword, responses in self.smart_responses.items():
-            if keyword != "default" and keyword in prompt_lower:
-                import random
-                response = random.choice(responses)
-                break
-        
-        # Default response
-        if not response:
-            import random
-            response = random.choice(self.smart_responses["default"])
-        
-        # Apply length constraints
-        max_tokens = params.get("max_tokens", 100)
-        words = response.split()
-        if len(words) > max_tokens:
-            response = " ".join(words[:max_tokens]) + "..."
-        
-        # Add temperature effects
-        temperature = params.get("temperature", 0.7)
-        if temperature > 0.8:
-            response += f" [High creativity mode]"
-        elif temperature < 0.3:
-            response += f" [Deterministic mode]"
-        
+
+    def _extract_generation_params(self, data: Dict[str, Any]) -> Dict[str, Any]:
+  
         return {
-            "text": response,
-            "request_id": request_id,
-            "prompt_tokens": len(prompt.split()),
-            "completion_tokens": len(response.split()),
-            "method": "mock"
+            "messages": data.get("messages", []),
+            "max_tokens": max(1, min(data.get("max_tokens", 128), 4096)),
+            "temperature": max(0.0, min(data.get("temperature", 0.7), 2.0)),
+            "top_p": max(0.0, min(data.get("top_p", 1.0), 1.0))
         }
-    
-    def _format_openai_response(self, result: Dict, request_id: str) -> Dict:
-        """Format response to OpenAI API standard"""
-        if "error" in result:
-            return result
+
+    async def generate(self, data: Dict[str, Any]) -> Dict[str, Any]:
+     
+        if self.status != BackendStatus.RUNNING:
+            return {"error": "Backend not running"}
         
-        response = {
+        params = self._extract_generation_params(data)
+        prompt = self._format_prompt(params["messages"])
+        rid = f"chatcmpl-{uuid.uuid4()}"
+        self.total_requests += 1
+        m = RequestMetrics(rid, time.time(), len(prompt.split()), method=self.mode.value if self.mode else "unknown")
+        self.metrics[rid] = m
+
+        if params['temperature'] < 0.5:
+            cached = self.cache.get(prompt, params)
+            if cached:
+                m.success = True
+                logger.debug(f"Cache hit for request {rid}")
+                return self._format_openai_response({
+                    "text": cached, 
+                    "request_id": rid, 
+                    "cached": True,
+                    "prompt_tokens": m.prompt_tokens,
+                    "completion_tokens": len(cached.split()),
+                    "method": "cache"
+                }, rid)
+
+        try:
+            text = None
+            method = "unknown"
+            
+          
+            if self.mode == SGLangMode.NATIVE_ENDPOINT and self.sglang_functions:
+                try:
+                    state = await asyncio.to_thread(self.sglang_functions['simple_chat'].run, msg=prompt)
+                    
+                 
+                    if hasattr(state, 'response'):
+                        text = str(state.response).strip()
+                    elif hasattr(state, '_variables') and 'response' in state._variables:
+                        text = str(state._variables['response']).strip()
+                    elif hasattr(state, 'resp'):
+                        text = str(state.resp).strip()
+                    else:
+                        raw_text = str(state)
+                      
+                        if "ASSISTANT:" in raw_text:
+                            text = raw_text.split("ASSISTANT:")[-1].split("USER:")[0].strip()
+                        else:
+                            text = raw_text.strip()
+                    
+                   
+                    if text.startswith("ProgramState("):
+                      
+                        logger.warning("Native SGLang返回格式异常，回退到HTTP API")
+                        text = await self._http_generate(prompt, params)
+                        method = "http_api_fallback"
+                    else:
+                        method = "native_sglang"
+                        
+                except Exception as e:
+                    logger.warning(f"Native SGLang failed: {e}, falling back to HTTP")
+                    text = await self._http_generate(prompt, params)
+                    method = "http_api_fallback"
+            else:
+                text = await self._http_generate(prompt, params)
+                method = "http_api"
+            
+            
+            if not text or text.strip() == "":
+                return {"error": "Empty response from SGLang"}
+            
+            self.successful += 1
+            if params['temperature'] < 0.5:
+                self.cache.put(prompt, params, text)
+                logger.debug(f"Cached response for future requests")
+            
+            m.success = True
+            m.completion_tokens = len(text.split())
+            
+            return self._format_openai_response({
+                "text": text,
+                "request_id": rid,
+                "prompt_tokens": m.prompt_tokens,
+                "completion_tokens": m.completion_tokens,
+                "method": method,
+                "cached": False
+            }, rid)
+            
+        except Exception as e:
+            logger.error(f"Generate error: {e}")
+            return {"error": str(e)}
+
+    async def _http_generate(self, prompt: str, params: Dict[str, Any]) -> str:
+       
+        import aiohttp
+        payload = {
+            "model": self.model_name, 
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": params.get("max_tokens", 128),
+            "temperature": params.get("temperature", 0.7)
+        }
+        async with aiohttp.ClientSession() as s:
+            async with s.post(self.server_url.rstrip('/') + '/v1/chat/completions', 
+                             json=payload, timeout=self.timeout) as r:
+                if r.status != 200:
+                    raise Exception(f"HTTP {r.status}: {await r.text()}")
+                d = await r.json()
+                if 'choices' not in d or len(d['choices']) == 0:
+                    raise Exception("Invalid response format")
+                return d['choices'][0]['message']['content']
+
+    def _format_prompt(self, msgs: List[Dict[str, str]]) -> str:
+       
+        return '\n'.join(f"{m['role'].title()}: {m['content']}" for m in msgs)
+
+    def _format_openai_response(self, result: Dict[str, Any], request_id: str) -> Dict[str, Any]:
+       
+        return {
             "id": request_id,
             "object": "chat.completion",
             "created": int(time.time()),
@@ -680,7 +327,7 @@ class SGLangBackend(SllmBackend):
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": result["text"]
+                    "content": result.get("text", "")
                 },
                 "finish_reason": "stop"
             }],
@@ -688,180 +335,71 @@ class SGLangBackend(SllmBackend):
                 "prompt_tokens": result.get("prompt_tokens", 0),
                 "completion_tokens": result.get("completion_tokens", 0),
                 "total_tokens": result.get("prompt_tokens", 0) + result.get("completion_tokens", 0)
+            },
+            "sglang_info": {
+                "cached": result.get("cached", False),
+                "mode": self.mode.value if self.mode else "unknown",
+                "generation_method": result.get("method", "unknown"),
+                "native_sglang": self.mode == SGLangMode.NATIVE_ENDPOINT,
+                "function_used": result.get("function_used")
             }
         }
-        
-        # Add SGLang-specific metadata
-        response["sglang_info"] = {
-            "mode": self.mode.value,
-            "cached": result.get("cached", False),
-            "backend_version": "sglang-optimized-v2.0",
-            "generation_method": result.get("method", "unknown"),
-            "function_used": result.get("function_used"),
-            "native_sglang": self.mode == SGLangMode.NATIVE_ENDPOINT,
-            "cache_stats": self.cache.get_stats()
-        }
-        
-        return response
-    
-    # Required abstract methods implementation
-    
+
     def get_current_tokens(self) -> int:
-        """Get current active token count"""
-        return sum(
-            metrics.prompt_tokens + metrics.completion_tokens 
-            for metrics in self.active_requests.values()
-        )
     
-    async def resume_kv_cache(self, request_data: List[List[int]]) -> None:
-        """Resume KV cache (simplified implementation)"""
-        logger.debug(f"KV cache resume requested for {len(request_data)} items")
-    
+        return sum(req.prompt_tokens + req.completion_tokens for req in self.metrics.values())
+
     async def stop(self, request_id: str = None) -> bool:
-        """Stop generation requests"""
+     
         if request_id:
-            if request_id in self.active_requests:
-                del self.active_requests[request_id]
-                logger.info(f"Stopped request: {request_id}")
-                return True
-            return False
-        else:
-            count = len(self.active_requests)
-            self.active_requests.clear()
-            logger.info(f"Stopped all {count} active requests")
-            return count > 0
-    
-    async def encode(self, request_data: Dict[str, Any]):
-        """Text encoding/embedding generation"""
-        model_name = request_data.get("model", self.model_name)
-        inputs = request_data.get("input", [])
-        
-        if isinstance(inputs, str):
-            inputs = [inputs]
-        
-        if not inputs:
-            return {"error": "No input provided for encoding"}
-        
-        # Generate deterministic embeddings
-        embeddings = []
-        for i, text in enumerate(inputs):
-            text_hash = hashlib.sha256(text.encode()).hexdigest()
-            seed = int(text_hash[:8], 16)
-            
-            import random
-            random.seed(seed)
-            embedding = [random.uniform(-1, 1) for _ in range(384)]
-            
-            # Normalize vector
-            norm = sum(x * x for x in embedding) ** 0.5
-            if norm > 0:
-                embedding = [x / norm for x in embedding]
-            
-            embeddings.append({
-                "object": "embedding",
-                "index": i,
-                "embedding": embedding
-            })
-        
-        return {
-            "object": "list",
-            "data": embeddings,
-            "model": model_name,
-            "usage": {
-                "prompt_tokens": sum(len(text.split()) for text in inputs),
-                "total_tokens": sum(len(text.split()) for text in inputs)
-            }
-        }
-    
-    async def fine_tuning(self, request_data: Dict[str, Any]):
-        """Fine-tuning (not supported)"""
-        raise NotImplementedError(
-            "Fine-tuning is not supported in SGLang backend. "
-            "Use dedicated fine-tuning frameworks like LoRA or QLoRA."
-        )
-    
-    # Monitoring and management
-    
+            return self.metrics.pop(request_id, None) is not None
+        self.metrics.clear()
+        return True
+
+    async def resume_kv_cache(self, data: List[List[int]]) -> None:
+     
+        logger.debug(f"Resume KV cache for {len(data)} requests")
+
+    async def encode(self, data: Dict[str, Any]) -> Dict[str, Any]:
+     
+        return {"error": "Encoding not supported"}
+
+    async def fine_tuning(self, data: Dict[str, Any]) -> Dict[str, Any]:
+       
+        return {"error": "Fine-tuning not supported by SGLang backend"}
+
     def get_backend_stats(self) -> Dict[str, Any]:
-        """Get comprehensive backend statistics"""
-        uptime = time.time() - self.start_time
-        success_rate = self.successful_requests / self.total_requests if self.total_requests > 0 else 0
+        
+        uptime = time.time() - (min(m.start_time for m in self.metrics.values()) if self.metrics else time.time())
         
         return {
-            "backend_type": "sglang_optimized",
+            "backend_type": "sglang",
             "status": self.status.value,
-            "mode": self.mode.value,
+            "mode": self.mode.value if self.mode else "unknown",
             "model": self.model_name,
             "uptime": uptime,
             "total_requests": self.total_requests,
-            "successful_requests": self.successful_requests,
-            "success_rate": success_rate,
-            "active_requests": len(self.active_requests),
-            "current_tokens": self.get_current_tokens(),
-            "cache_stats": self.cache.get_stats(),
-            "server_url": self.server_url if self.use_real_sglang else None,
-            "sglang_features": {
-                "native_available": SGLANG_AVAILABLE,
-                "runtime_endpoint": self.runtime_endpoint is not None,
-                "functions_available": len(self.sglang_functions),
-                "native_generation": self.mode == SGLangMode.NATIVE_ENDPOINT
-            }
+            "successful_requests": self.successful,
+            "success_rate": self.successful / self.total_requests if self.total_requests > 0 else 0,
+            "active_requests": len(self.metrics),
+            "cache_stats": self.cache.get_stats()
         }
-    
+
     def get_health_status(self) -> Dict[str, Any]:
-        """Get health status"""
-        cache_stats = self.cache.get_stats()
-        
+       
         return {
             "status": "healthy" if self.status == BackendStatus.RUNNING else "unhealthy",
-            "mode": self.mode.value,
-            "uptime": time.time() - self.start_time,
-            "active_requests": len(self.active_requests),
-            "cache_hit_rate": cache_stats["hit_rate"],
-            "total_requests": self.total_requests,
-            "sglang_status": {
-                "available": SGLANG_AVAILABLE,
-                "runtime_endpoint_active": self.runtime_endpoint is not None,
-                "native_functions": len(self.sglang_functions)
-            }
+            "mode": self.mode.value if self.mode else "unknown",
+            "uptime": time.time() - (min(m.start_time for m in self.metrics.values()) if self.metrics else time.time())
         }
-    
+
     async def shutdown(self):
-        """Graceful shutdown with cleanup"""
-        logger.info("Starting SGLang Backend shutdown...")
         
-        try:
-            # Stop all active requests
-            await self.stop()
-            
-            # SGLang cleanup
-            if self.runtime_endpoint:
-                try:
-                    if hasattr(self.runtime_endpoint, 'shutdown'):
-                        await asyncio.to_thread(self.runtime_endpoint.shutdown)
-                except Exception as e:
-                    logger.warning(f"RuntimeEndpoint shutdown error: {e}")
-            
-            # Cache cleanup
-            if flush_cache and SGLANG_AVAILABLE:
-                try:
-                    await asyncio.to_thread(flush_cache)
-                except Exception as e:
-                    logger.warning(f"SGLang cache flush error: {e}")
-            
-            # Clear local state
-            self.status = BackendStatus.DELETING
-            self.runtime_endpoint = None
-            self.use_real_sglang = False
-            self.cache.clear()
-            
-            # Final statistics
-            uptime = time.time() - self.start_time
-            success_rate = self.successful_requests / self.total_requests if self.total_requests > 0 else 0
-            
-            logger.info(f"SGLang Backend shutdown complete")
-            logger.info(f"Final stats: {self.total_requests} requests, "
-                       f"{success_rate:.1%} success rate, {uptime:.1f}s uptime")
-            
-        except Exception as e:
-            logger.error(f"Shutdown error: {e}")
+        await self.stop()
+        if SGLANG_AVAILABLE and flush_cache:
+            try:
+                await asyncio.to_thread(flush_cache)
+            except:
+                pass
+        self.status = BackendStatus.DELETING
+        logger.info("SGLangBackend shutdown complete")
