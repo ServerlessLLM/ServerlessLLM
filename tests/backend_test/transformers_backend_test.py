@@ -100,7 +100,7 @@ def test_init_backend(transformers_backend, backend_config):
             torch_dtype=torch_dtype,
             storage_path=storage_path,
             hf_model_class=hf_model_class,
-            qunatization_config=quantization_config,
+            quantization_config=quantization_config,
         )
 
 
@@ -126,7 +126,7 @@ def test_init_encoder_backend(encoder_backend, encoder_config):
             torch_dtype=torch_dtype,
             storage_path=storage_path,
             hf_model_class=hf_model_class,
-            qunatization_config=quantization_config,
+            quantization_config=quantization_config,
         )
 
 

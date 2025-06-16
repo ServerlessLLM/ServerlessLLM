@@ -162,7 +162,7 @@ quantization_config = BitsAndBytesConfig(load_in_8bit=True)
 quantization_config.to_json_file("quantization_config.json")
 
 ```
-Then copy it into `config.json`: 
+Then copy it into `config.json`:
 
 ```json
 {
