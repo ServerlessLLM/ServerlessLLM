@@ -154,6 +154,52 @@ This file can be incomplete, and missing sections will be filled in by the defau
 }
 ```
 
+##### Example Quantization Configuration (`config.json`)
+`quantization_config` can be obtained from any configuration used in `transformers` via the `.to_json_file(filename)` function:
+
+```python
+quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+quantization_config.to_json_file("quantization_config.json")
+
+```
+Then copy it into `config.json`: 
+
+```json
+{
+    "model": "",
+    "backend": "transformers",
+    "num_gpus": 1,
+    "auto_scaling_config": {
+        "metric": "concurrency",
+        "target": 1,
+        "min_instances": 0,
+        "max_instances": 10,
+        "keep_alive": 0
+    },
+    "backend_config": {
+        "pretrained_model_name_or_path": "",
+        "device_map": "auto",
+        "torch_dtype": "float16",
+        "hf_model_class": "AutoModelForCausalLM",
+        "quantization_config": {
+            "_load_in_4bit": false,
+            "_load_in_8bit": true,
+            "bnb_4bit_compute_dtype": "float32",
+            "bnb_4bit_quant_storage": "uint8",
+            "bnb_4bit_quant_type": "fp4",
+            "bnb_4bit_use_double_quant": false,
+            "llm_int8_enable_fp32_cpu_offload": false,
+            "llm_int8_has_fp16_weight": false,
+            "llm_int8_skip_modules": null,
+            "llm_int8_threshold": 6.0,
+            "load_in_4bit": false,
+            "load_in_8bit": true,
+            "quant_method": "bitsandbytes"
+        }
+    }
+}
+```
+
 Below is a description of all the fields in config.json.
 
 | Field | Description |
