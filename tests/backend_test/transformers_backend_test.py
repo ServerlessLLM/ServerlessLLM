@@ -93,12 +93,14 @@ def test_init_backend(transformers_backend, backend_config):
         torch_dtype = backend_config.get("torch_dtype", torch.float16)
         torch_dtype = getattr(torch, torch_dtype)
         hf_model_class = backend_config.get("hf_model_class", None)
+        quantization_config = backend_config.get("quantization_config", None)
         mock_load_model.assert_called_once_with(
             model_path,
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
             hf_model_class=hf_model_class,
+            qunatization_config=quantization_config,
         )
 
 
@@ -117,12 +119,14 @@ def test_init_encoder_backend(encoder_backend, encoder_config):
         torch_dtype = encoder_config.get("torch_dtype", torch.float16)
         torch_dtype = getattr(torch, torch_dtype)
         hf_model_class = encoder_config.get("hf_model_class", None)
+        quantization_config = encoder_config.get("quantization_config", None)
         mock_load_model.assert_called_once_with(
             model_path,
             device_map=device_map,
             torch_dtype=torch_dtype,
             storage_path=storage_path,
             hf_model_class=hf_model_class,
+            qunatization_config=quantization_config,
         )
 
 
