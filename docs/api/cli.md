@@ -174,6 +174,7 @@ Below is a description of all the fields in config.json.
 | backend_config.hf_model_class | HuggingFace model class. |
 | backend_config.enable_lora | Set to true to enable loading LoRA adapters during inference. |
 | backend_config.lora_adapters| A dictionary of LoRA adapters in the format `{name: path}`, where each path is a local or Hugging Face-hosted LoRA adapter directory. |
+| backend_config.quantization_config| A dictionary specifying the desired `BitsAndBytesConfig`. Can be obtained by saving a `BitsAndBytesConfig` to JSON via `BitsAndBytesConfig.to_json_file(filename). Defaults to None.|
 
 ### sllm-cli delete
 Delete deployed models by name, or delete specific LoRA adapters associated with a base model.

@@ -20,7 +20,7 @@ import json
 import os
 import time
 import uuid
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 
 import torch
 from accelerate import dispatch_model, init_empty_weights
@@ -51,7 +51,7 @@ from sllm_store.utils import (
     send_module_buffers_to_device,
 )
 from torch import nn
-from transformers import AutoConfig
+from transformers import AutoConfig, BitsAndBytesConfig
 from transformers.integrations.bitsandbytes import (
     set_module_quantized_tensor_to_device,
     replace_with_bnb_linear,
@@ -140,7 +140,9 @@ def load_model(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization_config=None,
+    quantization_config: Optional[
+        Union[BitsAndBytesConfig, Dict[str, Any]]
+    ] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
     hf_model_class: str = "AutoModelForCausalLM",
@@ -171,7 +173,9 @@ def fully_parallel_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization_config=None,
+    quantization_config: Optional[
+        Union[BitsAndBytesConfig, Dict[str, Any]]
+    ] = None,
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
@@ -227,11 +231,9 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers import BitsAndBytesConfig
-
-            if not isinstance(quantization_config, BitsAndBytesConfig):
-                raise ValueError(
-                    f"Invalid config type: {type(quantization_config)}"
+            if isinstance(quantization_config, dict):
+                quantization_config = BitsAndBytesConfig.from_dict(
+                    quantization_config
                 )
 
             logger.debug(
@@ -284,7 +286,9 @@ def best_effort_load(
     hf_model_class: str,
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
-    quantization_config=None,
+    quantization_config: Optional[
+        Union[BitsAndBytesConfig, Dict[str, Any]]
+    ] = None,
     storage_path: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
@@ -391,11 +395,9 @@ def best_effort_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            from transformers import BitsAndBytesConfig
-
-            if not isinstance(quantization_config, BitsAndBytesConfig):
-                raise ValueError(
-                    f"Invalid config type: {type(quantization_config)}"
+            if isinstance(quantization_config, dict):
+                quantization_config = BitsAndBytesConfig.from_dict(
+                    quantization_config
                 )
 
             logger.debug(
