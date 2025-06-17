@@ -146,7 +146,11 @@ Expected output:
 
 ```log
 $ sllm-store start
+<<<<<<< HEAD
 INFO 12-31 17:13:23 _cli_utils.py] Starting gRPC server
+=======
+INFO 12-31 17:13:23 cli.py:58] Starting gRPC server
+>>>>>>> main
 INFO 12-31 17:13:23 server.py:34] StorageServicer: storage_path=./models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
 WARNING: Logging before InitGoogleLogging() is written to STDERR
 I20241231 17:13:23.947276 2165054 checkpoint_store.cpp:41] Number of GPUs: 1

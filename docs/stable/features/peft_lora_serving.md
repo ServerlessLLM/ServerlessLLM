@@ -3,23 +3,36 @@ sidebar_position: 2
 ---
 # PEFT LoRA Serving
 
+This example illustrates the process of deploying and serving a base large language model enhanced with LoRA (Low-Rank Adaptation) adapters in a ServerlessLLM cluster. It demonstrates how to start the cluster, deploy a base model with multiple LoRA adapters, perform inference using different adapters, and update or remove the adapters dynamically.
+
 ## Pre-requisites
 
 To run this example, we will use Docker Compose to set up a ServerlessLLM cluster. Before proceeding, please ensure you have read the [Quickstart Guide](../getting_started.md).
 
-We will use the following example base model & LoRA adapter
+We will use the following example base model & LoRA adapters
 - Base model: `facebook/opt-125m`
-- LoRA adapter: `peft-internal-testing/opt-125m-dummy-lora`
+- LoRA adapters:
+    - `peft-internal-testing/opt-125m-dummy-lora`
+    - `monsterapi/opt125M_alpaca`
+    - `edbeeching/opt-125m-lora`
+    - `Hagatiana/opt-125m-lora`
 
 ## Usage
 
 Start a local Docker-based ray cluster using Docker Compose.
 
-### Step 1: Clone the ServerlessLLM Repository
+### Step 1: Download the Docker Compose File
 
-If you haven't already, clone the ServerlessLLM repository:
+Download the `docker-compose.yml` file from the ServerlessLLM repository:
 ```bash
-git clone https://github.com/ServerlessLLM/ServerlessLLM.git
+# Create a directory for the ServerlessLLM Docker setup
+mkdir serverless-llm-docker && cd serverless-llm-docker
+
+# Download the docker-compose.yml file
+curl -O https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
+
+# Alternatively, you can use wget:
+# wget https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
 ```
 
 ### Step 2: Configuration
