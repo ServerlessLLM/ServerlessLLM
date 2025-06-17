@@ -30,6 +30,7 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: docs-site/package-lock.json
 
       - name: Prepare documentation content
         run: |

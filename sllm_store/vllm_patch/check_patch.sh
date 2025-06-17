@@ -25,7 +25,17 @@ if [ ! -f "$PATCH_FILE" ]; then
     exit 1
 fi
 
-VLLM_PATH=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))")
+VLLM_PATH_OUTPUT=$(python -c "import vllm; import os; print(os.path.dirname(os.path.abspath(vllm.__file__)))" 2>/dev/null)
+VLLM_PATH=$(echo "$VLLM_PATH_OUTPUT" | tail -n 1)
+
+# Sanity check the path
+echo "Detected VLLM_PATH: '$VLLM_PATH'"
+if [ ! -d "$VLLM_PATH" ]; then
+    echo "Error: Detected VLLM_PATH is not a valid directory: '$VLLM_PATH'"
+    echo "Full output from python command was:"
+    echo "$VLLM_PATH_OUTPUT"
+    exit 1
+fi
 
 if patch -p2 --dry-run -d $VLLM_PATH < $PATCH_FILE > /dev/null 2>&1; then
   echo "vLLM patch is not applied"

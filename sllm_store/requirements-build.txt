@@ -1,6 +1,7 @@
 cmake>=3.20,<4.0.0
 ninja
+numpy
 peft==0.15.2
 setuptools
-torch==2.5.1
+torch==2.7.0
 wheel
