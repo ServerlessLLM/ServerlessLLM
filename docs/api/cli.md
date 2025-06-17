@@ -313,8 +313,3 @@ sllm status
 
 
 
-#### Example
-```bash
-sllm status
-```
-
