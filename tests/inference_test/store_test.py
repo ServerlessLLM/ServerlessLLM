@@ -1,92 +1,76 @@
 import json
 import os
-import subprocess
-import sys
-from typing import Any, Dict, List, Optional
+import pathlib
 
+import pytest
 import torch
 from transformers import AutoModelForCausalLM
 
 from sllm_store.transformers import load_model, save_model
 
+with open("tests/inference_test/supported_models.json") as fh:
+    models = list(json.load(fh).keys())
 
-def store_test(model: str, model_folder: str) -> Optional[str]:
+
+@pytest.fixture(scope="session", params=models, ids=models)
+def model_name(request):
+    return request.param
+
+
+@pytest.fixture(scope="session")
+def storage_path(tmp_path_factory):
+    env = os.getenv("MODEL_FOLDER")
+    return pathlib.Path(env) if env else tmp_path_factory.mktemp("models")
+
+
+def store_and_compare(model_name, storage_path):
     try:
-        model_path = os.path.join(model_folder, model)
+        os.makedirs(storage_path, exist_ok=True)
+        cache_dir = storage_path / model_name
         hf_model = AutoModelForCausalLM.from_pretrained(
-            model, torch_dtype=torch.float16, trust_remote_code=True
+            model_name, torch_dtype=torch.float16, trust_remote_code=True
         )
-        save_model(hf_model, model_path)
+        save_model(hf_model, str(cache_dir))
 
-        serverless_llm_model = load_model(
-            model,
+        test_model = load_model(
+            model_name,
+            storage_path=storage_path,
             device_map="auto",
             torch_dtype=torch.float16,
-            storage_path=model_folder,
             fully_parallel=True,
         )
 
-        for name, param in serverless_llm_model.named_parameters():
-            ground_truth_param = hf_model.state_dict()[name]
+        for name, param in test_model.named_parameters():
+            ref = hf_model.state_dict()[name]
+            if param.dtype != ref.dtype:
+                return (
+                    f"dtype mismatch for {name}: {param.dtype} vs {ref.dtype}"
+                )
+            if param.shape != ref.shape:
+                return (
+                    f"shape mismatch for {name}: {param.shape} vs {ref.shape}"
+                )
+            if not torch.allclose(param.cpu(), ref.cpu(), atol=1e-6):
+                return f"value mismatch for {name}"
 
-            if param.dtype != ground_truth_param.dtype:
-                return f"param {name} dtype mismatch: {param.dtype} vs {ground_truth_param.dtype}"
-
-            if param.shape != ground_truth_param.shape:
-                return f"param {name} shape mismatch: {param.shape} vs {ground_truth_param.shape}"
-
-            if not torch.allclose(
-                param.cpu(), ground_truth_param.cpu(), atol=1e-3
-            ):
-                return f"param {name} value mismatch"
-
+        del hf_model, test_model
+        torch.cuda.empty_cache()
         return None
 
-    except Exception as e:
-        return str(e)
+    except Exception as exc:
+        return str(exc)
 
 
-def main() -> int:
-    failed_models: List[Dict[str, str]] = []
-    MODEL_FOLDER = os.environ["MODEL_FOLDER"]
-
-    try:
-        with open("supported_models.json", "r") as f:
-            models: Dict[str, Any] = json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
-        print(f"::error::Failed to read supported_models.json: {e}")
-        return 1
-
-    print("::group::Model Testing Results")
-    for model, model_info in models.items():
-        print(f"Testing: {model}")
-        error = store_test(model, MODEL_FOLDER)
-
-        if error:
-            print(
-                f"::error file=supported_models.json::Model {model} failed: {error}"
-            )
-            failed_models.append({"model": model, "error": error})
-    print("::endgroup::")
-
-    if failed_models:
-        try:
-            with open(
-                "failed_models.json", "w"
-            ) as f:  # save failed models to use in inference_test
-                json.dump(failed_models, f, indent=2)
-        except IOError as e:
-            print(f"::warning::Failed to save failed_models.json: {e}")
-
-        print("::group::Failed Models Summary")
-        for failure in failed_models:
-            print(f"::error::❌ {failure['model']}: {failure['error']}")
-        print("::endgroup::")
-        return 1
-
-    print("::notice::✅ All models stored successfully")
-    return 0
+def test_model_can_be_stored(model_name, storage_path, request):
+    error = store_and_compare(model_name, storage_path)
+    if error:
+        failures = request.session.__dict__.setdefault("_model_failures", [])
+        failures.append({"model": model_name, "error": error})
+    assert error is None, error
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+def pytest_sessionfinish(session, exitstatus):
+    failures = session.__dict__.get("_model_failures", [])
+    if failures:
+        with open("tests/inference_test/failed_models.json", "w") as fh:
+            json.dump(failures, fh, indent=2)

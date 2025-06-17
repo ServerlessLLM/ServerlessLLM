@@ -16,59 +16,18 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-ARG BASE_IMAGE="rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0"
+ARG BASE_IMAGE="rocm/vllm-dev:base_ROCm-6.3.1_20250528_tuned_20250530"
 ARG PYTORCH_ROCM_ARCH="gfx908;gfx90a;gfx942;gfx1100"
 
-# Flash-Attention build, Triton build, and vLLM build are adapted from
-# https://github.com/vllm-project/vllm/blob/v0.6.6/Dockerfile.rocm
-
-# Toggle for installing CK-based flash-attention
-# If 0, flash-attention won't be installed
-ARG BUILD_FA="0"
-ARG FA_GFX_ARCHS="gfx90a;gfx942"
-ARG FA_BRANCH="3cea2fb"
-
-# Toggle for building triton on rocm
-ARG BUILD_TRITON="1"
-ARG TRITON_BRANCH="e192dba"
-
 # vLLM branch version
-ARG VLLM_BRANCH="v0.6.6"
+ARG VLLM_BRANCH="v0.9.0.1"
 
 
 # Base image build stage
 FROM ${BASE_IMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
-    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
-    && apt-get update -y \
-    && apt-get install -y ccache software-properties-common git curl sudo \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update -y
-
-RUN apt-get update && apt-get install -y \
-    curl \
-    ca-certificates \
-    sudo \
-    git \
-    bzip2 \
-    libx11-6 \
-    build-essential \
-    wget \
-    unzip \
-    tmux \
-    ccache \
-    && rm -rf /var/lib/apt/lists/*
-
 RUN apt-get purge -y sccache; python3 -m pip uninstall -y sccache; rm -f "$(which sccache)"
-
-# Remove prebuilt torch and install pytorch 2.5.1
-RUN python3 -m pip uninstall -y torch torchvision \
-    && python3 -m pip install torch==2.5.1 \
-    torchvision==0.20.1 \
-    torchaudio==2.5.1 \
-    --index-url https://download.pytorch.org/whl/rocm6.2
 
 # Set environment variables for LLVM and paths
 ENV LLVM_SYMBOLIZER_PATH=/opt/rocm/llvm/bin/llvm-symbolizer
@@ -102,71 +61,13 @@ RUN python3 -m pip install -r requirements-build.txt
 
 RUN python3 setup.py sdist bdist_wheel
 
-### Flash-Attention wheel build stage
-FROM base AS build_fa
-ARG BUILD_FA
-ARG FA_GFX_ARCHS
-ARG FA_BRANCH
-# Build ROCm flash-attention wheel if `BUILD_FA = 1`
-RUN if [ "$BUILD_FA" = "1" ]; then \
-    mkdir -p libs \
-    && cd libs \
-    && git clone https://github.com/ROCm/flash-attention.git \
-    && cd flash-attention \
-    && git checkout "${FA_BRANCH}" \
-    && git submodule update --init \
-    && GPU_ARCHS="${FA_GFX_ARCHS}" python3 setup.py bdist_wheel --dist-dir=/install; \
-    # Create an empty directory if not building flash-attention
-    else mkdir -p /install; \
-    fi
-
-### Triton wheel build stage
-FROM base AS build_triton
-ARG BUILD_TRITON
-ARG TRITON_BRANCH
-# Build triton wheel if `BUILD_TRITON = 1`
-RUN if [ "$BUILD_TRITON" = "1" ]; then \
-    mkdir -p libs \
-    && cd libs \
-    && python3 -m pip install ninja cmake wheel pybind11 \
-    && git clone https://github.com/OpenAI/triton.git \
-    && cd triton \
-    && git checkout "${TRITON_BRANCH}" \
-    && cd python \
-    && python3 setup.py bdist_wheel --dist-dir=/install; \
-    # Create an empty directory if not building triton
-    else mkdir -p /install; \
-    fi
-
-### AMD-SMI build stage
-FROM base AS build_amdsmi
-# Build amdsmi wheel always
-RUN cd /opt/rocm/share/amd_smi \
-    && python3 -m pip wheel . --wheel-dir=/install
-
 ### vLLM build stage
 FROM base AS build_vllm
 ARG VLLM_BRANCH
 
 WORKDIR /app/third_party
 
-COPY --from=build_triton /install/*.whl /install/
-RUN mkdir -p libs \
-    && if ls /install/*.whl; then \
-    cp /install/*.whl libs \
-    && python3 -m pip uninstall -y triton; fi
-
-COPY --from=build_fa /install/*.whl /install/
-RUN mkdir -p libs \
-    && if ls /install/*.whl; then \
-    cp /install/*.whl libs \
-    && python3 -m pip uninstall -y flash-attn; fi
-
-COPY --from=build_amdsmi /install/*.whl /install/
-RUN mkdir -p libs \
-    && if ls /install/*.whl; then \
-    cp /install/*.whl libs \
-    && python3 -m pip uninstall -y amdsmi; fi
+RUN pip install /opt/rocm/share/amd_smi
 
 RUN if ls libs/*.whl; then \
     python3 -m pip install libs/*.whl; fi
@@ -174,12 +75,14 @@ RUN if ls libs/*.whl; then \
 RUN git clone https://github.com/vllm-project/vllm.git  \
     && cd vllm \
     && git checkout "${VLLM_BRANCH}" \
-    && pip install --upgrade numba scipy huggingface-hub[cli] \
+    && pip install --upgrade numba scipy \
+    && pip install huggingface-hub[cli,hf_transfer] \
+    && pip install --upgrade setuptools \
     && pip install setuptools_scm \
     && pip install "numpy<2" \
-    && pip install -r requirements-rocm.txt
+    && pip install -r requirements/rocm.txt
 
-RUN cd vllm && python3 setup.py develop
+RUN cd vllm && python3 setup.py clean --all && python3 setup.py develop
 
 COPY vllm_patch vllm_patch
 RUN vllm_patch/patch.sh
