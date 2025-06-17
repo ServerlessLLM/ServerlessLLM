@@ -399,10 +399,15 @@ def best_effort_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
+        if quantization_config and torch.cuda.is_available():
             if isinstance(quantization_config, dict):
-                quantization_config = BitsAndBytesConfig.from_dict(
-                    quantization_config
-                )
+                try:
+                    quantization_config = BitsAndBytesConfig.from_dict(
+                        quantization_config
+                    )
+                except (TypeError, ValueError) as e:
+                    logger.error(f"Invalid quantization_config dictionary: {e}")
+                    raise ValueError(f"Failed to parse quantization_config: {e}") from e
 
             logger.debug(
                 f"using precision: {quantization_config.quantization_method()}"
