@@ -30,17 +30,20 @@ jobs:
           apt-get update && apt-get install -y ca-certificates git
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
+          pip install -r requirements.txt
 
       # Python Tests
-      - name: Install ServerlessLLM
+      - name: Install ServerlessLLM Store
         run: |
-          cd sllm_store && pip install .
+          cd sllm_store && \
+          rm -rf build && \
+          pip install .
 
       - name: Start sllm-store Server
         run: |
           export MODEL_FOLDER="./models"
           mkdir -p $MODEL_FOLDER
-          nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 16GB > server.log 2>&1 &
+          nohup sllm-store start --storage-path $MODEL_FOLDER --mem-pool-size 20GB > server.log 2>&1 &
           sleep 10
 
       - name: Run Python Tests
@@ -48,3 +51,8 @@ jobs:
         run: |
           export MODEL_FOLDER="./models"
           pytest tests/quantize_test
+
+      - name: Clean up model storage
+        if: always()
+        run: |
+          rm -rf ./models
