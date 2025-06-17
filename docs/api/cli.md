@@ -311,8 +311,9 @@ sllm status
 - For advanced configuration, refer to the [Example Configuration File](#example-configuration-file-configjson) section.
 - For more details, see the official documentation and guides linked above.
 
+
+
 #### Example
 ```bash
 sllm-cli status
 ```
-
