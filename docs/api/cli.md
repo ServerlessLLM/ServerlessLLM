@@ -313,5 +313,6 @@ sllm status
 
 #### Example
 ```bash
-sllm status
+sllm-cli status
 ```
+
