@@ -378,7 +378,7 @@ class StoreManager:
                 client = SllmStoreClient(f"{node_address}:8073")
                 cfg = client.get_server_config()
                 chunk = cfg["chunk_size"]
-                mem   = cfg["mem_pool_size"]
+                mem = cfg["mem_pool_size"]
                 self.local_servers[node_id] = SllmLocalStore(
                     node_id, client, mem, chunk, self.hardware_info[node_id]
                 )
