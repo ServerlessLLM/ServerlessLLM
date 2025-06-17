@@ -253,7 +253,8 @@ def fully_parallel_load(
                 "compressed_tensors",
             ]:
                 raise ValueError(
-                    f"{quant_method}(requires pre-quantization) is not supported."
+                    f"{quant_method} (requires pre-quantization) "
+                    "is not supported."
                 )
 
             logger.info(f"Using quantization method: {quant_method}")
@@ -469,7 +470,8 @@ def best_effort_load(
                 "compressed_tensors",
             ]:
                 raise ValueError(
-                    f"{quant_method}(requires pre-quantization) is not supported."
+                    f"{quant_method} (requires pre-quantization) "
+                    "is not supported."
                 )
 
             logger.info(f"Using quantization method: {quant_method}")
