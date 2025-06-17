@@ -238,7 +238,7 @@ def fully_parallel_load(
                     )
                 except (TypeError, ValueError) as e:
                     logger.error(f"Invalid quantization_config dictionary: {e}")
-                    raise ValueError(f"Failed to parse quantization_config: {e}") from e
+                    raise ValueError(f"Invalid quantization_config: {e}") from e
 
             logger.debug(
                 f"using precision: {quantization_config.quantization_method()}"
@@ -399,7 +399,6 @@ def best_effort_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-        if quantization_config and torch.cuda.is_available():
             if isinstance(quantization_config, dict):
                 try:
                     quantization_config = BitsAndBytesConfig.from_dict(
@@ -407,7 +406,7 @@ def best_effort_load(
                     )
                 except (TypeError, ValueError) as e:
                     logger.error(f"Invalid quantization_config dictionary: {e}")
-                    raise ValueError(f"Failed to parse quantization_config: {e}") from e
+                    raise ValueError(f"Invalid quantization_config: {e}") from e
 
             logger.debug(
                 f"using precision: {quantization_config.quantization_method()}"
