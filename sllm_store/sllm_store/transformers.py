@@ -252,7 +252,9 @@ def fully_parallel_load(
                 "fbgemm_fp8",
                 "compressed_tensors",
             ]:
-                raise ValueError(f"{quant_method} is not supported.")
+                raise ValueError(
+                    f"{quant_method}(requires pre-quantization) is not supported."
+                )
 
             logger.info(f"Using quantization method: {quant_method}")
             if quantization_config.quant_method == "bitsandbytes":
@@ -466,7 +468,9 @@ def best_effort_load(
                 "fbgemm_fp8",
                 "compressed_tensors",
             ]:
-                raise ValueError(f"{quant_method} is not supported.")
+                raise ValueError(
+                    f"{quant_method}(requires pre-quantization) is not supported."
+                )
 
             logger.info(f"Using quantization method: {quant_method}")
             if quantization_config.quant_method == "bitsandbytes":
