@@ -233,6 +233,8 @@ class StoreManager:
         self.model_info = {}
         self.model_storage_info = {}
 
+        asyncio.create_task(self._watch_workers())
+
     async def initialize_cluster(self) -> bool:
         logger.info("Initializing cluster and collecting hardware info")
 
@@ -342,6 +344,47 @@ class StoreManager:
                         node_id
                     ].get_store_info()
                 return node_info
+
+    async def _watch_workers(self):
+        while True:
+            try:
+                worker_node_info = get_worker_nodes()
+                unseen = set(worker_node_info) - set(self.local_servers)
+                if unseen:
+                    logger.info(f"New worker(s) detected: {unseen}")
+                    await self._initialise_nodes(unseen, worker_node_info)
+            except Exception as e:
+                logger.warning(f"Worker-watch loop error: {e}")
+            await asyncio.sleep(5)
+
+    async def _initialise_nodes(self, node_ids, worker_node_info):
+        hardware_info_futures = {
+            node_id: collect_all_info.options(
+                resources={f"worker_id_{node_id}": 0.01}
+            ).remote()
+            for node_id in node_ids
+        }
+        for node_id, future in hardware_info_futures.items():
+            try:
+                hardware_info = await future
+                self.hardware_info[node_id] = hardware_info
+            except Exception as e:
+                logger.error(f"Failed hardware info on node {node_id}: {e}")
+                continue
+
+        for node_id in list(node_ids):
+            node_address = worker_node_info[node_id]["address"]
+            try:
+                client = SllmStoreClient(f"{node_address}:8073")
+                cfg = client.get_server_config()
+                chunk = cfg["chunk_size"]
+                mem   = cfg["mem_pool_size"]
+                self.local_servers[node_id] = SllmLocalStore(
+                    node_id, client, mem, chunk, self.hardware_info[node_id]
+                )
+                logger.info(f"Node {node_id} initialised (chunk {chunk})")
+            except Exception as e:
+                logger.warning(f"Node {node_id} still unavailable: {e}")
 
     async def load_to_host(self, node_id: str, model_name: str) -> bool:
         async with self.metadata_lock:
