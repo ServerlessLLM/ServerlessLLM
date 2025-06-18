@@ -39,9 +39,10 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 from .dummy_backend import DummyBackend
+from .sglang_backend import SGLangBackend
+
 # from .transformers_backend import TransformersBackend  # Temporarily disabled due to missing load_lora
 from .vllm_backend import VllmBackend
-from .sglang_backend import SGLangBackend  # 新增SGLang Backend导入
 
-__all__ = ["DummyBackend", "VllmBackend", "SGLangBackend"]  # 更新__all__列表
+__all__ = ["DummyBackend", "VllmBackend", "SGLangBackend"]
 # "TransformersBackend" temporarily removed
