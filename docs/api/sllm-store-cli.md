@@ -5,19 +5,19 @@ sidebar_position: 2
 # ServerlessLLM Store CLI
 
 ServerlessLLM Store's CLI allows the use `sllm-store`'s functionalities within a terminal window. It has the functions:
+- `start`: Starts the gRPC server with the specified configuration.
 - `save`: Convert a HuggingFace model into a loading-optimized format and save it to a local path.
 - `load`: Load a model into given GPUs.
 
-
 ## Requirements
-- OS: Ubuntu 20.04
+- OS: Ubuntu 22.04
 - Python: 3.10
 - GPU: compute capability 7.0 or higher
 
 ## Installations
 
 ### Create a virtual environment
-```bash
+``` bash
 conda create -n sllm-store python=3.10 -y
 conda activate sllm-store
 ```
@@ -32,63 +32,98 @@ conda install -c conda-forge libstdcxx-ng=12 -y
 pip install serverless-llm-store
 ```
 
-### Install from source
-1. Clone the repository and enter the `store` directory
-
-``` bash
-git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/sllm_store
-```
-
-2. Install the package from source
-
-```bash
-rm -rf build
-pip install .
-```
-
-## Getting Started
-### 1. Start the ServerlessLLM Store Server
-Firstly, start the ServerlessLLM Store server. By default, it uses ./models as the storage path.
-
+## Example Workflow
+1. Firstly, start the ServerlessLLM Store server. By default, it uses ./models as the storage path.
 Launch the checkpoint store server in a separate process:
 ``` bash
 # 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.
 sllm-store start --storage-path $PWD/models --mem-pool-size 4GB
 ```
 
-### 2. vLLM Patch (optional)
-
-To use vLLM with ServerlessLLM, you must apply a patch. This patch has been tested with vLLM version 0.9.0.1.
-
-1. **Check patch status** (optional):
-   ```bash
-   ./sllm_store/vllm_patch/check_patch.sh
-   ```
-
-2. **Apply the patch**:
-   ```bash
-   ./sllm_store/vllm_patch/patch.sh
-   ```
-
-3. **Remove the patch** (if needed):
-   ```bash
-   ./sllm_store/vllm_patch/remove_patch.sh
-   ```
-
-:::note
-The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` in the ServerlessLLM repository.
-:::
-
-## Example Workflow
-1. Convert a model to ServerlessLLM format and save it to a local path:
+2. Convert a model to ServerlessLLM format and save it to a local path:
 ``` bash
 sllm-store save --model facebook/opt-1.3b --backend vllm
 ```
 
-2. Load a previously saved model into memory, ready for inference:
+3. Load a previously saved model into memory, ready for inference:
 ```bash
 sllm-store load --model facebook/opt-1.3b --backend vllm
+```
+
+## sllm-store start
+
+Start a gRPC server to serve models stored using ServerlessLLM. This enables fast, low-latency access to models registered via sllm-store save, allowing external clients to load model weights, retrieve metadata, and perform inference-related operations efficiently.
+
+The server supports in-memory caching with customizable memory pooling and chunking, optimized for parallel read access and minimal I/O latency.
+
+#### Usage
+```bash
+sllm-store start [OPTIONS]
+```
+
+#### Options
+
+- `--host <host>`
+  - Host address to bind the gRPC server to.
+
+- `--port <port>`
+  - Port number on which the gRPC server will listen for incoming requests.
+
+- `--storage-path <storage_path>`
+  - Path to the directory containing models previously saved with sllm-store save.
+
+- `--num-thread <num_thread>`
+  - Number of threads to use for I/O operations and chunk handling.
+
+- `--chunk-size <chunk_size>`
+  - Size of individual memory chunks used for caching model data (e.g., 64MiB, 512KB). Must include unit suffix.
+
+- `--mem-pool-size <mem_pool_size>`
+  - Total memory pool size to allocate for the in-memory cache (e.g., 4GiB, 2GB). Must include unit suffix.
+
+- `--disk-size <disk_size>`
+  - (Currently unused) Would set the maximum size sllm-store can occupy in disk cache.
+
+- `--registration-required`
+  - If specified, clients must register with the server before making requests.
+
+#### Examples
+
+Start the server using all default values:
+``` bash
+sllm-store start
+```
+
+Start the server with a custom storage path:
+``` bash
+sllm-store start --storage-path /your/folder
+```
+
+Specify a custom port and host:
+``` bash
+sllm-store start --host 127.0.0.1 --port 9090
+```
+
+Use larger chunk size and memory pool for large models in a multi-threaded environment:
+``` bash
+sllm-store start --num-thread 16 --chunk-size 128MB --mem-pool-size 8GB
+```
+
+Run with access control enabled:
+``` bash
+sllm-store start --registration-required True
+```
+
+Full example for production-style setup:
+``` bash
+sllm-store start \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --storage-path /data/models \
+  --num-thread 8 \
+  --chunk-size 64MB \
+  --mem-pool-size 16GB \
+  --registration-required True
 ```
 
 ## sllm-store save
@@ -143,7 +178,7 @@ sllm-store save --model facebook/opt-1.3b --backend vllm --tensor-parallel-size 
 
 Save a transformers model with a LoRA adapter:
 ```bash
-sllm-cli deploy --model facebook/opt-1.3b --backend transformers --adapter --adapter-name crumb/FLAN-OPT-1.3b-LoRA
+sllm-store save --model facebook/opt-1.3b --backend transformers --adapter --adapter-name crumb/FLAN-OPT-1.3b-LoRA
 ```
 
 ## sllm-store load
