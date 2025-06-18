@@ -77,7 +77,7 @@ class VllmModelDownloader:
                 max_model_len=1,
             )
             model_path = os.path.join(storage_path, model_name)
-            model_executer = llm_writer.llm_engine.model_executor
+            model_executer = llm_writer.llm_engine.engine_core  # For engine V1
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
                 path=model_path, pattern=pattern, max_size=max_size
