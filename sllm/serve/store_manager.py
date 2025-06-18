@@ -292,7 +292,9 @@ class StoreManager:
                 worker_node_info = get_worker_nodes()
                 async with self.metadata_lock:
                     unseen = set(worker_node_info) - set(self.local_servers)
-                    disconnected = set(self.local_servers) - set(worker_node_info)
+                    disconnected = set(self.local_servers) - set(
+                        worker_node_info
+                    )
                 if unseen:
                     logger.info(f"New worker(s) detected: {unseen}")
                     await self._initialise_nodes(unseen, worker_node_info)
@@ -341,7 +343,9 @@ class StoreManager:
                 logger.warning(f"Failed to connect to node {node_id}: {e}")
                 return False
 
-    async def _initialise_nodes(self, node_ids: Set[str], worker_node_info: dict):
+    async def _initialise_nodes(
+        self, node_ids: Set[str], worker_node_info: dict
+    ):
         hardware_info_futures = {
             node_id: collect_all_info.options(
                 resources={f"worker_id_{node_id}": 0.01}
@@ -354,6 +358,7 @@ class StoreManager:
                 async with self.metadata_lock:
                     self.hardware_info[node_id] = hardware_info
                     logger.info(f"Hardware info collected for node {node_id}")
+            except Exception as e:
                 logger.error(f"Failed hardware info on node {node_id}: {e}")
                 continue
 
