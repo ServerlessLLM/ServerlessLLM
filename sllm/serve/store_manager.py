@@ -341,7 +341,7 @@ class StoreManager:
                 logger.warning(f"Failed to connect to node {node_id}: {e}")
                 return False
 
-    async def _initialise_nodes(self, node_ids: str, worker_node_info: dict):
+    async def _initialise_nodes(self, node_ids: Set[str], worker_node_info: dict):
         hardware_info_futures = {
             node_id: collect_all_info.options(
                 resources={f"worker_id_{node_id}": 0.01}
