@@ -22,6 +22,11 @@ conda create -n sllm-store python=3.10 -y
 conda activate sllm-store
 ```
 
+### Install C++ Runtime Library (required for compiling and running CUDA/C++ extensions)
+``` bash
+conda install -c conda-forge libstdcxx-ng -y
+```
+
 ### Install with pip
 ```bash
 pip install serverless-llm-store
