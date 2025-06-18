@@ -215,7 +215,10 @@ def save(
     This command is for adding new models to the sllm-store's local storage.
     """
 
-    logger.info(f"Saving model {model_name} to {storage_path}")
+    logger.info(
+        f"Saving model {model_name if not adapter else adapter_name} "
+        f"to {storage_path}"
+    )
 
     try:
         if backend == "vllm":
@@ -229,8 +232,6 @@ def save(
             )
         elif backend == "transformers":
             if adapter:
-                # os.path.join(storage_path, "transformers", model_name),
-                # was originally there instead of model_name
                 config = AutoConfig.from_pretrained(
                     model_name,
                     trust_remote_code=True,
@@ -258,11 +259,17 @@ def save(
                 # Save the model to the local path
                 model_path = os.path.join(storage_path, model_name)
                 save_model(model, model_path)
+        else:
+            logger.error(f"Unsupported backend '{backend}'")
+            sys.exit(1)
     except Exception as e:
         logger.error(f"Failed to save model {model_name}: {e}", exc_info=True)
         sys.exit(1)
 
-    logger.info(f"Model {model_name} saved successfully to {storage_path}")
+    logger.info(
+        f"Model {model_name if not adapter else adapter_name} "
+        f"saved successfully to {storage_path}"
+    )
 
 
 @cli.command()
@@ -278,7 +285,6 @@ def save(
     "--adapter", is_flag=True, help="Indicate if the model is an adapter"
 )
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
-@click.option("--adapter-path", type=str, help="Path to the LoRA adapter")
 @click.option(
     "--precision",
     type=str,
@@ -289,14 +295,13 @@ def save(
     "--storage-path",
     type=str,
     default="./models",
-    help="Local path to save the model",
+    help="Local path where model is saved",
 )
 def load(
     model_name,
     backend,
     adapter,
     adapter_name,
-    adapter_path,
     precision,
     storage_path,
 ):
@@ -306,7 +311,10 @@ def load(
     This command is for loading new models from the sllm-store's local storage.
     """
 
-    logger.info(f"Loading model {model_name} from {storage_path}")
+    logger.info(
+        f"Loading model {model_name if not adapter else adapter_name} "
+        f"from {storage_path}"
+    )
 
     quantization_config = None
     if precision:
@@ -330,6 +338,7 @@ def load(
 
         if backend == "vllm":
             model_full_path = os.path.join(storage_path, model_name)
+            print(model_full_path)  # TODO: remove this line once it's solved
             llm = LLM(
                 model=model_full_path,
                 load_format="serverless_llm",
@@ -348,9 +357,9 @@ def load(
                 torch.ones(1).to(f"cuda:{i}")
                 torch.cuda.synchronize()
             if adapter:
-                if not adapter_name or not adapter_path:
+                if not adapter_name:
                     logger.error(
-                        "Adapter name and path must be provided when using LoRA"
+                        "Adapter name must be provided when using LoRA"
                     )
                     sys.exit(1)
                 model = load_model(
@@ -364,12 +373,13 @@ def load(
                 model = load_lora(
                     model,
                     adapter_name,
-                    adapter_path,
+                    adapter_path=adapter_name,
                     device_map="auto",
                     storage_path=storage_path,
                     torch_dtype=torch.float16,
                 )
             else:
+                print(storage_path)
                 model = load_model(
                     model_name,
                     device_map="auto",
@@ -402,7 +412,10 @@ def load(
         )
         sys.exit(1)
 
-    logger.info(f"Model {model_name} loaded successfully from {storage_path}")
+    logger.info(
+        f"Model {model_name if not adapter else adapter_name} "
+        f"loaded successfully from {storage_path}"
+    )
 
 
 def example_inferences(
