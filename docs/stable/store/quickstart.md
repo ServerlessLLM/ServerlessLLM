@@ -114,7 +114,7 @@ ServerlessLLM integrates with vLLM to provide fast model loading capabilities. F
 
 ### Prerequisites
 
-Before using ServerlessLLM with vLLM, you need to apply a compatibility patch to your vLLM installation. This patch has been tested with vLLM version `0.6.6`.
+Before using ServerlessLLM with vLLM, you need to apply a compatibility patch to your vLLM installation. This patch has been tested with vLLM version `0.9.0.1`.
 
 ### Apply the vLLM Patch
 
