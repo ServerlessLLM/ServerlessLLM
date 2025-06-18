@@ -1,3 +1,26 @@
+# # ---------------------------------------------------------------------------- #
+# #  serverlessllm                                                               #
+# #  copyright (c) serverlessllm team 2024                                       #
+# #                                                                              #
+# #  licensed under the apache license, version 2.0 (the "license");             #
+# #  you may not use this file except in compliance with the license.            #
+# #                                                                              #
+# #  you may obtain a copy of the license at                                     #
+# #                                                                              #
+# #                  http://www.apache.org/licenses/license-2.0                  #
+# #                                                                              #
+# #  unless required by applicable law or agreed to in writing, software         #
+# #  distributed under the license is distributed on an "as is" basis,           #
+# #  without warranties or conditions of any kind, either express or implied.    #
+# #  see the license for the specific language governing permissions and         #
+# #  limitations under the license.                                              #
+# # ---------------------------------------------------------------------------- #
+# from .dummy_backend import DummyBackend
+# from .transformers_backend import TransformersBackend
+# from .vllm_backend import VllmBackend
+# from .sglang_backend import SGLangBackend, SGLangMode
+# __all__ = ["DummyBackend", "VllmBackend", "TransformersBackend"," SGLangBackend", "SGLangMode"]
+# 修改后的 __init__.py 内容
 # ---------------------------------------------------------------------------- #
 #  serverlessllm                                                               #
 #  copyright (c) serverlessllm team 2024                                       #
@@ -16,7 +39,9 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 from .dummy_backend import DummyBackend
-from .transformers_backend import TransformersBackend
+# from .transformers_backend import TransformersBackend  # Temporarily disabled due to missing load_lora
 from .vllm_backend import VllmBackend
+from .sglang_backend import SGLangBackend  # 新增SGLang Backend导入
 
-__all__ = ["DummyBackend", "VllmBackend", "TransformersBackend"]
+__all__ = ["DummyBackend", "VllmBackend", "SGLangBackend"]  # 更新__all__列表
+# "TransformersBackend" temporarily removed
