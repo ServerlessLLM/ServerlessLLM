@@ -290,8 +290,9 @@ class StoreManager:
         while True:
             try:
                 worker_node_info = get_worker_nodes()
-                unseen = set(worker_node_info) - set(self.local_servers)
-                disconnected = set(self.local_servers) - set(worker_node_info)
+                async with self.metadata_lock:
+                    unseen = set(worker_node_info) - set(self.local_servers)
+                    disconnected = set(self.local_servers) - set(worker_node_info)
                 if unseen:
                     logger.info(f"New worker(s) detected: {unseen}")
                     await self._initialise_nodes(unseen, worker_node_info)
