@@ -363,7 +363,7 @@ class StoreManager:
             if not ok:
                 await self._prune_disconnected({node_id})
 
-    async def _prune_disconnected(self, node_ids: List):
+    async def _prune_disconnected(self, node_ids: Set[str]):
         async with self.metadata_lock:
             for node_id in node_ids:
                 self.local_servers.pop(node_id, None)
