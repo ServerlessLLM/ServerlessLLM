@@ -351,8 +351,9 @@ class StoreManager:
         for node_id, future in hardware_info_futures.items():
             try:
                 hardware_info = await future
-                self.hardware_info[node_id] = hardware_info
-            except Exception as e:
+                async with self.metadata_lock:
+                    self.hardware_info[node_id] = hardware_info
+                    logger.info(f"Hardware info collected for node {node_id}")
                 logger.error(f"Failed hardware info on node {node_id}: {e}")
                 continue
 
