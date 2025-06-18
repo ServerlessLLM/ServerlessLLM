@@ -24,7 +24,7 @@ conda activate sllm-store
 
 ### Install C++ Runtime Library (required for compiling and running CUDA/C++ extensions)
 ``` bash
-conda install -c conda-forge libstdcxx-ng -y
+conda install -c conda-forge libstdcxx-ng=12 -y
 ```
 
 ### Install with pip
