@@ -59,10 +59,9 @@ class FineTuningCommand:
         try:
             model = config_data["model"]
             ft_backend = config_data["ft_backend"]
-            dataset_source = config_data["dataset_config"]["dataset_source"]
-            tokenization_field = config_data["dataset_config"][
-                "tokenization_field"
-            ]
+            dataset_config = config_data["backend_config"]["dataset_config"]
+            dataset_source = dataset_config["dataset_source"]
+            tokenization_field = dataset_config["tokenization_field"]
         except KeyError as e:
             raise ValueError(f"Missing key in ft_config_data: {e}")
 
@@ -73,9 +72,7 @@ class FineTuningCommand:
         config_data = read_config(self.config_path)
         config_data["model"] = self.base_model
         self.validate_config(config_data)
-        logger.info(f"Start fine-tuning base model {config_data['model']}")
-        result = self.fine_tuning(config_data)
-        logger.info(f"{result}")
+        self.fine_tuning(config_data)
 
     def fine_tuning(self, config: dict) -> dict:
         headers = {"Content-Type": "application/json"}

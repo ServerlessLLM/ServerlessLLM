@@ -26,7 +26,7 @@ logger = init_logger(__name__)
 
 
 @ray.remote
-class JobStore:
+class FineTuningJobStore:
     def __init__(self):
         self.jobs: Dict[str, dict] = {}
         self.lock = asyncio.Lock()

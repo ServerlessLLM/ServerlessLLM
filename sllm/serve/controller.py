@@ -23,7 +23,7 @@ from typing import List, Mapping, Optional
 
 import ray
 
-from sllm.serve.fine_tuning_job_store import JobStore
+from sllm.serve.fine_tuning_job_store import FineTuningJobStore
 from sllm.serve.logger import init_logger
 from sllm.serve.routers import MigrationRouter, RoundRobinRouter
 from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
@@ -53,9 +53,7 @@ class SllmController:
 
         self.fine_tuning_jobs = {}
         self.ft_job_lock = asyncio.Lock()
-        self.job_store = ray.remote(
-            JobStore
-        ).remote()  # Persistent storage for jobs
+        self.job_store = FineTuningJobStore.remote()
 
     async def start(self):
         async with self.running_lock:
@@ -185,6 +183,7 @@ class SllmController:
             "status": "pending",
             "created_time": datetime.datetime.now().isoformat(),
             "updated_time": datetime.datetime.now().isoformat(),
+            "priority": job_config.get("priority", 0),  # Default priority = 0
         }
         await self.job_store.add_job.remote(job_id, job_info)
         return job_id
@@ -192,10 +191,7 @@ class SllmController:
     async def _process_ft_jobs(self):
         while True:
             try:
-                # Get available resources
-                available_gpus = (
-                    await self.store_manager.get_available_gpus.remote()
-                )
+                # TODO: Get available resources, calculate resource availability
 
                 # Get pending jobs with resource requirements
                 pending_jobs = await self.job_store.get_pending_jobs.remote()
@@ -203,17 +199,15 @@ class SllmController:
                 # Sort jobs by priority/age
                 sorted_jobs = sorted(
                     pending_jobs.items(),
-                    key=lambda x: (x[1]["priority"], x[1]["created_time"]),
+                    key=lambda x: (
+                        x[1].get("priority", 0),
+                        x[1]["created_time"],
+                    ),
                 )
 
                 # Process jobs based on available resources
                 for job_id, job_info in sorted_jobs:
-                    required_gpus = job_info["config"].get("num_gpus", 0)
-                    if required_gpus <= available_gpus:
-                        await self._start_ft_job(job_id, job_info)
-                        available_gpus -= required_gpus
-                    else:
-                        break  # No more resources available
+                    await self._start_ft_job(job_id, job_info)
 
             except Exception as e:
                 logger.error(f"Error in fine-tuning job processor: {str(e)}")
@@ -380,9 +374,14 @@ class SllmController:
 
     async def _start_ft_job(self, job_id, job_info):
         try:
+            logger.info(f"[FT Job {job_id}] Updating job status to 'running'.")
             # Update job status
             await self.job_store.update_status.remote(job_id, "running")
+            logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
 
+            logger.info(
+                f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
+            )
             # Create fine-tuning router with resource limits
             ft_request_router = self.router_cls.options(
                 name=f"ft_{job_id}",
@@ -394,28 +393,46 @@ class SllmController:
                 job_info["config"]["model"],
                 job_info["config"],
                 job_info["config"]["ft_backend"],
+                job_info["config"].get("backend_config", {}),
+                job_info["config"].get("router_config", {}),
             )
+            logger.info(f"[FT Job {job_id}] Fine-tuning router created.")
 
             # Start fine-tuning with timeout
             try:
+                logger.info(
+                    f"[FT Job {job_id}] Starting fine-tuning with timeout {job_info['config'].get('timeout', 3600)} seconds."
+                )
                 await asyncio.wait_for(
                     ft_request_router.fine_tuning.remote(job_info["config"]),
                     timeout=job_info["config"].get("timeout", 3600),
                 )
+                logger.info(
+                    f"[FT Job {job_id}] Fine-tuning completed successfully."
+                )
                 await self.job_store.update_status.remote(job_id, "completed")
+                logger.info(
+                    f"[FT Job {job_id}] Job status updated to 'completed'."
+                )
             except asyncio.TimeoutError:
+                logger.error(f"[FT Job {job_id}] Fine-tuning job timed out.")
                 await self.job_store.update_status.remote(
                     job_id, "failed", error="Job timed out"
                 )
+                logger.info(
+                    f"[FT Job {job_id}] Job status updated to 'failed' due to timeout."
+                )
 
         except Exception as e:
+            logger.error(f"[FT Job {job_id}] Exception occurred: {str(e)}")
             await self.job_store.update_status.remote(
                 job_id, "failed", error=str(e)
             )
-        finally:
-            # Cleanup resources
-            if "ft_request_router" in locals():
-                await ft_request_router.cleanup.remote()
+            logger.info(
+                f"[FT Job {job_id}] Job status updated to 'failed' due to exception."
+            )
+        # TODO Cleanup resources or keep alive.
+        # finally:
 
     async def get_ft_job_status(self, job_id):
         return await self.job_store.get_job.remote(job_id)

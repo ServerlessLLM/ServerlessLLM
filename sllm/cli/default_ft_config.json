@@ -1,7 +1,7 @@
 {
-    "model": "",
+    "model": "facebook/opt-125m",
     "ft_backend": "peft_lora",
-    "output_dir": "ft_facebook/opt-125m_adapter1",
+    "output_dir": "ft_facebook/opt-125m_adapter_test",
     "num_gpus": 1,
     "backend_config": {
         "dataset_config": {
