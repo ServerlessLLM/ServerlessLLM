@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 from contextlib import asynccontextmanager
 
+import os
 import ray
 import ray.exceptions
 from fastapi import FastAPI, HTTPException, Request
