@@ -290,11 +290,8 @@ class StoreManager:
         while True:
             try:
                 worker_node_info = get_worker_nodes()
-                async with self.metadata_lock:
-                    unseen = set(worker_node_info) - set(self.local_servers)
-                    disconnected = set(self.local_servers) - set(
-                        worker_node_info
-                    )
+                unseen = set(worker_node_info) - set(self.local_servers)
+                disconnected = set(self.local_servers) - set(worker_node_info)
                 if unseen:
                     logger.info(f"New worker(s) detected: {unseen}")
                     await self._initialise_nodes(unseen, worker_node_info)
@@ -308,26 +305,26 @@ class StoreManager:
     async def _setup_single_node(
         self, node_id: str, worker_node_info: dict
     ) -> bool:
-        async with self.metadata_lock:
-            try:
-                node_address = worker_node_info[node_id]["address"]
-                sllm_store_client = SllmStoreClient(f"{node_address}:8073")
-                local_server_config = sllm_store_client.get_server_config()
-                if not local_server_config:
-                    logger.warning(
-                        f"Failed to get server config for node {node_id}"  # noqa: E501
-                    )
-                    return False
-                if "chunk_size" not in local_server_config:
-                    logger.error(
-                        f"Chunk size not found in server config for node {node_id}"  # noqa: E501
-                    )
-                chunk_size = local_server_config["chunk_size"]
-                if "mem_pool_size" not in local_server_config:
-                    logger.error(
-                        f"Memory pool size not found in server config for node {node_id}"
-                    )
-                mem_pool_size = local_server_config["mem_pool_size"]
+        try:
+            node_address = worker_node_info[node_id]["address"]
+            sllm_store_client = SllmStoreClient(f"{node_address}:8073")
+            local_server_config = sllm_store_client.get_server_config()
+            if not local_server_config:
+                logger.warning(
+                    f"Failed to get server config for node {node_id}"  # noqa: E501
+                )
+                return False
+            if "chunk_size" not in local_server_config:
+                logger.error(
+                    f"Chunk size not found in server config for node {node_id}"  # noqa: E501
+                )
+            chunk_size = local_server_config["chunk_size"]
+            if "mem_pool_size" not in local_server_config:
+                logger.error(
+                    f"Memory pool size not found in server config for node {node_id}"
+                )
+            mem_pool_size = local_server_config["mem_pool_size"]
+            async with self.metadata_lock:
                 self.local_servers[node_id] = SllmLocalStore(
                     node_id,
                     sllm_store_client,
@@ -335,13 +332,13 @@ class StoreManager:
                     chunk_size,
                     self.hardware_info[node_id],
                 )
-                logger.info(
-                    f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
-                )
-                return True
-            except Exception as e:
-                logger.warning(f"Failed to connect to node {node_id}: {e}")
-                return False
+            logger.info(
+                f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to connect to node {node_id}: {e}")
+            return False
 
     async def _initialise_nodes(
         self, node_ids: Set[str], worker_node_info: dict
