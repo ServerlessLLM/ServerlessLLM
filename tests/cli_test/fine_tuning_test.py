@@ -12,28 +12,30 @@ class TestFineTuningCommand(unittest.TestCase):
         # Mock read_config to return a sample fine-tuning configuration
         mock_read_config.return_value = {
             "model": "facebook/opt-125m",
-            "ft_backend": "peft",
-            "dataset_config": {
-                "dataset_source": "hf_hub",
-                "hf_dataset_name": "fka/awesome-chatgpt-prompts",
-                "tokenization_field": "prompt",
-                "split": "train[:10%]",
-                "data_files": "",
-                "extension_type": "",
-            },
-            "lora_config": {
-                "r": 4,
-                "lora_alpha": 1,
-                "target_modules": ["query_key_value"],
-                "lora_dropout": 0.05,
-                "bias": "lora_only",
-                "task_type": "CAUSAL_LM",
-            },
-            "training_config": {
-                "auto_find_batch_size": True,
-                "num_train_epochs": 2,
-                "learning_rate": 0.0001,
-                "use_cpu": False,
+            "ft_backend": "peft_lora",
+            "backend_config": {
+                "dataset_config": {
+                    "dataset_source": "hf_hub",
+                    "hf_dataset_name": "fka/awesome-chatgpt-prompts",
+                    "tokenization_field": "prompt",
+                    "split": "train[:10%]",
+                    "data_files": "",
+                    "extension_type": "",
+                },
+                "lora_config": {
+                    "r": 4,
+                    "lora_alpha": 1,
+                    "target_modules": ["query_key_value"],
+                    "lora_dropout": 0.05,
+                    "bias": "lora_only",
+                    "task_type": "CAUSAL_LM",
+                },
+                "training_config": {
+                    "auto_find_batch_size": True,
+                    "num_train_epochs": 2,
+                    "learning_rate": 0.0001,
+                    "use_cpu": False,
+                },
             },
         }
 
@@ -61,7 +63,9 @@ class TestFineTuningCommand(unittest.TestCase):
     def test_validate_config_missing_key(self, mock_read_config):
         mock_read_config.return_value = {
             "ft_backend": "peft",
-            "dataset_config": {"dataset_source": "hf_hub"},
+            "backend_config": {
+                "dataset_config": {"dataset_source": "hf_hub"},
+            },
         }
         args = Namespace(base_model="facebook/opt-125m", config=None)
         command = FineTuningCommand(args)
@@ -76,14 +80,16 @@ class TestFineTuningCommand(unittest.TestCase):
         mock_read_config.return_value = {
             "model": "facebook/opt-125m",
             "ft_backend": "peft",
-            "dataset_config": {
-                "dataset_source": "hf_hub",
-                "hf_dataset_name": "fka/awesome-chatgpt-prompts",
-                "tokenization_field": "prompt",
-                "split": "train[:10%]",
+            "backend_config": {
+                "dataset_config": {
+                    "dataset_source": "hf_hub",
+                    "hf_dataset_name": "fka/awesome-chatgpt-prompts",
+                    "tokenization_field": "prompt",
+                    "split": "train[:10%]",
+                },
+                "lora_config": {"r": 4},
+                "training_config": {"num_train_epochs": 2},
             },
-            "lora_config": {"r": 4},
-            "training_config": {"num_train_epochs": 2},
         }
 
         mock_response = MagicMock()
