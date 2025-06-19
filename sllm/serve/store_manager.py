@@ -19,7 +19,7 @@
 import asyncio
 import os
 import time
-from typing import List, Mapping, Optional
+from typing import List, Mapping, Optional, Set
 
 import ray
 
@@ -233,6 +233,8 @@ class StoreManager:
         self.model_info = {}
         self.model_storage_info = {}
 
+        asyncio.create_task(self._watch_workers())
+
     async def initialize_cluster(self) -> bool:
         logger.info("Initializing cluster and collecting hardware info")
 
@@ -250,6 +252,7 @@ class StoreManager:
                 resources={f"worker_id_{node_id}": 0.01}
             ).remote()
             for node_id in worker_node_info
+            if node_id not in self.hardware_info
         }
 
         # Gather hardware info
@@ -267,55 +270,114 @@ class StoreManager:
         uninitialized_nodes = list(self.hardware_info.keys())
 
         while len(uninitialized_nodes) > 0:
-            for node_id in uninitialized_nodes:
+            for node_id in uninitialized_nodes[:]:
                 if node_id in worker_node_info:
-                    node_address = worker_node_info[node_id]["address"]
-                    try:
-                        sllm_store_client = SllmStoreClient(
-                            f"{node_address}:8073"
-                        )
-                        local_server_config = (
-                            sllm_store_client.get_server_config()
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to connect to node {node_id}: {e}"
-                        )
-                        continue
+                    ok = await self._setup_single_node(
+                        node_id, worker_node_info
+                    )
+                    if not ok:
+                        await self._prune_disconnected({node_id})
                     else:
-                        if not local_server_config:
-                            logger.warning(
-                                f"Failed to get server config for node {node_id}"  # noqa: E501
-                            )
-                            continue
-                        if "chunk_size" not in local_server_config:
-                            logger.error(
-                                f"Chunk size not found in server config for node {node_id}"  # noqa: E501
-                            )
-                        chunk_size = local_server_config["chunk_size"]
-                        if "mem_pool_size" not in local_server_config:
-                            logger.error(
-                                f"Memory pool size not found in server config for node {node_id}"
-                            )
-                        mem_pool_size = local_server_config["mem_pool_size"]
-                        self.local_servers[node_id] = SllmLocalStore(
-                            node_id,
-                            sllm_store_client,
-                            mem_pool_size,
-                            chunk_size,
-                            self.hardware_info[node_id],
-                        )
                         uninitialized_nodes.remove(node_id)
-                        logger.info(
-                            f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
-                        )
-                        break
             logger.info(
                 f"Waiting for nodes {uninitialized_nodes} to be initialized"  # noqa: E501
             )
             await asyncio.sleep(1)
 
         return True
+
+    async def _watch_workers(self):
+        while True:
+            try:
+                worker_node_info = get_worker_nodes()
+                unseen = set(worker_node_info) - set(self.local_servers)
+                disconnected = set(self.local_servers) - set(worker_node_info)
+                if unseen:
+                    logger.info(f"New worker(s) detected: {unseen}")
+                    await self._initialise_nodes(unseen, worker_node_info)
+                if disconnected:
+                    logger.info(f"Worker(s) disconnected: {disconnected}")
+                    await self._prune_disconnected(disconnected)
+            except Exception as e:
+                logger.warning(f"Worker-watch loop error: {e}")
+            await asyncio.sleep(5)
+
+    async def _setup_single_node(
+        self, node_id: str, worker_node_info: dict
+    ) -> bool:
+        try:
+            node_address = worker_node_info[node_id]["address"]
+            sllm_store_client = SllmStoreClient(f"{node_address}:8073")
+            local_server_config = sllm_store_client.get_server_config()
+            if not local_server_config:
+                logger.warning(
+                    f"Failed to get server config for node {node_id}"  # noqa: E501
+                )
+                return False
+            if "chunk_size" not in local_server_config:
+                logger.error(
+                    f"Chunk size not found in server config for node {node_id}"  # noqa: E501
+                )
+            chunk_size = local_server_config["chunk_size"]
+            if "mem_pool_size" not in local_server_config:
+                logger.error(
+                    f"Memory pool size not found in server config for node {node_id}"
+                )
+            mem_pool_size = local_server_config["mem_pool_size"]
+            async with self.metadata_lock:
+                self.local_servers[node_id] = SllmLocalStore(
+                    node_id,
+                    sllm_store_client,
+                    mem_pool_size,
+                    chunk_size,
+                    self.hardware_info[node_id],
+                )
+            logger.info(
+                f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to connect to node {node_id}: {e}")
+            return False
+
+    async def _initialise_nodes(
+        self, node_ids: Set[str], worker_node_info: dict
+    ):
+        hardware_info_futures = {
+            node_id: collect_all_info.options(
+                resources={f"worker_id_{node_id}": 0.01}
+            ).remote()
+            for node_id in node_ids
+        }
+        for node_id, future in hardware_info_futures.items():
+            try:
+                hardware_info = await future
+                async with self.metadata_lock:
+                    self.hardware_info[node_id] = hardware_info
+                    logger.info(f"Hardware info collected for node {node_id}")
+            except Exception as e:
+                logger.error(f"Failed hardware info on node {node_id}: {e}")
+                continue
+
+        for node_id in list(node_ids):
+            if node_id not in worker_node_info:
+                continue
+            ok = await self._setup_single_node(node_id, worker_node_info)
+            if not ok:
+                await self._prune_disconnected({node_id})
+
+    async def _prune_disconnected(self, node_ids: Set[str]):
+        async with self.metadata_lock:
+            for node_id in node_ids:
+                self.local_servers.pop(node_id, None)
+                self.hardware_info.pop(node_id, None)
+
+                for model, placement in list(self.model_storage_info.items()):
+                    placement.pop(node_id, None)
+                    if not placement:
+                        logger.warning(f"No replicas left for model {model}")
+
+                logger.info(f"Pruned metadata for disconnected node {node_id}")
 
     async def get_hardware_info(self):
         return self.hardware_info
