@@ -43,7 +43,7 @@ class TestCliCommands(unittest.TestCase):
                 "--backend",
                 "transformers",
                 "--storage-path",
-                TEST_DIRECTORY_LOAD,
+                TEST_DIRECTORY_LOAD + "/transformers",
             ],
         )
         assert result.exit_code == 0, f"Initial save failed: {result.output}"
@@ -451,7 +451,7 @@ class TestCliCommands(unittest.TestCase):
             [
                 "load",
                 "--model",
-                TEST_MODEL_TRANSFORMERS,
+                "transformers/" + TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
                 "--storage-path",
@@ -472,7 +472,7 @@ class TestCliCommands(unittest.TestCase):
             [
                 "load",
                 "--model",
-                TEST_MODEL_TRANSFORMERS,
+                "transformers/" + TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
                 "--precision",
@@ -495,7 +495,7 @@ class TestCliCommands(unittest.TestCase):
             [
                 "load",
                 "--model",
-                TEST_MODEL_TRANSFORMERS,
+                "transformers/" + TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
                 "--precision",
@@ -518,7 +518,7 @@ class TestCliCommands(unittest.TestCase):
             [
                 "load",
                 "--model",
-                TEST_MODEL_TRANSFORMERS,
+                "transformers/" + TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
                 "--precision",
@@ -556,7 +556,7 @@ class TestCliCommands(unittest.TestCase):
             [
                 "load",
                 "--model",
-                TEST_MODEL_TRANSFORMERS,
+                "transformers/" + TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
                 "--adapter",
@@ -608,7 +608,7 @@ class TestCliCommands(unittest.TestCase):
             [
                 "load",
                 "--model",
-                non_existent_model,
+                "transformers/" + non_existent_model,
                 "--backend",
                 "transformers",
                 "--storage-path",

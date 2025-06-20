@@ -455,6 +455,11 @@ def example_inferences(
             generated_text = output.outputs[0].text
             print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
     elif backend == "transformers":
+        from pathlib import Path
+
+        parts = Path(model_name).parts
+        if len(parts) >= 2:
+            model_name = f"{parts[-2]}/{parts[-1]}"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
             "cuda"
