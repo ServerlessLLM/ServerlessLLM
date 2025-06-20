@@ -397,7 +397,6 @@ def load(
                     torch_dtype=torch.float16,
                 )
             else:
-                print(storage_path)
                 model = load_model(
                     model_name,
                     device_map="auto",

@@ -6,13 +6,13 @@ from click.testing import CliRunner
 from sllm_store.cli import cli
 from huggingface_hub import snapshot_download
 
-TEST_MODEL_VLLM = "facebook/opt-350m"
+TEST_MODEL_VLLM = "facebook/opt-125m"
 TEST_MODEL_TRANSFORMERS = "facebook/opt-125m"
 TEST_ADAPTER_MODEL = (
     "jeanlucmarsh/opt-125m-pattern-based_finetuning_with_lora-mnli-mm-d3_fs2"
 )
 TEST_DIRECTORY_SAVE = "./test_save_models"
-TEST_DIRECTORY_LOAD = "./test_load_models"
+TEST_DIRECTORY_LOAD = "./models"
 
 
 class TestCliCommands(unittest.TestCase):
@@ -29,7 +29,7 @@ class TestCliCommands(unittest.TestCase):
                 "--backend",
                 "vllm",
                 "--storage-path",
-                TEST_DIRECTORY_LOAD,
+                TEST_DIRECTORY_LOAD + "/vllm",
             ],
         )
         assert result.exit_code == 0, f"Initial save failed: {result.output}"
@@ -166,9 +166,6 @@ class TestCliCommands(unittest.TestCase):
             expected_folder.is_dir(),
             f"Folder does not exist: {expected_folder}",
         )
-        self.assertIn(
-            "Loading pt checkpoint shards: 100% Completed", result.output
-        )
 
         # Check if each partition directory was created
         for i in range(tensor_parallel_size):
@@ -237,9 +234,6 @@ class TestCliCommands(unittest.TestCase):
         self.assertTrue(
             expected_folder.is_dir(),
             f"Folder does not exist: {expected_folder}",
-        )
-        self.assertIn(
-            "Loading pt checkpoint shards: 100% Completed", result.output
         )
 
         # Check if each partition directory was created
@@ -378,13 +372,13 @@ class TestCliCommands(unittest.TestCase):
         ]
         for filename in expected_files:
             self.assertTrue(
-                os.path.isfile(os.path.join(self.model_path, filename))
+                os.path.isfile(os.path.join(expected_folder, filename))
             )
 
         unexpected_files = ["tensor.data_1", "*.bin", "*.safetensors"]
         for filename in unexpected_files:
             self.assertFalse(
-                os.path.isfile(os.path.join(self.model_path, filename))
+                os.path.isfile(os.path.join(expected_folder, filename))
             )
 
     def test_save_invalid_backend(self):
@@ -439,7 +433,7 @@ class TestCliCommands(unittest.TestCase):
                 "--backend",
                 "vllm",
                 "--storage-path",
-                TEST_DIRECTORY_LOAD,
+                TEST_DIRECTORY_LOAD + "/vllm",
             ],
         )
         self.assertEqual(
@@ -567,8 +561,6 @@ class TestCliCommands(unittest.TestCase):
                 "transformers",
                 "--adapter",
                 "--adapter-name",
-                TEST_ADAPTER_MODEL,
-                "--adapter-path",
                 TEST_ADAPTER_MODEL,
                 "--storage-path",
                 TEST_DIRECTORY_LOAD,

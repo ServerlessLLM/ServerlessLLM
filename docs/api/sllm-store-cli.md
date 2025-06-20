@@ -227,3 +227,15 @@ Load a transformers model with a LoRA adapter:
 ``` bash
 sllm-store load --model facebook/opt-1.3b --backend transformers --adapter --adapter-name crumb/FLAN-OPT-1.3b-LoRA
 ```
+
+#### Note: loading vLLM models
+
+To load models with vLLM, you need to apply a compatibility patch to your vLLM installation. This patch has been tested with vLLM version `0.9.0.1`.
+
+```bash
+   ./sllm_store/vllm_patch/patch.sh
+```
+
+:::note
+The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` in the ServerlessLLM repository.
+:::
