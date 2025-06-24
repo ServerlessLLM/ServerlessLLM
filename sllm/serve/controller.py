@@ -309,6 +309,12 @@ class SllmController:
 
             return {"object": "list", "models": models}
 
+    async def worker_status(self):
+        if not self.running:
+            logger.error("Controller not running")
+            return {}
+        return await self.store_manager.get_store_info.remote()
+
     async def shutdown(self):
         # stop the control loop
         async with self.running_lock:

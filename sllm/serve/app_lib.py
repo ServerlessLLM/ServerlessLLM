@@ -175,4 +175,25 @@ def create_app() -> FastAPI:
                 status_code=500, detail="Failed to retrieve models"
             )
 
+    @app.get("v1/workers")
+    async def get_workers():
+        logger.info("Attempting to retrieve the controller actor")
+        try:
+            controller = ray.get_actor("controller")
+            if not controller:
+                logger.error("Controller not initialized")
+                raise HTTPException(
+                    status_code=500, detail="Controller not initialized"
+                )
+            logger.info("Controller actor found")
+            result = await controller.worker_status.remote()
+            logger.info("Worker status retrieved successfully")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error retrieving workers: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail="Failed to retrieve workers"
+            )
+
     return app
