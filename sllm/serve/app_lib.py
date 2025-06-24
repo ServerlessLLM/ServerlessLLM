@@ -175,7 +175,7 @@ def create_app() -> FastAPI:
                 status_code=500, detail="Failed to retrieve models"
             )
 
-    @app.get("v1/workers")
+    @app.get("/v1/workers")
     async def get_workers():
         logger.info("Attempting to retrieve the controller actor")
         try:
