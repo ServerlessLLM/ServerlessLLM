@@ -61,6 +61,9 @@ from peft import (
     LoraConfig,
 )
 from peft.utils import set_peft_model_state_dict
+from transformers.utils.quantization_config import (
+    QuantizationConfigMixin,
+)
 
 logger = init_logger(__name__)
 
@@ -138,7 +141,7 @@ def load_model(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     quantization_config: Optional[
-        Union[BitsAndBytesConfig, Dict[str, Any]]
+        Union[QuantizationConfigMixin, Dict[str, Any]]
     ] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
@@ -171,7 +174,7 @@ def fully_parallel_load(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     quantization_config: Optional[
-        Union[BitsAndBytesConfig, Dict[str, Any]]
+        Union[QuantizationConfigMixin, Dict[str, Any]]
     ] = None,
     storage_path: Optional[str] = None,
 ):
@@ -264,7 +267,7 @@ def best_effort_load(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     quantization_config: Optional[
-        Union[BitsAndBytesConfig, Dict[str, Any]]
+        Union[QuantizationConfigMixin, Dict[str, Any]]
     ] = None,
     storage_path: Optional[str] = None,
 ):
