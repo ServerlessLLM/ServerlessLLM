@@ -291,7 +291,9 @@ class StoreManager:
             try:
                 worker_node_info = get_worker_nodes()
                 unseen = set(worker_node_info) - set(self.local_servers)
-                disconnected = set(self.local_servers) - set(worker_node_info)
+                disconnected = [
+                    node for node in ray.nodes() if not node["Alive"]
+                ]
                 if unseen:
                     logger.info(f"New worker(s) detected: {unseen}")
                     await self._initialise_nodes(unseen, worker_node_info)
@@ -367,8 +369,12 @@ class StoreManager:
                 await self._prune_disconnected({node_id})
 
     async def _prune_disconnected(self, node_ids: Set[str]):
+        endpoints = {}
         async with self.metadata_lock:
             for node_id in node_ids:
+                endpoints[node_id] = self.local_servers[
+                    node_id
+                ].client.server_address.split(":", 1)[0]
                 self.local_servers.pop(node_id, None)
                 self.hardware_info.pop(node_id, None)
 
@@ -378,6 +384,38 @@ class StoreManager:
                         logger.warning(f"No replicas left for model {model}")
 
                 logger.info(f"Pruned metadata for disconnected node {node_id}")
+
+        for node_id, ip in endpoints.items():
+            try:
+                cmd = [
+                    "ssh",
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "StrictHostKeyChecking=yes",
+                    ip,
+                    "ray",
+                    "stop",
+                    "--force",
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                out, err = await asyncio.wait_for(
+                    proc.communicate(), timeout=15
+                )
+                if proc.returncode == 0:
+                    logger.info(f"Stopped Ray cleanly on {node_id}@{ip}")
+                else:
+                    logger.error(
+                        f"ray stop failed on {node_id}@{ip}: {err.decode().strip()}"
+                    )
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout stopping Ray on {node_id}@{ip}")
+            except Exception as e:
+                logger.error(f"Error stopping Ray on {node_id}@{ip}: {e}")
 
     async def get_hardware_info(self):
         return self.hardware_info
