@@ -193,23 +193,21 @@ for output in outputs:
 
 ## Quantization
 
-ServerlessLLM currently supports model quantization using `bitsandbytes` through the Hugging Face Transformers' `BitsAndBytesConfig`.
+ServerlessLLM currently supports model quantization using `bitsandbytes` and `GPTQ` through the Hugging Face Transformers' `BitsAndBytesConfig` and `GPTQConfig`.
 
-Available precisions include:
-- `int8`
-- `fp4`
-- `nf4`
+> Note: Our current capabilities do not support pre-quantization or CPU offloading, which is why other quantization methods are not available at the moment.
 
-For further information, consult the [HuggingFace Documentation for BitsAndBytes](https://huggingface.co/docs/transformers/main/en/quantization/bitsandbytes)
+For further information, consult the [HuggingFace Documentation for Quantization](https://huggingface.co/docs/transformers/en/main_classes/quantization)
 
 > Note: Quantization is currently experimental, especially on multi-GPU machines. You may encounter issues when using this feature in multi-GPU environments.
 
 ### Usage
-To use quantization, create a `BitsAndBytesConfig` object with your desired settings:
+To use quantization, create a quantization config object with your desired settings using the `transformers` format:
 
 ```python
-from transformers import BitsAndBytesConfig
+from transformers import BitsAndBytesConfig, AutoTokenizer
 import torch
+import optimum # for GPTQ
 
 # For 8-bit quantization
 quantization_config = BitsAndBytesConfig(
@@ -226,6 +224,19 @@ quantization_config = BitsAndBytesConfig(
 quantization_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_quant_type="fp4"
+)
+
+# For GPTQ 4-bit quantization
+quantization_config = GPTQConfig(
+    bits=4,
+    group_size=128,
+    desc_act=False,
+    sym=True,
+    true_sequential=True,
+    disable_exllama=True,
+    skip_modules=["lm_head"],
+    dataset="wikitext2",
+    tokenizer=AutoTokenizer.from_pretrained("facebook/opt-1.3b"),
 )
 
 # Then load your model with the config
