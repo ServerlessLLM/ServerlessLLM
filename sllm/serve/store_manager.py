@@ -290,18 +290,37 @@ class StoreManager:
         while True:
             try:
                 worker_node_info = get_worker_nodes()
-                unseen = set(worker_node_info) - set(self.local_servers)
-                disconnected = [
-                    node for node in ray.nodes() if not node["Alive"]
-                ]
-                if unseen:
-                    logger.info(f"New worker(s) detected: {unseen}")
-                    await self._initialise_nodes(unseen, worker_node_info)
-                if disconnected:
-                    logger.info(f"Worker(s) disconnected: {disconnected}")
-                    await self._prune_disconnected(disconnected)
             except Exception as e:
-                logger.warning(f"Worker-watch loop error: {e}")
+                logger.warning(f"Failed to list worker nodes: {e}")
+                await asyncio.sleep(5)
+                continue
+
+            unseen = set(worker_node_info) - set(self.local_servers)
+            if unseen:
+                logger.info(f"New worker(s) detected: {unseen}")
+                await self._initialise_nodes(unseen, worker_node_info)
+
+            disconnected = []
+            node_ips = {
+                self.local_servers[node_id].client.server_address.split(":", 1)[
+                    0
+                ]: node_id
+                for node_id in self.local_servers
+            }
+            try:
+                ray_node_list = await asyncio.to_thread(ray.nodes)
+                for n in ray_node_list:
+                    if not n.get("Alive", False):
+                        ip = n.get("address")
+                        if ip in node_ips:
+                            disconnected.append(n[ip])
+            except RayError as e:
+                logger.warning(f"ray.nodes() failed ({e}), skipping this round")
+
+            if disconnected:
+                logger.info(f"Pruning disconnected worker(s): {disconnected}")
+                await self._prune_disconnected(disconnected)
+
             await asyncio.sleep(5)
 
     async def _setup_single_node(
