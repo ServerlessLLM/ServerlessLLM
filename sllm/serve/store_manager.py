@@ -101,13 +101,16 @@ class SllmLocalStore:
                 delta_time = self.io_queue[-1]["estimated_time"] - time.time()
                 if delta_time < 0:
                     delta_time = 0
+                hardware_info = await collect_all_info.options(
+                    resources={f"worker_id_{self.node_id}": 0.01}
+                ).remote()
             return {
                 "node_id": self.node_id,
                 "disk_models": self.disk_models,
                 "pinned_memory_pool": self.pinned_memory_pool,
                 "io_queue": self.io_queue,
                 "io_queue_estimated_time_left": delta_time,
-                "hardware_info": self.hardware_info,
+                "hardware_info": hardware_info,
                 "chunk_size": self.chunk_size,
                 "total_memory_pool_chunks": self.pinned_memory_pool_chunks,
                 "used_memory_pool_chunks": self.pinned_memory_pool_usage,
