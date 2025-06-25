@@ -95,25 +95,25 @@ class SllmLocalStore:
         return model_size
 
     async def get_store_info(self):
+        hardware_info_futures = collect_all_info.options(
+            resources={f"worker_id_{self.node_id}": 0.01}
+        ).remote()
+        hardware_info = await hardware_info_futures
         async with self.lock:
             delta_time = 0
             if len(self.io_queue) > 0:
                 delta_time = self.io_queue[-1]["estimated_time"] - time.time()
                 if delta_time < 0:
                     delta_time = 0
-
-            hardware_info_ref = collect_all_info.options(
-                resources={f"worker_id_{self.node_id}": 0.01}
-            ).remote()
-            hardware_info = await ray.get_async(hardware_info_ref)
             
+            self.hardware_info = hardware_info
             return {
                 "node_id": self.node_id,
                 "disk_models": self.disk_models,
                 "pinned_memory_pool": self.pinned_memory_pool,
                 "io_queue": self.io_queue,
                 "io_queue_estimated_time_left": delta_time,
-                "hardware_info": hardware_info,
+                "hardware_info": self.hardware_info,
                 "chunk_size": self.chunk_size,
                 "total_memory_pool_chunks": self.pinned_memory_pool_chunks,
                 "used_memory_pool_chunks": self.pinned_memory_pool_usage,
