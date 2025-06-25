@@ -15,6 +15,7 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import json
 from contextlib import asynccontextmanager
 
 import ray

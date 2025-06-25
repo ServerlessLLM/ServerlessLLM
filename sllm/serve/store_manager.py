@@ -105,7 +105,7 @@ class SllmLocalStore:
                 delta_time = self.io_queue[-1]["estimated_time"] - time.time()
                 if delta_time < 0:
                     delta_time = 0
-            
+
             self.hardware_info = hardware_info
             return {
                 "node_id": self.node_id,
