@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 import asyncio
 import logging
+import time
 import uuid
 from typing import Dict, List, Optional
 
@@ -98,6 +99,9 @@ class RoundRobinRouter(SllmRouter):
         self.loaded_lora_adapters = lora_adapters
         self.lora_lock = asyncio.Lock()
 
+        self.active_requests_registry: Dict[str, Dict[str, Any]] = {}
+        self.registry_lock = asyncio.Lock()
+
         self.auto_scaler = None
         logger.info(f"Created new handler for model {self.model_name}")
 
@@ -149,8 +153,23 @@ class RoundRobinRouter(SllmRouter):
         async with self.idle_time_lock:
             self.idle_time = 0
 
+        query_id = request_data["id"]
+        enqueue_time = time.time()
+        async with self.registry_lock:
+            self.active_requests_registry[query_id] = {
+                "status": "QUEUED",
+                "enqueue_time": enqueue_time,
+                "action": action,
+                "model": self.model_name,
+            }
         instance_allocation = self.loop.create_future()
-        await self.request_queue.put(instance_allocation)
+        queue_item = {
+            "future": instance_allocation,
+            "query_id": query_id,
+            "action": action,
+            "enqueue_time": enqueue_time,
+        }
+        await self.request_queue.put(queue_item)
         logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
 
         instance_id = await instance_allocation
@@ -158,36 +177,62 @@ class RoundRobinRouter(SllmRouter):
         async with self.instance_management_lock:
             if instance_id not in self.ready_instances:
                 logger.error(f"Instance {instance_id} not found")
-                return {"error": "Instance not found"}
+                error_msg = "Instance not found"
+                async with self.registry_lock:
+                    self.active_requests_registry[query_id] = {
+                        "status": "FAILED",
+                        "error": error_msg,
+                    }
+                return {"error": error_msg}
             instance = self.ready_instances[instance_id]
 
-        # sanity check
-        if self.enable_lora and "lora_adapter_name" in request_data:
-            lora_adapter_name = request_data["lora_adapter_name"]
-            if lora_adapter_name not in self.loaded_lora_adapters:
-                logger.error(f"Lora adapter {lora_adapter_name} not found")
-                return {"error": f"Lora adapter {lora_adapter_name} not found"}
-            await instance.backend_instance.load_lora_adapter.remote(
-                lora_name=lora_adapter_name,
-                lora_path=self.loaded_lora_adapters[lora_adapter_name],
-            )
-        # NOTE: `.remote(request_data)` does not work, don't know why.
-        # Looks like a known issue:
-        # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
-        if action == "generate":
-            result = await instance.backend_instance.generate.remote(
-                request_data=request_data
-            )
-        elif action == "encode":
-            result = await instance.backend_instance.encode.remote(
-                request_data=request_data
-            )
-        else:
-            result = {"error": "Invalid action"}
-        logger.info(f"Finished processing request")
-        await instance.add_requests(-1)
-        async with self.request_count_lock:
-            self.request_count -= 1
+        result = None
+        try:
+            # sanity check
+            if self.enable_lora and "lora_adapter_name" in request_data:
+                lora_adapter_name = request_data["lora_adapter_name"]
+                if lora_adapter_name not in self.loaded_lora_adapters:
+                    logger.error(f"Lora adapter {lora_adapter_name} not found")
+                    return {
+                        "error": f"Lora adapter {lora_adapter_name} not found"
+                    }
+                await instance.backend_instance.load_lora_adapter.remote(
+                    lora_name=lora_adapter_name,
+                    lora_path=self.loaded_lora_adapters[lora_adapter_name],
+                )
+            # NOTE: `.remote(request_data)` does not work, don't know why.
+            # Looks like a known issue:
+            # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
+            if action == "generate":
+                result = await instance.backend_instance.generate.remote(
+                    request_data=request_data
+                )
+            elif action == "encode":
+                result = await instance.backend_instance.encode.remote(
+                    request_data=request_data
+                )
+            else:
+                result = {"error": "Invalid action"}
+            async with self.registry_lock:
+                self.active_requests_registry[query_id] = {
+                    "status": "COMPLETED",
+                    "result": result,
+                }
+        except Exception as e:
+            logger.error(f"Error processing request {query_id}: {e}")
+            result = {"error": str(e)}
+            async with self.registry_lock:
+                self.active_requests_registry[query_id] = {
+                    "status": "FAILED",
+                    "error": str(e),
+                }
+        finally:
+            logger.info(f"Finished processing request")
+            await instance.add_requests(-1)
+            async with self.request_count_lock:
+                self.request_count -= 1
+            async with self.registry_lock:
+                self.active_requests_registry.pop(query_id, None)
         return result
 
     async def fine_tuning(self, request_data: dict):
@@ -259,7 +304,9 @@ class RoundRobinRouter(SllmRouter):
         # this is a simple round-robin load balancer
         round_robin_index = 0
         while True:
-            instance_allocation = await self.request_queue.get()
+            queue_item = await self.request_queue.get()
+            query_id = queue_item["query_id"]
+            instance_allocation_future = queue_item["future"]
             allocated = False
             logger.info(f"A request is waiting for model {self.model_name}")
             while not allocated:
@@ -283,7 +330,15 @@ class RoundRobinRouter(SllmRouter):
                     if await instance.check_request_queue():
                         allocated = await instance.add_requests(1)
                         if allocated:
-                            instance_allocation.set_result(instance_id)
+                            async with self.registry_lock:
+                                if query_id in self.active_requests_registry:
+                                    self.active_requests_registry[query_id][
+                                        "status"
+                                    ] = "INFERENCE"
+                                    self.active_requests_registry[query_id][
+                                        "node_id"
+                                    ] = instance.node_id
+                            instance_allocation_future.set_result(instance_id)
                     else:
                         logger.info(
                             f"Instance {instance_id} cannot add another request"
@@ -457,3 +512,12 @@ class RoundRobinRouter(SllmRouter):
             self.model_name, instance_id, self.resource_requirements
         )
         return
+
+    async def get_active_work(self) -> List[Dict]:
+        async with self.registry_lock:
+            return list(self.active_requests_registry.values())
+
+    async def get_query_status(self, query_id: str) -> Dict:
+        status_data = self.active_requests_registry.get(query_id)
+        if status_data:
+            return status_data.copy()

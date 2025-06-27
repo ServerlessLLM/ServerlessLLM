@@ -198,4 +198,41 @@ def create_app() -> FastAPI:
                 status_code=500, detail="Failed to retrieve workers"
             )
 
+    @app.get("/v1/queue")
+    async def get_global_work_queue_status():
+        try:
+            controller = ray.get_actor("controller")
+        except ValueError:
+            raise HTTPException(
+                status_code=503, detail="Controller not available."
+            )
+
+        # Get the pre-sorted list from the controller
+        sorted_work_items = await controller.get_global_work_queue.remote()
+
+        # Add the final position to each item for the response
+        response_items = []
+        for i, item in enumerate(sorted_work_items):
+            item["overall_queue_position"] = i + 1
+            response_items.append(item)
+
+        return JSONResponse(content={"work_queue": response_items})
+
+    # The individual query endpoint can also be simplified now
+    @app.get("/v1/query/{model_name}/{query_id}")
+    async def get_query_status_handler(model_name: str, query_id: str):
+        try:
+            router = ray.get_actor(model_name, namespace="models")
+            result = await router.get_query_status.remote(query_id)
+            if result.get("status") == "NOT_FOUND":
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Query ID '{query_id}' not found for model '{model_name}'.",
+                )
+            return JSONResponse(content=result)
+        except ValueError:
+            raise HTTPException(
+                status_code=404, detail=f"Model '{model_name}' not found."
+            )
+
     return app

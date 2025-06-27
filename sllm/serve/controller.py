@@ -49,6 +49,12 @@ class SllmController:
         # Register model info
         self.registered_models = {}
 
+        self.global_work_queue: List[Dict] = []
+        self.monitor_lock = asyncio.Lock()
+
+        self.monitor_task = asyncio.create_task(self._monitor_loop())
+        logger.info("Controller initialized with Global Work Queue monitor.")
+
     async def start(self):
         async with self.running_lock:
             if self.running:
@@ -314,6 +320,32 @@ class SllmController:
             logger.error("Controller not running")
             return {}
         return await self.store_manager.get_store_info.remote()
+
+    async def _monitor_loop(self):
+        while True:
+            async with self.metadata_lock:
+                routers_to_poll = self.request_routers.copy()
+
+            all_active_work = []
+            for model_name, router_handle in routers_to_poll.items():
+                try:
+                    work_items = await router_handle.get_active_work.remote()
+                    all_active_work.extend(work_items)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to get active work for model '{model_name}': {e}"
+                    )
+
+            all_active_work.sort(
+                key=lambda x: x.get("enqueue_time", float("inf"))
+            )
+            async with self.monitor_lock:
+                self.global_work_queue = all_active_work
+            await asyncio.sleep(3)
+
+    async def get_global_work_queue(self) -> List[Dict]:
+        async with self.monitor_lock:
+            return self.global_work_queue.copy()
 
     async def shutdown(self):
         # stop the control loop
