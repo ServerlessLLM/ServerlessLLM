@@ -116,6 +116,7 @@ class SllmLocalStore:
             logger.error(f"Failed to collect hardware info: {e}")
             hardware_info = {}
         async with self.lock:
+            current_status = self.io_queue > 0
             return {
                 "node_id": self.node_id,
                 "disk_models": self.disk_models,
@@ -126,6 +127,7 @@ class SllmLocalStore:
                 "total_memory_pool_chunks": self.pinned_memory_pool_chunks,
                 "used_memory_pool_chunks": self.pinned_memory_pool_usage,
                 "queued_models": self.queued_models,
+                "status": current_status,
             }
 
     async def load_to_host(self, model_name: str) -> bool:
