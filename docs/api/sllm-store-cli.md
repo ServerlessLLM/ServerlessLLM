@@ -85,7 +85,7 @@ sllm-store start [OPTIONS]
   - (Currently unused) Would set the maximum size sllm-store can occupy in disk cache.
 
 - `--registration-required`
-  - If specified, clients must register with the server before making requests.
+  - If specified, models must be registered with the server before loading.
 
 #### Examples
 
@@ -128,9 +128,10 @@ sllm-store start \
 
 ## sllm-store save
 
-Save a model to a storage backend using a unique identifier, making it available for future inference requests. This function supports both in-memory and persistent storage options, depending on system configuration.
+Saves a model to a local directory through a backend of choice, making it available for future inference requests. Only model name and backend are required, with the rest having default values.
 
-Designed for efficiency and reusability, save allows models to be registered once and shared across multiple inference sessions without repeated setup overhead.
+It supports download of [PEFT LoRA (Low-Rank Adaptation)](https://huggingface.co/docs/peft/main/en/index) for transformer models, and varying tensor sizes for parallel download of vLLM models.
+
 
 #### Usage
 ```bash
@@ -146,13 +147,13 @@ sllm-store save [OPTIONS]
   - Select a backend for the model to be converted to `ServerlessLLM format` from. Supported backends are `vllm` and `transformers`.
 
 - `--adapter`
-  - Enable LoRA adapter support for the `transformers` backend. Overwrite `adapter` in the default configuration.
+  - Enable LoRA adapter support. Overwrite `adapter`, which is by default set to False. Only `transformers` backend is supported.
 
 - `--adapter-name <adapter_name>`
   - Adapter name to save. Must be a Hugging Face pretrained LoRA adapter name.
 
 - `--tensor-parallel-size <tensor_parallel_size>`
-  - Number of GPUs you want to use.
+  - Number of GPUs you want to use. Only `vllm` backend is supported.
 
 - `--local-model-path <local_model_path>`
   - Saves the model from a local path if it contains a Hugging Face snapshot of the model.
@@ -183,7 +184,7 @@ sllm-store save --model facebook/opt-1.3b --backend transformers --adapter --ada
 
 ## sllm-store load
 
-Load a model from local storage and run example inference to verify deployment. This command supports both the transformers and vllm backends, with optional support for PEFT LoRA adapters and quantized precision formats including int8, fp4, and nf4.
+Load a model from local storage and run example inference to verify deployment. This command supports both the transformers and vllm backends, with optional support for PEFT LoRA adapters and quantized precision formats including int8, fp4, and nf4 (LoRA and quantization supported on transformers backend only).
 
 When using the transformers backend, the function warms up GPU devices, loads the base model from disk, and optionally merges a LoRA adapter if specified. With vllm, it loads the model in the ServerlessLLM format.
 

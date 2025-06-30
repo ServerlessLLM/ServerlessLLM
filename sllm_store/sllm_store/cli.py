@@ -130,6 +130,23 @@ class VllmModelDownloader:
 logger = init_logger(__name__)
 
 
+def check_vllm():
+    """Simple check if ServerlessLLM patch is applied."""
+    try:
+        # Check if the LoadFormat enum has SERVERLESS_LLM
+        from vllm.config import LoadFormat
+
+        if not hasattr(LoadFormat, "SERVERLESS_LLM"):
+            return False
+
+        # Check if ExecutorBase has the save method
+        from vllm.executor.executor_base import ExecutorBase
+
+        return hasattr(ExecutorBase, "save_serverless_llm_state")
+    except ImportError:
+        return False
+
+
 @click.group()
 def cli():
     """sllm-store CLI"""
@@ -167,13 +184,13 @@ def start(
     disk_size,
     registration_required,
 ):
+    """Start the gRPC server."""
     # Convert the chunk size to bytes
     chunk_size = to_num_bytes(chunk_size)
 
     # Convert the memory pool size to bytes
     mem_pool_size = to_num_bytes(mem_pool_size)
 
-    """Start the gRPC server"""
     try:
         logger.info("Starting gRPC server")
         asyncio.run(
@@ -240,6 +257,12 @@ def save(
 
     try:
         if backend == "vllm":
+            if not check_vllm():
+                logger.error(
+                    "vLLM is not patched. Please run "
+                    "`./sllm_store/vllm_patch/patch.sh` first."
+                )
+                sys.exit(1)
             downloader = VllmModelDownloader()
             downloader.download_vllm_model(
                 model_name,
@@ -355,6 +378,12 @@ def load(
         start_load_time = time.time()
 
         if backend == "vllm":
+            if not check_vllm():
+                logger.error(
+                    "vLLM is not patched. Please run "
+                    "`./sllm_store/vllm_patch/patch.sh` first."
+                )
+                sys.exit(1)
             model_full_path = os.path.join(storage_path, model_name)
             print(model_full_path)  # TODO: remove this line once it's solved
             llm = LLM(
