@@ -41,6 +41,7 @@ def collect_all_info():
 
 @ray.remote
 def collect_some_info():
+    hardware_info = {}
     hardware_info["GPUs_info"] = get_gpu_info()
     return hardware_info
 
