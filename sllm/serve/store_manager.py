@@ -15,7 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-
 import asyncio
 import os
 import time
@@ -286,43 +285,40 @@ class StoreManager:
 
         return True
 
-    async def _watch_workers(self):
-        while True:
-            try:
-                worker_node_info = get_worker_nodes()
-            except Exception as e:
-                logger.warning(f"Failed to list worker nodes: {e}")
+        async def _watch_workers(self):
+            while True:
+                disconnected = set()
+                try:
+                    managed_node_ids = set(self.local_servers.keys())
+                    if managed_node_ids:
+                        ray_node_list = await asyncio.to_thread(ray.nodes)
+                        live_node_ids = {
+                            node["NodeID"]
+                            for node in ray_node_list
+                            if node.get("Alive")
+                        }
+                        disconnected = managed_node_ids - live_node_ids
+                except Exception as e:
+                    logger.warning(
+                        f"ray.nodes() failed ({e}), skipping this round"
+                    )
+
+                if disconnected:
+                    logger.info(
+                        f"Pruning disconnected worker(s): {disconnected}"
+                    )
+                    await self._prune_disconnected(disconnected)
+
+                try:
+                    worker_node_info = get_worker_nodes()
+                    unseen = set(worker_node_info) - set(self.local_servers)
+                    if unseen:
+                        logger.info(f"New worker(s) detected: {unseen}")
+                        await self._initialise_nodes(unseen, worker_node_info)
+                except Exception as e:
+                    logger.warning(f"Failed to list worker nodes: {e}")
+
                 await asyncio.sleep(5)
-                continue
-
-            unseen = set(worker_node_info) - set(self.local_servers)
-            if unseen:
-                logger.info(f"New worker(s) detected: {unseen}")
-                await self._initialise_nodes(unseen, worker_node_info)
-
-            disconnected = []
-            node_ips = {
-                self.local_servers[node_id].client.server_address.split(":", 1)[
-                    0
-                ]: node_id
-                for node_id in self.local_servers
-            }
-            try:
-                ray_node_list = await asyncio.to_thread(ray.nodes)
-                logger.info(f"nodes alive: {ray_node_list}")
-                for n in ray_node_list:
-                    if not n.get("Alive", False):
-                        ip = n.get("address")
-                        if ip in node_ips:
-                            disconnected.append(n[ip])
-            except RayError as e:
-                logger.warning(f"ray.nodes() failed ({e}), skipping this round")
-
-            if disconnected:
-                logger.info(f"Pruning disconnected worker(s): {disconnected}")
-                await self._prune_disconnected(disconnected)
-
-            await asyncio.sleep(5)
 
     async def _setup_single_node(
         self, node_id: str, worker_node_info: dict
