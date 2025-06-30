@@ -193,13 +193,16 @@ for output in outputs:
 
 ## Quantization
 
-ServerlessLLM currently supports model quantization using `bitsandbytes` and `GPTQ` through the Hugging Face Transformers' `BitsAndBytesConfig` and `GPTQConfig`.
+> Note: Quantization is currently experimental, especially on multi-GPU machines. You may encounter issues when using this feature in multi-GPU environments.
 
+### Currently supported quantization methods
 > Note: Our current capabilities do not support pre-quantization or CPU offloading, which is why other quantization methods are not available at the moment.
 
-For further information, consult the [HuggingFace Documentation for Quantization](https://huggingface.co/docs/transformers/en/main_classes/quantization)
+ServerlessLLM currently supports the following quantization methods through `transformers`:
+- `bitsandbytes`
+- `GPTQ` (requires additional dependencies `optimum` and `gptqmodel`)
 
-> Note: Quantization is currently experimental, especially on multi-GPU machines. You may encounter issues when using this feature in multi-GPU environments.
+For further information, consult the [HuggingFace Documentation for Quantization](https://huggingface.co/docs/transformers/en/main_classes/quantization)
 
 ### Usage
 To use quantization, create a quantization config object with your desired settings using the `transformers` format:
@@ -207,7 +210,6 @@ To use quantization, create a quantization config object with your desired setti
 ```python
 from transformers import BitsAndBytesConfig, AutoTokenizer
 import torch
-import optimum # for GPTQ
 
 # For 8-bit quantization
 quantization_config = BitsAndBytesConfig(
