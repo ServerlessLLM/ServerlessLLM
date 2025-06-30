@@ -19,7 +19,7 @@
 import asyncio
 import os
 import time
-from typing import List, Mapping, Optional, Set
+from typing import List, Mapping, Optional
 
 import ray
 
