@@ -120,6 +120,7 @@ class SllmLocalStore:
                 "node_id": self.node_id,
                 "disk_models": self.disk_models,
                 "pinned_memory_pool": self.pinned_memory_pool,
+                "io_queue": self.io_queue,
                 "hardware_info": hardware_info,
                 "chunk_size": self.chunk_size,
                 "total_memory_pool_chunks": self.pinned_memory_pool_chunks,
