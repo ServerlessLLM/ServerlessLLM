@@ -318,7 +318,7 @@ class SllmController:
     async def worker_status(self):
         if not self.running:
             logger.error("Controller not running")
-            return {}
+            raise SllmControllerException("Controller not running", "worker_status")
         return await self.store_manager.get_store_info.remote()
 
     async def _monitor_loop(self):
