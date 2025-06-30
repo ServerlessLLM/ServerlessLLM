@@ -524,8 +524,3 @@ class RoundRobinRouter(SllmRouter):
                     item["id"] = query_id
                     work_items.append(item)
         return work_items
-
-    async def get_query_status(self, query_id: str) -> Dict:
-        status_data = self.active_requests_registry.get(query_id)
-        if status_data:
-            return status_data.copy()
