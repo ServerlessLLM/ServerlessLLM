@@ -116,7 +116,7 @@ class SllmLocalStore:
             logger.error(f"Failed to collect hardware info: {e}")
             hardware_info = {}
         async with self.lock:
-            current_status = self.io_queue > 0
+            current_status = len(self.io_queue) > 0
             return {
                 "node_id": self.node_id,
                 "disk_models": self.disk_models,
