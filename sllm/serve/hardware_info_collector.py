@@ -39,6 +39,12 @@ def collect_all_info():
     return hardware_info
 
 
+@ray.remote
+def collect_some_info():
+    hardware_info["GPUs_info"] = get_gpu_info()
+    return hardware_info
+
+
 def get_disk_info():
     """
     Retrieves total size of the primary disk partition.

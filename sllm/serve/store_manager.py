@@ -19,11 +19,14 @@
 import asyncio
 import os
 import time
-from typing import List, Mapping, Optional
+from typing import List, Mapping, Optional, Set
 
 import ray
 
-from sllm.serve.hardware_info_collector import collect_all_info
+from sllm.serve.hardware_info_collector import (
+    collect_all_info,
+    collect_some_info,
+)
 from sllm.serve.logger import init_logger
 from sllm.serve.model_downloader import (
     VllmModelDownloader,
@@ -95,25 +98,29 @@ class SllmLocalStore:
         return model_size
 
     async def get_store_info(self):
-        hardware_info_futures = collect_all_info.options(
-            resources={f"worker_id_{self.node_id}": 0.01}
-        ).remote()
-        hardware_info = await hardware_info_futures
         async with self.lock:
             delta_time = 0
             if len(self.io_queue) > 0:
                 delta_time = self.io_queue[-1]["estimated_time"] - time.time()
                 if delta_time < 0:
                     delta_time = 0
+            return [self.disk_models, self.pinned_memory_pool, delta_time]
 
-            self.hardware_info = hardware_info
+    async def get_worker_info(self):
+        try:
+            hardware_info_futures = collect_some_info.options(
+                resources={f"worker_id_{self.node_id}": 0.01}
+            ).remote()
+            hardware_info = await hardware_info_futures
+        except Exception as e:
+            logger.error(f"Failed to collect hardware info: {e}")
+            hardware_info = {}
+        async with self.lock:
             return {
                 "node_id": self.node_id,
                 "disk_models": self.disk_models,
                 "pinned_memory_pool": self.pinned_memory_pool,
-                "io_queue": self.io_queue,
-                "io_queue_estimated_time_left": delta_time,
-                "hardware_info": self.hardware_info,
+                "hardware_info": hardware_info,
                 "chunk_size": self.chunk_size,
                 "total_memory_pool_chunks": self.pinned_memory_pool_chunks,
                 "used_memory_pool_chunks": self.pinned_memory_pool_usage,
@@ -344,6 +351,21 @@ class StoreManager:
                 return self.model_info.get(model_name, {})
             else:
                 return self.model_info
+
+    async def get_worker_info(self, node_id: Optional[str] = None):
+        async with self.metadata_lock:
+            if node_id is not None:
+                if node_id not in self.local_servers:
+                    logger.error(f"Node {node_id} not found")
+                    return {}
+                return await self.local_servers[node_id].get_worker_info()
+            else:
+                node_info = {}
+                for node_id in self.local_servers:
+                    node_info[node_id] = await self.local_servers[
+                        node_id
+                    ].get_worker_info()
+                return node_info
 
     async def get_store_info(self, node_id: Optional[str] = None):
         async with self.metadata_lock:
