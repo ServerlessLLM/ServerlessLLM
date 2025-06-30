@@ -172,7 +172,7 @@ class RoundRobinRouter(SllmRouter):
             "enqueue_time": enqueue_time,
         }
         await self.request_queue.put(queue_item)
-        logger.info(f"Enqueued fine-tuning request for model {self.model_name}")
+        logger.info(f"Enqueued inference request for model {self.model_name}")
 
         instance_id = await instance_allocation
         logger.info(f"{request_data}, type: {type(request_data)}")
