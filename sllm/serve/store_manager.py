@@ -360,10 +360,6 @@ class StoreManager:
                     ].get_store_info()
                 return node_info
 
-    async def get_query_status(self, query_id: string):
-        async with self.metadata_lock:
-            return
-
     async def load_to_host(self, node_id: str, model_name: str) -> bool:
         async with self.metadata_lock:
             if node_id not in self.local_servers:

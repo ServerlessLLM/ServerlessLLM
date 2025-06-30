@@ -153,10 +153,12 @@ class RoundRobinRouter(SllmRouter):
         async with self.idle_time_lock:
             self.idle_time = 0
 
-        query_id = request_data["id"]
+        query_id = request_data.get("id") or uuid.uuid4()
+        request_data["id"] = query_id
         enqueue_time = time.time()
         async with self.registry_lock:
             self.active_requests_registry[query_id] = {
+                "query_id": query_id,
                 "status": "QUEUED",
                 "enqueue_time": enqueue_time,
                 "action": action,
@@ -514,10 +516,11 @@ class RoundRobinRouter(SllmRouter):
         return
 
     async def get_active_work(self) -> List[Dict]:
+        work_items = []
         async with self.registry_lock:
-            return list(self.active_requests_registry.values())
-
-    async def get_query_status(self, query_id: str) -> Dict:
-        status_data = self.active_requests_registry.get(query_id)
-        if status_data:
-            return status_data.copy()
+            for query_id, details in self.active_requests_registry.items():
+                if details.get("status") == "QUEUED":
+                    item = details.copy()
+                    item["id"] = query_id
+                    work_items.append(item)
+        return work_items
