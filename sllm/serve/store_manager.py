@@ -360,11 +360,12 @@ class StoreManager:
                     return {}
                 return await self.local_servers[node_id].get_worker_info()
             else:
-                node_info = {}
-                for node_id in self.local_servers:
-                    node_info[node_id] = await self.local_servers[
-                        node_id
-                    ].get_worker_info()
+                tasks = [
+                    server.get_worker_info()
+                    for server in self.local_servers.values()
+                ]
+                results = await asyncio.gather(*tasks)
+                node_info = dict(zip(self.local_servers.keys(), results))
                 return node_info
 
     async def get_store_info(self, node_id: Optional[str] = None):
