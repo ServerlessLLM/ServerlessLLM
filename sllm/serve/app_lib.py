@@ -211,10 +211,10 @@ def create_app() -> FastAPI:
         sorted_work_items = await controller.get_global_work_queue.remote()
 
         # Add the final position to each item for the response
-        response_items = []
-        for i, item in enumerate(sorted_work_items):
-            item["overall_queue_position"] = i + 1
-            response_items.append(item)
+        response_items = [
+            {**item, "overall_queue_position": i + 1}
+            for i, item in enumerate(sorted_work_items)
+        ]
 
         return JSONResponse(content={"work_queue": response_items})
 
