@@ -37,7 +37,6 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
 )
-from vllm import LLM, SamplingParams
 from peft import PeftModel
 
 
@@ -370,6 +369,8 @@ def load(
         start_load_time = time.time()
 
         if backend == "vllm":
+            from vllm import LLM
+
             if not check_vllm():
                 logger.error(
                     "vLLM is not patched. Please run "
@@ -377,7 +378,6 @@ def load(
                 )
                 sys.exit(1)
             model_full_path = os.path.join(storage_path, model_name)
-            print(model_full_path)  # TODO: remove this line once it's solved
             llm = LLM(
                 model=model_full_path,
                 load_format="serverless_llm",
@@ -458,6 +458,7 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
             "The capital of France is",
             "The future of AI is",
         ]
+        from vllm import SamplingParams
 
         sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
         outputs = model.generate(prompts, sampling_params)
