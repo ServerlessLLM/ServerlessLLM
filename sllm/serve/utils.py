@@ -49,7 +49,8 @@ def get_worker_nodes():
                     "address": node_address,
                     "free_gpu": available_gpus,
                     "total_gpu": available_gpus,
-                }    return worker_node_info
+                }
+    return worker_node_info
 
 
 @dataclass
