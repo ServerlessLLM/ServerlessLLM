@@ -3,7 +3,7 @@ import time
 
 import torch
 
-from transformers import AutoTokenizer, BitsAndBytesConfig, GPTQConfig
+from transformers import AutoTokenizer, BitsAndBytesConfig
 from sllm_store.transformers import load_model
 
 parser = argparse.ArgumentParser(description="Load a model from ServerlessLLM")
@@ -37,18 +37,6 @@ elif args.precision == "fp4":
 elif args.precision == "nf4":
     quantization_config = BitsAndBytesConfig(
         load_in_4bit=True, bnb_4bit_quant_type="nf4"
-    )
-elif args.precision == "4bit":
-    quantization_config = GPTQConfig(
-        bits=4,
-        group_size=128,
-        desc_act=False,
-        sym=True,
-        true_sequential=True,
-        disable_exllama=True,
-        skip_modules=["lm_head"],
-        dataset="wikitext2",
-        tokenizer=AutoTokenizer.from_pretrained("facebook/opt-1.3b"),
     )
 else:
     quantization_config = None
