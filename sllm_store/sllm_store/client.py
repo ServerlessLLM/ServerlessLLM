@@ -17,8 +17,9 @@
 # ---------------------------------------------------------------------------- #
 
 import grpc
-import sllm_store.proto.storage_pb2 as storage_pb2
-import sllm_store.proto.storage_pb2_grpc as storage_pb2_grpc
+import os
+import sllm_store.storage_pb2 as storage_pb2
+import sllm_store.storage_pb2_grpc as storage_pb2_grpc
 from sllm_store.logger import init_logger
 
 logger = init_logger(__name__)
@@ -26,7 +27,12 @@ logger = init_logger(__name__)
 
 # This is a singleton class that manages the checkpoint
 class SllmStoreClient:
-    def __init__(self, server_address="127.0.0.1:8073"):
+    def __init__(self, server_address=None):
+        if server_address is None:
+            # Use environment variable or default port
+            host = os.getenv("SLLM_STORE_HOST", "127.0.0.1")
+            port = os.getenv("SLLM_STORE_PORT", "8073")
+            server_address = f"{host}:{port}"
         self.server_address = server_address
         self.channel = grpc.insecure_channel(server_address)
         self.stub = storage_pb2_grpc.StorageStub(self.channel)
