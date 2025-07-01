@@ -40,11 +40,17 @@ class VllmModelDownloader:
                 max_model_len=1,
             )
             model_path = os.path.join(storage_path, model_name)
-            model_executer = llm_writer.llm_engine.model_executor
+            model_executer = llm_writer.llm_engine.engine_core.model_executor
+
+
             # save the models in the ServerlessLLM format
-            model_executer.save_serverless_llm_state(
-                path=model_path, pattern=pattern, max_size=max_size
-            )
+            llm_writer.llm_engine.save_serverless_llm_state(
+    path=model_path,
+    pattern=pattern,
+    max_size=max_size,
+)
+
+
             for file in os.listdir(input_dir):
                 # Copy the metadata files into the output directory
                 if os.path.splitext(file)[1] not in (

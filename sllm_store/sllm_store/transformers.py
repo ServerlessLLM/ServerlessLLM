@@ -248,7 +248,7 @@ def fully_parallel_load(
             )
 
             # synchronize
-            client = SllmStoreClient("127.0.0.1:8073")
+            client = SllmStoreClient()
             client.confirm_model_loaded(model_path, replica_uuid)
 
             for name, param in state_dict.items():
@@ -273,7 +273,7 @@ def fully_parallel_load(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
 
-    client = SllmStoreClient("127.0.0.1:8073")
+    client = SllmStoreClient()
     client.confirm_model_loaded(model_path, replica_uuid)
     model.eval()
     return model
@@ -287,7 +287,7 @@ def best_effort_load(
     quantization_config=None,
     storage_path: Optional[str] = None,
 ):
-    client = SllmStoreClient("127.0.0.1:8073")
+    client = SllmStoreClient()
     ret = client.load_into_cpu(model_path)
     if not ret:
         raise ValueError(f"Failed to load model {model_path} into CPU")
@@ -470,7 +470,7 @@ def load_lora(
 
     lora_config.inference_mode = not is_trainable
 
-    client = SllmStoreClient("127.0.0.1:8073")
+    client = SllmStoreClient()
     client.register_model(adapter_path)
 
     model.add_adapter(lora_config, adapter_name=adapter_name)

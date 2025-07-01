@@ -15,3 +15,7 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
+
+from . import storage_pb2, storage_pb2_grpc
+
+__all__ = ["storage_pb2", "storage_pb2_grpc"]

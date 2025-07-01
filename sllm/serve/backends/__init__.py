@@ -40,9 +40,15 @@
 # ---------------------------------------------------------------------------- #
 from .dummy_backend import DummyBackend
 from .sglang_backend import SGLangBackend
-
-# from .transformers_backend import TransformersBackend  # Temporarily disabled due to missing load_lora
+from .transformers_backend import TransformersBackend
 from .vllm_backend import VllmBackend
 
-__all__ = ["DummyBackend", "VllmBackend", "SGLangBackend"]
-# "TransformersBackend" temporarily removed
+# Backend registry for easy access
+backend_registry = {
+    "dummy": DummyBackend,
+    "sglang": SGLangBackend,
+    "transformers": TransformersBackend,
+    "vllm": VllmBackend,
+}
+
+__all__ = ["DummyBackend", "SGLangBackend", "VllmBackend", "TransformersBackend", "backend_registry"]

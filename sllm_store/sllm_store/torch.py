@@ -89,7 +89,7 @@ def load_dict(
         model_path, device_map, storage_path
     )
 
-    client = SllmStoreClient("127.0.0.1:8073")
+    client = SllmStoreClient()
     client.confirm_model_loaded(model_path, replica_uuid)
 
     return state_dict
@@ -100,7 +100,7 @@ def load_dict_non_blocking(
     device_map: Dict[str, int],
     storage_path: Optional[str] = None,
 ):
-    client = SllmStoreClient("127.0.0.1:8073")
+    client = SllmStoreClient()
     ret = client.load_into_cpu(model_path)
     if not ret:
         raise ValueError(f"Failed to load model {model_path} into CPU")

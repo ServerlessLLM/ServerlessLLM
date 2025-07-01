@@ -66,6 +66,7 @@ COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/serve /app/sllm/serve
 COPY sllm/cli /app/sllm/cli
+COPY sllm/clic.py /app/sllm/clic.py  
 COPY README.md /app/
 RUN python3 setup.py bdist_wheel
 
@@ -80,12 +81,24 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Set the working directory
 WORKDIR /app
 
-# Create conda environments for head and worker
+# # Create conda environments for head and worker
+# RUN conda create -n head python=3.10 -y && \
+#     conda create -n worker python=3.10 -y
+
+# RUN conda run -n head pip install -U pip
+# RUN conda run -n worker pip install -U pip
+# Install packages in head environment
+# ✅ 创建 head 和 worker 环境
 RUN conda create -n head python=3.10 -y && \
     conda create -n worker python=3.10 -y
 
-RUN conda run -n head pip install -U pip
-RUN conda run -n worker pip install -U pip
+COPY . /app
+WORKDIR /app
+RUN conda run -n head pip install -e .
+
+# Install packages in worker environment
+RUN conda run -n worker pip install -e .
+
 
 # Copy requirements files
 COPY requirements.txt /app/
