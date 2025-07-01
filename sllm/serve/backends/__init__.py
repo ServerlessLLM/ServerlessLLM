@@ -20,7 +20,7 @@
 # from .vllm_backend import VllmBackend
 # from .sglang_backend import SGLangBackend, SGLangMode
 # __all__ = ["DummyBackend", "VllmBackend", "TransformersBackend"," SGLangBackend", "SGLangMode"]
-# 修改后的 __init__.py 内容
+
 # ---------------------------------------------------------------------------- #
 #  serverlessllm                                                               #
 #  copyright (c) serverlessllm team 2024                                       #
