@@ -27,7 +27,6 @@ def get_worker_nodes():
     worker_node_info = {}
     for node in ray_nodes:
         if not node.get("Alive"):
-            logger.debug(f"Skipping dead node: {node.get('NodeID')}")
             continue
         ray_node_id = node.get("NodeID", None)
         assert ray_node_id is not None, "NodeID not found"
