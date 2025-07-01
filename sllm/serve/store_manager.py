@@ -291,11 +291,15 @@ class StoreManager:
 
         async with self.metadata_lock:
             if not self.local_servers:
-                logger.error(f"Cannot register {model_name}: No available worker nodes.")
+                logger.error(
+                    f"Cannot register {model_name}: No available worker nodes."
+                )
                 return
             if model_name in self.model_info:
                 # TODO: apply new placement config, if given
-                logger.info(f"Model {model_name} is already registered. Placement updates are not yet implemented.")
+                logger.info(
+                    f"Model {model_name} is already registered. Placement updates are not yet implemented."
+                )
                 return
 
             self.model_info[model_name] = model_config
@@ -345,9 +349,7 @@ class StoreManager:
         local_disk = []
         if placement_config and "local_disk" in placement_config:
             local_disk = placement_config["local_disk"]
-            if not all(
-                [node_id in worker_node_info for node_id in local_disk]
-            ):
+            if not all([node_id in worker_node_info for node_id in local_disk]):
                 logger.error(
                     f"Invalid target nodes {local_disk}, worker nodes: {worker_node_info}"  # noqa: E501
                 )
@@ -380,7 +382,9 @@ class StoreManager:
                 model_name, node_id, model_config
             )
             if size > 0:
-                model_size = size  # Store the size from a successful registration
+                model_size = (
+                    size  # Store the size from a successful registration
+                )
                 if node_id in memory_pool:
                     # preload to memory pool
                     await self.load_to_host(
@@ -392,7 +396,9 @@ class StoreManager:
                 self.model_info[model_name]["model_size"] = model_size
             logger.info(f"{model_name} registered")
         else:
-            logger.error(f"Failed to register {model_name} on any specified node.")
+            logger.error(
+                f"Failed to register {model_name} on any specified node."
+            )
             async with self.metadata_lock:
                 self.model_info.pop(model_name, None)
                 self.model_storage_info.pop(model_name, None)
@@ -403,52 +409,55 @@ class StoreManager:
                 try:
                     worker_node_info = get_worker_nodes()
                 except AssertionError:
-                    logger.info("No worker resources found, assuming all are down or starting.")
+                    logger.info(
+                        "No worker resources found, assuming all are down or starting."
+                    )
                     worker_node_info = {}
 
                 async with self.metadata_lock:
+                    # Get a snapshot of the state we are currently managing
                     managed_ray_ids_copy = self.managed_ray_ids.copy()
 
                 ready_workers = {
-                    worker_id: info['ray_node_id'] 
+                    worker_id: info["ray_node_id"]
                     for worker_id, info in worker_node_info.items()
                 }
 
                 nodes_to_prune = set()
-                nodes_to_init = set()
-
                 for worker_id, old_ray_id in managed_ray_ids_copy.items():
-                    if worker_id in ready_workers and ready_workers[worker_id] != old_ray_id:
-                        logger.warning(
-                            f"Worker '{worker_id}' has been replaced. Old Ray ID: {old_ray_id}, "
-                            f"New Ray ID: {ready_workers[worker_id]}. Re-initializing."
+                    if worker_id not in ready_workers:
+                        logger.info(
+                            f"Worker(s) {worker_id} are no longer available. Pruning."
                         )
                         nodes_to_prune.add(worker_id)
-                        nodes_to_init.add(worker_id)
-
-                dead_workers = set(managed_ray_ids_copy.keys()) - set(ready_workers.keys())
-                if dead_workers:
-                    logger.info(f"Worker(s) {dead_workers} are no longer available. Pruning.")
-                    nodes_to_prune.update(dead_workers)
-
-                new_workers = set(ready_workers.keys()) - set(managed_ray_ids_copy.keys())
-                if new_workers:
-                    logger.info(f"New worker(s) detected: {new_workers}. Initializing.")
-                    nodes_to_init.update(new_workers)
+                    elif ready_workers[worker_id] != old_ray_id:
+                        logger.warning(
+                            f"Worker '{worker_id}' has been replaced. Old Ray ID: {old_ray_id}, "
+                            f"New Ray ID: {ready_workers[worker_id]}. Pruning old instance."
+                        )
+                        nodes_to_prune.add(worker_id)
 
                 if nodes_to_prune:
                     await self._prune_disconnected(nodes_to_prune)
-                
+                    for worker_id in nodes_to_prune:
+                        managed_ray_ids_copy.pop(worker_id, None)
+                nodes_to_init = set(ready_workers.keys()) - set(
+                    managed_ray_ids_copy.keys()
+                )
+
                 if nodes_to_init:
-                    await self._initialise_nodes(nodes_to_init, worker_node_info)
-                    
-                logger.debug(f"worker_node_info: {worker_node_info}")
-                logger.debug(f"dead: {dead_workers}")
-                logger.debug(f"prune: {nodes_to_prune}")
-                logger.debug(f"init: {nodes_to_init}")
+                    logger.info(
+                        f"New worker(s) detected: {nodes_to_init}. Initializing."
+                    )
+                    await self._initialise_nodes(
+                        nodes_to_init, worker_node_info
+                    )
 
             except Exception as e:
-                logger.warning(f"An unexpected error occurred in _watch_workers, will retry: {e}", exc_info=True)
+                logger.warning(
+                    f"An unexpected error occurred in _watch_workers, will retry: {e}",
+                    exc_info=True,
+                )
 
             await asyncio.sleep(5)
 
@@ -476,11 +485,16 @@ class StoreManager:
                 continue
             if await self._setup_single_node(node_id, worker_node_info):
                 async with self.metadata_lock:
-                    self.managed_ray_ids[node_id] = worker_node_info[node_id]['ray_node_id']
+                    self.managed_ray_ids[node_id] = worker_node_info[node_id][
+                        "ray_node_id"
+                    ]
 
                 models_to_restore = []
                 async with self.metadata_lock:
-                    for model_name, placement in self.model_storage_info.items():
+                    for (
+                        model_name,
+                        placement,
+                    ) in self.model_storage_info.items():
                         if node_id in placement:
                             models_to_restore.append(model_name)
                 if models_to_restore:
@@ -495,44 +509,14 @@ class StoreManager:
             for node_id in node_ids:
                 local_server = self.local_servers.pop(node_id, None)
                 if local_server:
-                    endpoints[node_id] = local_server.client.server_address.split(":", 1)[0]
+                    endpoints[node_id] = (
+                        local_server.client.server_address.split(":", 1)[0]
+                    )
 
                 self.hardware_info.pop(node_id, None)
                 self.managed_ray_ids.pop(node_id, None)
 
                 logger.info(f"Pruned metadata for disconnected node {node_id}")
-
-        for node_id, ip in endpoints.items():
-            try:
-                cmd = [
-                    "ssh",
-                    "-o",
-                    "BatchMode=yes",
-                    "-o",
-                    "StrictHostKeyChecking=yes",
-                    ip,
-                    "ray",
-                    "stop",
-                    "--force",
-                ]
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                out, err = await asyncio.wait_for(
-                    proc.communicate(), timeout=15
-                )
-                if proc.returncode == 0:
-                    logger.info(f"Stopped Ray cleanly on {node_id}@{ip}")
-                else:
-                    logger.error(
-                        f"ray stop failed on {node_id}@{ip}: {err.decode().strip()}"
-                    )
-            except asyncio.TimeoutError:
-                logger.error(f"Timeout stopping Ray on {node_id}@{ip}")
-            except Exception as e:
-                logger.error(f"Error stopping Ray on {node_id}@{ip}: {e}")
 
     async def _setup_single_node(
         self, node_id: str, worker_node_info: dict
@@ -572,12 +556,13 @@ class StoreManager:
             logger.warning(f"Failed to connect to node {node_id}: {e}")
             return False
 
-
     async def _relink_worker(self, node_id: str, model_name: str):
         """
         Relinks a model to a worker that has reconnected.
         """
-        logger.info(f"Restoring model {model_name} on reconnected node {node_id}")
+        logger.info(
+            f"Restoring model {model_name} on reconnected node {node_id}"
+        )
         async with self.metadata_lock:
             model_config = self.model_info.get(model_name)
             if not model_config:
@@ -596,16 +581,15 @@ class StoreManager:
             placement_config = model_config.get("placement_config", {})
             memory_pool = placement_config.get("memory_pool", [])
             if node_id in memory_pool:
-                pretrained_model_name_or_path = model_config["backend_config"].get(
-                    "pretrained_model_name_or_path"
-                )
+                pretrained_model_name_or_path = model_config[
+                    "backend_config"
+                ].get("pretrained_model_name_or_path")
                 await self.load_to_host(node_id, pretrained_model_name_or_path)
                 logger.info(
                     f"{model_name} loaded to memory pool on node {node_id}"
                 )
         else:
             logger.error(f"Failed to restore {model_name} on {node_id}")
-
 
     async def _register_model_to_worker(
         self, model_name: str, node_id: str, model_config: dict

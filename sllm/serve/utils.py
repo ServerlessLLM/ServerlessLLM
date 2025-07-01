@@ -26,6 +26,9 @@ def get_worker_nodes():
     ray_nodes = ray.nodes()
     worker_node_info = {}
     for node in ray_nodes:
+        if not node.get("Alive"):
+            logger.debug(f"Skipping dead node: {node.get('NodeID')}")
+            continue
         ray_node_id = node.get("NodeID", None)
         assert ray_node_id is not None, "NodeID not found"
         resources = node.get("Resources", {})
@@ -40,14 +43,13 @@ def get_worker_nodes():
         for key, value in resources.items():
             if key.startswith("worker_id_"):
                 node_id = key.split("_")[-1]
+                available_gpus = resources.get("GPU", 0)
                 worker_node_info[node_id] = {
                     "ray_node_id": ray_node_id,
                     "address": node_address,
-                    "free_gpu": resources.get("GPU", 0),
-                    "total_gpu": resources.get("GPU", 0),
-                }
-
-    return worker_node_info
+                    "free_gpu": available_gpus,
+                    "total_gpu": available_gpus,
+                }    return worker_node_info
 
 
 @dataclass
