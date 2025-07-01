@@ -56,7 +56,6 @@ class TestCliCommands(unittest.TestCase):
                 TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
-                "--adapter",
                 "--adapter-name",
                 TEST_ADAPTER_MODEL,
                 "--storage-path",
@@ -340,7 +339,6 @@ class TestCliCommands(unittest.TestCase):
                 TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
-                "--adapter",
                 "--adapter-name",
                 TEST_ADAPTER_MODEL,
                 "--storage-path",
@@ -559,7 +557,6 @@ class TestCliCommands(unittest.TestCase):
                 "transformers/" + TEST_MODEL_TRANSFORMERS,
                 "--backend",
                 "transformers",
-                "--adapter",
                 "--adapter-name",
                 TEST_ADAPTER_MODEL,
                 "--storage-path",
@@ -573,20 +570,6 @@ class TestCliCommands(unittest.TestCase):
             f"Stderr: {result.stderr}",
         )
         self.assertIn("Hello, my dog is cute", result.output)
-
-    def test_load_transformers_adapter_missing_name_path(self):
-        result = self.runner.invoke(
-            cli,
-            [
-                "load",
-                "--model",
-                TEST_MODEL_TRANSFORMERS,
-                "--backend",
-                "transformers",
-                "--adapter",
-            ],
-        )
-        self.assertNotEqual(result.exit_code, 0)
 
     def test_load_invalid_backend(self):
         result = self.runner.invoke(

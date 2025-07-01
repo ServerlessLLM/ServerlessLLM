@@ -220,9 +220,6 @@ def start(
     help="Model name from HuggingFace model hub",
 )
 @click.option("--backend", type=str, required=True, help="Backend")
-@click.option(
-    "--adapter", is_flag=True, help="Indicate if the model is an adapter"
-)
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
 @click.option(
     "--tensor-parallel-size", type=int, default=1, help="Tensor parallel size"
@@ -238,7 +235,6 @@ def start(
 def save(
     model_name,
     backend,
-    adapter,
     adapter_name,
     tensor_parallel_size,
     local_model_path,
@@ -251,7 +247,7 @@ def save(
     """
 
     logger.info(
-        f"Saving model {model_name if not adapter else adapter_name} "
+        f"Saving model {adapter_name if adapter_name else model_name} "
         f"to {storage_path}"
     )
 
@@ -272,7 +268,7 @@ def save(
                 local_model_path=local_model_path,
             )
         elif backend == "transformers":
-            if adapter:
+            if adapter_name:
                 config = AutoConfig.from_pretrained(
                     model_name,
                     trust_remote_code=True,
@@ -308,7 +304,7 @@ def save(
         sys.exit(1)
 
     logger.info(
-        f"Model {model_name if not adapter else adapter_name} "
+        f"Model {adapter_name if adapter_name else model_name} "
         f"saved successfully to {storage_path}"
     )
 
@@ -322,9 +318,6 @@ def save(
     help="Model name from HuggingFace model hub",
 )
 @click.option("--backend", type=str, required=True, help="Backend")
-@click.option(
-    "--adapter", is_flag=True, help="Indicate if the model is an adapter"
-)
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
 @click.option(
     "--precision",
@@ -341,7 +334,6 @@ def save(
 def load(
     model_name,
     backend,
-    adapter,
     adapter_name,
     precision,
     storage_path,
@@ -353,7 +345,7 @@ def load(
     """
 
     logger.info(
-        f"Loading model {model_name if not adapter else adapter_name} "
+        f"Loading model {adapter_name if adapter_name else model_name} "
         f"from {storage_path}"
     )
 
@@ -403,12 +395,7 @@ def load(
             for i in range(num_gpus):
                 torch.ones(1).to(f"cuda:{i}")
                 torch.cuda.synchronize()
-            if adapter:
-                if not adapter_name:
-                    logger.error(
-                        "Adapter name must be provided when using LoRA"
-                    )
-                    sys.exit(1)
+            if adapter_name:
                 model = load_model(
                     model_name,
                     device_map="auto",
@@ -444,7 +431,6 @@ def load(
                 "transformers",
                 model=model,
                 model_name=model_name,
-                adapter=adapter,
                 adapter_name=adapter_name,
             )
 
@@ -459,14 +445,12 @@ def load(
         sys.exit(1)
 
     logger.info(
-        f"Model {model_name if not adapter else adapter_name} "
+        f"Model {adapter_name if adapter_name else model_name} "
         f"loaded successfully from {storage_path}"
     )
 
 
-def example_inferences(
-    backend, model=None, model_name=None, adapter=False, adapter_name=None
-):
+def example_inferences(backend, model=None, model_name=None, adapter_name=None):
     if backend == "vllm":
         prompts = [
             "Hello, my name is",
@@ -494,7 +478,7 @@ def example_inferences(
             "cuda"
         )
         generate_kwargs = {}
-        if adapter and adapter_name:
+        if adapter_name:
             generate_kwargs["adapter_names"] = [adapter_name]
         outputs = model.generate(**inputs, **generate_kwargs)
         print(tokenizer.decode(outputs[0], skip_special_tokens=True))
