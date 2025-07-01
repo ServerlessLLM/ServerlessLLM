@@ -208,7 +208,7 @@ For further information, consult the [HuggingFace Documentation for Quantization
 To use quantization, create a quantization config object with your desired settings using the `transformers` format:
 
 ```python
-from transformers import BitsAndBytesConfig, AutoTokenizer
+from transformers import BitsAndBytesConfig, AutoTokenizer, GPTQConfig
 import torch
 
 # For 8-bit quantization
@@ -251,7 +251,9 @@ model = load_model(
     quantization_config=quantization_config,
 )
 ```
+A full example can be found [here](https://github.com/ServerlessLLM/ServerlessLLM/blob/main/sllm_store/examples/load_quantized_transformers_model.py).
 
+For users with multi-GPU setups, ensure that the number of CUDA visible devices are the same on both the store server and the user environment via `export CUDA_VISIBLE_DEVICES=<num_gpus>`.
 
 # Fine-tuning
 ServerlessLLM currently supports LoRA fine-tuning using peft through the Hugging Face Transformers PEFT.
