@@ -232,6 +232,7 @@ class StoreManager:
         self.model_info = {}
         self.model_storage_info = {}
         self.managed_ray_ids = {}
+        self.initialization_events: Mapping[str, asyncio.Event] = {}
 
         asyncio.create_task(self._watch_workers())
 
@@ -464,6 +465,11 @@ class StoreManager:
     async def _initialise_nodes(
         self, node_ids: Set[str], worker_node_info: dict
     ):
+        for node_id in node_ids:
+            async with self.metadata_lock:
+                if node_id not in self.initialization_events:
+                    self.initialization_events[node_id] = asyncio.Event()
+
         hardware_info_futures = {
             node_id: collect_all_info.options(
                 resources={f"worker_id_{node_id}": 0.01}
@@ -481,27 +487,33 @@ class StoreManager:
                 continue
 
         for node_id in list(node_ids):
-            if node_id not in worker_node_info:
-                continue
-            if await self._setup_single_node(node_id, worker_node_info):
-                async with self.metadata_lock:
-                    self.managed_ray_ids[node_id] = worker_node_info[node_id][
-                        "ray_node_id"
-                    ]
+            try:
+                if node_id not in worker_node_info:
+                    continue
+                if await self._setup_single_node(node_id, worker_node_info):
+                    async with self.metadata_lock:
+                        self.managed_ray_ids[node_id] = worker_node_info[node_id][
+                            "ray_node_id"
+                        ]
 
-                models_to_restore = []
+                    models_to_restore = []
+                    async with self.metadata_lock:
+                        for (
+                            model_name,
+                            placement,
+                        ) in self.model_storage_info.items():
+                            if node_id in placement:
+                                models_to_restore.append(model_name)
+                    if models_to_restore:
+                        for model_name in models_to_restore:
+                            await self._relink_worker(node_id, model_name)
+                else:
+                    await self._prune_disconnected({node_id})
+            finally:
                 async with self.metadata_lock:
-                    for (
-                        model_name,
-                        placement,
-                    ) in self.model_storage_info.items():
-                        if node_id in placement:
-                            models_to_restore.append(model_name)
-                if models_to_restore:
-                    for model_name in models_to_restore:
-                        await self._relink_worker(node_id, model_name)
-            else:
-                await self._prune_disconnected({node_id})
+                    event = self.initialization_events.pop(node_id, None)
+                    if event:
+                        event.set()
 
     async def _prune_disconnected(self, node_ids: Set[str]):
         endpoints = {}
@@ -515,6 +527,10 @@ class StoreManager:
 
                 self.hardware_info.pop(node_id, None)
                 self.managed_ray_ids.pop(node_id, None)
+
+                event = self.initialization_events.pop(node_id, None)
+                if event:
+                    event.set()
 
                 logger.info(f"Pruned metadata for disconnected node {node_id}")
 
@@ -591,12 +607,25 @@ class StoreManager:
         else:
             logger.error(f"Failed to restore {model_name} on {node_id}")
 
+    async def _wait_for_node_initialization(self, node_id: str):
+        event = None
+        async with self.metadata_lock:
+            # Check if an initialization event exists for this node
+            if node_id in self.initialization_events:
+                event = self.initialization_events[node_id]
+
+        if event:
+            logger.debug(f"Node {node_id} is initializing, waiting...")
+            await event.wait()
+            logger.debug(f"Node {node_id} finished initialization.")
+
     async def _register_model_to_worker(
         self, model_name: str, node_id: str, model_config: dict
     ) -> int:
         """
         Helper function to download and register a model to a specific worker.
         """
+        await self._wait_for_node_initialization(node_id)
         backend = model_config.get("backend", None)
         backend_config = model_config.get("backend_config", {})
         pretrained_model_name_or_path = backend_config.get(
@@ -666,6 +695,7 @@ class StoreManager:
                 return node_info
 
     async def load_to_host(self, node_id: str, model_name: str) -> bool:
+        await self._wait_for_node_initialization(node_id)
         async with self.metadata_lock:
             if node_id not in self.local_servers:
                 logger.error(f"Node {node_id} not found")
