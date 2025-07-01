@@ -231,6 +231,7 @@ class StoreManager:
         self.local_servers = {}
         self.model_info = {}
         self.model_storage_info = {}
+        self.managed_ray_ids = {}
 
         asyncio.create_task(self._watch_workers())
 
@@ -285,189 +286,6 @@ class StoreManager:
 
         return True
 
-    async def _watch_workers(self):
-        while True:
-            disconnected = set()
-            try:
-                managed_node_ids = set(self.local_servers.keys())
-                if managed_node_ids:
-                    ray_node_list = await asyncio.to_thread(ray.nodes)
-                    live_node_ids = {
-                        node["NodeID"]
-                        for node in ray_node_list
-                        if node.get("Alive")
-                    }
-                    disconnected = managed_node_ids - live_node_ids
-            except Exception as e:
-                logger.warning(
-                    f"ray.nodes() failed ({e}), skipping this round"
-                )
-
-            if disconnected:
-                logger.info(
-                    f"Pruning disconnected worker(s): {disconnected}"
-                )
-                await self._prune_disconnected(disconnected)
-
-            try:
-                worker_node_info = get_worker_nodes()
-                unseen = set(worker_node_info) - set(self.local_servers)
-                if unseen:
-                    logger.info(f"New worker(s) detected: {unseen}")
-                    await self._initialise_nodes(unseen, worker_node_info)
-            except Exception as e:
-                logger.warning(f"Failed to list worker nodes: {e}")
-
-            await asyncio.sleep(5)
-
-    async def _setup_single_node(
-        self, node_id: str, worker_node_info: dict
-    ) -> bool:
-        try:
-            node_address = worker_node_info[node_id]["address"]
-            sllm_store_client = SllmStoreClient(f"{node_address}:8073")
-            local_server_config = sllm_store_client.get_server_config()
-            if not local_server_config:
-                logger.warning(
-                    f"Failed to get server config for node {node_id}"  # noqa: E501
-                )
-                return False
-            if "chunk_size" not in local_server_config:
-                logger.error(
-                    f"Chunk size not found in server config for node {node_id}"  # noqa: E501
-                )
-            chunk_size = local_server_config["chunk_size"]
-            if "mem_pool_size" not in local_server_config:
-                logger.error(
-                    f"Memory pool size not found in server config for node {node_id}"
-                )
-            mem_pool_size = local_server_config["mem_pool_size"]
-            async with self.metadata_lock:
-                self.local_servers[node_id] = SllmLocalStore(
-                    node_id,
-                    sllm_store_client,
-                    mem_pool_size,
-                    chunk_size,
-                    self.hardware_info[node_id],
-                )
-            logger.info(
-                f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
-            )
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to connect to node {node_id}: {e}")
-            return False
-
-    async def _initialise_nodes(
-        self, node_ids: Set[str], worker_node_info: dict
-    ):
-        hardware_info_futures = {
-            node_id: collect_all_info.options(
-                resources={f"worker_id_{node_id}": 0.01}
-            ).remote()
-            for node_id in node_ids
-        }
-        for node_id, future in hardware_info_futures.items():
-            try:
-                hardware_info = await future
-                async with self.metadata_lock:
-                    self.hardware_info[node_id] = hardware_info
-                    logger.info(f"Hardware info collected for node {node_id}")
-            except Exception as e:
-                logger.error(f"Failed hardware info on node {node_id}: {e}")
-                continue
-
-        for node_id in list(node_ids):
-            if node_id not in worker_node_info:
-                continue
-            ok = await self._setup_single_node(node_id, worker_node_info)
-            if not ok:
-                await self._prune_disconnected({node_id})
-
-    async def _prune_disconnected(self, node_ids: Set[str]):
-        endpoints = {}
-        async with self.metadata_lock:
-            for node_id in node_ids:
-                endpoints[node_id] = self.local_servers[
-                    node_id
-                ].client.server_address.split(":", 1)[0]
-                self.local_servers.pop(node_id, None)
-                self.hardware_info.pop(node_id, None)
-
-                for model, placement in list(self.model_storage_info.items()):
-                    placement.pop(node_id, None)
-                    if not placement:
-                        logger.warning(f"No replicas left for model {model}")
-
-                logger.info(f"Pruned metadata for disconnected node {node_id}")
-
-        for node_id, ip in endpoints.items():
-            try:
-                cmd = [
-                    "ssh",
-                    "-o",
-                    "BatchMode=yes",
-                    "-o",
-                    "StrictHostKeyChecking=yes",
-                    ip,
-                    "ray",
-                    "stop",
-                    "--force",
-                ]
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                out, err = await asyncio.wait_for(
-                    proc.communicate(), timeout=15
-                )
-                if proc.returncode == 0:
-                    logger.info(f"Stopped Ray cleanly on {node_id}@{ip}")
-                else:
-                    logger.error(
-                        f"ray stop failed on {node_id}@{ip}: {err.decode().strip()}"
-                    )
-            except asyncio.TimeoutError:
-                logger.error(f"Timeout stopping Ray on {node_id}@{ip}")
-            except Exception as e:
-                logger.error(f"Error stopping Ray on {node_id}@{ip}: {e}")
-
-    async def get_hardware_info(self):
-        return self.hardware_info
-
-    async def get_model_info(self, model_name: Optional[str] = None):
-        logger.info(f"Getting info for {model_name}")
-        async with self.metadata_lock:
-            if model_name is not None:
-                return self.model_info.get(model_name, {})
-            else:
-                return self.model_info
-
-    async def get_store_info(self, node_id: Optional[str] = None):
-        async with self.metadata_lock:
-            if node_id is not None:
-                if node_id not in self.local_servers:
-                    logger.error(f"Node {node_id} not found")
-                    return {}
-                return await self.local_servers[node_id].get_store_info()
-            else:
-                node_info = {}
-                for node_id in self.local_servers:
-                    node_info[node_id] = await self.local_servers[
-                        node_id
-                    ].get_store_info()
-                return node_info
-
-    async def load_to_host(self, node_id: str, model_name: str) -> bool:
-        async with self.metadata_lock:
-            if node_id not in self.local_servers:
-                logger.error(f"Node {node_id} not found")
-                return False
-            local_server = self.local_servers[node_id]
-        logger.info(f"Loading {model_name} to node {node_id}")
-        return await local_server.load_to_host(model_name)
-
     async def register(self, model_config):
         model_name = model_config.get("model")
 
@@ -518,7 +336,7 @@ class StoreManager:
                         SllmStoreClient(f"{node_address}:8073"),
                         1,
                         first_node.chunk_size,
-                        first_node.hardware_info,
+                        self.hardware_info[node_id],
                     )
                 else:
                     logger.error(f"Node {node_id} not found")
@@ -556,50 +374,321 @@ class StoreManager:
         logger.info(
             f"Downloading model {pretrained_model_name_or_path} to nodes {local_disk}"  # noqa: E501
         )
+        model_size = -1
         for node_id in local_disk:
-            if backend == "transformers":
-                hf_model_class = backend_config.get("hf_model_class", None)
-                torch_dtype = backend_config.get("torch_dtype", "float16")
-                if hf_model_class is None:
-                    logger.error(
-                        "hf_model_type not specified in backend_config."
-                    )
-                    break
-                await self.download_transformers_model(
-                    model_name,
-                    pretrained_model_name_or_path,
-                    node_id,
-                    hf_model_class,
-                    torch_dtype,
-                )
-            elif backend == "vllm":
-                await self.download_vllm_model(
-                    model_name,
-                    pretrained_model_name_or_path,
-                    node_id,
-                    model_config.get("num_gpus", 1),
-                    backend_config.get("tensor_parallel_size", 1),
-                    backend_config.get("torch_dtype", "float16"),
-                )
-            else:
-                logger.error(f"Backend {backend} not supported")
-                break
-            local_server = self.local_servers[node_id]
-            model_size = await local_server.register_model(
-                model_name, backend, backend_config
+            size = await self._register_model_to_worker(
+                model_name, node_id, model_config
             )
-            # record the storage info
-            self.model_storage_info[model_name][node_id] = True
-            logger.info(f"{model_name} downloaded to node {node_id}")
-            if node_id in memory_pool:
-                # preload to memory pool
-                await self.load_to_host(
-                    node_id, pretrained_model_name_or_path
-                )
-                logger.info(f"{model_name} loaded to memory pool")
+            if size > 0:
+                model_size = size  # Store the size from a successful registration
+                if node_id in memory_pool:
+                    # preload to memory pool
+                    await self.load_to_host(
+                        node_id, pretrained_model_name_or_path
+                    )
+                    logger.info(f"{model_name} loaded to memory pool")
+        if model_size > 0:
+            async with self.metadata_lock:
+                self.model_info[model_name]["model_size"] = model_size
+            logger.info(f"{model_name} registered")
+        else:
+            logger.error(f"Failed to register {model_name} on any specified node.")
+            async with self.metadata_lock:
+                self.model_info.pop(model_name, None)
+                self.model_storage_info.pop(model_name, None)
 
-        self.model_info[model_name] = model_size
-        logger.info(f"{model_name} registered")
+    async def _watch_workers(self):
+        while True:
+            try:
+                try:
+                    worker_node_info = get_worker_nodes()
+                except AssertionError:
+                    logger.info("No worker resources found, assuming all are down or starting.")
+                    worker_node_info = {}
+
+                async with self.metadata_lock:
+                    managed_ray_ids_copy = self.managed_ray_ids.copy()
+
+                ready_workers = {
+                    worker_id: info['ray_node_id'] 
+                    for worker_id, info in worker_node_info.items()
+                }
+
+                nodes_to_prune = set()
+                nodes_to_init = set()
+
+                for worker_id, old_ray_id in managed_ray_ids_copy.items():
+                    if worker_id in ready_workers and ready_workers[worker_id] != old_ray_id:
+                        logger.warning(
+                            f"Worker '{worker_id}' has been replaced. Old Ray ID: {old_ray_id}, "
+                            f"New Ray ID: {ready_workers[worker_id]}. Re-initializing."
+                        )
+                        nodes_to_prune.add(worker_id)
+                        nodes_to_init.add(worker_id)
+
+                dead_workers = set(managed_ray_ids_copy.keys()) - set(ready_workers.keys())
+                if dead_workers:
+                    logger.info(f"Worker(s) {dead_workers} are no longer available. Pruning.")
+                    nodes_to_prune.update(dead_workers)
+
+                new_workers = set(ready_workers.keys()) - set(managed_ray_ids_copy.keys())
+                if new_workers:
+                    logger.info(f"New worker(s) detected: {new_workers}. Initializing.")
+                    nodes_to_init.update(new_workers)
+
+                if nodes_to_prune:
+                    await self._prune_disconnected(nodes_to_prune)
+                
+                if nodes_to_init:
+                    await self._initialise_nodes(nodes_to_init, worker_node_info)
+                    
+                logger.debug(f"worker_node_info: {worker_node_info}")
+                logger.debug(f"dead: {dead_workers}")
+                logger.debug(f"prune: {nodes_to_prune}")
+                logger.debug(f"init: {nodes_to_init}")
+
+            except Exception as e:
+                logger.warning(f"An unexpected error occurred in _watch_workers, will retry: {e}", exc_info=True)
+
+            await asyncio.sleep(5)
+
+    async def _initialise_nodes(
+        self, node_ids: Set[str], worker_node_info: dict
+    ):
+        hardware_info_futures = {
+            node_id: collect_all_info.options(
+                resources={f"worker_id_{node_id}": 0.01}
+            ).remote()
+            for node_id in node_ids
+        }
+        for node_id, future in hardware_info_futures.items():
+            try:
+                hardware_info = await future
+                async with self.metadata_lock:
+                    self.hardware_info[node_id] = hardware_info
+                    logger.info(f"Hardware info collected for node {node_id}")
+            except Exception as e:
+                logger.error(f"Failed hardware info on node {node_id}: {e}")
+                continue
+
+        for node_id in list(node_ids):
+            if node_id not in worker_node_info:
+                continue
+            if await self._setup_single_node(node_id, worker_node_info):
+                async with self.metadata_lock:
+                    self.managed_ray_ids[node_id] = worker_node_info[node_id]['ray_node_id']
+
+                models_to_restore = []
+                async with self.metadata_lock:
+                    for model_name, placement in self.model_storage_info.items():
+                        if node_id in placement:
+                            models_to_restore.append(model_name)
+                if models_to_restore:
+                    for model_name in models_to_restore:
+                        await self._relink_worker(node_id, model_name)
+            else:
+                await self._prune_disconnected({node_id})
+
+    async def _prune_disconnected(self, node_ids: Set[str]):
+        endpoints = {}
+        async with self.metadata_lock:
+            for node_id in node_ids:
+                local_server = self.local_servers.pop(node_id, None)
+                if local_server:
+                    endpoints[node_id] = local_server.client.server_address.split(":", 1)[0]
+
+                self.hardware_info.pop(node_id, None)
+                self.managed_ray_ids.pop(node_id, None)
+
+                logger.info(f"Pruned metadata for disconnected node {node_id}")
+
+        for node_id, ip in endpoints.items():
+            try:
+                cmd = [
+                    "ssh",
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "StrictHostKeyChecking=yes",
+                    ip,
+                    "ray",
+                    "stop",
+                    "--force",
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                out, err = await asyncio.wait_for(
+                    proc.communicate(), timeout=15
+                )
+                if proc.returncode == 0:
+                    logger.info(f"Stopped Ray cleanly on {node_id}@{ip}")
+                else:
+                    logger.error(
+                        f"ray stop failed on {node_id}@{ip}: {err.decode().strip()}"
+                    )
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout stopping Ray on {node_id}@{ip}")
+            except Exception as e:
+                logger.error(f"Error stopping Ray on {node_id}@{ip}: {e}")
+
+    async def _setup_single_node(
+        self, node_id: str, worker_node_info: dict
+    ) -> bool:
+        try:
+            node_address = worker_node_info[node_id]["address"]
+            sllm_store_client = SllmStoreClient(f"{node_address}:8073")
+            local_server_config = sllm_store_client.get_server_config()
+            if not local_server_config:
+                logger.warning(
+                    f"Failed to get server config for node {node_id}"  # noqa: E501
+                )
+                return False
+            if "chunk_size" not in local_server_config:
+                logger.error(
+                    f"Chunk size not found in server config for node {node_id}"  # noqa: E501
+                )
+            chunk_size = local_server_config["chunk_size"]
+            if "mem_pool_size" not in local_server_config:
+                logger.error(
+                    f"Memory pool size not found in server config for node {node_id}"
+                )
+            mem_pool_size = local_server_config["mem_pool_size"]
+            async with self.metadata_lock:
+                self.local_servers[node_id] = SllmLocalStore(
+                    node_id,
+                    sllm_store_client,
+                    mem_pool_size,
+                    chunk_size,
+                    self.hardware_info[node_id],
+                )
+            logger.info(
+                f"Node {node_id} initialized, chunk size: {chunk_size}"  # noqa: E501
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to connect to node {node_id}: {e}")
+            return False
+
+
+    async def _relink_worker(self, node_id: str, model_name: str):
+        """
+        Relinks a model to a worker that has reconnected.
+        """
+        logger.info(f"Restoring model {model_name} on reconnected node {node_id}")
+        async with self.metadata_lock:
+            model_config = self.model_info.get(model_name)
+            if not model_config:
+                logger.error(
+                    f"Cannot relink {model_name}: model info not found."
+                )
+                return
+
+        model_size = await self._register_model_to_worker(
+            model_name, node_id, model_config
+        )
+
+        if model_size > 0:
+            logger.info(f"Successfully restored {model_name} on {node_id}")
+            # Check if it needs to be preloaded to memory
+            placement_config = model_config.get("placement_config", {})
+            memory_pool = placement_config.get("memory_pool", [])
+            if node_id in memory_pool:
+                pretrained_model_name_or_path = model_config["backend_config"].get(
+                    "pretrained_model_name_or_path"
+                )
+                await self.load_to_host(node_id, pretrained_model_name_or_path)
+                logger.info(
+                    f"{model_name} loaded to memory pool on node {node_id}"
+                )
+        else:
+            logger.error(f"Failed to restore {model_name} on {node_id}")
+
+
+    async def _register_model_to_worker(
+        self, model_name: str, node_id: str, model_config: dict
+    ) -> int:
+        """
+        Helper function to download and register a model to a specific worker.
+        """
+        backend = model_config.get("backend", None)
+        backend_config = model_config.get("backend_config", {})
+        pretrained_model_name_or_path = backend_config.get(
+            "pretrained_model_name_or_path", None
+        )
+
+        if backend == "transformers":
+            hf_model_class = backend_config.get("hf_model_class", None)
+            torch_dtype = backend_config.get("torch_dtype", "float16")
+            if hf_model_class is None:
+                logger.error("hf_model_type not specified in backend_config.")
+                return -1
+            await self.download_transformers_model(
+                model_name,
+                pretrained_model_name_or_path,
+                node_id,
+                hf_model_class,
+                torch_dtype,
+            )
+        elif backend == "vllm":
+            await self.download_vllm_model(
+                model_name,
+                pretrained_model_name_or_path,
+                node_id,
+                model_config.get("num_gpus", 1),
+                backend_config.get("tensor_parallel_size", 1),
+                backend_config.get("torch_dtype", "float16"),
+            )
+        else:
+            logger.error(f"Backend {backend} not supported")
+            return -1
+
+        local_server = self.local_servers[node_id]
+        model_size = await local_server.register_model(
+            model_name, backend, backend_config
+        )
+        # record the storage info
+        async with self.metadata_lock:
+            self.model_storage_info[model_name][node_id] = True
+        logger.info(f"{model_name} downloaded to node {node_id}")
+        return model_size
+
+    async def get_hardware_info(self):
+        return self.hardware_info
+
+    async def get_model_info(self, model_name: Optional[str] = None):
+        logger.info(f"Getting info for {model_name}")
+        async with self.metadata_lock:
+            if model_name is not None:
+                return self.model_info.get(model_name, {})
+            else:
+                return self.model_info
+
+    async def get_store_info(self, node_id: Optional[str] = None):
+        async with self.metadata_lock:
+            if node_id is not None:
+                if node_id not in self.local_servers:
+                    logger.error(f"Node {node_id} not found")
+                    return {}
+                return await self.local_servers[node_id].get_store_info()
+            else:
+                node_info = {}
+                for node_id in self.local_servers:
+                    node_info[node_id] = await self.local_servers[
+                        node_id
+                    ].get_store_info()
+                return node_info
+
+    async def load_to_host(self, node_id: str, model_name: str) -> bool:
+        async with self.metadata_lock:
+            if node_id not in self.local_servers:
+                logger.error(f"Node {node_id} not found")
+                return False
+            local_server = self.local_servers[node_id]
+        logger.info(f"Loading {model_name} to node {node_id}")
+        return await local_server.load_to_host(model_name)
 
     async def register_lora_adapter(
         self,
