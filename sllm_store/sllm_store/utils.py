@@ -325,10 +325,10 @@ def quantize(
     for name, param in state_dict.items():
         module_name = name.rpartition('.')[0]
         target_device = None
-        best_match_len = -1
-        for key, device in device_map.items():
-            if module_name.startswith(key) and len(key) > best_match_len:
-                target_device = device
+        for key in sorted(device_map.keys(), key=len, reverse=True):
+            if module_name.startswith(key):
+                target_device = device_map[key]
+                break
                 best_match_len = len(key)
 
         if target_device is None:
