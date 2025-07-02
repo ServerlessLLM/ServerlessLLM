@@ -51,7 +51,7 @@ docker logs -f sllm_head
 
 ## Step 4: Create Quantization and Deployment Configurations
 
-First, we'll generate a standard Hugging Face BitsAndBytesConfig and save it to a JSON file. Then, we'll create a deployment configuration file that references it.
+First, we'll generate a standard Hugging Face BitsAndBytesConfig and save it to a JSON file. Then, we'll create a deployment configuration file with these quantization settings embedded in it.
 
 1. Generate the Quantization Config
 
