@@ -15,15 +15,19 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import os
 from contextlib import asynccontextmanager
 
 import ray
 import ray.exceptions
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
+origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+origins += ["http://localhost", "http://localhost:3000"]
 
 
 def create_app() -> FastAPI:
@@ -36,6 +40,13 @@ def create_app() -> FastAPI:
         ray.shutdown()
 
     app = FastAPI(lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
+        max_age=86400,
+    )
 
     @app.get("/health")
     async def health_check():
