@@ -60,8 +60,8 @@ Create a Python script named `get_config.py` in the current directory with the f
 # get_config.py
 from transformers import BitsAndBytesConfig
 
-quantization_config = BitsAndBytesConfig(load_in_4bit=True) # create the config
-quantization_config.to_json_file("quantization_config.json") # save the config into a JSON file
+quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+quantization_config.to_json_file("quantization_config.json")
 
 ```
 
