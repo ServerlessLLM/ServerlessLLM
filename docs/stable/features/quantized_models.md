@@ -73,7 +73,7 @@ python get_config.py
 
 2. Create the Deployment Config
 
-Now, create a file named `quantized_deploy_config.json`. This file tells ServerlessLLM which model to deploy and instructs the backend to use the quantization settings we just created. A template can be found in `sllm/cli/default_config.json`.
+Now, create a file named `quantized_deploy_config.json`. This file tells ServerlessLLM which model to deploy and instructs the backend to use the quantization settings. You should copy the contents of `quantization_config.json` into the `quantization_config` field below. A template can be found in `sllm/cli/default_config.json`.
 
 ```json
 {
