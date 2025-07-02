@@ -323,7 +323,7 @@ def quantize(
     client.confirm_model_loaded(model_path, replica_uuid)
 
     for name, param in state_dict.items():
-        module_name = name.rpartition('.')[0]
+        module_name = name.rpartition(".")[0]
         target_device = None
         for key in sorted(device_map.keys(), key=len, reverse=True):
             if module_name.startswith(key):
