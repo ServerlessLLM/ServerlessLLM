@@ -21,6 +21,7 @@ from contextlib import suppress
 
 import torch
 from torch import nn
+from accelerate import infer_auto_device_map
 from accelerate.utils import (
     find_tied_parameters,
     set_module_tensor_to_device,
@@ -30,7 +31,6 @@ from transformers.quantizers.auto import AutoHfQuantizer
 from transformers.utils.quantization_config import (
     QuantizationConfigMixin,
 )
-from accelerate import infer_auto_device_map
 
 from sllm_store.client import SllmStoreClient
 
