@@ -13,7 +13,7 @@ Available precisions include:
 - `fp4`
 - `nf4`
 
-> Note: CPU offloading and dequantization is not currently supported. 
+> Note: CPU offloading and dequantization is not currently supported.
 
 ## 8-bit Quantization (`int8`)
 

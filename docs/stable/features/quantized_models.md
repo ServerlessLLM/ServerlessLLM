@@ -57,7 +57,7 @@ First, we'll generate a standard Hugging Face BitsAndBytesConfig and save it to 
 1. Generate the Quantization Config
 
 Create a Python script named `get_config.py` in the current directory with the following content:
-```python 
+```python
 # get_config.py
 from transformers import BitsAndBytesConfig
 
@@ -153,7 +153,7 @@ To verify the model is being loaded in the desired precision, check the logs (`d
 (TransformersBackend pid=352, ip=172.18.0.2) DEBUG 07-02 20:01:49 client.py:72] load_into_gpu: transformers/facebook/opt-1.3b, 70b42a05-4faa-4eaf-bb73-512c6453e7fa
 (TransformersBackend pid=352, ip=172.18.0.2) INFO 07-02 20:01:49 client.py:113] Model loaded: transformers/facebook/opt-1.3b, 70b42a05-4faa-4eaf-bb73-512c6453e7fa
 (TransformersBackend pid=352, ip=172.18.0.2) INFO 07-02 20:01:49 transformers.py:398] restore state_dict takes 0.0007319450378417969 seconds
-(TransformersBackend pid=352, ip=172.18.0.2) DEBUG 07-02 20:01:49 transformers.py:411] using precision: fp4 
+(TransformersBackend pid=352, ip=172.18.0.2) DEBUG 07-02 20:01:49 transformers.py:411] using precision: fp4
 (TransformersBackend pid=352, ip=172.18.0.2) INFO 07-02 20:01:50 client.py:117] confirm_model_loaded: transformers/facebook/opt-1.3b, 70b42a05-4faa-4eaf-bb73-512c6453e7fa
 ```
 
@@ -164,7 +164,7 @@ You should receive a successful JSON response from the model.
 Delete the model deployment by running the following command:
 
 ```bash
-sllm-cli delete facebook/opt-1.3b 
+sllm-cli delete facebook/opt-1.3b
 ```
 
 If you need to stop and remove the containers, you can use the following commands:
