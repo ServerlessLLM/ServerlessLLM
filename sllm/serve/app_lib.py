@@ -15,11 +15,13 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import json
 from contextlib import asynccontextmanager
 
 import ray
 import ray.exceptions
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from sllm.serve.logger import init_logger
 
@@ -174,5 +176,43 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=500, detail="Failed to retrieve models"
             )
+
+    @app.get("/v1/workers")
+    async def get_workers():
+        logger.info("Attempting to retrieve the controller actor")
+        try:
+            controller = ray.get_actor("controller")
+            if not controller:
+                logger.error("Controller not initialized")
+                raise HTTPException(
+                    status_code=500, detail="Controller not initialized"
+                )
+            logger.info("Controller actor found")
+            result = await controller.worker_status.remote()
+            logger.info("Worker status retrieved successfully")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error retrieving workers: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail="Failed to retrieve workers"
+            )
+
+    @app.get("/v1/queue")
+    async def get_global_work_queue_status():
+        try:
+            controller = ray.get_actor("controller")
+        except ValueError:
+            raise HTTPException(
+                status_code=503, detail="Controller not available."
+            )
+
+        sorted_work_items = await controller.get_global_work_queue.remote()
+        response_items = [
+            {**item, "overall_queue_position": i + 1}
+            for i, item in enumerate(sorted_work_items)
+        ]
+
+        return JSONResponse(content={"work_queue": response_items})
 
     return app
