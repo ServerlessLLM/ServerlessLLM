@@ -20,9 +20,12 @@ from functools import reduce
 from contextlib import suppress
 
 import torch
-import bitsandbytes as bnb
 from torch import nn
-from accelerate.utils import find_tied_parameters, set_module_tensor_to_device, get_max_memory
+from accelerate.utils import (
+    find_tied_parameters,
+    set_module_tensor_to_device,
+    get_max_memory,
+)
 from transformers.quantizers.auto import AutoHfQuantizer
 from transformers.utils.quantization_config import (
     QuantizationConfigMixin,
@@ -140,9 +143,6 @@ def get_parameter_size(model: nn.Module, param_path: str):
 def get_no_split_modules(model, no_split_modules_list, parent_name=""):
     no_split_modules = {}
     for name, submodule in model.named_children():
-        print(f"name {name}")
-        print(f"submodule {submodule}")
-
         full_name = f"{parent_name}.{name}" if parent_name else name
         module_class_name = submodule.__class__.__name__
         # If the module is a leaf module or in the no_split_modules_list, we don't split it # noqa: E501
@@ -303,6 +303,7 @@ def quantize(
     hf_quantizer = AutoHfQuantizer.from_config(
         quantization_config, pre_quantized=False
     )
+    model.hf_quantizer = hf_quantizer
     hf_quantizer.preprocess_model(model, device_map=device_map)
 
     # device map update
@@ -314,26 +315,27 @@ def quantize(
         no_split_module_classes=model._no_split_modules,
         dtype=torch_dtype,
     )
-
     hf_quantizer.validate_environment(device_map=device_map)
     model.hf_device_map = device_map
-
 
     # synchronize
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
 
     for name, param in state_dict.items():
-        module_name = ".".join(name.split('.')[:-1])
+        module_name = ".".join(name.split(".")[:-1])
         target_device = None
         for key in device_map:
             if module_name.startswith(key):
                 target_device = device_map[key]
                 break
-        
+
         if target_device is None:
             target_device = param.device
-            logger.warning(f"Could not find device for module of '{name}'. Defaulting to '{target_device}'.")
+            logger.warning(
+                f"Could not find device for module of '{name}'."
+                f"Defaulting to '{target_device}'."
+            )
 
         if param.is_floating_point():
             param = param.to(torch_dtype)
@@ -358,6 +360,5 @@ def quantize(
     if quant_method == "gptq":
         model = model.to("cuda")
 
-    model.hf_quantizer = hf_quantizer
     hf_quantizer.postprocess_model(model)
     return model, device_map
