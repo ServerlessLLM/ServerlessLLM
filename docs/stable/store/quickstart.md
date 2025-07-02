@@ -193,19 +193,15 @@ for output in outputs:
 
 ## Quantization
 
-ServerlessLLM currently supports model quantization using `bitsandbytes` through the Hugging Face Transformers' `BitsAndBytesConfig`.
-
-Available precisions include:
-- `int8`
-- `fp4`
-- `nf4`
-
-For further information, consult the [HuggingFace Documentation for BitsAndBytes](https://huggingface.co/docs/transformers/main/en/quantization/bitsandbytes)
-
 > Note: Quantization is currently experimental, especially on multi-GPU machines. You may encounter issues when using this feature in multi-GPU environments.
+> Note: Our current capabilities do not support pre-quantization or CPU offloading, which is why other quantization methods are not available at the moment.
+
+ServerlessLLM currently supports `bitsandbytes` quantization through `transformers`.
+
+For further information, consult the [HuggingFace Documentation for Quantization](https://huggingface.co/docs/transformers/en/main_classes/quantization)
 
 ### Usage
-To use quantization, create a `BitsAndBytesConfig` object with your desired settings:
+To use quantization, create a quantization config object with your desired settings using the `transformers` format:
 
 ```python
 from transformers import BitsAndBytesConfig
@@ -238,7 +234,9 @@ model = load_model(
     quantization_config=quantization_config,
 )
 ```
+A full example can be found [here](https://github.com/ServerlessLLM/ServerlessLLM/blob/main/sllm_store/examples/load_quantized_transformers_model.py).
 
+For users with multi-GPU setups, ensure that the number of CUDA visible devices are the same on both the store server and the user environment via `export CUDA_VISIBLE_DEVICES=<num_gpus>`.
 
 # Fine-tuning
 ServerlessLLM currently supports LoRA fine-tuning using peft through the Hugging Face Transformers PEFT.
