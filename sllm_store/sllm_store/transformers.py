@@ -375,7 +375,7 @@ def best_effort_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            model = quantize(
+            model, device_map = quantize(
                 model,
                 state_dict,
                 quantization_config,
