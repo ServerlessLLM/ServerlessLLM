@@ -13,14 +13,13 @@ We will use Docker Compose to run a ServerlessLLM cluster in this example. There
 ## Usage
 Start a local Docker-based ray cluster using Docker Compose.
 
-## Step 1: Clone the ServerlessLLM Repository
+## Step 1: Set up the Environment
 
-If you haven't already, clone the ServerlessLLM repository:
+Create a directory for this example and download the `docker-compose.yml` file.
 
 ```bash
-git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/examples/storage_aware_scheduling
-```
+mkdir sllm-quantization-example && cd sllm-quantization-example
+curl -O https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
 
 ## Step 2: Configuration
 
