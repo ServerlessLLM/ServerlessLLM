@@ -329,7 +329,6 @@ def quantize(
             if module_name.startswith(key):
                 target_device = device_map[key]
                 break
-                best_match_len = len(key)
 
         if target_device is None:
             target_device = param.device
