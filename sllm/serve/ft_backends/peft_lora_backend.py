@@ -230,6 +230,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
             return data
 
     def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+        logger.debug("Receive fine tune request on peft lora backend")
         with self.status_lock:
             if self.status != FineTuningBackendStatus.RUNNING:
                 return {"error": "Model not initialized"}

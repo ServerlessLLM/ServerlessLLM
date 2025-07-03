@@ -86,9 +86,6 @@ class RoundRobinRouter(SllmRouter):
         self.request_count = 0
         self.request_count_lock = asyncio.Lock()
 
-        self.fine_tuning_count = 0
-        self.fine_tuning_count_lock = asyncio.Lock()
-
         self.running = False
         self.running_lock = asyncio.Lock()
 
@@ -138,12 +135,6 @@ class RoundRobinRouter(SllmRouter):
             if not self.running:
                 return {"error": "Instance stopped"}
 
-        async with self.fine_tuning_count_lock:
-            if self.fine_tuning_count > 0:
-                return {
-                    "error": "Fine-tuning in progress, inference cannot start."
-                }
-
         async with self.request_count_lock:
             self.request_count += 1
 
@@ -192,20 +183,14 @@ class RoundRobinRouter(SllmRouter):
         return result
 
     async def fine_tuning(self, request_data: dict):
+        logger.debug(f"Router received finetuning request")
         async with self.running_lock:
             if not self.running:
                 return {"error": "Instance stopped"}
 
-        async with self.request_count_lock:
-            if self.request_count > 0:
-                return {
-                    "error": "Inference requests in progress, fine-tuning cannot start."
-                }
-
-        async with self.fine_tuning_count_lock:
-            self.fine_tuning_count += 1
-
+        logger.debug(f"creating ft instance")
         instance_id = await self._create_ft_instance()
+        logger.debug(f"instance id: {instance_id}, start fine tuning.")
         async with self.instance_management_lock:
             if instance_id not in self.ready_instances:
                 logger.error(f"Fine tuning instance {instance_id} not found")
@@ -218,8 +203,6 @@ class RoundRobinRouter(SllmRouter):
 
         logger.info(f"Finished processing fine-tuning {self.model_name}")
         await instance.add_requests(-1)
-        async with self.fine_tuning_count_lock:
-            self.fine_tuning_count -= 1
 
         # the fine-tuning job is done, shutdown the instance
         await self._shutdown_instance(instance_id)
@@ -368,7 +351,6 @@ class RoundRobinRouter(SllmRouter):
         )
         async with self.instance_management_lock:
             self.starting_instances[instance_id] = instance
-
         self.loop.create_task(self._start_ft_instance(instance_id))
         return instance_id
 
