@@ -72,8 +72,8 @@ export LLM_SERVER_URL=http://127.0.0.1:8343
 
 Deploy the models:
 ```bash
-sllm-cli deploy --config config-qwen-1.5b.json
-sllm-cli deploy --config config-qwen-3b.json
+sllm deploy --config config-qwen-1.5b.json
+sllm deploy --config config-qwen-3b.json
 ```
 
 3. **Verify the Deployment**
@@ -139,8 +139,8 @@ export LLM_SERVER_URL=http://127.0.0.1:8343
 Deploy the models:
 
 ```bash
-sllm-cli deploy --config config-qwen-1.5b.json
-sllm-cli deploy --config config-qwen-3b.json
+sllm deploy --config config-qwen-1.5b.json
+sllm deploy --config config-qwen-3b.json
 ```
 
 3. **Verify the Deployment**
