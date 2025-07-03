@@ -21,6 +21,7 @@ from contextlib import suppress
 
 import torch
 from torch import nn
+from transformers import BitsAndBytesConfig
 from accelerate.utils import find_tied_parameters, set_module_tensor_to_device
 from transformers.quantizers.auto import AutoHfQuantizer
 from transformers.utils.quantization_config import (
@@ -259,7 +260,7 @@ def quantize(
 ):
     if isinstance(quantization_config, dict):
         try:
-            quantization_config = QuantizationConfigMixin.from_dict(
+            quantization_config = BitsAndBytesConfig.from_dict(
                 quantization_config
             )
         except (TypeError, ValueError) as e:
