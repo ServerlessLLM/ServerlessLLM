@@ -18,10 +18,12 @@
 import asyncio
 import datetime
 import os
+import uuid
 from typing import List, Mapping, Optional
 
 import ray
 
+from sllm.serve.fine_tuning_job_store import FineTuningJobStore
 from sllm.serve.logger import init_logger
 from sllm.serve.routers import MigrationRouter, RoundRobinRouter
 from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
@@ -49,12 +51,19 @@ class SllmController:
         # Register model info
         self.registered_models = {}
 
+        self.fine_tuning_jobs = {}
+        self.ft_job_lock = asyncio.Lock()
+        self.job_store = FineTuningJobStore.remote()
+
     async def start(self):
         async with self.running_lock:
             if self.running:
                 logger.error("Controller already started")
                 raise RuntimeError("Controller already started")
             self.running = True
+
+        # Start the fine-tuning job processor
+        asyncio.create_task(self._process_ft_jobs())
 
         logger.info("Starting store manager")
         enable_storage_aware = self.config.get("enable_storage_aware", False)
@@ -166,6 +175,44 @@ class SllmController:
         async with self.metadata_lock:
             self.registered_models[model_name] = model_config
             self.request_routers[model_name] = request_router
+
+    async def register_ft_job(self, job_config):
+        job_id = str(uuid.uuid4())
+        job_info = {
+            "config": job_config,
+            "status": "pending",
+            "created_time": datetime.datetime.now().isoformat(),
+            "updated_time": datetime.datetime.now().isoformat(),
+            "priority": job_config.get("priority", 0),  # Default priority = 0
+        }
+        await self.job_store.add_job.remote(job_id, job_info)
+        return job_id
+
+    async def _process_ft_jobs(self):
+        while True:
+            try:
+                # TODO: Get available resources, calculate resource availability
+
+                # Get pending jobs with resource requirements
+                pending_jobs = await self.job_store.get_pending_jobs.remote()
+
+                # Sort jobs by priority/age
+                sorted_jobs = sorted(
+                    pending_jobs.items(),
+                    key=lambda x: (
+                        x[1].get("priority", 0),
+                        x[1]["created_time"],
+                    ),
+                )
+
+                # Process jobs based on available resources
+                for job_id, job_info in sorted_jobs:
+                    await self._start_ft_job(job_id, job_info)
+
+            except Exception as e:
+                logger.error(f"Error in fine-tuning job processor: {str(e)}")
+
+            await asyncio.sleep(30)
 
     async def update(self, model_name: str, model_config: Mapping):
         async with self.metadata_lock:
@@ -324,3 +371,77 @@ class SllmController:
                 for model_name in self.request_routers.keys()
             ]
             await asyncio.gather(*delete_tasks)
+
+    async def _start_ft_job(self, job_id, job_info):
+        try:
+            logger.info(f"[FT Job {job_id}] Updating job status to 'running'.")
+            # Update job status
+            await self.job_store.update_status.remote(job_id, "running")
+            logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
+
+            logger.info(
+                f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
+            )
+            # Create fine-tuning router with resource limits
+            ft_request_router = self.router_cls.options(
+                name=f"ft_{job_id}",
+                namespace="fine_tuning",
+                num_cpus=1,
+                num_gpus=job_info["config"].get("num_gpus", 0),
+                resources={"control_node": 0.1},
+            ).remote(
+                job_info["config"]["model"],
+                job_info["config"],
+                job_info["config"]["ft_backend"],
+                job_info["config"].get("backend_config", {}),
+                job_info["config"].get("router_config", {}),
+            )
+            logger.info(f"[FT Job {job_id}] Fine-tuning router created.")
+
+            # Start fine-tuning with timeout
+            try:
+                logger.info(
+                    f"[FT Job {job_id}] Starting fine-tuning with timeout {job_info['config'].get('timeout', 3600)} seconds."
+                )
+                await asyncio.wait_for(
+                    ft_request_router.fine_tuning.remote(job_info["config"]),
+                    timeout=job_info["config"].get("timeout", 3600),
+                )
+                logger.info(
+                    f"[FT Job {job_id}] Fine-tuning completed successfully."
+                )
+                await self.job_store.update_status.remote(job_id, "completed")
+                logger.info(
+                    f"[FT Job {job_id}] Job status updated to 'completed'."
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"[FT Job {job_id}] Fine-tuning job timed out.")
+                await self.job_store.update_status.remote(
+                    job_id, "failed", error="Job timed out"
+                )
+                logger.info(
+                    f"[FT Job {job_id}] Job status updated to 'failed' due to timeout."
+                )
+
+        except Exception as e:
+            logger.error(f"[FT Job {job_id}] Exception occurred: {str(e)}")
+            await self.job_store.update_status.remote(
+                job_id, "failed", error=str(e)
+            )
+            logger.info(
+                f"[FT Job {job_id}] Job status updated to 'failed' due to exception."
+            )
+        # TODO Cleanup resources or keep alive.
+        # finally:
+
+    async def get_ft_job_status(self, job_id):
+        return await self.job_store.get_job.remote(job_id)
+
+    async def cancel_ft_job(self, job_id):
+        job_info = await self.job_store.get_job.remote(job_id)
+        if job_info["status"] == "running":
+            ft_request_router = ray.get_actor(
+                f"ft_{job_id}", namespace="fine_tuning"
+            )
+            await ft_request_router.cancel.remote()
+            await self.job_store.update_status.remote(job_id, "cancelled")
