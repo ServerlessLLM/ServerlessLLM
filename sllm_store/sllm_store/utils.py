@@ -257,6 +257,15 @@ def quantize(
     replica_uuid,
     logger,
 ):
+    if isinstance(quantization_config, dict):
+        try:
+            quantization_config = QuantizationConfigMixin.from_dict(
+                quantization_config
+            )
+        except (TypeError, ValueError) as e:
+            logger.error(f"Invalid quantization_config dictionary: {e}")
+            raise ValueError(f"Invalid quantization_config: {e}") from e
+
     if not isinstance(quantization_config, QuantizationConfigMixin):
         raise ValueError(f"Invalid config type: {type(quantization_config)}")
 
