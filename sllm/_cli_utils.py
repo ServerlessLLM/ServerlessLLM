@@ -94,7 +94,8 @@ def deploy_model(
     if max_instances is not None:
         config_data["auto_scaling_config"]["max_instances"] = max_instances
 
-    url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/register")
+    base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
+    url = f"{base_url.rstrip('/')}/register"
     headers = {"Content-Type": "application/json"}
 
     try:
@@ -117,7 +118,8 @@ def delete_model(models):
         print("[⚠️ WARNING] No model names provided for deletion.")
         return
 
-    url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/delete/")
+    base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
+    url = f"{base_url.rstrip('/')}/delete"
     headers = {"Content-Type": "application/json"}
 
     for model in models:

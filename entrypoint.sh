@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#                                                                              #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+# ---------------------------------------------------------------------------- #
+
 set -e
 
 # Default values
@@ -40,29 +58,13 @@ initialize_head_node() {
   eval "$CMD"
 
 
-echo "Starting SLLM API server..."
-
-
-nohup python /opt/conda/envs/head/lib/python3.10/site-packages/sllm/serve/commands/serve/sllm_serve.py start > /tmp/sllm_api.log 2>&1 &
-
-
-sleep 5
-
-
-if pgrep -f "sllm_serve.py" > /dev/null; then
-    echo " SLLM API server started successfully on port 8343"
-else
-    echo "Failed to start SLLM API server"
-    echo "Check logs: /tmp/sllm_api.log"
-fi
-
-echo "SLLM head node is ready!"
-
-
-tail -f /dev/null
+  # Start sllm-serve with any additional arguments passed to the script
+  echo "Starting sllm-serve with arguments: $@"
+  exec sllm-serve start "$@"
 }
 
-# Function to initialize the worker node  
+
+# Function to initialize the worker node
 initialize_worker_node() {
   echo "Initializing worker node..."
 
@@ -95,7 +97,7 @@ initialize_worker_node() {
   echo "Executing: $CMD"
   eval "$CMD"
 
-  
+  # Start sllm-store with any additional arguments passed to the script
   STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
   echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH $@"
   exec sllm-store start --storage-path=$STORAGE_PATH "$@"

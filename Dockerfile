@@ -1,3 +1,4 @@
+
 # ---------------------------------------------------------------------------- #
 #  ServerlessLLM                                                               #
 #  Copyright (c) ServerlessLLM Team 2024                                       #
@@ -64,10 +65,8 @@ RUN cd sllm_store && python3 setup.py bdist_wheel
 
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
-COPY sllm /app/sllm
-COPY examples /app/examples
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+COPY sllm/serve /app/sllm/serve
+COPY sllm/cli /app/sllm/cli
 COPY README.md /app/
 RUN python3 setup.py bdist_wheel
 
@@ -91,19 +90,18 @@ RUN conda run -n worker pip install -U pip
 
 # Copy requirements files
 COPY requirements.txt /app/
-RUN conda run -n head pip install -r /app/requirements.txt
 
+RUN conda run -n head pip install -r /app/requirements.txt
 COPY requirements-worker.txt /app/
+
 RUN conda run -n worker pip install -r /app/requirements-worker.txt
 
 # Copy vllm patch for worker
 COPY sllm_store/vllm_patch /app/vllm_patch
 
-# Copy the built wheels and examples from the builder
+# Copy the built wheels from the builder
 COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
-COPY --from=builder /app/examples /app/examples
-COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
 
 # Install packages in head environment
 RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
@@ -116,25 +114,9 @@ RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
 # Apply vLLM patch in worker environment
 RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
 
-# Copy the built wheels and examples from the builder
-COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
-COPY --from=builder /app/dist /app/dist
-COPY --from=builder /app/examples /app/examples
-COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh  
-
-# Install packages in head environment
-RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
-    conda run -n head pip install /app/dist/*.whl
-
-# Install packages in worker environment
-RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
-    conda run -n worker pip install /app/dist/*.whl
-
-# Apply vLLM patch in worker environment
-RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
-
-# Ensure entrypoint is executable
-RUN chmod +x /app/entrypoint.sh
+# Copy the entrypoint
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 # Set the entrypoint directly to the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]
