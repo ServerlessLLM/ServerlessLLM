@@ -4,7 +4,6 @@ import time
 import torch
 
 from transformers import AutoTokenizer, BitsAndBytesConfig
-
 from sllm_store.transformers import load_model
 
 parser = argparse.ArgumentParser(description="Load a model from ServerlessLLM")
