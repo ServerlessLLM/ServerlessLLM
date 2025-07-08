@@ -22,7 +22,7 @@ Ensure you have the following installed and configured on all machines (both hea
 2. **Network connectivity**: Ensure all machines can communicate with each other on the required ports (6379 for Ray, 8343 for ServerlessLLM API, and 8073 for storage service).
 
 :::tip
-The **ServerlessLLM CLICK** (`pip install serverless-llm`) can be installed on any machine that needs to manage model deployments. This could be your local computer or any machine within the cluster that can connect to the head node.
+The **ServerlessLLM CLI** (`pip install serverless-llm`) can be installed on any machine that needs to manage model deployments. This could be your local computer or any machine within the cluster that can connect to the head node.
 :::
 
 ### For Worker Machines Only
