@@ -59,6 +59,8 @@ def deploy_model(
     target=None,
     min_instances=None,
     max_instances=None,
+    adapter_name=None,
+    precision=None,
 ):
     default_config_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "default_config.json")
@@ -71,10 +73,50 @@ def deploy_model(
     config_data = read_config(default_config_path)
 
     if config:
-        config_path = os.path.abspath(config)
-        if not os.path.exists(config_path):
-            print(f"[ERROR] Config file not found at: {config_path}")
-            return
+        # Try to find the config file in multiple locations
+        config_path = None
+        search_paths = [
+            os.path.abspath(
+                config
+            ),  # Absolute or relative to current directory
+            os.path.join(
+                os.path.dirname(__file__), config
+            ),  # Relative to sllm package
+            os.path.expanduser(f"~/.sllm/{config}"),  # User config directory
+            os.path.join("/etc/sllm", config),  # System config directory
+        ]
+
+        for path in search_paths:
+            if os.path.exists(path):
+                config_path = path
+                break
+
+        if not config_path:
+            print(
+                f"[ERROR] Config file '{config}' not found in any of these locations:"
+            )
+            for path in search_paths:
+                print(f"  - {path}")
+            print("")
+            print("Available config files:")
+            # Show available config files in current directory
+            current_dir_configs = [
+                f for f in os.listdir(".") if f.endswith(".json")
+            ]
+            if current_dir_configs:
+                for cf in current_dir_configs:
+                    print(f"  - {cf}")
+            else:
+                print("  - No JSON config files found in current directory")
+
+            # Show the default config location
+            default_config_rel = os.path.join(
+                os.path.dirname(__file__), "default_config.json"
+            )
+            if os.path.exists(default_config_rel):
+                print(f"  - {default_config_rel} (default config)")
+            sys.exit(1)  # Exit with error code
+
         user_config = read_config(config_path)
         config_data = deep_update(config_data, user_config)
 
@@ -83,6 +125,21 @@ def deploy_model(
         config_data.setdefault("backend_config", {})[
             "pretrained_model_name_or_path"
         ] = model
+
+    # 验证模型名称是否存在
+    if not config_data.get("model"):
+        print("[❌ ERROR] Model name is required!")
+        print("Please specify the model in one of these ways:")
+        print("  1. Command line: --model MODEL_NAME")
+        print("  2. Config file: include 'model' field in your JSON config")
+        print("  3. Both: --config CONFIG_FILE --model MODEL_NAME")
+        print("")
+        print("Examples:")
+        print("  sllm deploy --model microsoft/DialoGPT-small")
+        print("  sllm deploy --config my_config.json")
+        print("  sllm deploy --config my_config.json --model facebook/opt-1.3b")
+        sys.exit(1)
+
     if backend:
         config_data["backend"] = backend
     if num_gpus is not None:
@@ -93,6 +150,12 @@ def deploy_model(
         config_data["auto_scaling_config"]["min_instances"] = min_instances
     if max_instances is not None:
         config_data["auto_scaling_config"]["max_instances"] = max_instances
+    if adapter_name:
+        config_data.setdefault("backend_config", {})["adapter_name"] = (
+            adapter_name
+        )
+    if precision:
+        config_data.setdefault("backend_config", {})["precision"] = precision
 
     base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
     url = f"{base_url.rstrip('/')}/register"
@@ -108,8 +171,10 @@ def deploy_model(
             print(
                 f"[❌ ERROR] Deploy failed with status {response.status_code}: {response.text}"
             )
+            sys.exit(1)  # Exit with error code to indicate failure
     except Exception as e:
         print(f"[EXCEPTION] Failed to deploy: {str(e)}")
+        sys.exit(1)  # Exit with error code to indicate failure
 
 
 # ----------------------------- DELETE COMMAND ----------------------------- #

@@ -15,15 +15,35 @@ def cli():
 
 
 @cli.command()
-@click.option("--model", required=True, help="Model to deploy")
-@click.option("--config", help="Path to config file")
-@click.option("--backend")
-@click.option("--num-gpus", type=int)
-@click.option("--target", type=int)
-@click.option("--min-instances", type=int)
-@click.option("--max-instances", type=int)
+@click.option(
+    "--model",
+    help="Model name from HuggingFace model hub (required if not specified in config file)",
+)
+@click.option("--config", help="Path to configuration file")
+@click.option("--backend", help="Backend framework (e.g., vllm, transformers)")
+@click.option(
+    "--num-gpus", type=int, help="Number of GPUs to use for the model"
+)
+@click.option("--target", type=int, help="Target number of requests per second")
+@click.option(
+    "--min-instances", type=int, help="Minimum number of model instances"
+)
+@click.option(
+    "--max-instances", type=int, help="Maximum number of model instances"
+)
+@click.option(
+    "--adapter-name", help="Name of the LoRA adapter to use with the base model"
+)
+@click.option(
+    "--precision",
+    help="Model precision for quantization (e.g., int8, fp4, nf4)",
+)
 def deploy(**kwargs):
-    """Deploy a model using a config file or model name."""
+    """Deploy a model using a config file or model name.
+
+    Either --model or a config file with a model specified is required.
+    Command line options override values from the config file.
+    """
     deploy_model(**kwargs)
 
 
