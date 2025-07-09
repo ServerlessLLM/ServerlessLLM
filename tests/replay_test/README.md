@@ -55,5 +55,8 @@ In another terminal:
     ```sh
     python deploy_dummy_models.py --num-models 7
     python generate_random_workload.py --num-models 7 --request-rate 1 --duration-minutes 1
-    sllm replay --workload workload.json --dataset gsm8k_dataset.json
+      The `replay` subcommand is not implemented in the current version of `sllm`.
+     You can manually process the workload and dataset files using custom scripts or tools.
+    Example:
+    python process_workload.py --workload workload.json --dataset gsm8k_dataset.json
     ```

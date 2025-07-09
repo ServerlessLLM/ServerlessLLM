@@ -67,7 +67,7 @@ compute    up        2  down   infinite   JobNode[16-17]
 Only one JobNode is enough.
 
 **`sbatch` Node Selection**
-Let's start a head on the main job node (`JobNode01`) and add the worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs worker (`JobNode02`), for passing the model weights, and the `sllm-serve` should be started on the main job node (`JobNode01`), finally you can use `sllm` to manage the models on the login node.
+Let's start a head on the main job node (`JobNode01`) and add the worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs worker (`JobNode02`), for passing the model weights, and the `sllm start` should be started on the main job node (`JobNode01`), finally you can use `sllm` to manage the models on the login node.
 
 
 Note: `JobNode02` requires GPU, but `JobNode01` does not.
@@ -369,7 +369,7 @@ We will start the worker node and store in the same script. Because the server l
    INFO:     Application startup complete.
    INFO:     Uvicorn running on http://xxx.xxx.xx.xx:8343 (Press CTRL+C to quit)
    ```
-### Step 4: Use sllm click to manage models
+### Step 4: Use sllm to manage models
 1. **You can do this step on login node, and set the ```LLM_SERVER_URL``` environment variable:**
    ```shell
    $ conda activate sllm
