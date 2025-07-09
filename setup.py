@@ -74,7 +74,7 @@ setup(
     include_package_data=True,
     package_data={
         "sllm.serve": ["py.typed", "sllm.sllm_serve"],
-        "sllm.cli": ["default_config.json"],
+        "sllm": ["default_config.json"],
     },
     packages=[
         "sllm",
