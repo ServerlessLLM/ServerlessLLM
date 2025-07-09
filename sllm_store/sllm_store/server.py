@@ -14,7 +14,7 @@ ctypes.CDLL(os.path.join(sllm_store.__path__[0], "libglog.so"))
 try:
     ctypes.CDLL(os.path.join(sllm_store.__path__[0], "libglog.so"))
 except OSError:
-    # 没装或者没编译 glog，就跳过，不影响后续 gRPC 服务
+   
     pass
 from sllm_store._checkpoint_store import (  # noqa: E402
     CheckpointStore,
