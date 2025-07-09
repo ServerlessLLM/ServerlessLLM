@@ -57,12 +57,10 @@ initialize_head_node() {
   echo "Executing: $CMD"
   eval "$CMD"
 
-
   # Start sllm-serve with any additional arguments passed to the script
   echo "Starting sllm-serve with arguments: $@"
   exec sllm-serve start "$@"
 }
-
 
 # Function to initialize the worker node
 initialize_worker_node() {
