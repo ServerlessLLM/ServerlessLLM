@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package storage;
+
+service Storage {
+  rpc LoadModelAsync (LoadModelRequest) returns (LoadModelResponse) {}
+  rpc ConfirmModel (ConfirmModelRequest) returns (ConfirmModelResponse) {}
+  rpc UnloadModel (UnloadModelRequest) returns (UnloadModelResponse) {}
+
+  rpc ClearMem (ClearMemRequest) returns (ClearMemResponse) {}
+
+  rpc RegisterModel (RegisterModelRequest) returns (RegisterModelResponse) {}
+  rpc GetServerConfig (GetServerConfigRequest) returns (GetServerConfigResponse) {}
+}
+
+message GetServerConfigRequest {
+}
+
+message GetServerConfigResponse {
+  int64 mem_pool_size = 1;
+  int64 chunk_size = 2;
+}
+
+message RegisterModelRequest {
+  string model_path = 1;
+}
+
+message RegisterModelResponse {
+  string model_path = 1;
+  int64 model_size = 2;
+}
+
+enum DeviceType {
+  DEVICE_TYPE_DISK = 0;
+  DEVICE_TYPE_CPU = 1;
+  DEVICE_TYPE_GPU = 2;
+}
+
+message MemCopyChunk {
+  uint64 src_offset = 1;
+  uint64 size = 2;
+  uint64 dst_offset = 3;
+  uint64 handle_idx = 4;
+}
+message MemCopyChunkList {
+  repeated MemCopyChunk chunks = 1;
+}
+message MemCopyHandle {
+  bytes cuda_ipc_handle = 1;
+}
+message MemCopyHandleList {
+  repeated MemCopyHandle handles = 1;
+}
+
+// If the handles has one item, all chunks share the same handle, other each chunk should have one handle
+message LoadModelRequest {
+  string model_path = 1;
+  string replica_uuid = 2;
+  map<string, MemCopyChunkList> chunks = 3;
+  map<string, MemCopyHandleList> handles = 4;
+  DeviceType target_device_type = 5;
+}
+
+message LoadModelResponse {
+  string model_path = 1;
+}
+
+message ConfirmModelRequest {
+  string model_path = 1;
+  string replica_uuid = 2;
+  DeviceType target_device_type = 3;
+}
+
+message ConfirmModelResponse {
+  string model_path = 1;
+  int32 code = 2;
+}
+
+message UnloadModelRequest {
+  string model_path = 1;
+  string replica_uuid = 2;
+  DeviceType target_device_type = 3;
+}
+
+message UnloadModelResponse {
+  string model_path = 1;
+  int32 code = 2;
+}
+
+message ClearMemRequest {
+}
+
+message ClearMemResponse {
+}
