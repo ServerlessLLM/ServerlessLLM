@@ -597,9 +597,9 @@ class StoreManager:
             placement_config = model_config.get("placement_config", {})
             memory_pool = placement_config.get("memory_pool", [])
             if node_id in memory_pool:
-                pretrained_model_name_or_path = model_config[
-                    "backend_config"
-                ].get("pretrained_model_name_or_path")
+                pretrained_model_name_or_path = model_config.get(
+                    "backend_config", {}
+                ).get("pretrained_model_name_or_path")
                 await self.load_to_host(node_id, pretrained_model_name_or_path)
                 logger.info(
                     f"{model_name} loaded to memory pool on node {node_id}"
