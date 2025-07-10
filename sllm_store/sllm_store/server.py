@@ -11,11 +11,7 @@ import ctypes
 import os
 
 ctypes.CDLL(os.path.join(sllm_store.__path__[0], "libglog.so"))
-try:
-    ctypes.CDLL(os.path.join(sllm_store.__path__[0], "libglog.so"))
-except OSError:
-   
-    pass
+
 from sllm_store._checkpoint_store import (  # noqa: E402
     CheckpointStore,
     MemCopyChunk,
