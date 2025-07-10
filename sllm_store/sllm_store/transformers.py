@@ -271,7 +271,7 @@ def best_effort_load(
     ] = None,
     storage_path: Optional[str] = None,
 ):
-    client = SllmStoreClient()
+    client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)
     if not ret:
         raise ValueError(f"Failed to load model {model_path} into CPU")
@@ -433,7 +433,7 @@ def load_lora(
 
     lora_config.inference_mode = not is_trainable
 
-    client = SllmStoreClient()
+    client = SllmStoreClient("127.0.0.1:8073")
     client.register_model(adapter_path)
 
     model.add_adapter(lora_config, adapter_name=adapter_name)

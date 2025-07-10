@@ -10,21 +10,25 @@ import sys
 import traceback
 
 # Add project path
-sys.path.insert(0, '/home/fiona/serverlessllm')
+sys.path.insert(0, "/home/fiona/serverlessllm")
+
 
 def test_imports():
     print("🔍 Testing imports...")
     try:
         from sllm.serve.backends.sglang_backend import SGLangBackend
+
         print("✅ SGLangBackend imported successfully")
 
         import sglang
+
         try:
             print(f"✅ SGLang version: {sglang.__version__}")
         except:
             print("✅ SGLang imported (version unknown)")
 
         from sglang.srt.entrypoints.engine import Engine as SGLEngine
+
         print("✅ SGLEngine imported successfully")
 
         return True
@@ -33,10 +37,12 @@ def test_imports():
         traceback.print_exc()
         return False
 
+
 def test_model_path():
     """Check if the model path and required files exist"""
     print("\n🔍 Checking model path...")
-    model_path = "/home/fiona/my_models/facebook/opt-1.3b"
+
+    model_path = "/home/fiona/sllm_models/facebook_writable/opt-1.3b-padded/"
 
     if not os.path.exists(model_path):
         print(f"❌ Model path does not exist: {model_path}")
@@ -53,6 +59,7 @@ def test_model_path():
 
     return True
 
+
 async def test_sglang_backend_basic():
     """Test basic functionality of SGLang Backend"""
     print("\n🔍 Testing basic functionality of SGLang Backend...")
@@ -62,16 +69,16 @@ async def test_sglang_backend_basic():
 
         # Create backend config
         backend_config = {
-            'load_format': 'serverless_llm',
-            'tp_size': 1,
-            'mem_fraction_static': 0.4,
-            'enable_flashinfer': False,
+            "load_format": "serverless_llm",
+            "tp_size": 1,
+            "mem_fraction_static": 0.4,
+            "enable_flashinfer": False,
         }
 
         print("✅ Backend config created")
 
         # Instantiate backend
-        model_name = "/home/fiona/my_models/facebook/opt-1.3b"
+        model_name = "/home/fiona/sllm_models/facebook_writable/opt-1.3b-padded"
         backend = SGLangBackend(model_name, backend_config)
         print("✅ SGLangBackend instance created")
 
@@ -86,6 +93,7 @@ async def test_sglang_backend_basic():
         traceback.print_exc()
         return None
 
+
 async def main():
     """Main function"""
     print("🚀 Simple SGLang Backend Test")
@@ -94,19 +102,21 @@ async def main():
     # Check SLLM Store status
     print("🔍 Checking SLLM Store status...")
     import socket
-    
+
     # Get port from environment variable
     port = int(os.getenv("SLLM_STORE_PORT", "8073"))
-    
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    result = sock.connect_ex(('localhost', port))
+    result = sock.connect_ex(("localhost", port))
     sock.close()
 
     if result == 0:
         print(f"✅ SLLM Store is running on port {port}")
     else:
         print(f"❌ SLLM Store is not running on port {port}")
-        print(f"Please start it with: sllm-store start --storage-path /home/fiona/my_models --mem-pool-size 6GB --port {port}")
+        print(
+            f"Please start it with: sllm-store start --storage-path /home/fiona/sllm_models --mem-pool-size 6GB --port {port}"
+        )
         return False
 
     # Step 1: Test imports
@@ -126,9 +136,9 @@ async def main():
     print("\n🔍 Testing inference...")
     try:
         request_data = {
-            "prompt": "Hello, I am",
+            "prompt": "Hello, how are you?",
             "max_new_tokens": 10,
-            "temperature": 0.7
+            "temperature": 0.7,
         }
         result = await backend.generate(request_data)
         print(f"✅ Inference succeeded! Result: {result}")
@@ -137,6 +147,7 @@ async def main():
         print(f"❌ Inference failed: {e}")
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     success = asyncio.run(main())
