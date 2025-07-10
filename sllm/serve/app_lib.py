@@ -26,7 +26,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
-origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+origins_env = os.getenv("ALLOWED_ORIGINS", "")
+origins = [origin for origin in origins_env.split(",") if origin]
 origins += ["http://localhost", "http://localhost:3000"]
 
 
