@@ -550,11 +550,13 @@ class StoreManager:
                 logger.error(
                     f"Chunk size not found in server config for node {node_id}"  # noqa: E501
                 )
+                return False
             chunk_size = local_server_config["chunk_size"]
             if "mem_pool_size" not in local_server_config:
                 logger.error(
                     f"Memory pool size not found in server config for node {node_id}"
                 )
+                return False
             mem_pool_size = local_server_config["mem_pool_size"]
             async with self.metadata_lock:
                 self.local_servers[node_id] = SllmLocalStore(
