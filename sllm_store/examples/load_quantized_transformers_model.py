@@ -51,7 +51,6 @@ start = time.time()
 model = load_model(
     model_name,
     device_map="auto",
-    torch_dtype=torch.float16,
     storage_path=storage_path,
     fully_parallel=True,
     quantization_config=quantization_config,
