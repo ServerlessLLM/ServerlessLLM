@@ -2,7 +2,7 @@ import argparse
 import os
 import shutil
 from typing import Optional
-
+from transformers import AutoConfig
 
 class VllmModelDownloader:
     def __init__(self):
@@ -125,10 +125,12 @@ local_model_path = args.local_model_path
 storage_path = args.storage_path
 tensor_parallel_size = args.tensor_parallel_size
 
+config = AutoConfig.from_pretrained(model_name)
+
 downloader = VllmModelDownloader()
 downloader.download_vllm_model(
     model_name,
-    "float16",
+    config.torch_dtype,
     tensor_parallel_size=tensor_parallel_size,
     storage_path=storage_path,
     local_model_path=local_model_path,

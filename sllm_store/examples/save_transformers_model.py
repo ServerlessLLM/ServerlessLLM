@@ -2,7 +2,7 @@ import argparse
 import os
 
 import torch
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoConfig
 
 from sllm_store.transformers import save_model
 
@@ -28,9 +28,8 @@ model_name = args.model_name
 storage_path = args.storage_path
 
 # Load a model from HuggingFace model hub.
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, torch_dtype=torch.float16
-)
+config = AutoConfig.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=config.torch_dtype)
 
 # Save the model to the local path.
 model_path = os.path.join(storage_path, model_name)
