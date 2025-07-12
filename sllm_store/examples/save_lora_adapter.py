@@ -2,7 +2,6 @@ import argparse
 import importlib
 import os
 
-import torch
 from transformers import AutoModelForCausalLM, AutoConfig
 from peft import PeftModel
 

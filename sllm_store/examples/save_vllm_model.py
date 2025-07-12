@@ -2,7 +2,7 @@ import argparse
 import os
 import shutil
 from typing import Optional
-from transformers import AutoConfig
+
 
 class VllmModelDownloader:
     def __init__(self):
