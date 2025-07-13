@@ -127,6 +127,7 @@ def deploy_model(
             "pretrained_model_name_or_path"
         ] = model
 
+    # 验证模型名称是否存在
     if not config_data.get("model"):
         print("[❌ ERROR] Model name is required!")
         print("Please specify the model in one of these ways:")
