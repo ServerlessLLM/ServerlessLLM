@@ -99,6 +99,8 @@ def load_dict_non_blocking(
     model_path: Optional[Union[str, os.PathLike]],
     device_map: Dict[str, int],
     storage_path: Optional[str] = None,
+    use_shm: bool = False,
+    target_device: Optional[str] = None,
 ):
     client = SllmStoreClient("127.0.0.1:8073")
     ret = client.load_into_cpu(model_path)

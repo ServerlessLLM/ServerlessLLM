@@ -70,6 +70,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def("wait_model_in_gpu", &CheckpointStore::WaitModelInGpu,
            py::arg("model_path"), py::arg("replica_uuid"),
            "Wait for a model to be available in GPU memory.")
+      .def("wait_model_in_cpu", &CheckpointStore::WaitModelInCpu,
+           py::arg("model_path"), py::arg("replica_uuid"),
+           "Wait for a model to be available in CPU memory.")
       .def("unload_model_from_host", &CheckpointStore::UnloadModelFromHost,
            py::arg("model_path"), "Unload a model from the host memory.")
       .def("clear_mem", &CheckpointStore::ClearMem,

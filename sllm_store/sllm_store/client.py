@@ -113,12 +113,13 @@ class SllmStoreClient:
             logger.info(f"Model loaded: {model_path}, {replica_uuid}")
             return response
 
-    def confirm_model_loaded(self, model_path, replica_uuid):
+    def confirm_model_loaded(self, model_path, replica_uuid, target_device="gpu"):
         logger.info(f"confirm_model_loaded: {model_path}, {replica_uuid}")
+        device_type = storage_pb2.DeviceType.DEVICE_TYPE_GPU if target_device == "gpu" else storage_pb2.DeviceType.DEVICE_TYPE_CPU
         request = storage_pb2.ConfirmModelRequest(
             model_path=model_path,
             replica_uuid=replica_uuid,
-            target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_GPU,
+            target_device_type=device_type,
         )
         try:
             _ = self.stub.ConfirmModel(request)

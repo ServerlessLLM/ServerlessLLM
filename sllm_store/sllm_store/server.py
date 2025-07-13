@@ -126,16 +126,19 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             return storage_pb2.ConfirmModelResponse()
 
-        if device_type != storage_pb2.DEVICE_TYPE_GPU:
-            logger.error(f"Unsupported device type: {device_type}")
-            context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-            return storage_pb2.ConfirmModelResponse()
+        # if device_type != storage_pb2.DEVICE_TYPE_GPU:
+        #     logger.error(f"Unsupported device type: {device_type}")
+        #     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        #     return storage_pb2.ConfirmModelResponse()
 
         for i in range(5):
-            ret = self.storage.wait_model_in_gpu(model_path, replica_uuid)
+            if device_type == storage_pb2.DEVICE_TYPE_CPU:
+                ret = self.storage.wait_model_in_cpu(model_path, replica_uuid)
+            else:
+                ret = self.storage.wait_model_in_gpu(model_path, replica_uuid)
             if ret == 0:
                 logger.info(
-                    f"Confirm model {model_path} replica {replica_uuid} success"
+                    f"Confirm model {model_path} replica {replica_uuid} success in {device_type.name}"
                 )
                 return storage_pb2.ConfirmModelResponse(model_path=model_path)
             logger.info(f"Confirm model failed, retry {i + 1}")
@@ -143,7 +146,7 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             await asyncio.sleep(0.05)
 
         logger.error(
-            f"Confirm model {model_path} replica {replica_uuid} failed"
+            f"Confirm model {model_path} replica {replica_uuid} failed in {device_type.name}"
         )
         context.set_code(grpc.StatusCode.INTERNAL)
         return storage_pb2.ConfirmModelResponse()
