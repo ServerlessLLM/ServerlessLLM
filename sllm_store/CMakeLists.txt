@@ -173,6 +173,7 @@ set(CHECKPOINT_STORE_SOURCES
   "csrc/sllm_store/memory_state.cpp"
   "csrc/sllm_store/model.cpp"
   "csrc/sllm_store/pinned_memory.cpp"
+  "csrc/sllm_store/shared_memory.cpp"
   "csrc/sllm_store/pinned_memory_pool.cpp"
 )
 
@@ -185,6 +186,7 @@ set(CHECKPOINT_STORE_CXX_SOURCES
   "csrc/sllm_store/binary_utils.cpp"
   "csrc/sllm_store/memory_state.cpp"
   "csrc/sllm_store/pinned_memory.cpp"
+  "csrc/sllm_store/shared_memory.cpp"
 )
 
 set(CHECKPOINT_STORE_LIBRARIES

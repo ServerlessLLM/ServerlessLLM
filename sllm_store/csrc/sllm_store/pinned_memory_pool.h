@@ -17,13 +17,22 @@
 //  ----------------------------------------------------------------------------
 #pragma once
 
+#include <cuda_runtime.h>
+#include <glog/logging.h>
+
+#include <memory>
 #include <mutex>
 #include <unordered_set>
 #include <vector>
 
+#include "memory_allocators.h"
+
+template <typename Allocator = AlignedAllocator>
 class PinnedMemoryPool {
  public:
-  PinnedMemoryPool(size_t total_size, size_t chunk_size);
+  template <typename... Args>
+  PinnedMemoryPool(size_t total_size, size_t chunk_size,
+                   Args&&... allocator_args);
   ~PinnedMemoryPool();
 
   int Allocate(size_t size, std::vector<char*>& buffers);
@@ -39,4 +48,100 @@ class PinnedMemoryPool {
   std::unordered_set<char*> free_list_;
   std::unordered_set<char*> pool_;
   size_t chunk_size_;
+  std::unique_ptr<Allocator> allocator_;
 };
+
+// Type aliases for convenience
+using AlignedPinnedMemoryPool = PinnedMemoryPool<AlignedAllocator>;
+using SharedPinnedMemoryPool = PinnedMemoryPool<SharedMemoryAllocator>;
+
+// Template implementation
+template <typename Allocator>
+template <typename... Args>
+PinnedMemoryPool<Allocator>::PinnedMemoryPool(size_t total_size,
+                                              size_t chunk_size,
+                                              Args&&... allocator_args)
+    : chunk_size_(chunk_size),
+      allocator_(
+          std::make_unique<Allocator>(std::forward<Args>(allocator_args)...)) {
+  size_t num_buffers = (total_size + chunk_size - 1) / chunk_size;
+  if (num_buffers * chunk_size != total_size) {
+    LOG(ERROR) << "PinnedMemoryPool size not multiple of chunk_size";
+  }
+  LOG(INFO) << "Creating PinnedMemoryPool with " << num_buffers
+            << " buffers of " << chunk_size << " bytes using "
+            << (allocator_->is_shared() ? "shared" : "aligned") << " allocator";
+
+  for (size_t i = 0; i < num_buffers; ++i) {
+    char* buffer = static_cast<char*>(allocator_->allocate(chunk_size_, 4096));
+    if (buffer == nullptr) {
+      LOG(FATAL) << "Memory allocation failed";
+    }
+
+    cudaError_t err =
+        cudaHostRegister(buffer, chunk_size_, cudaHostRegisterDefault);
+    if (err != cudaSuccess) {
+      LOG(FATAL) << "cudaHostRegister failed: " << cudaGetErrorString(err);
+    }
+    pool_.insert(buffer);
+    free_list_.insert(buffer);
+  }
+}
+
+template <typename Allocator>
+PinnedMemoryPool<Allocator>::~PinnedMemoryPool() {
+  for (char* buffer : pool_) {
+    cudaHostUnregister(buffer);
+    allocator_->deallocate(buffer);
+  }
+}
+
+template <typename Allocator>
+int PinnedMemoryPool<Allocator>::Allocate(size_t size,
+                                          std::vector<char*>& buffers) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (size == 0) {
+    LOG(ERROR) << "PinnedMemoryPool Allocate size is zero";
+    return -1;
+  }
+
+  int num_buffers_needed = (size + chunk_size_ - 1) / chunk_size_;
+  if (num_buffers_needed > free_list_.size()) {
+    LOG(ERROR) << "PinnedMemoryPool out of memory (" << free_list_.size()
+               << " buffers available, " << num_buffers_needed
+               << " buffers needed)";
+    return num_buffers_needed - free_list_.size();
+  }
+
+  buffers.clear();
+  buffers.resize(num_buffers_needed);
+  auto it = free_list_.begin();
+  for (size_t i = 0; i < num_buffers_needed; ++i) {
+    buffers[i] = *it;
+    it = free_list_.erase(it);
+  }
+
+  LOG(INFO) << "PinnedMemoryPool Allocate " << buffers.size() << " buffers"
+            << " free buffers " << free_list_.size() << " total buffers "
+            << pool_.size();
+
+  return 0;  // Success
+}
+
+template <typename Allocator>
+int PinnedMemoryPool<Allocator>::Deallocate(std::vector<char*>& buffers) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (char* buffer : buffers) {
+    if (pool_.find(buffer) == pool_.end()) {
+      LOG(ERROR) << "Buffer not found in pool";
+      return -1;
+    }
+    if (free_list_.find(buffer) != free_list_.end()) {
+      LOG(ERROR) << "Buffer already in free list";
+      return -1;
+    }
+    free_list_.insert(buffer);
+  }
+  LOG(INFO) << "Deallocated " << buffers.size() << " buffers";
+  return 0;  // Success
+}

@@ -34,9 +34,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def_readwrite("handle_idx", &MemCopyChunk::handle_idx_);
 
   py::class_<CheckpointStore>(m, "CheckpointStore")
-      .def(py::init<const std::string&, size_t, int, size_t>(),
+      .def(py::init<const std::string&, size_t, int, size_t, bool>(),
            py::arg("storage_path"), py::arg("memory_pool_size"),
-           py::arg("num_thread"), py::arg("chunk_size"))
+           py::arg("num_thread"), py::arg("chunk_size"), py::arg("use_shm") = false)
       .def("register_model_info", &CheckpointStore::RegisterModelInfo,
            py::arg("model_path"),
            "Register the model information and return its size.")

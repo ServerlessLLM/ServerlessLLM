@@ -52,7 +52,11 @@ class Model {
  public:
   Model(const std::filesystem::path& model_path) : model_path_(model_path) {}
   int Initialize(const std::filesystem::path storage_path);
-  int AllocatePinnedMemory(std::shared_ptr<PinnedMemoryPool> pool);
+  int AllocatePinnedMemory(std::shared_ptr<AlignedPinnedMemoryPool> pool);
+
+  // Templated version to support different pool types
+  template <typename PoolType>
+  int AllocatePinnedMemory(std::shared_ptr<PoolType> pool);
   int ToHost(int num_threads);
   int ToGpu(const std::string& replica_uuid, const MemPtrListMap& device_ptrs,
             const std::unordered_map<int, MemCopyChunkList>& mem_copy_chunks,

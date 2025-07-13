@@ -15,8 +15,6 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
-#include "shared_memory_pool.h"
-
 #include <cuda_runtime.h>
 #include <fcntl.h>
 #include <glog/logging.h>
@@ -25,6 +23,12 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <filesystem>
+#include <vector>
+
+#include "shared_memory.h"
 
 #define CUDA_CHECK(call)                                       \
   do {                                                         \
@@ -126,8 +130,8 @@ std::filesystem::path GetShmPath(std::string_view name) {
          (".shared_mem_" + std::string(name) + "_" + std::to_string(getuid()));
 }
 
-std::unique_ptr<SharedMemoryInstance> Create(std::string_view name,
-                                             size_t size, void* base_addr) {
+std::unique_ptr<SharedMemoryInstance> Create(std::string_view name, size_t size,
+                                             void* base_addr) {
   auto pm = std::unique_ptr<SharedMemoryInstance>(new SharedMemoryInstance());
 
   pm->name_ = name;
@@ -166,8 +170,8 @@ std::unique_ptr<SharedMemoryInstance> Create(std::string_view name,
   if (base_addr) {
     flags |= MAP_FIXED;
   }
-  pm->data_ = mmap(base_addr, pm->mapped_size_, PROT_READ | PROT_WRITE,
-                   flags, pm->fd_, 0);
+  pm->data_ = mmap(base_addr, pm->mapped_size_, PROT_READ | PROT_WRITE, flags,
+                   pm->fd_, 0);
   if (pm->data_ == MAP_FAILED) {
     close(pm->fd_);
     unlink(path.c_str());
@@ -275,4 +279,3 @@ SharedMemoryInstance::~SharedMemoryInstance() {
     unlink(path.c_str());
   }
 }
-

@@ -24,18 +24,21 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
+#include <functional>
 #include <thread>
 
 #include "error_handling.h"
 
 CheckpointStore::CheckpointStore(const std::string& storage_path,
                                  size_t memory_pool_size, int num_thread,
-                                 size_t chunk_size)
+                                 size_t chunk_size, bool use_shm)
     : storage_path_(storage_path),
       memory_pool_size_(memory_pool_size),
       num_thread_(num_thread),
-      chunk_size_(chunk_size) {
+      chunk_size_(chunk_size),
+      use_shm_(use_shm) {
   // Get number of GPUs
   cudaGetDeviceCount(&num_gpus_);
   LOG(INFO) << "Number of GPUs: " << num_gpus_;
@@ -78,9 +81,29 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
   }
 
   // Create a memory pool
-  memory_pool_ =
-      std::make_shared<PinnedMemoryPool>(memory_pool_size_, chunk_size_);
-  LOG(INFO) << "Memory pool created with " << memory_pool_size_ / GB << "GB";
+  if (use_shm_) {
+    // Generate a shared memory name that can be opened by other processes
+    // Use storage path hash to make it deterministic across processes
+    std::string path_str = storage_path_.string();
+    std::hash<std::string> hasher;
+    size_t path_hash = hasher(path_str);
+
+    std::string shm_name = "/checkpoint_pool_" + std::to_string(path_hash);
+
+    LOG(INFO) << "Using shared memory pool with name prefix: " << shm_name;
+
+    shared_memory_pool_ = std::make_shared<SharedPinnedMemoryPool>(
+        memory_pool_size_, chunk_size_, shm_name);
+
+    LOG(INFO) << "Shared memory pool created/opened with "
+              << memory_pool_size_ / GB << "GB using deterministic name";
+  } else {
+    // Use original aligned memory allocation
+    memory_pool_ = std::make_shared<AlignedPinnedMemoryPool>(memory_pool_size_,
+                                                             chunk_size_);
+    LOG(INFO) << "Aligned memory pool created with " << memory_pool_size_ / GB
+              << "GB";
+  }
 }
 
 CheckpointStore::~CheckpointStore() { ClearMem(); }
@@ -119,7 +142,7 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
 
   // Allocate memory
   lock_info.lock();
-  int remaining_size = model->AllocatePinnedMemory(memory_pool_);
+  int remaining_size = AllocateModelMemory(model);
   if (remaining_size < 0) {
     LOG(ERROR) << "Failed to allocate memory for model " << model_path;
     return -1;
@@ -149,7 +172,7 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
       LOG(ERROR) << "Failed to free enough memory for model " << model_path;
       return -1;
     }
-    ssize_t remaining_size = model->AllocatePinnedMemory(memory_pool_);
+    ssize_t remaining_size = AllocateModelMemory(model);
     if (remaining_size < 0) {
       LOG(ERROR) << "Failed to allocate memory for model " << model_path;
       return -1;
@@ -351,4 +374,20 @@ MemPtrListMap CheckpointStore::GetDevicePtrsFromMemHandles(
     }
   }
   return gpu_ptrs;
+}
+
+int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
+  if (use_shm_) {
+    if (shared_memory_pool_ == nullptr) {
+      LOG(ERROR) << "Shared memory pool is not initialized";
+      return -1;
+    }
+    return model->AllocatePinnedMemory(shared_memory_pool_);
+  } else {
+    if (memory_pool_ == nullptr) {
+      LOG(ERROR) << "Memory pool is not initialized";
+      return -1;
+    }
+    return model->AllocatePinnedMemory(memory_pool_);
+  }
 }

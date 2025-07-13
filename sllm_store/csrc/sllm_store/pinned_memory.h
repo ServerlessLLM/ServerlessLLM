@@ -17,6 +17,7 @@
 //  ----------------------------------------------------------------------------
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -33,12 +34,15 @@ class PinnedMemory {
   PinnedMemory(PinnedMemory&&) = delete;
   PinnedMemory& operator=(PinnedMemory&&) = delete;
 
-  int Allocate(size_t size, std::shared_ptr<PinnedMemoryPool> mempool);
+  template <typename Allocator>
+  int Allocate(size_t size,
+               std::shared_ptr<PinnedMemoryPool<Allocator>> mempool);
   std::vector<char*>& get();
   size_t num_chunks() const { return buffers_.size(); }
-  size_t chunk_size() const { return mempool_->chunk_size(); }
+  size_t chunk_size() const { return chunk_size_; }
 
  private:
   std::vector<char*> buffers_;
-  std::shared_ptr<PinnedMemoryPool> mempool_;
+  std::function<int(std::vector<char*>&)> deallocate_func_;
+  size_t chunk_size_ = 0;
 };

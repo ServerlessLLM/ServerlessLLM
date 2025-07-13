@@ -20,22 +20,34 @@
 #include <glog/logging.h>
 
 PinnedMemory::~PinnedMemory() {
-  LOG(INFO) << "Deallocating " << buffers_.size() << " memory chunks";
-  int ret = mempool_->Deallocate(buffers_);
-  if (ret != 0) {
-    LOG(ERROR) << "Error deallocating CPU memory";
+  if (buffers_.size() > 0 && deallocate_func_) {
+    LOG(INFO) << "Deallocating " << buffers_.size() << " memory chunks";
+    int ret = deallocate_func_(buffers_);
+    if (ret != 0) {
+      LOG(ERROR) << "Error deallocating CPU memory";
+    }
   }
 }
 
-int PinnedMemory::Allocate(size_t size,
-                           std::shared_ptr<PinnedMemoryPool> mempool) {
+template <typename Allocator>
+int PinnedMemory::Allocate(
+    size_t size, std::shared_ptr<PinnedMemoryPool<Allocator>> mempool) {
   if (buffers_.size() > 0) {
     LOG(ERROR) << "Memory already allocated";
     return 1;
   }
 
-  mempool_ = mempool;
-  return mempool_->Allocate(size, buffers_);
+  chunk_size_ = mempool->chunk_size();
+  deallocate_func_ = [mempool](std::vector<char*>& buffers) {
+    return mempool->Deallocate(buffers);
+  };
+  return mempool->Allocate(size, buffers_);
 }
 
 std::vector<char*>& PinnedMemory::get() { return buffers_; }
+
+// Explicit template instantiations
+template int PinnedMemory::Allocate<AlignedAllocator>(
+    size_t, std::shared_ptr<PinnedMemoryPool<AlignedAllocator>>);
+template int PinnedMemory::Allocate<SharedMemoryAllocator>(
+    size_t, std::shared_ptr<PinnedMemoryPool<SharedMemoryAllocator>>);

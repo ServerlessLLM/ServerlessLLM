@@ -40,7 +40,7 @@
 class CheckpointStore {
  public:
   CheckpointStore(const std::string& storage_path, size_t memory_pool_size,
-                  int num_thread, size_t chunk_size);
+                  int num_thread, size_t chunk_size, bool use_shm = false);
   ~CheckpointStore();
 
   int64_t RegisterModelInfo(const std::string& model_path);
@@ -65,6 +65,11 @@ class CheckpointStore {
   // Get methods
   size_t GetMemPoolSize() const { return memory_pool_size_; }
   size_t GetChunkSize() const { return chunk_size_; }
+  bool IsUsingSharedMemory() const { return use_shm_; }
+
+  // Get the appropriate memory pool based on use_shm flag
+  template <typename T = AlignedPinnedMemoryPool>
+  std::shared_ptr<T> GetMemoryPool() const;
 
  private:
   // A GPU info struct
@@ -86,7 +91,9 @@ class CheckpointStore {
       model_last_access_time_;
   std::mutex model_info_mutex_;
   const size_t memory_pool_size_;
-  std::shared_ptr<PinnedMemoryPool> memory_pool_;
+  std::shared_ptr<AlignedPinnedMemoryPool> memory_pool_;
+  std::shared_ptr<SharedPinnedMemoryPool> shared_memory_pool_;
+  bool use_shm_;
   int num_thread_;
   size_t chunk_size_;
 
@@ -98,6 +105,9 @@ class CheckpointStore {
                               const std::string& replica_uuid);
   int InitializeModel(const std::shared_ptr<Model>& model);
   int AllocatePinnedMemory(const std::shared_ptr<Model>& model);
+
+  // Helper method to allocate memory with the correct pool type
+  int AllocateModelMemory(const std::shared_ptr<Model>& model);
   std::vector<std::tuple<int, size_t, size_t>> CalculateChunks(size_t offset,
                                                                size_t size);
   int AllocateCudaMemory(
@@ -107,3 +117,16 @@ class CheckpointStore {
   MemPtrListMap GetDevicePtrsFromMemHandles(
       const MemCopyHandleListMap& memory_handles);
 };
+
+// Template specializations for GetMemoryPool
+template <>
+inline std::shared_ptr<AlignedPinnedMemoryPool>
+CheckpointStore::GetMemoryPool<AlignedPinnedMemoryPool>() const {
+  return memory_pool_;
+}
+
+template <>
+inline std::shared_ptr<SharedPinnedMemoryPool>
+CheckpointStore::GetMemoryPool<SharedPinnedMemoryPool>() const {
+  return shared_memory_pool_;
+}

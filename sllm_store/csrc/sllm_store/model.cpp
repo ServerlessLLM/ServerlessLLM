@@ -583,7 +583,7 @@ std::vector<std::tuple<int, size_t, size_t>> Model::MapDataToChunks(
   return output;
 }
 
-int Model::AllocatePinnedMemory(std::shared_ptr<PinnedMemoryPool> pool) {
+int Model::AllocatePinnedMemory(std::shared_ptr<AlignedPinnedMemoryPool> pool) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (state_ == MemoryState::UNINITIALIZED) {
     LOG(ERROR) << "Model " << model_path_ << " is not initialized";
@@ -607,4 +607,38 @@ int Model::AllocatePinnedMemory(std::shared_ptr<PinnedMemoryPool> pool) {
 
   state_ = MemoryState::ALLOCATED;
   return 0;
-};
+}
+
+// Templated version to support different pool types
+template <typename PoolType>
+int Model::AllocatePinnedMemory(std::shared_ptr<PoolType> pool) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (state_ == MemoryState::UNINITIALIZED) {
+    LOG(ERROR) << "Model " << model_path_ << " is not initialized";
+    return -1;
+  }
+  if (state_ != MemoryState::UNALLOCATED) {
+    return 0;
+  }
+  pinned_mem_ = std::make_shared<PinnedMemory>();
+  int ret = pinned_mem_->Allocate(model_size_, pool);
+  if (ret < 0) {
+    LOG(ERROR) << "Error allocating CPU memory for model " << model_path_;
+    return ret;
+  } else if (ret > 0) {
+    LOG(WARNING) << "Not enough memory for model " << model_path_;
+    return ret;
+  } else if (!pinned_mem_ || pinned_mem_->num_chunks() == 0) {
+    LOG(ERROR) << "CPU memory not allocated";
+    return -1;
+  }
+
+  state_ = MemoryState::ALLOCATED;
+  return 0;
+}
+
+// Explicit template instantiations
+template int Model::AllocatePinnedMemory<AlignedPinnedMemoryPool>(
+    std::shared_ptr<AlignedPinnedMemoryPool> pool);
+template int Model::AllocatePinnedMemory<SharedPinnedMemoryPool>(
+    std::shared_ptr<SharedPinnedMemoryPool> pool);

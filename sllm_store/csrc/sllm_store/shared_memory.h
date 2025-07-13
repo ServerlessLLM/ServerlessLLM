@@ -26,8 +26,8 @@
 class SharedMemoryInstance;
 
 // Factory functions for creating/opening shared memory regions
-std::unique_ptr<SharedMemoryInstance> Create(std::string_view name,
-                                             size_t size, void* base_addr = nullptr);
+std::unique_ptr<SharedMemoryInstance> Create(std::string_view name, size_t size,
+                                             void* base_addr = nullptr);
 std::unique_ptr<SharedMemoryInstance> Open(std::string_view name);
 
 // RAII class for managing shared memory
@@ -70,8 +70,9 @@ class SharedMemoryInstance {
 
  private:
   friend std::unique_ptr<SharedMemoryInstance> Create(std::string_view name,
-                                                      size_t size);
+                                                      size_t size, void* base_addr);
   friend std::unique_ptr<SharedMemoryInstance> Open(std::string_view name);
+  friend class MemoryRegistry;
 
   SharedMemoryInstance() = default;
 

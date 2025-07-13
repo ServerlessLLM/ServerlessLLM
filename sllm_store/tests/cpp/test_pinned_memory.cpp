@@ -43,14 +43,14 @@ size_t PinnedMemoryPoolTest::chunk_size = 0;
 
 TEST_F(PinnedMemoryPoolTest, InitializePinnedMemoryPool) {
   auto pinned_memory_pool =
-      std::make_unique<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_unique<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
   EXPECT_EQ(pinned_memory_pool->chunk_size(), chunk_size);
 }
 
 TEST_F(PinnedMemoryPoolTest, RegularAllocateDeallocate) {
   size_t size = 1024;
   auto pinned_memory_pool =
-      std::make_unique<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_unique<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
 
   std::vector<char*> buffers;
   EXPECT_EQ(pinned_memory_pool->Allocate(size, buffers), 0);
@@ -62,7 +62,7 @@ TEST_F(PinnedMemoryPoolTest, RegularAllocateDeallocate) {
 TEST_F(PinnedMemoryPoolTest, IrregularAllocateDeallocate) {
   size_t size = 17 * 1024 * 1024;  // 17MB
   auto pinned_memory_pool =
-      std::make_unique<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_unique<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
 
   std::vector<char*> buffers;
   EXPECT_EQ(pinned_memory_pool->Allocate(size, buffers), 0);
@@ -76,7 +76,7 @@ TEST_F(PinnedMemoryPoolTest, IrregularAllocateDeallocate) {
 TEST_F(PinnedMemoryPoolTest, OutOfMemoryAllocate) {
   size_t size = 1024 * 1024 * 1024;  // 1GB
   auto pinned_memory_pool =
-      std::make_unique<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_unique<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
 
   std::vector<char*> buffers;
   EXPECT_EQ(pinned_memory_pool->Allocate(size, buffers), 0);
@@ -100,7 +100,7 @@ TEST_F(PinnedMemoryPoolTest, OutOfMemoryAllocate) {
 TEST_F(PinnedMemoryPoolTest, ZeroSizeAllocate) {
   size_t size = 0;
   auto pinned_memory_pool =
-      std::make_unique<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_unique<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
 
   std::vector<char*> buffers;
   EXPECT_NE(pinned_memory_pool->Allocate(size, buffers), 0);
@@ -109,7 +109,7 @@ TEST_F(PinnedMemoryPoolTest, ZeroSizeAllocate) {
 TEST_F(PinnedMemoryPoolTest, DeallocateNonExistentBuffer) {
   size_t size = 1024;
   auto pinned_memory_pool =
-      std::make_unique<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_unique<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
 
   std::vector<char*> buffers;
   EXPECT_EQ(pinned_memory_pool->Allocate(size, buffers), 0);
@@ -120,7 +120,7 @@ TEST_F(PinnedMemoryPoolTest, DeallocateNonExistentBuffer) {
 TEST_F(PinnedMemoryPoolTest, ConcurrentAllocateDeallocate) {
   size_t size = 1024;
   auto pinned_memory_pool =
-      std::make_unique<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_unique<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
 
   std::vector<std::future<int>> futures;
   for (int i = 0; i < 100; ++i) {
@@ -163,7 +163,7 @@ size_t PinnedMemoryTest::chunk_size = 0;
 TEST_F(PinnedMemoryTest, AllocatePinMemory) {
   size_t size = 1024;
   auto pinned_memory_pool =
-      std::make_shared<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_shared<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
   std::unique_ptr<PinnedMemory> pinned_memory =
       std::make_unique<PinnedMemory>();
   EXPECT_EQ(pinned_memory->Allocate(size, pinned_memory_pool), 0);
@@ -177,7 +177,7 @@ TEST_F(PinnedMemoryTest, AllocatePinMemory) {
 TEST_F(PinnedMemoryTest, DeallocatePinMemory) {
   size_t size = 1024 * 1024 * 1024;  // 1GB
   auto pinned_memory_pool =
-      std::make_shared<PinnedMemoryPool>(mem_pool_size, chunk_size);
+      std::make_shared<AlignedPinnedMemoryPool>(mem_pool_size, chunk_size);
   //   PinnedMemory should deallocate memory when it goes out of scope
   for (int i = 0; i < 100; ++i) {
     std::unique_ptr<PinnedMemory> pinned_memory =

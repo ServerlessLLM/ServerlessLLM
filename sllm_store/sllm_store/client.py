@@ -53,6 +53,50 @@ class SllmStoreClient:
         else:
             return response
 
+    def load_into_shm(
+        self, model_path, tensor_copy_chunks, shared_memory_handles
+    ):
+        cpu_chunk_map = {}
+        for device_uuid, chunks in tensor_copy_chunks.items():
+            cpu_chunk_map[device_uuid] = storage_pb2.MemCopyChunkList(
+                chunks=[
+                    storage_pb2.MemCopyChunk(
+                        src_offset=chunk[0],
+                        size=chunk[1],
+                        dst_offset=chunk[2],
+                        handle_idx=chunk[3],
+                    )
+                    for chunk in chunks
+                ]
+            )
+        shared_handle_map = {}
+        for device_uuid, handles in shared_memory_handles.items():
+            shared_handle_map[device_uuid] = storage_pb2.MemCopyHandleList(
+                handles=[
+                    storage_pb2.MemCopyHandle(
+                        shared_memory_handle=handle_str,
+                    )
+                    for handle_str in handles
+                ]
+            )
+        request = storage_pb2.LoadModelRequest(
+            model_path=model_path,
+            chunks=cpu_chunk_map,
+            handles=shared_handle_map,
+            target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_CPU,
+        )
+        try:
+            response = self.stub.LoadModelAsync(request)
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.CANCELLED:
+                logger.error(f"Model not loaded {e}")
+                return False
+            else:
+                logger.error(f"Error: {e}")
+                return False
+        else:
+            return response
+
     def unload_from_cpu(self, model_path):
         request = storage_pb2.UnloadModelRequest(
             model_path=model_path,
@@ -113,9 +157,15 @@ class SllmStoreClient:
             logger.info(f"Model loaded: {model_path}, {replica_uuid}")
             return response
 
-    def confirm_model_loaded(self, model_path, replica_uuid, target_device="gpu"):
+    def confirm_model_loaded(
+        self, model_path, replica_uuid, target_device="gpu"
+    ):
         logger.info(f"confirm_model_loaded: {model_path}, {replica_uuid}")
-        device_type = storage_pb2.DeviceType.DEVICE_TYPE_GPU if target_device == "gpu" else storage_pb2.DeviceType.DEVICE_TYPE_CPU
+        device_type = (
+            storage_pb2.DeviceType.DEVICE_TYPE_GPU
+            if target_device == "gpu"
+            else storage_pb2.DeviceType.DEVICE_TYPE_CPU
+        )
         request = storage_pb2.ConfirmModelRequest(
             model_path=model_path,
             replica_uuid=replica_uuid,
