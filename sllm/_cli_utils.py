@@ -59,7 +59,8 @@ def deploy_model(
     target=None,
     min_instances=None,
     max_instances=None,
-    adapter_name=None,
+    enable_lora=None,
+    lora_adapters=None,
     precision=None,
 ):
     default_config_path = os.path.abspath(
@@ -126,7 +127,6 @@ def deploy_model(
             "pretrained_model_name_or_path"
         ] = model
 
-    # 验证模型名称是否存在
     if not config_data.get("model"):
         print("[❌ ERROR] Model name is required!")
         print("Please specify the model in one of these ways:")
@@ -150,9 +150,21 @@ def deploy_model(
         config_data["auto_scaling_config"]["min_instances"] = min_instances
     if max_instances is not None:
         config_data["auto_scaling_config"]["max_instances"] = max_instances
-    if adapter_name:
+    if lora_adapters:
+        # convert list of 'name=path' to dict
+        adapters_dict = {}
+        for item in lora_adapters:
+            if "=" in item:
+                name, path = item.split("=", 1)
+                adapters_dict[name] = path
+            else:
+                adapters_dict[item] = None
         config_data.setdefault("backend_config", {})["adapter_name"] = (
-            adapter_name
+            adapters_dict
+        )
+    if enable_lora is not None:
+        config_data.setdefault("backend_config", {})["enable_lora"] = (
+            enable_lora
         )
     if precision:
         config_data.setdefault("backend_config", {})["precision"] = precision
@@ -178,35 +190,45 @@ def deploy_model(
 
 
 # ----------------------------- DELETE COMMAND ----------------------------- #
-def delete_model(models):
+def delete_model(models, lora_adapters=None):
     if not models:
         print("[⚠️ WARNING] No model names provided for deletion.")
         return
 
     base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
-    url = f"{base_url.rstrip('/')}/delete"
     headers = {"Content-Type": "application/json"}
 
+    if lora_adapters is not None and len(models) > 1:
+        print(
+            "[❌ ERROR] You can only delete one model when using --lora-adapters."
+        )
+        return
+
     for model in models:
+        url = f"{base_url.rstrip('/')}/delete"
         data = {"model": model}
+        if lora_adapters is not None:
+            data["lora_adapters"] = lora_adapters
         try:
             response = requests.post(url, headers=headers, json=data)
             if response.status_code == 200:
-                print(f"[✅ SUCCESS] Model '{model}' deleted successfully.")
+                print(
+                    f"[✅ SUCCESS] Delete request for '{model}' sent successfully."
+                )
             else:
                 print(
-                    f"[❌ ERROR] Failed to delete model '{model}'. Status: {response.status_code}, Response: {response.text}"
+                    f"[❌ ERROR] Failed to delete '{model}'. Status: {response.status_code}, Response: {response.text}"
                 )
         except Exception as e:
-            print(f"[EXCEPTION] Failed to delete model '{model}': {str(e)}")
+            print(f"[EXCEPTION] Failed to delete '{model}': {str(e)}")
 
 
 # ----------------------------- STATUS COMMAND ----------------------------- #
 def show_status():
     """Query the information of registered models."""
-    endpoint = "v1/models"
-    base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343/")
-    url = base_url.rstrip("/") + "/" + endpoint
+    endpoint = "/v1/models"
+    base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
+    url = base_url.rstrip("/") + endpoint
     headers = {"Content-Type": "application/json"}
 
     try:
@@ -214,19 +236,12 @@ def show_status():
         if response.status_code == 200:
             try:
                 data = response.json()
-                models = data.get("models", [])
-                if not models:
-                    click.echo("[ℹ] No models currently deployed.")
-                else:
-                    click.echo("[✅ SUCCESS] Model status retrieved:")
-                    for model in models:
-                        model_id = model.get("id", "<unknown>")
-                        click.echo(f"- {model_id}")
+                print(f"Model status: {data}")
             except ValueError:
-                click.echo("[❌ ERROR] Invalid JSON received from server.")
+                print("[❌ ERROR] Invalid JSON received from server.")
         else:
-            click.echo(
+            print(
                 f"[❌ ERROR] Failed with status {response.status_code}: {response.text}"
             )
     except requests.exceptions.RequestException as e:
-        click.echo(f"[EXCEPTION] Failed to query status: {str(e)}")
+        print(f"[EXCEPTION] Failed to query status: {str(e)}")

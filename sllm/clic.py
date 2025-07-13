@@ -32,7 +32,15 @@ def cli():
     "--max-instances", type=int, help="Maximum number of model instances"
 )
 @click.option(
-    "--adapter-name", help="Name of the LoRA adapter to use with the base model"
+    "--lora-adapters",
+    multiple=True,
+    help="Name of the LoRA adapter to use with the base model",
+)
+@click.option(
+    "--enable-lora",
+    is_flag=True,
+    default=False,
+    help="Enable LoRA support for the model",
 )
 @click.option(
     "--precision",
@@ -49,9 +57,9 @@ def deploy(**kwargs):
 
 @cli.command()
 @click.argument("models", nargs=-1)
-def delete(models):
-    """Delete deployed models by name."""
-    delete_model(models)
+@click.option("--lora-adapters", multiple=True, help="LoRA adapters to delete.")
+def delete(models, lora_adapters):
+    delete_model(models, lora_adapters=lora_adapters if lora_adapters else None)
 
 
 @cli.command()
