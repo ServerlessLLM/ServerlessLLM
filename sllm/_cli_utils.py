@@ -127,7 +127,6 @@ def deploy_model(
             "pretrained_model_name_or_path"
         ] = model
 
-    # 验证模型名称是否存在
     if not config_data.get("model"):
         print("[❌ ERROR] Model name is required!")
         print("Please specify the model in one of these ways:")
@@ -152,14 +151,30 @@ def deploy_model(
     if max_instances is not None:
         config_data["auto_scaling_config"]["max_instances"] = max_instances
     if lora_adapters:
-        # convert list of 'name=path' to dict
-        adapters_dict = {}
-        for item in lora_adapters:
-            if "=" in item:
-                name, path = item.split("=", 1)
-                adapters_dict[name] = path
+        # Only parse if not already a dict
+        if isinstance(lora_adapters, dict):
+            adapters_dict = lora_adapters
+        else:
+            adapters_dict = {}
+            if isinstance(lora_adapters, str):
+                items = lora_adapters.replace(",", " ").split()
+            elif isinstance(lora_adapters, (list, tuple)):
+                items = []
+                for item in lora_adapters:
+                    items.extend(item.replace(",", " ").split())
             else:
-                adapters_dict[item] = None
+                items = [str(lora_adapters)]
+            for module in items:
+                module = module.strip()
+                if not module:
+                    continue
+                if "=" not in module:
+                    print(
+                        f"[ERROR] Invalid LoRA module format: {module}. Expected <name>=<path>."
+                    )
+                    sys.exit(1)
+                name, path = module.split("=", 1)
+                adapters_dict[name] = path
         config_data.setdefault("backend_config", {})["adapter_name"] = (
             adapters_dict
         )
@@ -208,8 +223,36 @@ def delete_model(models, lora_adapters=None):
     for model in models:
         url = f"{base_url.rstrip('/')}/delete"
         data = {"model": model}
+        # Robust lora_adapters parsing (same as deploy)
         if lora_adapters is not None:
-            data["lora_adapters"] = lora_adapters
+            # Accept: demo-lora1 demo-lora2 OR demo-lora1=path ...
+            if isinstance(lora_adapters, dict):
+                adapters = lora_adapters
+            else:
+                # flatten and split
+                if isinstance(lora_adapters, str):
+                    items = lora_adapters.replace(",", " ").split()
+                elif isinstance(lora_adapters, (list, tuple)):
+                    items = []
+                    for item in lora_adapters:
+                        items.extend(item.replace(",", " ").split())
+                else:
+                    items = [str(lora_adapters)]
+                # If all items have '=', parse as dict; else, treat as list
+                if all("=" in module for module in items if module.strip()):
+                    adapters = {}
+                    for module in items:
+                        module = module.strip()
+                        if not module:
+                            continue
+                        name, path = module.split("=", 1)
+                        adapters[name] = path
+                else:
+                    # Only adapter names
+                    adapters = [
+                        module.strip() for module in items if module.strip()
+                    ]
+            data["lora_adapters"] = adapters
         try:
             response = requests.post(url, headers=headers, json=data)
             if response.status_code == 200:

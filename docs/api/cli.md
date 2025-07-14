@@ -7,7 +7,6 @@ sidebar_position: 2
 ## ServerlessLLM CLI Documentation
 
 ## Overview
-### Overview
 `sllm` is the official command-line interface for interacting with ServerlessLLM. It is implemented using the [Click](https://click.palletsprojects.com/) framework to provide a flexible and extensible interface for managing model start, deploy, delete, and system status.
 
 ### Installation

@@ -77,7 +77,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8343 (Press CTRL+C to quit)
 (FcfsScheduler pid=1604) INFO 05-26 15:40:49 fcfs_scheduler.py:111] Starting control loop
 ```
 
-## Deploy a Model Using sllm click
+## Deploy a Model Using sllm
 
 Set the `LLM_SERVER_URL` environment variable:
 
