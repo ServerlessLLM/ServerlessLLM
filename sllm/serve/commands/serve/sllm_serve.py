@@ -16,69 +16,101 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import argparse
-import json
-import re
+import asyncio
 import sys
 
-import ray
 import uvicorn
+from uvicorn import Config, Server
 
-from sllm.serve.app_lib import create_app
-from sllm.serve.controller import SllmController
+from sllm.serve.api_gateway import create_app
+from sllm.serve.autoscaler import AutoScaler
+from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
+from sllm.serve.model_manager import ModelManager
+from sllm.serve.worker_manager import WorkerManager
 
 logger = init_logger(__name__)
 
 
-def main():
+async def main():
+    """
+    The main entry point for the Sllm control plane.
+    Initializes and runs all head-node services concurrently.
+    """
     parser = argparse.ArgumentParser(
-        description="ServerlessLLM CLI for model management."
+        description="ServerlessLLM CLI for the control plane."
     )
-    subparsers = parser.add_subparsers(dest="command")
-
-    start_parser = subparsers.add_parser("start", help="Start the Sllm server.")
-    start_parser.add_argument(
+    parser.add_argument(
         "--host",
         default="0.0.0.0",
         type=str,
-        help="Host IP to run the server on.",
+        help="Host IP for the API Gateway.",
     )
-    start_parser.add_argument(
-        "--port", default=8343, type=int, help="Port to run the server on."
+    parser.add_argument(
+        "--port", default=8343, type=int, help="Port for the API Gateway."
     )
-    start_parser.add_argument(
+    parser.add_argument(
+        "--redis-host",
+        default="localhost",
+        type=str,
+        help="Hostname of the Redis server.",
+    )
+    parser.add_argument(
+        "--redis-port",
+        default=6379,
+        type=int,
+        help="Port of the Redis server.",
+    )
+    parser.add_argument(
         "--enable-storage-aware",
         action="store_true",
-        help="Enable storage-aware scheduling.",
+        help="Enable storage-aware scheduling (Not yet implemented).",
     )
-    start_parser.add_argument(
+    parser.add_argument(
         "--enable-migration",
         action="store_true",
-        help="Enable live migration of model instances.",
+        help="Enable live migration of model instances (Not yet implemented).",
     )
     args = parser.parse_args()
 
-    try:
-        if args.command == "start":
-            app = create_app()
-            controller_cls = ray.remote(SllmController)
-            controller = controller_cls.options(
-                name="controller", num_cpus=1, resources={"control_node": 0.1}
-            ).remote(
-                {
-                    "enable_storage_aware": args.enable_storage_aware,
-                    "enable_migration": args.enable_migration,
-                }
-            )
-            ray.get(controller.start.remote())
+    logger.info(f"Connecting to Redis at {args.redis_host}:{args.redis_port}")
+    store = RedisStore(host=args.redis_host, port=args.redis_port)
+    model_manager = ModelManager(store)
+    worker_manager = WorkerManager(store, config={"prune_interval": 15})
+    autoscaler = AutoScaler(
+        store=store, model_manager=model_manager, worker_manager=worker_manager
+    )
 
-            uvicorn.run(app, host=args.host, port=args.port)
-        else:
-            parser.print_help()
-            sys.exit(1)
+    app = create_app(
+        worker_manager=worker_manager,
+        model_manager=model_manager,
+    )
+
+    uvicorn_config = Config(app, host=args.host, port=args.port, log_level="info")
+    uvicorn_server = Server(uvicorn_config)
+
+    worker_manager.start()
+
+    autoscaler_task = asyncio.create_task(autoscaler.run_scaling_loop())
+    server_task = asyncio.create_task(uvicorn_server.serve())
+
+    try:
+        logger.info("Sllm control plane started. All services are running.")
+        await asyncio.gather(autoscaler_task, server_task)
+
     except KeyboardInterrupt:
-        ray.get(controller.shutdown.remote())
+        logger.info("Shutdown signal received.")
+    finally:
+        logger.info("Initiating graceful shutdown...")
+
+        autoscaler.shutdown()
+        await worker_manager.shutdown()
+
+        await asyncio.sleep(2) 
+        
+        await store.close()
+        logger.info("Shutdown complete.")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
