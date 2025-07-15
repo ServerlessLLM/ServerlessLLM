@@ -22,57 +22,24 @@ import sys
 import uvicorn
 from uvicorn import Config, Server
 
-from sllm.serve.api_gateway import create_app
+from sllm.serve.api_gateway import create_app as create_head_app
 from sllm.serve.autoscaler import AutoScaler
 from sllm.serve.kv_store import RedisStore
-from sllm.serve.logger import init_logger
 from sllm.serve.model_manager import ModelManager
 from sllm.serve.worker_manager import WorkerManager
 
+from sllm.serve.worker.api import create_worker_app
+from sllm.serve.worker.heartbeat import run_heartbeat_loop
+from sllm.serve.worker.instance_manager import InstanceManager
+
+from sllm.serve.logger import init_logger # logger my beloved
+
 logger = init_logger(__name__)
 
-
-async def main():
-    """
-    The main entry point for the Sllm control plane.
-    Initializes and runs all head-node services concurrently.
-    """
-    parser = argparse.ArgumentParser(
-        description="ServerlessLLM CLI for the control plane."
-    )
-    parser.add_argument(
-        "--host",
-        default="0.0.0.0",
-        type=str,
-        help="Host IP for the API Gateway.",
-    )
-    parser.add_argument(
-        "--port", default=8343, type=int, help="Port for the API Gateway."
-    )
-    parser.add_argument(
-        "--redis-host",
-        default="localhost",
-        type=str,
-        help="Hostname of the Redis server.",
-    )
-    parser.add_argument(
-        "--redis-port",
-        default=6379,
-        type=int,
-        help="Port of the Redis server.",
-    )
-    parser.add_argument(
-        "--enable-storage-aware",
-        action="store_true",
-        help="Enable storage-aware scheduling (Not yet implemented).",
-    )
-    parser.add_argument(
-        "--enable-migration",
-        action="store_true",
-        help="Enable live migration of model instances (Not yet implemented).",
-    )
-    args = parser.parse_args()
-
+async def run_head_node(args: argparse.Namespace):
+    """Initializes and runs all head-node services concurrently."""
+    logger.info("Starting Sllm in HEAD mode...")
+    
     logger.info(f"Connecting to Redis at {args.redis_host}:{args.redis_port}")
     store = RedisStore(host=args.redis_host, port=args.redis_port)
     model_manager = ModelManager(store)
@@ -81,7 +48,7 @@ async def main():
         store=store, model_manager=model_manager, worker_manager=worker_manager
     )
 
-    app = create_app(
+    app = create_head_app(
         worker_manager=worker_manager,
         model_manager=model_manager,
     )
@@ -97,20 +64,71 @@ async def main():
     try:
         logger.info("Sllm control plane started. All services are running.")
         await asyncio.gather(autoscaler_task, server_task)
-
-    except KeyboardInterrupt:
-        logger.info("Shutdown signal received.")
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Shutdown signal received for head node.")
     finally:
-        logger.info("Initiating graceful shutdown...")
-
+        logger.info("Initiating graceful shutdown for head node...")
         autoscaler.shutdown()
         await worker_manager.shutdown()
-
-        await asyncio.sleep(2) 
-        
+        uvicorn_server.should_exit = True
+        await asyncio.sleep(2)
         await store.close()
-        logger.info("Shutdown complete.")
+        logger.info("Head node shutdown complete.")
 
+
+async def run_worker_node(args: argparse.Namespace):
+    """Initializes and runs all worker-node services concurrently."""
+    logger.info("Starting Sllm in WORKER mode...")
+
+    instance_manager = InstanceManager()
+    worker_app = create_worker_app(instance_manager)
+
+    uvicorn_config = Config(worker_app, host=args.host, port=args.port, log_level="info")
+    uvicorn_server = Server(uvicorn_config)
+
+    server_task = asyncio.create_task(uvicorn_server.serve())
+    heartbeat_task = asyncio.create_task(
+        run_heartbeat_loop(instance_manager, args.head_node_url)
+    )
+
+    try:
+        logger.info(f"Sllm worker started. API running on {args.host}:{args.port}.")
+        await asyncio.gather(server_task, heartbeat_task)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Shutdown signal received for worker node.")
+    finally:
+        logger.info("Initiating graceful shutdown for worker node...")
+        server_task.cancel()
+        heartbeat_task.cancel()
+        await asyncio.gather(server_task, heartbeat_task, return_exceptions=True)
+        logger.info("Worker node shutdown complete.")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="ServerlessLLM (Sllm) main entry point."
+    )
+    subparsers = parser.add_subparsers(dest="mode", required=True, help="The mode to run in: 'head' or 'worker'.")
+
+    # --- Arguments for HEAD mode ---
+    head_parser = subparsers.add_parser("head", help="Run the control plane (head node).")
+    head_parser.add_argument("--host", default="0.0.0.0", type=str, help="Host IP for the API Gateway.")
+    head_parser.add_argument("--port", default=8343, type=int, help="Port for the API Gateway.")
+    head_parser.add_argument("--redis-host", default="localhost", type=str, help="Hostname of the Redis server.")
+    head_parser.add_argument("--redis-port", default=6379, type=int, help="Port of the Redis server.")
+
+    # --- Arguments for WORKER mode ---
+    worker_parser = subparsers.add_parser("worker", help="Run a worker node.")
+    worker_parser.add_argument("--host", default="0.0.0.0", type=str, help="Host for the worker's API server.")
+    worker_parser.add_argument("--port", default=8001, type=int, help="Port for the worker's API server.")
+    worker_parser.add_argument("--head-node-url", type=str, required=True, help="Full URL of the head node API Gateway (e.g., http://192.168.1.100:8343).")
+
+    args = parser.parse_args()
+
+    if args.mode == 'head':
+        asyncio.run(run_head_node(args))
+    elif args.mode == 'worker':
+        asyncio.run(run_worker_node(args))
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

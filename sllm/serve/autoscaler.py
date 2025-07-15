@@ -18,6 +18,7 @@
 
 import asyncio
 import math
+import os
 from typing import Dict, Any
 
 from sllm.serve.kv_store import RedisStore
@@ -40,23 +41,29 @@ class AutoScaler:
         self.store = store
         self.model_manager = model_manager
         self.worker_manager = worker_manager
-        self.is_shutting_down = False
+        self._shutdown = asyncio.Event()
         self.interval = AUTOSCALER_INTERVAL_SECONDS
         self.queue_threshold = QUEUE_PER_INSTANCE_THRESHOLD
 
     async def run_scaling_loop(self) -> None:
         logger.info("Starting AutoScaler service loop...")
-        while not self.is_shutting_down:
+        while not self._shutdown.is_set():
             try:
                 await self._check_and_scale_all_models()
+            except asyncio.CancelledError:
+                logger.info("Scaling loop cancelled.")
+                break
             except Exception as e:
                 logger.error(f"An unexpected error occurred in the autoscaler loop: {e}", exc_info=True)
             
-            await asyncio.sleep(self.interval)
+            try:
+                await asyncio.wait_for(self._shutdown.wait(), timeout=self.interval)
+            except asyncio.TimeoutError:
+                pass
 
     def shutdown(self) -> None:
         logger.info("Shutting down AutoScaler service...")
-        self.is_shutting_down = True
+        self._shutdown.set()
 
     async def _check_and_scale_all_models(self) -> None:
         all_models = await self.model_manager.get_all_models()
@@ -65,16 +72,16 @@ class AutoScaler:
             return
 
         logger.info(f"Running scaling check for {len(all_models)} models.")
-        tasks = [self._calculate_and_set_needed_instances(model) for model in all_models]
-        await asyncio.gather(*tasks)
+        tasks = [self._calculate_and_set_decision(model) for model in all_models]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _calculate_and_set_needed_instances(self, model_data: Dict[str, Any]) -> None:
+    async def _calculate_and_set_decision(self, model_data: Dict[str, Any]) -> None:
         model_name = model_data['model_name']
         backend = model_data['backend']
         model_identifier = f"{model_name}:{backend}"
         
         auto_scaling_config = model_data.get('auto_scaling_config', {})
-        min_instances = auto_scaling_config.get('min_instances', 1)
+        min_instances = auto_scaling_config.get('min_instances', 0)
         max_instances = auto_scaling_config.get('max_instances', 1)
 
         current_instances = await self.worker_manager.count_running_instances(model_identifier)
@@ -82,43 +89,25 @@ class AutoScaler:
 
         needed = min_instances
 
-        if current_instances > 0:
-            if queue_length > (current_instances * self.queue_threshold):
+        if queue_length > 0:
+            if current_instances > 0:
+                if queue_length > (current_instances * self.queue_threshold):
+                    scale_up_target = math.ceil(queue_length / self.queue_threshold)
+                    needed = max(needed, scale_up_target)
+            else:
                 scale_up_target = math.ceil(queue_length / self.queue_threshold)
                 needed = max(needed, scale_up_target)
-        elif queue_length > 0:
-            scale_up_target = math.ceil(queue_length / self.queue_threshold)
-            needed = max(needed, scale_up_target)
-
+        
         final_needed = max(min_instances, min(needed, max_instances))
+        instance_delta = final_needed - current_instances
 
         logger.info(
             f"Model '{model_identifier}': "
             f"current={current_instances}, queue={queue_length} -> "
-            f"calculated_needed={final_needed} (min:{min_instances}, max:{max_instances})"
+            f"needed={final_needed} (min:{min_instances}, max:{max_instances}). "
+            f"Decision: change by {instance_delta}."
         )
 
-        await self.model_manager.set_needed_instances(model_name, backend, final_needed)
-
-
-async def main():
-    store = RedisStore(host=os.getenv("REDIS_HOST", "localhost"))
-    model_manager = ModelManager(store)
-    worker_manager = WorkerManager(store)
-    
-    autoscaler = AutoScaler(
-        store=store,
-        model_manager=model_manager,
-        worker_manager=worker_manager
-    )
-
-    try:
-        await autoscaler.run_scaling_loop()
-    except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received.")
-    finally:
-        autoscaler.shutdown()
-        await store.close()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        if instance_delta != 0:
+            decision_key = f"scaling_decision:{model_name}:{backend}"
+            await self.store.client.set(decision_key, instance_delta, ex=60)

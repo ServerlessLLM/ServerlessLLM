@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------- #
+#  serverlessllm                                                               #
+#  copyright (c) serverlessllm team 2024                                       #
+#                                                                              #
+#  licensed under the apache license, version 2.0 (the "license");             #
+#  you may not use this file except in compliance with the license.            #
+#                                                                              #
+#  you may obtain a copy of the license at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/license-2.0                  #
+#                                                                              #
+#  unless required by applicable law or agreed to in writing, software         #
+#  distributed under the license is distributed on an "as is" basis,           #
+#  without warranties or conditions of any kind, either express or implied.    #
+#  see the license for the specific language governing permissions and         #
+#  limitations under the license.                                              #
+# ---------------------------------------------------------------------------- #
+
+from fastapi import FastAPI, Request, HTTPException
+from sllm.serve.worker.instance_manager import InstanceManager
+
+def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
+    app = FastAPI()
+
+    @app.post("/start_instance")
+    async def start_instance_api(request: Request):
+        payload = await request.json()
+        instance_id = payload.get("instance_id")
+        model_config = payload.get("model_config")
+        
+        if not instance_id or not model_config:
+            raise HTTPException(status_code=400, detail="Missing instance_id or model_config")
+
+        success = await instance_manager.start_instance(instance_id, model_config)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to start model instance")
+        return {"status": "ok", "message": f"Instance {instance_id} started."}
+
+    @app.post("/stop_instance")
+    async def stop_instance_api(request: Request):
+        payload = await request.json()
+        instance_id = payload.get("instance_id")
+        if not instance_id:
+            raise HTTPException(status_code=400, detail="Missing instance_id")
+
+        success = await instance_manager.stop_instance(instance_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to stop model instance")
+        return {"status": "ok", "message": f"Instance {instance_id} stopped."}
+
+    @app.post("/v1/chat/completions")
+    async def inference_api(request: Request):
+        # This is a simplified routing example.
+        # A real implementation might get the instance_id from a header or the body.
+        payload = await request.json()
+        instance_id = payload.get("instance_id") # Client needs to specify which instance
+        if not instance_id:
+            raise HTTPException(status_code=400, detail="Missing instance_id in request")
+            
+        try:
+            result = await instance_manager.run_inference(instance_id, payload)
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+    return app
