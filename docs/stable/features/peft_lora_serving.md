@@ -108,7 +108,7 @@ sllm deploy --model facebook/opt-125m --backend transformers --enable-lora --lor
 
 Delete the lora adapters by running the following command (this command will only delete lora adapters, the base model won't be deleted):
 ```bash
-sllm delete facebook/opt-125m --lora-adapters "demo-lora1 -- demo-lora2"
+sllm delete facebook/opt-125m --lora-adapters "demo-lora1 demo-lora2"
 ```
 If you need to stop and remove the containers, you can use the following commands:
 ```bash

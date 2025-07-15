@@ -192,7 +192,7 @@ def deploy_model(
                     sys.exit(1)
                 name, path = module.split("=", 1)
                 adapters_dict[name] = path
-        config_data.setdefault("backend_config", {})["adapter_name"] = (
+        config_data.setdefault("backend_config", {})["lora_adapters"] = (
             adapters_dict
         )
     if enable_lora is not None:

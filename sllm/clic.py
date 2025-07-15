@@ -120,7 +120,7 @@ def deploy(
 
 @cli.command()
 @click.argument("models", nargs=-1)
-@click.option("--lora-adapters", multiple=True, help="LoRA adapters to delete.")
+@click.option("--lora-adapters", help="LoRA adapters to delete.")
 def delete(models, lora_adapters):
     """Delete deployed models, or remove only the LoRA adapters."""
     delete_model(models, lora_adapters=lora_adapters if lora_adapters else None)
