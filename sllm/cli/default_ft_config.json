@@ -17,7 +17,6 @@
         "bias": "none",
         "task_type": "CAUSAL_LM",
         "target_modules": ["q_proj", "v_proj"]
-
     },
     "training_config": {
         "auto_find_batch_size": true,
