@@ -36,7 +36,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   py::class_<CheckpointStore>(m, "CheckpointStore")
       .def(py::init<const std::string&, size_t, int, size_t, bool>(),
            py::arg("storage_path"), py::arg("memory_pool_size"),
-           py::arg("num_thread"), py::arg("chunk_size"), py::arg("use_shm") = false)
+           py::arg("num_thread"), py::arg("chunk_size"),
+           py::arg("use_shm") = false)
       .def("register_model_info", &CheckpointStore::RegisterModelInfo,
            py::arg("model_path"),
            "Register the model information and return its size.")
@@ -67,6 +68,22 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
           py::arg("model_path"), py::arg("replica_uuid"),
           py::arg("gpu_memory_handles"), py::arg("mem_copy_chunks"),
           "Load a model from memory asynchronously.")
+      .def("allocate_shared_memory", &CheckpointStore::AllocateSharedMemory,
+           py::arg("tensor_sizes"), "Allocate shared memory")
+      .def(
+          "get_shared_memory_handles",
+          [](CheckpointStore& cs,
+             const std::unordered_map<int, void*>& memory_ptrs) {
+            std::unordered_map<int, std::string> handles =
+                cs.GetSharedMemoryHandles(memory_ptrs);
+
+            std::unordered_map<int, py::bytes> py_handles;
+            for (const auto& kv : handles) {
+              py_handles[kv.first] = py::bytes(kv.second);
+            }
+            return py_handles;
+          },
+          py::arg("memory_ptrs"), "Get shared memory handles")
       .def("wait_model_in_gpu", &CheckpointStore::WaitModelInGpu,
            py::arg("model_path"), py::arg("replica_uuid"),
            "Wait for a model to be available in GPU memory.")
