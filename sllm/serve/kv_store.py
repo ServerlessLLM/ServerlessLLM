@@ -4,7 +4,7 @@
 #                                                                              #
 #  Licensed under the Apache License, Version 2.0 (the "License");             #
 #  you may not use this file except in compliance with the License.            #
-#                                                                              #
+#                                                                              # 
 #  You may obtain a copy of the License at                                     #
 #                                                                              #
 #                  http://www.apache.org/licenses/LICENSE-2.0                  #
@@ -60,20 +60,39 @@ class RedisStore:
         
         await self.client.hset(key, mapping=model_data_to_store)
 
-    async def get_model(self, model_name: str, backend: str) -> Optional[Dict[str, Any]]:
+    async def register_model(self, model: Model) -> None:
+        key = self._get_model_key(model.model_name, model.backend)
+        model_dict = model.model_dump()
+        
+        model_dict['backend_config'] = model.backend_config.model_dump_json()
+        model_dict['auto_scaling_config'] = model.auto_scaling_config.model_dump_json()
+        model_dict['instances'] = json.dumps(model.instances)
+        
+        await self.client.hset(key, mapping=model_dict)
+
+    async def get_model(self, model_name: str, backend: str) -> Optional[Model]:
         key = self._get_model_key(model_name, backend)
         redis_hash = await self.client.hgetall(key)
         if not redis_hash:
             return None
-        return self._reconstruct_model(redis_hash)
+        
+        decoded_hash = {k.decode(): v.decode() for k, v in redis_hash.items()}
+        return Model.model_validate(decoded_hash)
 
-    async def get_all_models(self) -> List[Dict[str, Any]]:
+    async def get_all_models(self) -> List[Model]:
         model_keys = [key async for key in self.client.scan_iter("model:*")]
         if not model_keys:
             return []
+        
         tasks = [self.client.hgetall(key) for key in model_keys]
         all_hashes = await asyncio.gather(*tasks)
-        return [self._reconstruct_model(h) for h in all_hashes if h]
+        
+        models = []
+        for h in all_hashes:
+            if h:
+                decoded_hash = {k.decode(): v.decode() for k, v in h.items()}
+                models.append(Model.model_validate(decoded_hash))
+        return models
 
     async def delete_model(self, model_name: str, backend: str) -> None:
         key = self._get_model_key(model_name, backend)
@@ -88,39 +107,45 @@ class RedisStore:
         return f"worker:{node_id}"
 
     def _reconstruct_worker(self, redis_hash: Dict[str, str]) -> Dict[str, Any]:
-        redis_hash['registered_models'] = json.loads(redis_hash['registered_models'])
-        redis_hash['models_on_device'] = json.loads(redis_hash['models_on_device'])
         redis_hash['hardware_info'] = json.loads(redis_hash['hardware_info'])
         redis_hash['instances_on_device'] = json.loads(redis_hash['instances_on_device'])
         if 'last_heartbeat_ts' in redis_hash:
              redis_hash['last_heartbeat_ts'] = float(redis_hash['last_heartbeat_ts'])
         return redis_hash
 
-    async def register_worker(self, worker_data: Dict[str, Any]) -> None:
-        key = self._get_worker_key(worker_data['node_id'])
-        worker_data_to_store = worker_data.copy()
-        worker_data_to_store["registered_models"] = json.dumps(worker_data.get("registered_models", []))
-        worker_data_to_store["models_on_device"] = json.dumps(worker_data.get("models_on_device", []))
-        worker_data_to_store["hardware_info"] = json.dumps(worker_data.get("hardware_info", {}))
-        worker_data_to_store["instances_on_device"] = json.dumps(worker_data.get("instances_on_device", {}))
-        worker_data_to_store["last_heartbeat_ts"] = str(asyncio.get_running_loop().time())
-        
-        await self.client.hset(key, mapping=worker_data_to_store)
+    async def register_worker(self, worker: Worker) -> None:
+        key = self._get_worker_key(worker.node_id)
+        worker_dict = worker.model_dump()
 
-    async def get_worker(self, node_id: str) -> Optional[Dict[str, Any]]:
+        worker_dict['hardware_info'] = worker.hardware_info.model_dump_json()
+        worker_dict['instances_alive'] = json.dumps(worker.instances_alive)
+        worker_dict['last_heartbeat_time'] = worker.last_heartbeat_time.isoformat()
+
+        await self.client.hset(key, mapping=worker_dict)
+
+    async def get_worker(self, node_id: str) -> Optional[Worker]:
         key = self._get_worker_key(node_id)
         redis_hash = await self.client.hgetall(key)
         if not redis_hash:
             return None
-        return self._reconstruct_worker(redis_hash)
+            
+        decoded_hash = {k.decode(): v.decode() for k, v in redis_hash.items()}
+        return Worker.model_validate(decoded_hash)
 
-    async def get_all_workers(self) -> List[Dict[str, Any]]:
+    async def get_all_workers(self) -> List[Worker]:
         worker_keys = [key async for key in self.client.scan_iter("worker:*")]
         if not worker_keys:
             return []
+            
         tasks = [self.client.hgetall(key) for key in worker_keys]
         all_hashes = await asyncio.gather(*tasks)
-        return [self._reconstruct_worker(h) for h in all_hashes if h]
+        
+        workers = []
+        for h in all_hashes:
+            if h:
+                decoded_hash = {k.decode(): v.decode() for k, v in h.items()}
+                workers.append(Worker.model_validate(decoded_hash))
+        return workers
 
     async def delete_worker(self, node_id: str) -> None:
         key = self._get_worker_key(node_id)
@@ -151,9 +176,8 @@ class RedisStore:
         return await self.client.spop(ready_set)
 
     async def worker_heartbeat(self, node_id: str) -> None:
-        """Updates the heartbeat timestamp for a worker."""
         key = self._get_worker_key(node_id)
-        await self.client.hset(key, "last_heartbeat_ts", str(asyncio.get_running_loop().time()))
+        await self.client.hset(key, "last_heartbeat_time", datetime.now(timezone.utc).isoformat())
 
 
     ### TASK QUEUE METHODS ###

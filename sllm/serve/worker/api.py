@@ -22,6 +22,7 @@ from sllm.serve.worker.instance_manager import InstanceManager
 def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
     app = FastAPI()
 
+
     @app.post("/start_instance")
     async def start_instance_api(request: Request):
         payload = await request.json()
@@ -35,6 +36,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
             raise HTTPException(status_code=500, detail="Failed to start model instance")
         return {"status": "ok", "message": f"Instance {instance_id} started."}
 
+
     @app.post("/stop_instance")
     async def stop_instance_api(request: Request):
         payload = await request.json()
@@ -46,6 +48,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
         if not success:
             raise HTTPException(status_code=500, detail="Failed to stop model instance")
         return {"status": "ok", "message": f"Instance {instance_id} stopped."}
+
 
     @app.post("/invoke")
     async def invoke_handler(request: Request):

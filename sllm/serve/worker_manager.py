@@ -202,8 +202,7 @@ class WorkerManager:
         worker_key = self.store._get_worker_key(node_id)
         redis_hash = {
             "node_id": node_id,
-            "ip_address": payload.get("ip_address"),
-            "registered_models": json.dumps(payload.get("registered_models", [])),
+            "node_ip": payload.get("node_ip"),
             "hardware_info": json.dumps(payload.get("hardware_info", {})),
             "instances_on_device": json.dumps(payload.get("instances_on_device", {})),
             "last_heartbeat_ts": time.time()

@@ -15,7 +15,6 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-
 import os
 import tempfile
 import time
@@ -50,7 +49,7 @@ def _get_live_gpu_info() -> dict:
         
         for gpu in gpus:
             gpus_info[gpu.id] = {
-                "load": gpu.load * 100,  # As percentage
+                "load": gpu.load * 100, 
                 "memory_free": gpu.memoryFree,
                 "memory_used": gpu.memoryUsed,
             }
@@ -68,6 +67,7 @@ def benchmark_static_hardware(test_network: bool = False) -> dict:
     
     write_bw, read_bw = _benchmark_disk_bandwidth()
     
+    # TODO: add actuall profiling logic
     static_info = {
         "pcie_bandwidth": 25000000000,
         "disk_total_space": _get_disk_size(),

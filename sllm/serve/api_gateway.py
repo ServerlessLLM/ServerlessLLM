@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.model_manager import ModelManager
 from sllm.serve.worker_manager import WorkerManager
+from sllm.serve.schema import .
 from sllm.serve.logger import init_logger
 
 INFERENCE_REQUEST_TIMEOUT = 120 
