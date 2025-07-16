@@ -26,13 +26,12 @@ import torch
 # from accelerate.hooks import add_hook_to_module
 from sllm_store._C import (
     allocate_cuda_memory,
-    allocate_shared_memory,
     get_cuda_memory_handles,
-    get_shared_memory_handles,
     get_device_uuid_map,
     restore_tensors,
     save_tensors,
 )
+from sllm_store._checkpoint_store import CheckpointStore
 from sllm_store.client import SllmStoreClient
 from sllm_store.device_map_utils import _expand_tensor_name
 from sllm_store.logger import init_logger
@@ -109,6 +108,8 @@ def load_dict_shm(
     ) as f:
         tensor_index = json.load(f)
 
+    cs = CheckpointStore()
+
     tensor_meta_index = {}
     tensor_data_index = {}
     for name, (offset, size, shape, stride, dtype) in tensor_index.items():
@@ -121,8 +122,8 @@ def load_dict_shm(
     device_memory = calculate_device_memory(
         expanded_device_map, tensor_data_index
     )
-    shared_memory_ptrs = allocate_shared_memory(device_memory)
-    shared_memory_handles = get_shared_memory_handles(shared_memory_ptrs)
+    shared_memory_ptrs = cs.allocate_shared_memory(device_memory)
+    shared_memory_handles = cs.get_shared_memory_handles(shared_memory_ptrs)
     tensor_device_offsets, tensor_copy_chunks = calculate_tensor_device_offsets(
         expanded_device_map, tensor_data_index
     )
