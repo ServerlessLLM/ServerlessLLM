@@ -100,6 +100,7 @@ class CheckpointStore {
   bool use_shm_;
   int num_thread_;
   size_t chunk_size_;
+  SharedMemoryAllocator allocator_;
 
   std::queue<std::future<int>> async_tasks_;
 
