@@ -70,7 +70,8 @@ class SharedMemoryInstance {
 
  private:
   friend std::unique_ptr<SharedMemoryInstance> Create(std::string_view name,
-                                                      size_t size, void* base_addr);
+                                                      size_t size,
+                                                      void* base_addr);
   friend std::unique_ptr<SharedMemoryInstance> Open(std::string_view name);
   friend class MemoryRegistry;
 

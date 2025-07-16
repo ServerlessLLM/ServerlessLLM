@@ -15,6 +15,8 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
+#include "shared_memory.h"
+
 #include <cuda_runtime.h>
 #include <fcntl.h>
 #include <glog/logging.h>
@@ -27,8 +29,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <vector>
-
-#include "shared_memory.h"
 
 #define CUDA_CHECK(call)                                       \
   do {                                                         \
