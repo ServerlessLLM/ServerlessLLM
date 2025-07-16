@@ -24,9 +24,7 @@ logger = init_logger(__name__)
 
 class InstanceManager:
     def __init__(self):
-        # This dictionary will hold the actual, loaded model objects.
-        # Key: instance_id, Value: loaded model/pipeline object
-        self._running_instances: Dict[str, Any] = {}
+        self._running_instances: Dict[str, Dict[str, Any]] = {}
 
     async def start_instance(self, instance_id: str, model_config: Dict[str, Any]) -> bool:
         pass
@@ -38,5 +36,7 @@ class InstanceManager:
         pass
 
     def get_running_instances_info(self) -> Dict[str, Any]:
-        """Returns metadata about the currently running instances for heartbeats."""
-        return list(self._running_instances.keys())
+        info = {}
+        for model_identifier, instances in self._running_instances.items():
+            info[model_identifier] = list(instances.keys())
+        return info

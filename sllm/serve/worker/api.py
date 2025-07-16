@@ -48,19 +48,21 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
             raise HTTPException(status_code=500, detail="Failed to stop model instance")
         return {"status": "ok", "message": f"Instance {instance_id} stopped."}
 
-    @app.post("/v1/chat/completions")
-    async def inference_api(request: Request):
-        # This is a simplified routing example.
-        # A real implementation might get the instance_id from a header or the body.
-        payload = await request.json()
-        instance_id = payload.get("instance_id") # Client needs to specify which instance
-        if not instance_id:
-            raise HTTPException(status_code=400, detail="Missing instance_id in request")
-            
+    @app.post("/invoke")
+    async def invoke_handler(request: Request):
+        body = await request.json()
+        instance_id = body.get("instance_id")
+        payload = body.get("payload") 
+
+        if not instance_id or not payload:
+            raise HTTPException(status_code=400, detail="Internal invoke requires instance_id and payload")
+
         try:
             result = await instance_manager.run_inference(instance_id, payload)
             return result
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
 
     return app

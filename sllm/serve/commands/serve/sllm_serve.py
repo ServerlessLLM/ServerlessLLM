@@ -31,6 +31,7 @@ from sllm.serve.worker_manager import WorkerManager
 from sllm.serve.worker.api import create_worker_app
 from sllm.serve.worker.heartbeat import run_heartbeat_loop
 from sllm.serve.worker.instance_manager import InstanceManager
+from sllm.serve.worker.hardware import benchmark_static_hardware
 
 from sllm.serve.logger import init_logger # logger my beloved
 
@@ -80,6 +81,8 @@ async def run_worker_node(args: argparse.Namespace):
     """Initializes and runs all worker-node services concurrently."""
     logger.info("Starting Sllm in WORKER mode...")
 
+    static_hardware_info = benchmark_static_hardware()
+
     instance_manager = InstanceManager()
     worker_app = create_worker_app(instance_manager)
 
@@ -88,7 +91,11 @@ async def run_worker_node(args: argparse.Namespace):
 
     server_task = asyncio.create_task(uvicorn_server.serve())
     heartbeat_task = asyncio.create_task(
-        run_heartbeat_loop(instance_manager, args.head_node_url)
+        run_heartbeat_loop(
+            instance_manager, 
+            args.head_node_url,
+            static_hardware_info,
+        )
     )
 
     try:

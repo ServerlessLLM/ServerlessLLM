@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses impo JSONResponse
+from fastapi.responses import JSONResponse
 
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.model_manager import ModelManager
@@ -109,6 +109,19 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"Error deleting model: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/heartbeat", tags=["Status"])
+    async def handle_heartbeat(request: Request):
+        try:
+            payload = await request.json()
+            await WorkerManager.process_heartbeat(payload)
+            return {"status": "ok", "message": "Heartbeat received and processed."}
+        except:
+            logger.error(f"Failed to process heartbeat: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An internal error occurred while processing the heartbeat.",
+            )
 
     async def inference_handler(request: Request) -> Response:
         body = await request.json()
