@@ -83,6 +83,7 @@ class SharedMemoryAllocator : public MemoryAllocator {
 
   std::unordered_map<int, std::string> GetSharedMemoryHandles(
       const std::unordered_map<int, void*>& memory_ptrs) {
+    std::lock_guard<std::mutex> lock(mutex_);
     std::unordered_map<int, std::string> shm_handles;
 
     for (const auto& p : memory_ptrs) {
