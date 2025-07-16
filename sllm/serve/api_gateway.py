@@ -35,19 +35,18 @@ INFERENCE_REQUEST_TIMEOUT = 120
 
 logger = init_logger(__name__)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.redis_store = RedisStore(host='localhost', port=6379)
-    await app.state.redis_store.client.initialize()
-    
-    app.state.model_manager = ModelManager(store=app.state.redis_store)
-    app.state.worker_manager = WorkerManager(store=app.state.redis_store)
-    
-    yield
-    
-    await app.state.redis_store.close()
+def create_app(worker_manager: WorkerManager, model_manager: ModelManager, dispatcher: Dispatcher) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        app.state.worker_manager = worker_manager
+        app.state.model_manager = model_manager
+        app.state.dispatcher = dispatcher
+        app.state.redis_store = worker_manager.store 
+        
+        yield
+        
+        logger.info("API Gateway is shutting down.")
 
-def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
 
     @app.get("/health", tags=["System"])
@@ -115,12 +114,12 @@ def create_app() -> FastAPI:
     async def handle_heartbeat(request: Request):
         try:
             payload = await request.json()
-            await WorkerManager.process_heartbeat(payload)
+            await request.app.state.worker_manager.process_heartbeat(payload)
             return {"status": "ok", "message": "Heartbeat received and processed."}
-        except:
+        except Exception as e: 
             logger.error(f"Failed to process heartbeat: {e}", exc_info=True)
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=500, 
                 detail="An internal error occurred while processing the heartbeat.",
             )
 

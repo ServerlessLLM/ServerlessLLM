@@ -27,6 +27,7 @@ from sllm.serve.autoscaler import AutoScaler
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.model_manager import ModelManager
 from sllm.serve.worker_manager import WorkerManager
+from sllm.serve.dispatcher import Dispatcher
 
 from sllm.serve.worker.api import create_worker_app
 from sllm.serve.worker.heartbeat import run_heartbeat_loop
@@ -48,23 +49,27 @@ async def run_head_node(args: argparse.Namespace):
     autoscaler = AutoScaler(
         store=store, model_manager=model_manager, worker_manager=worker_manager
     )
+    dispatcher = Dispatcher(store)
 
     app = create_head_app(
         worker_manager=worker_manager,
         model_manager=model_manager,
+        dispatcher=dispatcher,
     )
 
     uvicorn_config = Config(app, host=args.host, port=args.port, log_level="info")
     uvicorn_server = Server(uvicorn_config)
 
     worker_manager.start()
-
+    dispatcher.start()
     autoscaler_task = asyncio.create_task(autoscaler.run_scaling_loop())
+    dispatcher_task = asyncio.create_task(dispatcher.run_consumer_loop())
     server_task = asyncio.create_task(uvicorn_server.serve())
 
     try:
         logger.info("Sllm control plane started. All services are running.")
         await asyncio.gather(autoscaler_task, server_task)
+        await asyncio.gather(autoscaler_task, dispatcher_task, server_task)
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Shutdown signal received for head node.")
     finally:

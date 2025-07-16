@@ -52,14 +52,6 @@ class RedisStore:
         redis_hash['backend_config'] = json.loads(redis_hash['backend_config'])
         return redis_hash
 
-    async def register_model(self, model_data: Dict[str, Any]) -> None:
-        key = self._get_model_key(model_data['model_name'], model_data['backend'])
-        model_data_to_store = model_data.copy()
-        model_data_to_store["auto_scaling_config"] = json.dumps(model_data.get("auto_scaling_config", {}))
-        model_data_to_store["backend_config"] = json.dumps(model_data.get("backend_config", {}))
-        
-        await self.client.hset(key, mapping=model_data_to_store)
-
     async def register_model(self, model: Model) -> None:
         key = self._get_model_key(model.model_name, model.backend)
         model_dict = model.model_dump()
