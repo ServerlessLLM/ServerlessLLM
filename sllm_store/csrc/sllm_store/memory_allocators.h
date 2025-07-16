@@ -81,6 +81,25 @@ class SharedMemoryAllocator : public MemoryAllocator {
     }
   }
 
+  std::unordered_map<int, std::string> GetSharedMemoryHandles(
+      const std::unordered_map<int, void*>& memory_ptrs) {
+    std::unordered_map<int, std::string> shm_handles;
+
+    for (const auto& p : memory_ptrs) {
+      int device = p.first;
+      void* ptr = p.second;
+
+      auto it = shared_memories_.find(ptr);
+      if (it != shared_memories_.end()) {
+        std::string shm_name = it->second->name();
+        shm_handles[device] = shm_name;
+      } else {
+        throw std::runtime_error("Shared memory handle not found for pointer");
+      }
+    }
+    return shm_handles;
+  }
+
   bool is_shared() const override { return true; }
 
  private:
