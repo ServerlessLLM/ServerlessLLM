@@ -60,6 +60,10 @@ class CheckpointStore {
                      const std::string& replica_uuid);
   int UnloadModelFromHost(const std::string& model_path);
   int ClearMem();
+  std::unordered_map<int, void*> AllocateSharedMemory(
+      const std::unordered_map<int, size_t>& tensor_sizes);
+  std::unordered_map<int, std::string> GetSharedMemoryHandles(
+      const std::unordered_map<int, void*>& memory_ptrs);
 
  public:
   // Get methods
