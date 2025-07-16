@@ -11,6 +11,7 @@ class VllmModelDownloader:
     def download_vllm_model(
         self,
         model_name: str,
+        torch_dtype: str = "auto",
         tensor_parallel_size: int = 1,
         storage_path: str = "./models",
         local_model_path: Optional[str] = None,
@@ -32,6 +33,7 @@ class VllmModelDownloader:
             llm_writer = LLM(
                 model=input_dir,
                 download_dir=input_dir,
+                dtype=torch_dtype,
                 tensor_parallel_size=tensor_parallel_size,
                 num_gpu_blocks_override=1,
                 enforce_eager=True,
