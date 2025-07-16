@@ -34,7 +34,8 @@
 CheckpointStore::CheckpointStore(const std::string& storage_path,
                                  size_t memory_pool_size, int num_thread,
                                  size_t chunk_size, bool use_shm)
-    : storage_path_(storage_path),
+    : allocator_("tensor_device"),
+      storage_path_(storage_path),
       memory_pool_size_(memory_pool_size),
       num_thread_(num_thread),
       chunk_size_(chunk_size),
@@ -390,4 +391,33 @@ int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
     }
     return model->AllocatePinnedMemory(memory_pool_);
   }
+}
+
+std::unordered_map<int, void*> CheckpointStore::AllocateSharedMemory(
+    const std::unordered_map<int, size_t>& tensor_sizes) {
+  std::unordered_map<int, void*> shared_memory_ptrs;
+
+  for (const auto& [device_id, memory_size] : tensor_sizes) {
+    void* ptr = allocator_.allocate(memory_size);
+    if (!ptr) {
+      LOG(ERROR) << "Failed to allocate shared memory for device " << device_id;
+      for (auto& [id, mem_ptr] : shared_memory_ptrs) {
+        if (mem_ptr) {
+          allocator_.deallocate(mem_ptr);
+        }
+      }
+      LOG(ERROR) << "Deallocated previously allocated shared memory";
+      return {};  // Return empty map on failure
+    }
+
+    shared_memory_ptrs[device_id] = ptr;
+  }
+
+  return shared_memory_ptrs;
+}
+
+std::unordered_map<int, std::string> CheckpointStore::GetSharedMemoryHandles(
+    const std::unordered_map<int, void*>& memory_ptrs) {
+  // Delegate to SharedMemoryAllocator
+  return allocator_.GetSharedMemoryHandles(memory_ptrs);
 }
