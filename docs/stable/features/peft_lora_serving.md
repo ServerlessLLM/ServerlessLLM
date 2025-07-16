@@ -83,7 +83,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
         ],
-        "adapter_name": "demo_lora1"
+        "lora_adapter_name": "demo_lora1"
     }'
 ```
 If no lora adapters specified, the system will use the base model to do inference
