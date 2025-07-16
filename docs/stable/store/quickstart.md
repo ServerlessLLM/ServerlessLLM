@@ -56,7 +56,7 @@ ln -s /mnt/nvme/models ./models
 
 :::tip
 If you are looking for a simple way to get started, you can also perform all of the steps below
-using the `sllm-store` command-line interface. Refer to [sllm-store CLI](../api/sllm-store-cli.md)
+using the `sllm-store` command-line interface. Refer to [sllm-store CLI](/docs/stable/api/sllm-store-cli.md)
 for information on how to set up and use the CLI
 :::
 
