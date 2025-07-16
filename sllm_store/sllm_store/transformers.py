@@ -49,13 +49,10 @@ from sllm_store.utils import (
     get_no_split_modules,
     get_tied_no_split_modules,
     send_module_buffers_to_device,
+    quantize,
 )
 from torch import nn
-from transformers import AutoConfig, BitsAndBytesConfig
-from transformers.integrations.bitsandbytes import (
-    set_module_quantized_tensor_to_device,
-    replace_with_bnb_linear,
-)
+from transformers import AutoConfig
 import importlib
 from peft import (
     PeftModel,
@@ -64,6 +61,9 @@ from peft import (
     LoraConfig,
 )
 from peft.utils import set_peft_model_state_dict
+from transformers.utils.quantization_config import (
+    QuantizationConfigMixin,
+)
 
 logger = init_logger(__name__)
 
@@ -141,7 +141,7 @@ def load_model(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     quantization_config: Optional[
-        Union[BitsAndBytesConfig, Dict[str, Any]]
+        Union[QuantizationConfigMixin, Dict[str, Any]]
     ] = None,
     storage_path: Optional[str] = None,
     fully_parallel: bool = False,
@@ -174,7 +174,7 @@ def fully_parallel_load(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     quantization_config: Optional[
-        Union[BitsAndBytesConfig, Dict[str, Any]]
+        Union[QuantizationConfigMixin, Dict[str, Any]]
     ] = None,
     storage_path: Optional[str] = None,
 ):
@@ -231,40 +231,16 @@ def fully_parallel_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            if isinstance(quantization_config, dict):
-                try:
-                    quantization_config = BitsAndBytesConfig.from_dict(
-                        quantization_config
-                    )
-                except (TypeError, ValueError) as e:
-                    logger.error(f"Invalid quantization_config dictionary: {e}")
-                    raise ValueError(f"Invalid quantization_config: {e}") from e
-
-            logger.debug(
-                f"using precision: {quantization_config.quantization_method()}"
+            model = quantize(
+                model,
+                state_dict,
+                quantization_config,
+                torch_dtype,
+                device_map,
+                model_path,
+                replica_uuid,
+                logger,
             )
-
-            if quantization_config.llm_int8_enable_fp32_cpu_offload:
-                logger.debug("Offloading is not supported yet")
-                quantization_config.llm_int8_enable_fp32_cpu_offload = False
-
-            has_torch_dtype = torch_dtype is not None
-            model = replace_with_bnb_linear(
-                model, quantization_config=quantization_config
-            )
-
-            # synchronize
-            client = SllmStoreClient("127.0.0.1:8073")
-            client.confirm_model_loaded(model_path, replica_uuid)
-
-            for name, param in state_dict.items():
-                final_device = param.device
-                if not has_torch_dtype:
-                    param = param.to(torch.float16)
-
-                set_module_quantized_tensor_to_device(
-                    model, name, final_device, param.to("cpu")
-                )
         else:
             if quantization_config is not None:
                 logger.debug(
@@ -278,9 +254,9 @@ def fully_parallel_load(
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
-
     client = SllmStoreClient("127.0.0.1:8073")
     client.confirm_model_loaded(model_path, replica_uuid)
+    model.hf_device_map = device_map
     model.eval()
     return model
 
@@ -291,7 +267,7 @@ def best_effort_load(
     device_map: DeviceMapType = "auto",
     torch_dtype: Optional[torch.dtype] = None,
     quantization_config: Optional[
-        Union[BitsAndBytesConfig, Dict[str, Any]]
+        Union[QuantizationConfigMixin, Dict[str, Any]]
     ] = None,
     storage_path: Optional[str] = None,
 ):
@@ -399,39 +375,16 @@ def best_effort_load(
 
     with torch.no_grad():
         if quantization_config and torch.cuda.is_available():
-            if isinstance(quantization_config, dict):
-                try:
-                    quantization_config = BitsAndBytesConfig.from_dict(
-                        quantization_config
-                    )
-                except (TypeError, ValueError) as e:
-                    logger.error(f"Invalid quantization_config dictionary: {e}")
-                    raise ValueError(f"Invalid quantization_config: {e}") from e
-
-            logger.debug(
-                f"using precision: {quantization_config.quantization_method()}"
+            model = quantize(
+                model,
+                state_dict,
+                quantization_config,
+                torch_dtype,
+                device_map,
+                model_path,
+                replica_uuid,
+                logger,
             )
-
-            if quantization_config.llm_int8_enable_fp32_cpu_offload:
-                logger.debug("Offloading is not supported yet")
-                quantization_config.llm_int8_enable_fp32_cpu_offload = False
-
-            model = replace_with_bnb_linear(
-                model, quantization_config=quantization_config
-            )
-
-            client.confirm_model_loaded(model_path, replica_uuid)
-
-            for name, param in state_dict.items():
-                if (
-                    param.dtype not in [torch.uint8, torch.int8]
-                    and torch_dtype is None
-                ):
-                    param = param.to(torch.float16)
-
-                set_module_quantized_tensor_to_device(
-                    model, name, param.device, param
-                )
         else:
             if quantization_config is not None:
                 logger.debug(
