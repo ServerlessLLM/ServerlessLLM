@@ -117,10 +117,9 @@ class WorkerManager:
 
         for i in range(count):
             target_worker = random.choice(eligible_workers)
-            instance_id = self._generate_instance_id(model_name, backend)
             
-            logger.info(f"Attempting to start instance {instance_id} on worker {target_worker['node_id']}")
-            success = await self._send_start_instance_request(target_worker, instance_id, model_config)
+            logger.info(f"Attempting to start instance on worker {target_worker['node_id']}")
+            success = await self._send_start_instance_request(target_worker, model_config)
             if not success:
                 logger.error(f"Failed to start instance on worker {target_worker['node_id']}. Trying another worker if available.")
     
@@ -158,7 +157,7 @@ class WorkerManager:
             count += len(instances_on_device.get(model_identifier, []))
         return count
 
-    async def _send_start_instance_request(self, worker: Dict[str, Any], instance_id: str, model_config: Dict[str, Any]) -> bool:
+    async def _send_start_instance_request(self, worker: Dict[str, Any], model_config: Dict[str, Any]) -> bool:
         ip_address = worker.get("ip_address")
         if not ip_address:
             logger.error(f"Cannot send command to worker {worker['node_id']}: missing IP address.")
@@ -166,13 +165,12 @@ class WorkerManager:
 
         url = f"http://{ip_address}:8001/start_instance"
         payload = {
-            "instance_id": instance_id,
             "model_config": model_config.get("backend_config", {})
         }
         try:
             async with self.http_session.post(url, json=payload, timeout=30) as response:
                 response.raise_for_status()
-                logger.info(f"Successfully sent start command for {instance_id} to {worker['node_id']}.")
+                logger.info(f"Successfully sent start instance command to {worker['node_id']}.")
                 return True
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             logger.error(f"HTTP request to start instance on {worker['node_id']} failed: {e}")
@@ -243,10 +241,6 @@ class WorkerManager:
 
         except Exception as e:
             logger.error(f"Error during worker pruning: {e}", exc_info=True)
-
-    def _generate_instance_id(self, model_name: str, backend: str) -> str:
-        unique_part = uuid.uuid4().hex[:8]
-        return f"{model_name}-{backend}-{unique_part}"
 
     async def get_worker_info(self, node_id: str) -> Optional[Dict[str, Any]]:
         return await self.store.get_worker(node_id)

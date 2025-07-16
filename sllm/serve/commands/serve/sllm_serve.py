@@ -85,16 +85,17 @@ async def run_worker_node(args: argparse.Namespace):
 
     instance_manager = InstanceManager()
     worker_app = create_worker_app(instance_manager)
-
     uvicorn_config = Config(worker_app, host=args.host, port=args.port, log_level="info")
     uvicorn_server = Server(uvicorn_config)
 
     server_task = asyncio.create_task(uvicorn_server.serve())
     heartbeat_task = asyncio.create_task(
         run_heartbeat_loop(
-            instance_manager, 
-            args.head_node_url,
-            static_hardware_info,
+            instance_manager=instance_manager, 
+            head_node_url=args.head_node_url,
+            node_id=args.node_id,
+            node_ip=args.host,
+            static_hardware_info=static_hardware_info,
         )
     )
 
@@ -128,6 +129,7 @@ def main():
     worker_parser = subparsers.add_parser("worker", help="Run a worker node.")
     worker_parser.add_argument("--host", default="0.0.0.0", type=str, help="Host for the worker's API server.")
     worker_parser.add_argument("--port", default=8001, type=int, help="Port for the worker's API server.")
+    worker_parser.add_argument("--node-id", type=str, required=True, help="A unique identifier for this worker node.")
     worker_parser.add_argument("--head-node-url", type=str, required=True, help="Full URL of the head node API Gateway (e.g., http://192.168.1.100:8343).")
 
     args = parser.parse_args()

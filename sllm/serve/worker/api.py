@@ -25,13 +25,12 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
     @app.post("/start_instance")
     async def start_instance_api(request: Request):
         payload = await request.json()
-        instance_id = payload.get("instance_id")
         model_config = payload.get("model_config")
         
-        if not instance_id or not model_config:
-            raise HTTPException(status_code=400, detail="Missing instance_id or model_config")
+        if not model_config:
+            raise HTTPException(status_code=400, detail="Missing model_config")
 
-        success = await instance_manager.start_instance(instance_id, model_config)
+        success = await instance_manager.start_instance(model_config)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to start model instance")
         return {"status": "ok", "message": f"Instance {instance_id} started."}
