@@ -34,12 +34,12 @@
 CheckpointStore::CheckpointStore(const std::string& storage_path,
                                  size_t memory_pool_size, int num_thread,
                                  size_t chunk_size, bool use_shm)
-    : allocator_("tensor_device"),
-      storage_path_(storage_path),
+    : storage_path_(storage_path),
       memory_pool_size_(memory_pool_size),
       num_thread_(num_thread),
       chunk_size_(chunk_size),
-      use_shm_(use_shm) {
+      use_shm_(use_shm),
+      allocator_("tensor_device") {
   // Get number of GPUs
   cudaGetDeviceCount(&num_gpus_);
   LOG(INFO) << "Number of GPUs: " << num_gpus_;
@@ -82,11 +82,7 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
   }
 
   // Create a memory pool
-  if (use_shm_) {
-    // Generate a shared memory name that can be opened by other processes
-    // Use storage path hash to make it deterministic across processes
-
-  } else {
+  if (!use_shm_) {
     // Use original aligned memory allocation
     memory_pool_ = std::make_shared<AlignedPinnedMemoryPool>(memory_pool_size_,
                                                              chunk_size_);
