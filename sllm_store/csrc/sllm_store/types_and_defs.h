@@ -61,6 +61,8 @@ struct MemCopyChunk {
 };
 using MemCopyChunkList = std::vector<MemCopyChunk>;
 
+// TODO - should this be renamed to a more general term to reflect shm_handles
+// too?
 struct MemCopyHandle {
   std::string cuda_ipc_handle_;
 };
