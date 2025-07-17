@@ -55,10 +55,10 @@ class RedisStore:
     async def register_model(self, model: Model) -> None:
         key = self._get_model_key(model.model_name, model.backend)
         model_dict = model.model_dump()
-        
+
         model_dict['backend_config'] = model.backend_config.model_dump_json()
         model_dict['auto_scaling_config'] = model.auto_scaling_config.model_dump_json()
-        model_dict['instances'] = json.dumps(model.instances)
+        model_dict['instances'] = "[]"
         
         await self.client.hset(key, mapping=model_dict)
 

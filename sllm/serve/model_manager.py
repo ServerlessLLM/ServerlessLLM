@@ -30,10 +30,12 @@ class ModelManager:
 
     async def register(self, model_config: ModelConfig) -> None:
         model_name = model_config.get("model")
-        backend = model_config.get("backend")
-        
+        backend = model_config.get("backend", None)
         if not model_name or not backend:
             raise ValueError("Model configuration must include 'model' and 'backend' keys.")
+        model_key = self.store._get_model_key(model_name, backend)
+        if self.store.client.exists(model_key):
+            raise ValueError(f"Model '{model.model_name}:{model.backend}' is already registered.")
 
         logger.info(f"Registering model '{model_name}:{backend}'")
         await self.store.register_model(model_config)
@@ -51,7 +53,6 @@ class ModelManager:
             logger.warning(f"Update failed: model '{model_name}:{backend}' not found.")
             return None
         
-        # Ensure the keys are not changed during an update
         model_config["model"] = model_name
         model_config["backend"] = backend
         

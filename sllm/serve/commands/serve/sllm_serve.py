@@ -75,6 +75,7 @@ async def run_head_node(args: argparse.Namespace):
     finally:
         logger.info("Initiating graceful shutdown for head node...")
         autoscaler.shutdown()
+        await dispatcher.shutdown()
         await worker_manager.shutdown()
         uvicorn_server.should_exit = True
         await asyncio.sleep(2)

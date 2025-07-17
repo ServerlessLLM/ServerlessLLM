@@ -49,20 +49,11 @@ def create_app(worker_manager: WorkerManager, model_manager: ModelManager, dispa
 
     app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
 
-    @app.get("/health", tags=["System"])
+    @app.get("/health")
     async def health_check():
         return {"status": "ok"}
 
-    @app.get("/v1/models", tags=["Models"])
-    async def get_models(request: Request):
-        try:
-            model_statuses = await request.app.state.model_manager.get_all_models_status()
-            return model_statuses
-        except Exception as e:
-            logger.error(f"Error retrieving models: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to retrieve models from the store.")
-
-    @app.post("/register", tags=["Admin"])
+    @app.post("/register")
     async def register_handler(request: Request):
         try:
             body = await request.json()
@@ -74,7 +65,7 @@ def create_app(worker_manager: WorkerManager, model_manager: ModelManager, dispa
             logger.error(f"Cannot register model: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An internal error occurred during model registration.")
 
-    @app.post("/update", tags=["Admin"])
+    @app.post("/update")
     async def update_handler(request: Request):
         try:
             body = await request.json()
@@ -86,31 +77,44 @@ def create_app(worker_manager: WorkerManager, model_manager: ModelManager, dispa
                 
             await request.app.state.model_manager.update_model(model_name, backend, body)
             return {"status": f"updated model {model_name}:{backend}"}
+
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
             logger.error(f"Error updating model: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.post("/delete", tags=["Admin"])
+    @app.post("/delete")
     async def delete_model_handler(request: Request):
         try:
             body = await request.json()
             model_name = body.get("model_name")
-            backend = body.get("backend")
+            if not model_name:
+                raise HTTPException(status_code=400, detail="Missing 'model_name' in request body.")
 
-            if not all([model_name, backend]):
-                raise HTTPException(status_code=400, detail="Missing 'model_name' or 'backend' in request body.")
-            
-            await request.app.state.model_manager.delete_model(model_name, backend)
-            return {"status": f"deleted model {model_name}:{backend}"}
+            backend = body.get("backend", None)
+            lora_adapters = body.get("lora_adapters", None)
+            model_manager = request.app.state.model_manager
+
+            if lora_adapters:
+                await model_manager.delete_model(model_name, "transformers", lora_adapters)
+                return {"status": f"deleted LoRA adapters from {model_name}"}
+
+            elif backend:
+                await model_manager.delete_model(model_name, backend)
+                return {"status": f"deleted model {model_name}:{backend}"}
+
+            else:
+                await model_manager.delete_model(model_name, "all")
+                return {"status": f"deleted all backends for model {model_name}"}
+
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
-            logger.error(f"Error deleting model: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"Error during delete operation for '{model_name}': {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An internal server error occurred.")
 
-    @app.post("/heartbeat", tags=["Status"])
+    @app.post("/heartbeat")
     async def handle_heartbeat(request: Request):
         try:
             payload = await request.json()
@@ -123,7 +127,7 @@ def create_app(worker_manager: WorkerManager, model_manager: ModelManager, dispa
                 detail="An internal error occurred while processing the heartbeat.",
             )
 
-    async def inference_handler(request: Request) -> Response:
+    async def inference_handler(request: Request, action: str) -> Response:
         body = await request.json()
         model_identifier = body.get("model")
         
@@ -136,7 +140,7 @@ def create_app(worker_manager: WorkerManager, model_manager: ModelManager, dispa
             raise HTTPException(status_code=404, detail=f"Model '{model_identifier}' not found or not registered.")
 
         task_id = str(uuid.uuid4()) if request["task_id"] == None else request["task_id"]
-        task_package = {"task_id": task_id, "payload": body}
+        task_package = {"task_id": task_id, "action": action, "payload": body}
         
         store: RedisStore = request.app.state.redis_store
         result_queue = asyncio.Queue()
@@ -164,16 +168,24 @@ def create_app(worker_manager: WorkerManager, model_manager: ModelManager, dispa
         finally:
             listener_task.cancel()
 
-    @app.post("/v1/chat/completions", tags=["Inference"])
+    @app.post("/v1/chat/completions")
     async def generate_handler(request: Request):
-        return await inference_handler(request)
+        return await inference_handler(request, "generate")
 
-    @app.post("/v1/embeddings", tags=["Inference"])
+    @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
-        return await inference_handler(request)
+        return await inference_handler(request, "encode")
 
-    @app.post("/fine-tuning", tags=["Fine-tuning"], status_code=202)
+    @app.post("/fine-tuning")
     async def fine_tuning_handler(request: Request):
-        return await inference_handler(request)
+        return await inference_handler(request, "fine-tuning")
 
+    @app.get("/v1/models")
+    async def get_models(request: Request):
+        try:
+            model_statuses = await request.app.state.model_manager.get_all_models_status()
+            return model_statuses
+        except Exception as e:
+            logger.error(f"Error retrieving models: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to retrieve models from the store.")
     return app
