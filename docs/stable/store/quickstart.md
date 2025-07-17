@@ -55,9 +55,7 @@ ln -s /mnt/nvme/models ./models
 :::
 
 :::tip
-If you are looking for a simple way to get started, you can also perform all of the steps below
-using the `sllm-store` command-line interface. Refer to [sllm-store CLI](../../api/sllm-store-cli)
-for information on how to set up and use the CLI
+The steps below can also be performed using the `sllm-store` command-line interface. Refer to the [sllm-store CLI](../../api/sllm-store-cli) documentation for details.
 :::
 
 1. Convert a model to ServerlessLLM format and save it to a local path:
