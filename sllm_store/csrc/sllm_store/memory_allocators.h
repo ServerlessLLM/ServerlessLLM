@@ -68,17 +68,12 @@ class SharedMemoryAllocator : public MemoryAllocator {
 
     void* ptr = shm->data();
     // Store the shared memory instance for cleanup
-    std::lock_guard<std::mutex> lock(mutex_);
-    shared_memories_[ptr] = std::move(shm);
+    MemoryRegistry::Instance().RegisterSharedMemory(ptr, std::move(shm));
     return ptr;
   }
 
   void deallocate(void* ptr) override {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto it = shared_memories_.find(ptr);
-    if (it != shared_memories_.end()) {
-      shared_memories_.erase(it);
-    }
+    MemoryRegistry::Instance().UnregisterSharedMemory(ptr);
   }
 
   std::unordered_map<int, std::string> GetSharedMemoryHandles(
@@ -90,9 +85,9 @@ class SharedMemoryAllocator : public MemoryAllocator {
       int device = p.first;
       void* ptr = p.second;
 
-      auto it = shared_memories_.find(ptr);
-      if (it != shared_memories_.end()) {
-        std::string shm_name = it->second->name();
+      auto shm = MemoryRegistry::Instance().FindSharedMemory(ptr);
+      if (shm) {
+        std::string shm_name = shm->name();
         shm_handles[device] = shm_name;
       } else {
         throw std::runtime_error("Shared memory handle not found for pointer");
@@ -107,6 +102,4 @@ class SharedMemoryAllocator : public MemoryAllocator {
   std::string name_prefix_;
   std::atomic<size_t> counter_;
   std::mutex mutex_;
-  std::unordered_map<void*, std::unique_ptr<SharedMemoryInstance>>
-      shared_memories_;
 };

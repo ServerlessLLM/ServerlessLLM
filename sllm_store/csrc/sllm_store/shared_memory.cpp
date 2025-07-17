@@ -61,6 +61,28 @@ class MemoryRegistry {
                    regions_.end());
   }
 
+  void RegisterSharedMemory(void* ptr,
+                            std::unique_ptr<SharedMemoryInstance> shm) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    shared_memories_[ptr] = std::move(shm);
+  }
+
+  // Remove shared memory instance from registry
+  void UnregisterSharedMemory(void* ptr) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = shared_memories_.find(ptr);
+    if (it != shared_memories_.end()) {
+      shared_memories_.erase(it);
+    }
+  }
+
+  // Find shared memory instance by pointer
+  SharedMemoryInstance* FindSharedMemory(void* ptr) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = shared_memories_.find(ptr);
+    return (it != shared_memories_.end()) ? it->second.get() : nullptr;
+  }
+
   void CleanupAll() {
     std::lock_guard<std::mutex> lock(mutex_);
     // Clear the list first to prevent double cleanup
@@ -70,7 +92,7 @@ class MemoryRegistry {
     for (auto* pm : to_cleanup) {
       // Force cleanup even if not owner in emergency
       if (std::getenv("FORCE_CLEANUP")) {
-        pm->is_owner_ = true;
+        pm->SetOwner(true);
       }
     }
     // Destructors will run when unique_ptrs go out of scope
@@ -79,6 +101,8 @@ class MemoryRegistry {
  private:
   std::mutex mutex_;
   std::vector<SharedMemoryInstance*> regions_;
+  std::unordered_map<void*, std::unique_ptr<SharedMemoryInstance>>
+      shared_memories_;
 
   MemoryRegistry() { RegisterCleanupHandlers(); }
 

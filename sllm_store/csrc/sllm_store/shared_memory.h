@@ -51,6 +51,8 @@ class SharedMemoryInstance {
     }
   }
 
+  void SetOwner(bool owner) { is_owner_ = owner; }
+
   // Accessors
   void* data() const { return data_; }
   size_t size() const { return size_; }
@@ -84,4 +86,29 @@ class SharedMemoryInstance {
   size_t mapped_size_ = 0;  // Actual mapped size (page-aligned)
   bool is_owner_ = false;
   bool is_huge_page_ = false;
+};
+
+// Singleton for managing registered shared memory instances
+class MemoryRegistry {
+ public:
+  static MemoryRegistry& Instance();
+
+  void Register(SharedMemoryInstance* pm);
+  void Unregister(SharedMemoryInstance* pm);
+
+  void RegisterSharedMemory(void* ptr,
+                            std::unique_ptr<SharedMemoryInstance> shm);
+  void UnregisterSharedMemory(void* ptr);
+  SharedMemoryInstance* FindSharedMemory(void* ptr);
+
+  void CleanupAll();
+
+ private:
+  MemoryRegistry();
+  void RegisterCleanupHandlers();
+
+  std::mutex mutex_;
+  std::vector<SharedMemoryInstance*> regions_;
+  std::unordered_map<void*, std::unique_ptr<SharedMemoryInstance>>
+      shared_memories_;
 };

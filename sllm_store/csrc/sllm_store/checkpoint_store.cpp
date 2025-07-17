@@ -38,8 +38,7 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
       memory_pool_size_(memory_pool_size),
       num_thread_(num_thread),
       chunk_size_(chunk_size),
-      use_shm_(use_shm),
-      allocator_("tensor_device") {
+      use_shm_(use_shm) {
   // Get number of GPUs
   cudaGetDeviceCount(&num_gpus_);
   LOG(INFO) << "Number of GPUs: " << num_gpus_;
@@ -470,35 +469,6 @@ int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
   }
 }
 
-std::unordered_map<int, void*> CheckpointStore::AllocateSharedMemory(
-    const std::unordered_map<int, size_t>& tensor_sizes) {
-  std::unordered_map<int, void*> shared_memory_ptrs;
-
-  for (const auto& [device_id, memory_size] : tensor_sizes) {
-    void* ptr = allocator_.allocate(memory_size);
-    if (!ptr) {
-      LOG(ERROR) << "Failed to allocate shared memory for device " << device_id;
-      for (auto& [id, mem_ptr] : shared_memory_ptrs) {
-        if (mem_ptr) {
-          allocator_.deallocate(mem_ptr);
-        }
-      }
-      LOG(ERROR) << "Deallocated previously allocated shared memory";
-      return {};  // Return empty map on failure
-    }
-
-    shared_memory_ptrs[device_id] = ptr;
-  }
-
-  return shared_memory_ptrs;
-}
-
-std::unordered_map<int, std::string> CheckpointStore::GetSharedMemoryHandles(
-    const std::unordered_map<int, void*>& memory_ptrs) {
-  // Delegate to SharedMemoryAllocator
-  return allocator_.GetSharedMemoryHandles(memory_ptrs);
-}
-
 std::shared_ptr<AlignedPinnedMemoryPool>
 CheckpointStore::GetAlignedPinnedMemoryPool() const {
   return memory_pool_;
@@ -511,4 +481,37 @@ CheckpointStore::GetSharedPinnedMemoryPool(ModelPtr model) const {
     return it->second;
   }
   return nullptr;
+}
+
+std::unordered_map<int, void*> AllocateSharedMemory(
+    const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size) {
+  SharedMemoryAllocator allocator("tensor_device");
+  std::unordered_map<int, void*> shared_memory_ptrs;
+
+  for (const auto& [device_id, memory_size] : tensor_sizes) {
+    size_t chunks_req = (memory_size + chunk_size - 1) / chunk_size;
+    void* ptr = allocator.allocate(chunks_req * chunk_size);
+    if (!ptr) {
+      LOG(ERROR) << "Failed to allocate shared memory for device " << device_id;
+      // Cleanup previously allocated memory
+      for (auto& [id, mem_ptr] : shared_memory_ptrs) {
+        if (mem_ptr) {
+          allocator.deallocate(mem_ptr);
+        }
+      }
+      LOG(ERROR) << "Deallocated previously allocated shared memory";
+      return {};  // Return empty map on failure
+    }
+
+    shared_memory_ptrs[device_id] = ptr;
+  }
+
+  return shared_memory_ptrs;
+}
+
+std::unordered_map<int, std::string> GetSharedMemoryHandles(
+    const std::unordered_map<int, void*>& memory_ptrs) {
+  // Delegate to SharedMemoryAllocator
+  SharedMemoryAllocator allocator("tensor_device");
+  return allocator.GetSharedMemoryHandles(memory_ptrs);
 }

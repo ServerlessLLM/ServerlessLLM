@@ -65,10 +65,6 @@ class CheckpointStore {
                      const std::string& replica_uuid);
   int UnloadModelFromHost(const std::string& model_path);
   int ClearMem();
-  std::unordered_map<int, void*> AllocateSharedMemory(
-      const std::unordered_map<int, size_t>& tensor_sizes);
-  std::unordered_map<int, std::string> GetSharedMemoryHandles(
-      const std::unordered_map<int, void*>& memory_ptrs);
   std::shared_ptr<AlignedPinnedMemoryPool> GetAlignedPinnedMemoryPool() const;
   std::shared_ptr<SharedPinnedMemoryPool> GetSharedPinnedMemoryPool(
       ModelPtr model) const;
@@ -105,7 +101,6 @@ class CheckpointStore {
   bool use_shm_;
   int num_thread_;
   size_t chunk_size_;
-  SharedMemoryAllocator allocator_;
 
   std::queue<std::future<int>> async_tasks_;
 
@@ -127,3 +122,8 @@ class CheckpointStore {
   MemPtrListMap GetDevicePtrsFromMemHandles(
       const MemCopyHandleListMap& memory_handles);
 };
+
+std::unordered_map<int, void*> AllocateSharedMemory(
+    const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size);
+std::unordered_map<int, std::string> GetSharedMemoryHandles(
+    const std::unordered_map<int, void*>& memory_ptrs);

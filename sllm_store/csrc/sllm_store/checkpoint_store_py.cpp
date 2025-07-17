@@ -70,14 +70,13 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
           py::arg("model_path"), py::arg("replica_uuid"),
           py::arg("gpu_memory_handles"), py::arg("mem_copy_chunks"),
           "Load a model from memory asynchronously.")
-      .def("allocate_shared_memory", &CheckpointStore::AllocateSharedMemory,
+      .def("allocate_shared_memory", &AllocateSharedMemory,
            py::arg("tensor_sizes"), "Allocate shared memory")
       .def(
           "get_shared_memory_handles",
-          [](CheckpointStore& cs,
-             const std::unordered_map<int, void*>& memory_ptrs) {
+          [](const std::unordered_map<int, void*>& memory_ptrs) {
             std::unordered_map<int, std::string> handles =
-                cs.GetSharedMemoryHandles(memory_ptrs);
+                GetSharedMemoryHandles(memory_ptrs);
 
             std::unordered_map<int, py::bytes> py_handles;
             for (const auto& kv : handles) {
