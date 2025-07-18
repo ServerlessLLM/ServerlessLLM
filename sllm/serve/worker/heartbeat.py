@@ -19,23 +19,28 @@
 import asyncio
 import os
 import uuid
+
 import aiohttp
+
 from sllm.serve.logger import init_logger
+from sllm.serve.worker.hardware_utils import get_dynamic_metrics
 from sllm.serve.worker.instance_manager import InstanceManager
-from sllm.serve.worker.hardware_utils import get_dynamic_metrics 
 
 logger = init_logger(__name__)
+
 
 async def run_heartbeat_loop(
     instance_manager: InstanceManager,
     head_node_url: str,
     node_id: str,
     node_ip: str,
-    static_hardware_info: dict, 
-    interval_seconds: int = 15
+    static_hardware_info: dict,
+    interval_seconds: int = 15,
 ):
-    logger.info(f"Starting heartbeat loop for node {node_id}. Reporting to {head_node_url}.")
-    
+    logger.info(
+        f"Starting heartbeat loop for node {node_id}. Reporting to {head_node_url}."
+    )
+
     async with aiohttp.ClientSession() as session:
         while True:
             try:
@@ -46,13 +51,17 @@ async def run_heartbeat_loop(
                     "node_id": node_id,
                     "node_ip": node_ip,
                     "instances_on_device": instance_manager.get_running_instances_info(),
-                    "hardware_info": {**static_hardware_info, **dynamic_info}
+                    "hardware_info": {**static_hardware_info, **dynamic_info},
                 }
 
                 heartbeat_url = f"{head_node_url}/heartbeat"
-                async with session.post(heartbeat_url, json=payload) as response:
+                async with session.post(
+                    heartbeat_url, json=payload
+                ) as response:
                     response.raise_for_status()
-                    logger.debug(f"Heartbeat sent successfully for node {node_id}.")
+                    logger.debug(
+                        f"Heartbeat sent successfully for node {node_id}."
+                    )
 
             except Exception as e:
                 logger.error(f"Failed to send heartbeat: {e}")

@@ -24,24 +24,23 @@ from uvicorn import Config, Server
 
 from sllm.serve.api_gateway import create_app as create_head_app
 from sllm.serve.autoscaler import AutoScaler
-from sllm.serve.kv_store import RedisStore
-from sllm.serve.model_manager import ModelManager
-from sllm.serve.worker_manager import WorkerManager
 from sllm.serve.dispatcher import Dispatcher
-
+from sllm.serve.kv_store import RedisStore
+from sllm.serve.logger import init_logger  # logger my beloved
+from sllm.serve.model_manager import ModelManager
 from sllm.serve.worker.api import create_worker_app
+from sllm.serve.worker.hardware import benchmark_static_hardware
 from sllm.serve.worker.heartbeat import run_heartbeat_loop
 from sllm.serve.worker.instance_manager import InstanceManager
-from sllm.serve.worker.hardware import benchmark_static_hardware
-
-from sllm.serve.logger import init_logger # logger my beloved
+from sllm.serve.worker_manager import WorkerManager
 
 logger = init_logger(__name__)
+
 
 async def run_head_node(args: argparse.Namespace):
     """Initializes and runs all head-node services concurrently."""
     logger.info("Starting Sllm in HEAD mode...")
-    
+
     logger.info(f"Connecting to Redis at {args.redis_host}:{args.redis_port}")
     store = RedisStore(host=args.redis_host, port=args.redis_port)
     model_manager = ModelManager(store)
@@ -57,7 +56,9 @@ async def run_head_node(args: argparse.Namespace):
         dispatcher=dispatcher,
     )
 
-    uvicorn_config = Config(app, host=args.host, port=args.port, log_level="info")
+    uvicorn_config = Config(
+        app, host=args.host, port=args.port, log_level="info"
+    )
     uvicorn_server = Server(uvicorn_config)
 
     worker_manager.start()
@@ -91,13 +92,15 @@ async def run_worker_node(args: argparse.Namespace):
 
     instance_manager = InstanceManager()
     worker_app = create_worker_app(instance_manager)
-    uvicorn_config = Config(worker_app, host=args.host, port=args.port, log_level="info")
+    uvicorn_config = Config(
+        worker_app, host=args.host, port=args.port, log_level="info"
+    )
     uvicorn_server = Server(uvicorn_config)
 
     server_task = asyncio.create_task(uvicorn_server.serve())
     heartbeat_task = asyncio.create_task(
         run_heartbeat_loop(
-            instance_manager=instance_manager, 
+            instance_manager=instance_manager,
             head_node_url=args.head_node_url,
             node_id=args.node_id,
             node_ip=args.host,
@@ -106,7 +109,9 @@ async def run_worker_node(args: argparse.Namespace):
     )
 
     try:
-        logger.info(f"Sllm worker started. API running on {args.host}:{args.port}.")
+        logger.info(
+            f"Sllm worker started. API running on {args.host}:{args.port}."
+        )
         await asyncio.gather(server_task, heartbeat_task)
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Shutdown signal received for worker node.")
@@ -114,7 +119,9 @@ async def run_worker_node(args: argparse.Namespace):
         logger.info("Initiating graceful shutdown for worker node...")
         server_task.cancel()
         heartbeat_task.cancel()
-        await asyncio.gather(server_task, heartbeat_task, return_exceptions=True)
+        await asyncio.gather(
+            server_task, heartbeat_task, return_exceptions=True
+        )
         logger.info("Worker node shutdown complete.")
 
 
@@ -122,28 +129,69 @@ def main():
     parser = argparse.ArgumentParser(
         description="ServerlessLLM (Sllm) main entry point."
     )
-    subparsers = parser.add_subparsers(dest="mode", required=True, help="The mode to run in: 'head' or 'worker'.")
+    subparsers = parser.add_subparsers(
+        dest="mode",
+        required=True,
+        help="The mode to run in: 'head' or 'worker'.",
+    )
 
     # --- Arguments for HEAD mode ---
-    head_parser = subparsers.add_parser("head", help="Run the control plane (head node).")
-    head_parser.add_argument("--host", default="0.0.0.0", type=str, help="Host IP for the API Gateway.")
-    head_parser.add_argument("--port", default=8343, type=int, help="Port for the API Gateway.")
-    head_parser.add_argument("--redis-host", default="localhost", type=str, help="Hostname of the Redis server.")
-    head_parser.add_argument("--redis-port", default=6379, type=int, help="Port of the Redis server.")
+    head_parser = subparsers.add_parser(
+        "head", help="Run the control plane (head node)."
+    )
+    head_parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        type=str,
+        help="Host IP for the API Gateway.",
+    )
+    head_parser.add_argument(
+        "--port", default=8343, type=int, help="Port for the API Gateway."
+    )
+    head_parser.add_argument(
+        "--redis-host",
+        default="localhost",
+        type=str,
+        help="Hostname of the Redis server.",
+    )
+    head_parser.add_argument(
+        "--redis-port", default=6379, type=int, help="Port of the Redis server."
+    )
 
     # --- Arguments for WORKER mode ---
     worker_parser = subparsers.add_parser("worker", help="Run a worker node.")
-    worker_parser.add_argument("--host", default="0.0.0.0", type=str, help="Host for the worker's API server.")
-    worker_parser.add_argument("--port", default=8001, type=int, help="Port for the worker's API server.")
-    worker_parser.add_argument("--node-id", type=str, required=True, help="A unique identifier for this worker node.")
-    worker_parser.add_argument("--head-node-url", type=str, required=True, help="Full URL of the head node API Gateway (e.g., http://192.168.1.100:8343).")
+    worker_parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        type=str,
+        help="Host for the worker's API server.",
+    )
+    worker_parser.add_argument(
+        "--port",
+        default=8001,
+        type=int,
+        help="Port for the worker's API server.",
+    )
+    worker_parser.add_argument(
+        "--node-id",
+        type=str,
+        required=True,
+        help="A unique identifier for this worker node.",
+    )
+    worker_parser.add_argument(
+        "--head-node-url",
+        type=str,
+        required=True,
+        help="Full URL of the head node API Gateway (e.g., http://192.168.1.100:8343).",
+    )
 
     args = parser.parse_args()
 
-    if args.mode == 'head':
+    if args.mode == "head":
         asyncio.run(run_head_node(args))
-    elif args.mode == 'worker':
+    elif args.mode == "worker":
         asyncio.run(run_worker_node(args))
+
 
 if __name__ == "__main__":
     main()

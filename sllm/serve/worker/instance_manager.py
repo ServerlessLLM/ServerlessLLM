@@ -17,31 +17,37 @@
 # ---------------------------------------------------------------------------- #
 
 import uuid
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
+
 
 class InstanceManager:
     def __init__(self):
         self._running_instances: Dict[str, Dict[str, Any]] = {}
 
     async def start_instance(self, model_config: Dict[str, Any]) -> str:
-        model_identifier = f"{model_config['model_name']}:{model_config['backend']}"
-        instance_id = self._generate_instance_id(model_config['model_name'], model_config['backend'])
+        model_identifier = (
+            f"{model_config['model_name']}:{model_config['backend']}"
+        )
+        instance_id = self._generate_instance_id(
+            model_config["model_name"], model_config["backend"]
+        )
 
         # TODO: add logic here for registration and deployment
 
-        return instance_id 
+        return instance_id
 
     async def stop_instance(self, instance_id: str) -> bool:
-
         # TODO: add logic here
 
         pass
 
-    async def run_inference(self, instance_id: str, request_payload: Dict[str, Any]) -> Dict[str, Any]:
-
+    async def run_inference(
+        self, instance_id: str, request_payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
         # TODO: add logic here
 
         pass

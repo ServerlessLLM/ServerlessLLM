@@ -19,17 +19,18 @@
 import asyncio
 import math
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
 from sllm.serve.kv_store import RedisStore
+from sllm.serve.logger import init_logger
 from sllm.serve.model_manager import ModelManager
 from sllm.serve.worker_manager import WorkerManager
-from sllm.serve.logger import init_logger
 
 QUEUE_PER_INSTANCE_THRESHOLD = 5
 AUTOSCALER_INTERVAL_SECONDS = 10
 
 logger = init_logger(__name__)
+
 
 class AutoScaler:
     def __init__(
@@ -54,10 +55,15 @@ class AutoScaler:
                 logger.info("Scaling loop cancelled.")
                 break
             except Exception as e:
-                logger.error(f"An unexpected error occurred in the autoscaler loop: {e}", exc_info=True)
-            
+                logger.error(
+                    f"An unexpected error occurred in the autoscaler loop: {e}",
+                    exc_info=True,
+                )
+
             try:
-                await asyncio.wait_for(self._shutdown.wait(), timeout=self.interval)
+                await asyncio.wait_for(
+                    self._shutdown.wait(), timeout=self.interval
+                )
             except asyncio.TimeoutError:
                 pass
 
@@ -72,32 +78,49 @@ class AutoScaler:
             return
 
         logger.info(f"Running scaling check for {len(all_models)} models.")
-        tasks = [self._calculate_and_set_decision(model) for model in all_models]
+        tasks = [
+            self._calculate_and_set_decision(model) for model in all_models
+        ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _calculate_and_set_decision(self, model_data: Dict[str, Any]) -> None:
-        model_name = model_data['model_name']
-        backend = model_data['backend']
+    async def _calculate_and_set_decision(
+        self, model_data: Dict[str, Any]
+    ) -> None:
+        model_name = model_data["model_name"]
+        backend = model_data["backend"]
         model_identifier = f"{model_name}:{backend}"
-        
-        auto_scaling_config = model_data.get('auto_scaling_config', {})
-        min_instances = auto_scaling_config.get('min_instances', 0)
-        max_instances = auto_scaling_config.get('max_instances', 1)
+        decision_key = f"scaling_decision:{model_name}:{backend}"
 
-        current_instances = await self.worker_manager.count_running_instances(model_identifier)
+        if model_data.get("status") == "excommunicado":
+            current_instances = (
+                await self.worker_manager.count_running_instances(
+                    model_identifier
+                )
+            )
+            if current_instances > 0:
+                logger.info(
+                    f"Model '{model_identifier}' is 'excommunicado'. "
+                    f"Decision: scale down by {current_instances} instances."
+                )
+                await self.store.client.set(
+                    decision_key, -current_instances, ex=60
+                )
+            return
+
+        auto_scaling_config = model_data.get("auto_scaling_config", {})
+        min_instances = auto_scaling_config.get("min_instances", 0)
+        max_instances = auto_scaling_config.get("max_instances", 1)
+
+        current_instances = await self.worker_manager.count_running_instances(
+            model_identifier
+        )
         queue_length = await self.store.get_queue_length(model_name, backend)
 
         needed = min_instances
+        if queue_length > (current_instances * self.queue_threshold):
+            scale_up_target = math.ceil(queue_length / self.queue_threshold)
+            needed = max(needed, scale_up_target)
 
-        if queue_length > 0:
-            if current_instances > 0:
-                if queue_length > (current_instances * self.queue_threshold):
-                    scale_up_target = math.ceil(queue_length / self.queue_threshold)
-                    needed = max(needed, scale_up_target)
-            else:
-                scale_up_target = math.ceil(queue_length / self.queue_threshold)
-                needed = max(needed, scale_up_target)
-        
         final_needed = max(min_instances, min(needed, max_instances))
         instance_delta = final_needed - current_instances
 
@@ -109,5 +132,4 @@ class AutoScaler:
         )
 
         if instance_delta != 0:
-            decision_key = f"scaling_decision:{model_name}:{backend}"
             await self.store.client.set(decision_key, instance_delta, ex=60)

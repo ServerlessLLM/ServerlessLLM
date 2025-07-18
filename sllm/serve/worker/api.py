@@ -16,26 +16,28 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+
 from sllm.serve.worker.instance_manager import InstanceManager
+
 
 def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
     app = FastAPI()
-
 
     @app.post("/start_instance")
     async def start_instance_api(request: Request):
         payload = await request.json()
         model_config = payload.get("model_config")
-        
+
         if not model_config:
             raise HTTPException(status_code=400, detail="Missing model_config")
 
         instance_id = await instance_manager.start_instance(model_config)
         if not instance_id:
-            raise HTTPException(status_code=500, detail="Failed to start model instance")
+            raise HTTPException(
+                status_code=500, detail="Failed to start model instance"
+            )
         return {"status": "ok", "message": f"Instance {instance_id} started."}
-
 
     @app.post("/stop_instance")
     async def stop_instance_api(request: Request):
@@ -46,18 +48,22 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
 
         success = await instance_manager.stop_instance(instance_id)
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to stop model instance")
+            raise HTTPException(
+                status_code=500, detail="Failed to stop model instance"
+            )
         return {"status": "ok", "message": f"Instance {instance_id} stopped."}
-
 
     @app.post("/invoke")
     async def invoke_handler(request: Request):
         body = await request.json()
         instance_id = body.get("instance_id")
-        payload = body.get("payload") 
+        payload = body.get("payload")
 
         if not instance_id or not payload:
-            raise HTTPException(status_code=400, detail="Internal invoke requires instance_id and payload")
+            raise HTTPException(
+                status_code=400,
+                detail="Internal invoke requires instance_id and payload",
+            )
 
         try:
             result = await instance_manager.run_inference(instance_id, payload)
@@ -65,6 +71,8 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Inference failed: {str(e)}"
+            )
 
     return app

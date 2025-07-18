@@ -1,6 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import Dict, List, Any, Literal, Optional, Union
 from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional, Union
+
+from pydantic import BaseModel, Field
+
 
 # =============================================================================
 # Heartbeat (Worker -> Head)
@@ -20,6 +22,7 @@ class AutoScalingConfig(BaseModel):
     max_instances: int
     target: float
     keep_alive: int
+
 
 class ModelDeploymentRequest(BaseModel):
     model: str
@@ -43,11 +46,15 @@ class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant"]
     content: str
 
+
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
 
+
 u
+
+
 # =============================================================================
 # Fine-Tuning Job (User -> Head)
 # =============================================================================
@@ -56,17 +63,20 @@ class DatasetConfig(BaseModel):
     hf_dataset_name: str
     split: str
 
+
 class LoraConfig(BaseModel):
     r: int
     lora_alpha: int
     lora_dropout: float
     task_type: str
 
+
 class TrainingConfig(BaseModel):
     auto_find_batch_size: bool
     num_train_epochs: int
     learning_rate: float
     use_cpu: bool
+
 
 class FineTuningRequest(BaseModel):
     model: str
@@ -93,10 +103,12 @@ class GpuDetail(BaseModel):
     name: str
     total_memory: str
 
+
 class GpuInfo(BaseModel):
     load: float
     memory_free: Union[int, str]
     memory_used: Union[int, str]
+
 
 class HardwareInfo(BaseModel):
     pcie_bandwidth: int
@@ -107,12 +119,14 @@ class HardwareInfo(BaseModel):
     cpu_percent: float
     gpu_info: GpuInfo
 
+
 class Worker(BaseModel):
     node_id: str
     node_ip: str
     hardware_info: HardwareInfo
     instances_alive: Dict[str, List[str]]
     last_heartbeat_time: datetime
+
 
 # Model
 class BackendConfig(BaseModel):
@@ -124,6 +138,7 @@ class BackendConfig(BaseModel):
     enable_lora: Optional[bool] = None
     lora_adapters: Optional[Dict[str, Any]] = None
 
+
 class AutoScalingConfig(BaseModel):
     metric: Optional[str] = None
     target: Optional[int] = None
@@ -131,10 +146,16 @@ class AutoScalingConfig(BaseModel):
     max_instances: Optional[int] = None
     keep_alive: Optional[int] = None
 
+
 class Model(BaseModel):
     model_name: str
     backend: Literal["vllm", "transformers", "sglang"]
     num_gpus: int
-    backend_config: Optional[BackendConfig] = Field(default_factory=BackendConfig)
-    auto_scaling_config: Optional[AutoScalingConfig] = Field(default_factory=AutoScalingConfig)
+    backend_config: Optional[BackendConfig] = Field(
+        default_factory=BackendConfig
+    )
+    auto_scaling_config: Optional[AutoScalingConfig] = Field(
+        default_factory=AutoScalingConfig
+    )
     instances: List[str] = Field(default_factory=list)
+    status: Literal["alive", "excommunicado"]
