@@ -42,7 +42,6 @@ start = time.time()
 model = load_model(
     model_name,
     device_map="auto",
-    torch_dtype=torch.float16,
     storage_path=storage_path,
     fully_parallel=True,
 )
@@ -53,7 +52,6 @@ model = load_lora(
     lora_adapter_path,
     device_map="auto",
     storage_path=storage_path,
-    torch_dtype=torch.float16,
 )
 # Please note the loading time depends on model size and hardware bandwidth.
 print(f"Model with lora adapter loading time: {time.time() - start:.2f}s")
