@@ -54,6 +54,10 @@ ln -s /mnt/nvme/models ./models
 ```
 :::
 
+:::tip
+The steps below can also be performed using the `sllm-store` command-line interface. Refer to the [sllm-store CLI](../../api/sllm-store-cli) documentation for details.
+:::
+
 1. Convert a model to ServerlessLLM format and save it to a local path:
 ```python
 from sllm_store.transformers import save_model
