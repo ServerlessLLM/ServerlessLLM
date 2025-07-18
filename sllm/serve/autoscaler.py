@@ -24,6 +24,7 @@ from typing import Any, Dict
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
 from sllm.serve.model_manager import ModelManager
+from sllm.serve.schema import *
 from sllm.serve.worker_manager import WorkerManager
 
 QUEUE_PER_INSTANCE_THRESHOLD = 5
@@ -124,6 +125,7 @@ class AutoScaler:
         final_needed = max(min_instances, min(needed, max_instances))
         instance_delta = final_needed - current_instances
 
+        # NOTE: this makes zero sense, change
         logger.info(
             f"Model '{model_identifier}': "
             f"current={current_instances}, queue={queue_length} -> "
