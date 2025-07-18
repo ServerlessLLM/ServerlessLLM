@@ -70,8 +70,8 @@ In the `examples/storage_aware_scheduling` directory, the example configuration 
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343
 
-sllm-cli deploy --config config-opt-2.7b.json
-sllm-cli deploy --config config-opt-1.3b.json
+sllm deploy --config config-opt-2.7b.json
+sllm deploy --config config-opt-1.3b.json
 ```
 
 3. Verify the deployment.
@@ -112,7 +112,7 @@ As shown in the log message, the model "facebook/opt-2.7b" is scheduled on serve
 Delete the model deployment by running the following command:
 
 ```bash
-sllm-cli delete facebook/opt-1.3b facebook/opt-2.7b
+sllm delete facebook/opt-1.3b facebook/opt-2.7b
 ```
 
 If you need to stop and remove the containers, you can use the following commands:

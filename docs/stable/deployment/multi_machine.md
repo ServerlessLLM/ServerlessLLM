@@ -186,11 +186,11 @@ This output confirms that both the head node and worker node are properly connec
 3. Ensure each worker has its own `RAY_NODE_IP` set correctly
 :::
 
-### Step 3: Use `sllm-cli` to manage models
+### Step 3: Use `sllm` to manage models
 
 #### Configure the Environment
 
-**On any machine with `sllm-cli` installed, set the `LLM_SERVER_URL` environment variable:**
+**On any machine with `sllm` installed, set the `LLM_SERVER_URL` environment variable:**
 
 > Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
 
@@ -198,10 +198,10 @@ This output confirms that both the head node and worker node are properly connec
 export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343
 ```
 
-#### Deploy a Model Using `sllm-cli`
+#### Deploy a Model Using `sllm`
 
 ```bash
-sllm-cli deploy --model facebook/opt-1.3b
+sllm deploy --model facebook/opt-1.3b
 ```
 
 > Note: This command will spend some time downloading the model from the Hugging Face Model Hub. You can use any model from the [Hugging Face Model Hub](https://huggingface.co/models) by specifying the model name in the `--model` argument.
@@ -238,12 +238,12 @@ Expected output:
 {"id":"chatcmpl-23d3c0e5-70a0-4771-acaf-bcb2851c6ea6","object":"chat.completion","created":1721706121,"model":"facebook/opt-1.3b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}
 ```
 
-#### Delete a Deployed Model Using `sllm-cli`
+#### Delete a Deployed Model Using `sllm`
 
 When you're done using a model, you can delete it:
 
 ```bash
-sllm-cli delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b
 ```
 
 This will remove the specified model from the ServerlessLLM server.
