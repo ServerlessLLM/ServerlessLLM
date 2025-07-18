@@ -1,3 +1,4 @@
+#!/bin/bash
 # ---------------------------------------------------------------------------- #
 #  serverlessllm                                                               #
 #  copyright (c) serverlessllm team 2024                                       #
@@ -15,49 +16,25 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+set -e
 
-import ray
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+PATCH_FILE="$SCRIPT_DIR/sllmLoad.patch"
+if [ ! -f "$PATCH_FILE" ]; then
+    echo "File does not exist: $PATCH_FILE"
+    exit 1
+fi
 
-from sllm.serve.logger import init_logger
+SGLANG_PATH_OUTPUT=$(python -c "import sglang; import os; print(os.path.dirname(os.path.abspath(sglang.__file__)))" 2>/dev/null)
+SGLANG_PATH=$(echo "$SGLANG_PATH_OUTPUT" | tail -n 1)
 
-logger = init_logger(__name__)
+# Sanity check the path
+echo "Detected SGLANG_PATH: '$SGLANG_PATH'"
+if [ ! -d "$SGLANG_PATH" ]; then
+    echo "Error: Detected SGLANG_PATH is not a valid directory: '$SGLANG_PATH'"
+    echo "Full output from python command was:"
+    echo "$SGLANG_PATH_OUTPUT"
+    exit 1
+fi
 
-
-def get_backend_class(backend):
-    """Get backend class by name"""
-    if backend == "vllm":
-        from sllm.serve.backends import VllmBackend
-
-        return VllmBackend
-    elif backend == "dummy":
-        from sllm.serve.backends import DummyBackend
-
-        return DummyBackend
-    elif backend == "transformers":
-        from sllm.serve.backends import TransformersBackend
-
-        model_backend_cls = TransformersBackend
-    elif backend == "sglang":
-        from sllm.serve.backends import SGLangBackend
-
-        model_backend_cls = SGLangBackend
-    else:
-        logger.error(f"Unknown backend: {backend}")
-        raise ValueError(f"Unknown backend: {backend}")
-
-
-@ray.remote
-def start_instance(
-    instance_id, backend, model_name, backend_config, startup_config
-):
-    logger.info(f"Starting instance {instance_id} with backend {backend}")
-    model_backend_cls = get_backend_class(backend)
-
-    model_actor_cls = ray.remote(model_backend_cls)
-
-    return model_actor_cls.options(
-        name=instance_id,
-        **startup_config,
-        max_concurrency=10,
-        lifetime="detached",
-    ).remote(model_name, backend_config)
+patch -p2 -d $SGLANG_PATH -R < $PATCH_FILE

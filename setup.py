@@ -20,7 +20,7 @@ import os
 import sys
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 ROOT_DIR = os.path.dirname(__file__)
 
