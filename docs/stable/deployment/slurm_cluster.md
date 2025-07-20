@@ -67,15 +67,15 @@ compute    up        2  down   infinite   JobNode[16-17]
 Only one JobNode is enough.
 
 **`sbatch` Node Selection**
+Let's start a head on the main job node (`JobNode01`) and add the worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs worker (`JobNode02`), for passing the model weights, and the `sllm start` should be started on the main job node (`JobNode01`), finally you can use `sllm` to manage the models on the login node.
 
-Let's start a head on the main job node (`JobNode01`) and add the worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs worker (`JobNode02`), for passing the model weights, and the `sllm-serve` should be started on the main job node (`JobNode01`), finally you can use `sllm-cli` to manage the models on the login node.
 
 Note: `JobNode02` requires GPU, but `JobNode01` does not.
 - **Head**: JobNode01
 - **Worker**: JobNode02
 - **sllm-store**: JobNode02
 - **sllm-serve**: JobNode01
-- **sllm-cli**: Login Node
+- **sllm**: Login Node
 
 ---
 ## SRUN
@@ -167,7 +167,7 @@ In the 5th window, let's deploy a model to the ServerlessLLM server. You can dep
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm
-sllm-cli deploy --model facebook/opt-1.3b --backend transformers
+sllm deploy --model facebook/opt-1.3b --backend transformers
 ```
 This will download the model from HuggingFace transformers. After deploying, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```shell
@@ -189,7 +189,7 @@ Expected output:
 ### Step 5: Clean up
 To delete a deployed model, use the following command:
 ```shell
-sllm-cli delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b
 ```
 This will remove the specified model from the ServerlessLLM server.
 
@@ -350,8 +350,8 @@ We will start the worker node and store in the same script. Because the server l
 
    conda activate sllm
 
-   sllm-serve start --host <HEAD_NODE_IP>
-   # sllm-serve start --host <HEAD_NODE_IP> --port <avail_port> # if you have changed the port
+   sllm start --host <HEAD_NODE_IP>
+   # sllm start --host <HEAD_NODE_IP> --port <avail_port> # if you have changed the port
    ```
    - Replace `your_partition` in the script as before.
    - Replace `/path/to/ServerlessLLM` as before.
@@ -369,7 +369,7 @@ We will start the worker node and store in the same script. Because the server l
    INFO:     Application startup complete.
    INFO:     Uvicorn running on http://xxx.xxx.xx.xx:8343 (Press CTRL+C to quit)
    ```
-### Step 4: Use sllm-cli to manage models
+### Step 4: Use sllm to manage models
 1. **You can do this step on login node, and set the ```LLM_SERVER_URL``` environment variable:**
    ```shell
    $ conda activate sllm
@@ -377,9 +377,9 @@ We will start the worker node and store in the same script. Because the server l
    ```
    - Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
    - Replace ```8343``` with the actual port number (`<avail_port>` in Step1) if you have changed it.
-2. **Deploy a Model Using ```sllm-cli```**
+2. **Deploy a Model Using ```sllm```**
    ```shell
-   (sllm)$ sllm-cli deploy --model facebook/opt-1.3b
+   (sllm)$ sllm deploy --model facebook/opt-1.3b
    ```
 ### Step 5: Query the Model Using OpenAI API Client
    **You can use the following command to query the model:**
