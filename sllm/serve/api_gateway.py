@@ -25,9 +25,12 @@ from typing import Any, Dict
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
+from sllm.serve.dispatcher import Dispatcher
+from sllm.serve.exceptions import *
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
 from sllm.serve.model_manager import ModelManager
+from sllm.serve.response_utils import *
 from sllm.serve.schema import *
 from sllm.serve.worker_manager import WorkerManager
 
@@ -54,27 +57,53 @@ def create_app(
 
     app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
 
+    @app.exception_handler(ServerlessLLMError)
+    async def serverlessllm_exception_handler(
+        request: Request, exc: ServerlessLLMError
+    ):
+        status_code = map_to_http_status(exc)
+        return JSONResponse(
+            status_code=status_code, content=standardize_error_response(exc)
+        )
+
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+        status_code = map_to_http_status(exc)
+        return JSONResponse(
+            status_code=status_code, content=standardize_error_response(exc)
+        )
+
     @app.get("/health")
     async def health_check():
-        return {"status": "ok"}
+        return health_response()
 
     @app.post("/register")
     async def register_handler(request: Request):
         try:
             body = await request.json()
+        except Exception as e:
+            raise ValidationError(
+                "Invalid JSON payload", details={"parse_error": str(e)}
+            )
+
+        if not body.get("model_name"):
+            raise ValidationError("Missing required field: model_name")
+
+        try:
             await request.app.state.model_manager.register_model(body)
-            return {
-                "status": "ok",
-                "message": f"Model '{body.get('model_name')}' registered successfully.",
-            }
+            return operation_response(
+                operation="registered",
+                resource="model",
+                resource_id=body.get("model_name"),
+            )
         except (ValueError, KeyError) as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise ValidationError(
+                f"Model registration validation failed: {str(e)}"
+            )
         except Exception as e:
             logger.error(f"Cannot register model: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail="An internal error occurred during model registration.",
-            )
+            raise InternalServerError("Model registration failed")
 
     @app.post("/update")
     async def update_handler(request: Request):
@@ -181,7 +210,7 @@ def create_app(
         task_id = (
             str(uuid.uuid4())
             if body.get("task_id") == None
-            else request["task_id"]
+            else body["task_id"]
         )
         task_package = {"task_id": task_id, "action": action, "payload": body}
 

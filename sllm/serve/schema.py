@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 # =============================================================================
 class HeartbeatPayload(BaseModel):
     node_id: str
-    ip_address: str
+    node_ip: str
     instances_on_device: Dict[str, List[str]]
     hardware_info: Dict[str, Any]
 
@@ -50,9 +50,6 @@ class ChatMessage(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
-
-
-u
 
 
 # =============================================================================
@@ -124,7 +121,7 @@ class Worker(BaseModel):
     node_id: str
     node_ip: str
     hardware_info: HardwareInfo
-    instances_alive: Dict[str, List[str]]
+    instances_on_device: Dict[str, List[str]]
     last_heartbeat_time: datetime
 
 
@@ -139,12 +136,7 @@ class BackendConfig(BaseModel):
     lora_adapters: Optional[Dict[str, Any]] = None
 
 
-class AutoScalingConfig(BaseModel):
-    metric: Optional[str] = None
-    target: Optional[int] = None
-    min_instances: Optional[int] = None
-    max_instances: Optional[int] = None
-    keep_alive: Optional[int] = None
+# Duplicate AutoScalingConfig removed - using the one defined at line 20
 
 
 class Model(BaseModel):

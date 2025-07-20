@@ -23,9 +23,7 @@ from typing import Any, Dict
 
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
-from sllm.serve.model_manager import ModelManager
 from sllm.serve.schema import *
-from sllm.serve.worker_manager import WorkerManager
 
 QUEUE_PER_INSTANCE_THRESHOLD = 5
 AUTOSCALER_INTERVAL_SECONDS = 10
@@ -34,15 +32,8 @@ logger = init_logger(__name__)
 
 
 class AutoScaler:
-    def __init__(
-        self,
-        store: RedisStore,
-        model_manager: ModelManager,
-        worker_manager: WorkerManager,
-    ):
+    def __init__(self, store: RedisStore):
         self.store = store
-        self.model_manager = model_manager
-        self.worker_manager = worker_manager
         self._shutdown = asyncio.Event()
         self.interval = AUTOSCALER_INTERVAL_SECONDS
         self.queue_threshold = QUEUE_PER_INSTANCE_THRESHOLD
@@ -73,14 +64,14 @@ class AutoScaler:
         self._shutdown.set()
 
     async def _check_and_scale_all_models(self) -> None:
-        all_models = await self.model_manager.get_all_models()
+        all_models = await self.store.get_all_models()
         if not all_models:
             logger.debug("No models registered. Skipping scaling check.")
             return
 
         logger.info(f"Running scaling check for {len(all_models)} models.")
         tasks = [
-            self._calculate_and_set_decision(model) for model in all_models
+            self._calculate_and_set_decision(model.model_dump()) for model in all_models
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -93,11 +84,7 @@ class AutoScaler:
         decision_key = f"scaling_decision:{model_name}:{backend}"
 
         if model_data.get("status") == "excommunicado":
-            current_instances = (
-                await self.worker_manager.count_running_instances(
-                    model_identifier
-                )
-            )
+            current_instances = await self._count_running_instances(model_identifier)
             if current_instances > 0:
                 logger.info(
                     f"Model '{model_identifier}' is 'excommunicado'. "
@@ -112,9 +99,7 @@ class AutoScaler:
         min_instances = auto_scaling_config.get("min_instances", 0)
         max_instances = auto_scaling_config.get("max_instances", 1)
 
-        current_instances = await self.worker_manager.count_running_instances(
-            model_identifier
-        )
+        current_instances = await self._count_running_instances(model_identifier)
         queue_length = await self.store.get_queue_length(model_name, backend)
 
         needed = min_instances
@@ -125,7 +110,6 @@ class AutoScaler:
         final_needed = max(min_instances, min(needed, max_instances))
         instance_delta = final_needed - current_instances
 
-        # NOTE: this makes zero sense, change
         logger.info(
             f"Model '{model_identifier}': "
             f"current={current_instances}, queue={queue_length} -> "
@@ -135,3 +119,12 @@ class AutoScaler:
 
         if instance_delta != 0:
             await self.store.client.set(decision_key, instance_delta, ex=60)
+
+    async def _count_running_instances(self, model_identifier: str) -> int:
+        """Counts the total number of active instances for a given model identifier."""
+        all_workers = await self.store.get_all_workers()
+        count = 0
+        for worker in all_workers:
+            instances_on_device = worker.instances_on_device
+            count += len(instances_on_device.get(model_identifier, []))
+        return count

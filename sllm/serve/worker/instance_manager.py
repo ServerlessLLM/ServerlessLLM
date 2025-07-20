@@ -28,13 +28,18 @@ class InstanceManager:
     def __init__(self):
         self._running_instances: Dict[str, Dict[str, Any]] = {}
 
-    async def start_instance(self, model_config: Dict[str, Any]) -> str:
+    async def start_instance(
+        self, model_config: Dict[str, Any], instance_id: Optional[str] = None
+    ) -> str:
         model_identifier = (
             f"{model_config['model_name']}:{model_config['backend']}"
         )
-        instance_id = self._generate_instance_id(
-            model_config["model_name"], model_config["backend"]
-        )
+
+        # Use provided instance_id or generate new one
+        if instance_id is None:
+            instance_id = self._generate_instance_id(
+                model_config["model_name"], model_config["backend"]
+            )
 
         # TODO: add logic here for registration and deployment
 

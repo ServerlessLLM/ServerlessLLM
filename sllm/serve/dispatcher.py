@@ -21,9 +21,10 @@ from typing import Any, Dict, List, Mapping, Optional
 
 import aiohttp
 
+from sllm.serve.http_utils import HTTPRetryError, post_json_with_retry
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
-from sllm.serve.model_manager import ModelManager
+from sllm.serve.response_utils import *
 
 logger = init_logger(__name__)
 
@@ -93,9 +94,7 @@ class Dispatcher:
                     continue
 
                 queue_keys = [
-                    ModelManager._get_task_queue_key(
-                        m["model_name"], m["backend"]
-                    )
+                    f"queue:{m['model_name']}:{m['backend']}"
                     for m in all_models
                 ]
                 logger.debug(f"Listening on queues: {queue_keys}")
@@ -162,6 +161,11 @@ class Dispatcher:
             logger.info(
                 f"Successfully processed and published result for task {task_id}"
             )
+        except HTTPRetryError as e:
+            logger.error(
+                f"Failed to forward task {task_id} to worker {target_worker['node_id']} after retries: {e}. Requeuing."
+            )
+            await self.store.enqueue_task(model_name, backend, task_data)
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             logger.error(
                 f"Failed to forward task {task_id} to worker {target_worker['node_id']}: {e}. Requeuing."
@@ -172,10 +176,7 @@ class Dispatcher:
                 f"An unexpected error occurred while processing task {task_id}: {e}",
                 exc_info=True,
             )
-            error_response = {
-                "status": "error",
-                "message": "An internal dispatcher error occurred.",
-            }
+            error_response = standardize_error_response(e)
             await self.store.publish_result(task_id, error_response)
 
     async def _select_instance_round_robin(
@@ -183,9 +184,21 @@ class Dispatcher:
     ) -> Dict:
         """Selects an instance using a round-robin counter stored in Redis."""
         counter_key = f"rr_counter:{model_identifier}"
-        next_index = await self.store.client.incr(counter_key)
-        selected_instance = instances[(next_index - 1) % len(instances)]
-        return selected_instance
+        try:
+            next_index = await self.store._execute_with_retry(
+                self.store.client.incr, counter_key
+            )
+            selected_instance = instances[(next_index - 1) % len(instances)]
+            return selected_instance
+        except Exception as e:
+            logger.warning(
+                f"Failed to use Redis counter for round-robin, falling back to local selection: {e}"
+            )
+            # Fallback to simple modulo selection based on instance count
+            import time
+
+            fallback_index = int(time.time()) % len(instances)
+            return instances[fallback_index]
 
     async def _find_available_instances(
         self, model_identifier: str
@@ -195,12 +208,28 @@ class Dispatcher:
         active_instances = []
 
         for worker in all_workers:
-            instances_on_device = worker.get("instances_on_device", {})
+            # Parse instances_on_device from JSON string (stored format in Redis)
+            try:
+                instances_on_device_str = worker.get(
+                    "instances_on_device", "{}"
+                )
+                if isinstance(instances_on_device_str, str):
+                    instances_on_device = json.loads(instances_on_device_str)
+                else:
+                    instances_on_device = instances_on_device_str
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(
+                    f"Failed to parse instances_on_device for worker {worker.get('node_id')}: {e}"
+                )
+                continue
+
             if model_identifier in instances_on_device:
-                for instance_id in instances_on_device[model_identifier]:
-                    active_instances.append(
-                        {"worker": worker, "instance_id": instance_id}
-                    )
+                instance_list = instances_on_device[model_identifier]
+                if isinstance(instance_list, list):
+                    for instance_id in instance_list:
+                        active_instances.append(
+                            {"worker": worker, "instance_id": instance_id}
+                        )
 
         logger.debug(
             f"Found {len(active_instances)} available instances for {model_identifier}"
@@ -211,20 +240,29 @@ class Dispatcher:
         self, worker: Dict[str, Any], instance_id: str, payload: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Sends the inference payload to the specified worker instance via HTTP POST."""
-        ip_address = worker.get("ip_address")
-        if not ip_address:
+        node_ip = worker.get("node_ip")
+        if not node_ip:
             raise aiohttp.ClientConnectionError(
                 f"Worker {worker['node_id']} has no IP address in its heartbeat."
             )
 
-        url = f"http://{ip_address}:{self.worker_port}{self.invoke_endpoint}"
-
+        url = f"http://{node_ip}:{self.worker_port}{self.invoke_endpoint}"
         forward_payload = {"instance_id": instance_id, "payload": payload}
 
-        async with self.http_session.post(
-            url,
-            json=forward_payload,
-            timeout=aiohttp.ClientTimeout(total=self.forward_timeout),
-        ) as response:
-            response.raise_for_status()
-            return await response.json()
+        try:
+            response = await post_json_with_retry(
+                session=self.http_session,
+                url=url,
+                payload=forward_payload,
+                max_retries=3,
+                timeout=self.forward_timeout,
+            )
+            return response
+        except HTTPRetryError as e:
+            raise aiohttp.ClientConnectionError(
+                f"Failed to forward to worker {worker['node_id']} after retries: {e}"
+            )
+        except Exception as e:
+            raise aiohttp.ClientConnectionError(
+                f"Unexpected error forwarding to worker {worker['node_id']}: {e}"
+            )
