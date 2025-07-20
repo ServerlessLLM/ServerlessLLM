@@ -26,7 +26,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from sllm.serve.dispatcher import Dispatcher
-from sllm.serve.exceptions import *
+from sllm.serve.utils import *
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
 from sllm.serve.model_manager import ModelManager

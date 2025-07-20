@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Mapping, Optional
 
 import aiohttp
 
-from sllm.serve.http_utils import HTTPRetryError, post_json_with_retry
+from sllm.serve.utils import HTTPRetryError, post_json_with_retry
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
 from sllm.serve.response_utils import *

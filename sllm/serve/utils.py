@@ -1,4 +1,37 @@
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#                                                                              #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+# ---------------------------------------------------------------------------- #
+
+"""
+Utility functions, HTTP helpers, and exception handling for ServerlessLLM.
+"""
+
+import asyncio
 import random
+from typing import Optional, Dict, Any
+
+import aiohttp
+from sllm.serve.logger import init_logger
+
+logger = init_logger(__name__)
+
+# =============================================================================
+# Name Generation
+# =============================================================================
 
 POSITIONS = [
     "director", "manager", "assistant", "analyst", "engineer", "designer",
@@ -110,4 +143,265 @@ def generate_name():
     position = random.choice(POSITIONS)
     name = random.choice(NAMES)
     return f"{position}-{name}"
+
+# =============================================================================
+# Exception Hierarchy
+# =============================================================================
+
+class ServerlessLLMError(Exception):
+    """Base exception for all ServerlessLLM errors."""
+    
+    def __init__(self, message: str, error_code: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.message = message
+        self.error_code = error_code or self.__class__.__name__
+        self.details = details or {}
+
+
+class ValidationError(ServerlessLLMError):
+    """Raised when input validation fails."""
+    pass
+
+
+class ResourceNotFoundError(ServerlessLLMError):
+    """Raised when a requested resource cannot be found."""
+    pass
+
+
+class ResourceConflictError(ServerlessLLMError):
+    """Raised when a resource operation conflicts with current state."""
+    pass
+
+
+class InternalServerError(ServerlessLLMError):
+    """Raised for internal server errors."""
+    pass
+
+
+class WorkerError(ServerlessLLMError):
+    """Raised for worker-related errors."""
+    pass
+
+
+class ModelError(ServerlessLLMError):
+    """Raised for model-related errors."""
+    pass
+
+
+class TaskError(ServerlessLLMError):
+    """Raised for task processing errors."""
+    pass
+
+
+class RedisError(ServerlessLLMError):
+    """Raised for Redis connection/operation errors."""
+    pass
+
+
+class TimeoutError(ServerlessLLMError):
+    """Raised when an operation times out."""
+    pass
+
+
+class HTTPRetryError(Exception):
+    """Raised when HTTP request fails after all retries."""
+    pass
+
+
+def standardize_error_response(error: Exception) -> Dict[str, Any]:
+    """
+    Convert any exception to a standardized error response format.
+    
+    Args:
+        error: The exception to convert
+        
+    Returns:
+        Standardized error response dictionary
+    """
+    if isinstance(error, ServerlessLLMError):
+        return {
+            "error": {
+                "code": error.error_code,
+                "message": error.message,
+                "details": error.details
+            }
+        }
+    else:
+        # Handle non-ServerlessLLM exceptions
+        return {
+            "error": {
+                "code": "InternalError",
+                "message": str(error),
+                "details": {}
+            }
+        }
+
+
+def map_to_http_status(error: Exception) -> int:
+    """
+    Map exception types to appropriate HTTP status codes.
+    
+    Args:
+        error: The exception to map
+        
+    Returns:
+        HTTP status code
+    """
+    if isinstance(error, ValidationError):
+        return 400
+    elif isinstance(error, ResourceNotFoundError):
+        return 404
+    elif isinstance(error, ResourceConflictError):
+        return 409
+    elif isinstance(error, TimeoutError):
+        return 408
+    elif isinstance(error, (WorkerError, ModelError, TaskError)):
+        return 503  # Service Unavailable
+    elif isinstance(error, RedisError):
+        return 503  # Service Unavailable
+    elif isinstance(error, InternalServerError):
+        return 500
+    else:
+        return 500  # Default to internal server error
+
+# =============================================================================
+# HTTP Utilities
+# =============================================================================
+
+async def http_request_with_retry(
+    session: aiohttp.ClientSession,
+    method: str,
+    url: str,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 10.0,
+    timeout: float = 30.0,
+    **kwargs
+) -> aiohttp.ClientResponse:
+    """
+    Make HTTP request with exponential backoff retry logic.
+    
+    Args:
+        session: aiohttp ClientSession
+        method: HTTP method (GET, POST, etc.)
+        url: Request URL
+        max_retries: Maximum number of retry attempts
+        base_delay: Base delay between retries in seconds
+        max_delay: Maximum delay between retries in seconds
+        timeout: Request timeout in seconds
+        **kwargs: Additional arguments passed to session.request()
+    
+    Returns:
+        aiohttp.ClientResponse object
+        
+    Raises:
+        HTTPRetryError: If all retries are exhausted
+    """
+    last_exception = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            timeout_obj = aiohttp.ClientTimeout(total=timeout)
+            kwargs.setdefault('timeout', timeout_obj)
+            
+            async with session.request(method, url, **kwargs) as response:
+                # Consider 5xx status codes as retryable errors
+                if response.status >= 500:
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=f"Server error: {response.status}"
+                    )
+                return response
+                
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            last_exception = e
+            
+            if attempt == max_retries:
+                logger.error(f"HTTP request failed after {max_retries + 1} attempts to {url}: {e}")
+                break
+                
+            # Calculate exponential backoff delay
+            delay = min(base_delay * (2 ** attempt), max_delay)
+            logger.warning(f"HTTP request to {url} failed (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay:.1f}s: {e}")
+            await asyncio.sleep(delay)
+    
+    raise HTTPRetryError(f"HTTP request to {url} failed after {max_retries + 1} attempts: {last_exception}")
+
+
+async def post_json_with_retry(
+    session: aiohttp.ClientSession,
+    url: str,
+    payload: Dict[str, Any],
+    max_retries: int = 3,
+    timeout: float = 30.0,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    POST JSON payload with retry logic and return JSON response.
+    
+    Args:
+        session: aiohttp ClientSession
+        url: Request URL
+        payload: JSON payload to send
+        max_retries: Maximum number of retry attempts
+        timeout: Request timeout in seconds
+        **kwargs: Additional arguments passed to http_request_with_retry()
+    
+    Returns:
+        Parsed JSON response as dict
+        
+    Raises:
+        HTTPRetryError: If all retries are exhausted
+        ValueError: If response is not valid JSON
+    """
+    kwargs.setdefault('json', payload)
+    
+    response = await http_request_with_retry(
+        session=session,
+        method='POST',
+        url=url,
+        max_retries=max_retries,
+        timeout=timeout,
+        **kwargs
+    )
+    
+    try:
+        return await response.json()
+    except Exception as e:
+        raise ValueError(f"Failed to parse JSON response from {url}: {e}")
+
+
+async def get_with_retry(
+    session: aiohttp.ClientSession,
+    url: str,
+    max_retries: int = 3,
+    timeout: float = 30.0,
+    **kwargs
+) -> aiohttp.ClientResponse:
+    """
+    GET request with retry logic.
+    
+    Args:
+        session: aiohttp ClientSession
+        url: Request URL
+        max_retries: Maximum number of retry attempts
+        timeout: Request timeout in seconds
+        **kwargs: Additional arguments passed to http_request_with_retry()
+    
+    Returns:
+        aiohttp.ClientResponse object
+        
+    Raises:
+        HTTPRetryError: If all retries are exhausted
+    """
+    return await http_request_with_retry(
+        session=session,
+        method='GET',
+        url=url,
+        max_retries=max_retries,
+        timeout=timeout,
+        **kwargs
+    )
 
