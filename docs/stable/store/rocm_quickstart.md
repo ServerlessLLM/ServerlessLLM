@@ -65,7 +65,9 @@ docker exec -it sllm_store_server /bin/bash
 Try to save and load a transformer model:
 
 ``` bash
+# Save the model
 sllm-store save --model facebook/opt-1.3b --backend transformers --storage-path /models
+# Load the model
 sllm-store load --model facebook/opt-1.3b --backend transformers --storage-path /models
 ```
 Expected output:
