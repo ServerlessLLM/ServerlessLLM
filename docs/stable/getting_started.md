@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Getting Started
 
-This guide demonstrates how to quickly set up a local ServerlessLLM cluster using Docker Compose on a single machine. We will initialize a minimal cluster, consisting of a head node and a single worker node. Then, we'll deploy a model using the `sllm-cli` and query the deployment through an OpenAI-compatible API.
+This guide demonstrates how to quickly set up a local ServerlessLLM cluster using Docker Compose on a single machine. We will initialize a minimal cluster, consisting of a head node and a single worker node. Then, we'll deploy a model using the `sllm` and query the deployment through an OpenAI-compatible API.
 
 :::note
 We strongly recommend using Docker (Compose) to manage your ServerlessLLM cluster, whether you are using ServerlessLLM for testing or development. However, if Docker is not a viable option for you, please refer to the [deploy from scratch guide](./deployment/single_machine.md).
@@ -77,7 +77,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8343 (Press CTRL+C to quit)
 (FcfsScheduler pid=1604) INFO 05-26 15:40:49 fcfs_scheduler.py:111] Starting control loop
 ```
 
-## Deploy a Model Using sllm-cli
+## Deploy a Model Using sllm
 
 Set the `LLM_SERVER_URL` environment variable:
 
@@ -85,10 +85,10 @@ Set the `LLM_SERVER_URL` environment variable:
 export LLM_SERVER_URL=http://127.0.0.1:8343
 ```
 
-Deploy a model to the ServerlessLLM cluster using the `sllm-cli`:
+Deploy a model to the ServerlessLLM cluster using the `sllm`:
 
 ```bash
-sllm-cli deploy --model facebook/opt-1.3b
+sllm deploy --model facebook/opt-1.3b
 ```
 > Note: This command will take some time to download the model from the Hugging Face Model Hub.
 > You can use any model from the [Hugging Face Model Hub](https://huggingface.co/models) by specifying its name in the `--model` argument.
@@ -125,7 +125,7 @@ Expected output:
 To delete a deployed model, execute the following command:
 
 ```bash
-sllm-cli delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b
 ```
 
 This command removes the specified model from the ServerlessLLM server.

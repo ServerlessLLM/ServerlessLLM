@@ -58,7 +58,7 @@ Next, set the ServerlessLLM Server URL `LLM_SERVER_URL` and deploy this model wi
 ```bash
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343
-sllm-cli deploy --config /path/to/my_config.json
+sllm deploy --config /path/to/my_config.json
 ```
 
 ### 3. Service Request
@@ -106,7 +106,7 @@ You will finally receive the response like:
 ### 4. Clean Up
 In the end, if you would like to delete the model, please run:
 ```bash
-sllm-cli delete sentence-transformers/all-MiniLM-L12-v2
+sllm delete sentence-transformers/all-MiniLM-L12-v2
 ```
 
 To stop the ServerlessLLM services, please run:
