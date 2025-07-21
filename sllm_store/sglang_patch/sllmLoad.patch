@@ -1,20 +1,7 @@
-From e1370cc96a915419d70597a8f500b0c8bdc33b2f Mon Sep 17 00:00:00 2001
-From: FionaY728 <utachan899@gmail.com>
-Date: Wed, 25 Jun 2025 14:49:34 +0100
-Subject: [PATCH] feat: add ServerlessLLM loader and load_format support
-
----
- python/sglang/srt/configs/load_config.py      |  1 +
- python/sglang/srt/model_loader/__init__.py    | 43 +++++++++++-
- python/sglang/srt/model_loader/sllm_loader.py | 70 +++++++++++++++++++
- 3 files changed, 113 insertions(+), 1 deletion(-)
- create mode 100644 python/sglang/srt/model_loader/sllm_loader.py
-
-diff --git a/python/sglang/srt/configs/load_config.py b/python/sglang/srt/configs/load_config.py
-index be9a40b4..2c65a6ca 100644
---- a/python/sglang/srt/configs/load_config.py
-+++ b/python/sglang/srt/configs/load_config.py
-@@ -23,6 +23,7 @@ class LoadFormat(str, enum.Enum):
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/configs/load_config.py /home/fiona/sglang/python/sglang/srt/configs/load_config.py
+--- /home/fiona/sglang_origin/python/sglang/srt/configs/load_config.py	2025-07-21 17:35:29.672741715 +0100
++++ /home/fiona/sglang/python/sglang/srt/configs/load_config.py	2025-06-24 14:51:17.155167029 +0100
+@@ -23,6 +23,7 @@
      LAYERED = "layered"
      JAX = "jax"
      REMOTE = "remote"
@@ -22,10 +9,55 @@ index be9a40b4..2c65a6ca 100644
  
  
  @dataclass
-diff --git a/python/sglang/srt/model_loader/__init__.py b/python/sglang/srt/model_loader/__init__.py
-index fa2386e3..5e9af887 100644
---- a/python/sglang/srt/model_loader/__init__.py
-+++ b/python/sglang/srt/model_loader/__init__.py
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/entrypoints/engine.py /home/fiona/sglang/python/sglang/srt/entrypoints/engine.py
+--- /home/fiona/sglang_origin/python/sglang/srt/entrypoints/engine.py	2025-07-21 17:35:29.676741871 +0100
++++ /home/fiona/sglang/python/sglang/srt/entrypoints/engine.py	2025-07-16 17:06:50.125709661 +0100
+@@ -579,7 +579,11 @@
+             item_first=item_first,
+             request=None,
+         )
++    def save_serverless_llm_state(self, path):
++        self.collective_rpc("save_serverless_llm_state", path=path)
+ 
++   
++        
+ 
+ def _set_envs_and_config(server_args: ServerArgs):
+     # Set global environments
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/managers/scheduler.py /home/fiona/sglang/python/sglang/srt/managers/scheduler.py
+--- /home/fiona/sglang_origin/python/sglang/srt/managers/scheduler.py	2025-07-21 17:35:29.688742339 +0100
++++ /home/fiona/sglang/python/sglang/srt/managers/scheduler.py	2025-07-16 17:04:28.936206704 +0100
+@@ -2134,6 +2134,9 @@
+ 
+         barrier()
+         return RpcReqOutput(success, "" if not exec else str(exec))
++    def save_serverless_llm_state(self, params):
++        worker = self.tp_worker.worker
++        worker.model_runner.save_serverless_llm_state(params["path"])
+ 
+     def save_remote_model(self, params):
+         url = params["url"]
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/model_executor/model_runner.py /home/fiona/sglang/python/sglang/srt/model_executor/model_runner.py
+--- /home/fiona/sglang_origin/python/sglang/srt/model_executor/model_runner.py	2025-07-21 17:35:29.692742495 +0100
++++ /home/fiona/sglang/python/sglang/srt/model_executor/model_runner.py	2025-07-21 17:04:23.395737597 +0100
+@@ -1328,6 +1328,14 @@
+ 
+         logger.info(f"Saving model to {url}")
+         RemoteModelLoader.save_model(self.model, self.model_config.model_path, url)
++    def save_serverless_llm_state(self, path: str):
++        from sglang.srt.model_loader.sllm_loader import ServerlessLLMLoader
++    
++        loader = get_model_loader(self.load_config)
++        if hasattr(loader, "save_model"):
++            loader.save_model(self.model, path)
++        else:
++            raise NotImplementedError("Current loader does not support save_model.")
+ 
+     def save_sharded_model(
+         self, path: str, pattern: Optional[str] = None, max_size: Optional[int] = None
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/model_loader/__init__.py /home/fiona/sglang/python/sglang/srt/model_loader/__init__.py
+--- /home/fiona/sglang_origin/python/sglang/srt/model_loader/__init__.py	2025-07-21 17:35:29.692742495 +0100
++++ /home/fiona/sglang/python/sglang/srt/model_loader/__init__.py	2025-06-25 10:56:40.509735838 +0100
 @@ -1,10 +1,43 @@
  # Adapted from https://github.com/vllm-project/vllm/blob/v0.6.4.post1/vllm/model_executor/model_loader/__init__.py
  
@@ -71,7 +103,7 @@ index fa2386e3..5e9af887 100644
  from sglang.srt.model_loader.loader import BaseModelLoader, get_model_loader
  from sglang.srt.model_loader.utils import (
      get_architecture_class_name,
-@@ -18,6 +51,13 @@ def get_model(
+@@ -18,6 +51,13 @@
      load_config: LoadConfig,
      device_config: DeviceConfig,
  ) -> nn.Module:
@@ -85,18 +117,37 @@ index fa2386e3..5e9af887 100644
      loader = get_model_loader(load_config)
      return loader.load_model(
          model_config=model_config,
-@@ -32,3 +72,4 @@ __all__ = [
+@@ -32,3 +72,4 @@
      "get_architecture_class_name",
      "get_model_architecture",
  ]
 +
-diff --git a/python/sglang/srt/model_loader/sllm_loader.py b/python/sglang/srt/model_loader/sllm_loader.py
-new file mode 100644
-index 00000000..d867fb9d
---- /dev/null
-+++ b/python/sglang/srt/model_loader/sllm_loader.py
-@@ -0,0 +1,70 @@
-+# sglang/srt/model_loader/sllm_loader.py
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/model_loader/loader.py /home/fiona/sglang/python/sglang/srt/model_loader/loader.py
+--- /home/fiona/sglang_origin/python/sglang/srt/model_loader/loader.py	2025-07-21 17:35:29.692742495 +0100
++++ /home/fiona/sglang/python/sglang/srt/model_loader/loader.py	2025-07-21 17:06:07.563765204 +0100
+@@ -213,6 +213,17 @@
+                 f"Model loader extra config is not supported for "
+                 f"load format {load_config.load_format}"
+             )
++    def save_model(self, model: nn.Module, path: str) -> None:
++        from sllm_store.torch import save_dict
++
++      
++        cpu_state_dict = {
++            k: (v.cpu() if v.is_cuda else v)
++            for k, v in model.state_dict().items()
++        }
++
++        save_dict(cpu_state_dict, model_path=path)
++
+ 
+     def _maybe_download_from_modelscope(
+         self, model: str, revision: Optional[str]
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/model_loader/sllm_loader.py /home/fiona/sglang/python/sglang/srt/model_loader/sllm_loader.py
+--- /home/fiona/sglang_origin/python/sglang/srt/model_loader/sllm_loader.py	1970-01-01 01:00:00.000000000 +0100
++++ /home/fiona/sglang/python/sglang/srt/model_loader/sllm_loader.py	2025-07-17 17:24:14.294768192 +0100
+@@ -0,0 +1,82 @@
++#  sglang/srt/model_loader/sllm_loader.py
 +
 +import os
 +import torch
@@ -108,6 +159,7 @@ index 00000000..d867fb9d
 +from sglang.srt.model_loader.loader import BaseModelLoader, _initialize_model
 +from sglang.srt.model_loader.utils import set_default_torch_dtype
 +from sllm_store.torch import load_dict as sllm_load_dict
++from sllm_store.torch import save_dict as sllm_save_dict
 +
 +
 +os.environ["SGLANG_TENSOR_MODEL_PARALLEL_SIZE"] = "1"
@@ -157,7 +209,14 @@ index 00000000..d867fb9d
 +            device_map=device_map,
 +            storage_path=storage_path,
 +        )
-+
++        
++        
++        
++        
++        
++        
++        
++        
 +        model.load_state_dict(state_dict, strict=False)
 +
 +     
@@ -166,6 +225,123 @@ index 00000000..d867fb9d
 +                buf.data.copy_(state_dict[name].to(target_device))
 +
 +        return model
--- 
-2.34.1
-
++    def save_model(self, model: nn.Module, path: str) -> None:
++        state_dict = {k: (v.cpu() if v.is_cuda else v) for k, v in model.state_dict().items()}
++
++        sllm_save_dict(state_dict, model_path=path)
+\ No newline at end of file
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/models/transformers.py /home/fiona/sglang/python/sglang/srt/models/transformers.py
+--- /home/fiona/sglang_origin/python/sglang/srt/models/transformers.py	2025-07-21 17:35:29.696742651 +0100
++++ /home/fiona/sglang/python/sglang/srt/models/transformers.py	2025-07-14 18:19:34.326048473 +0100
+@@ -180,7 +180,8 @@
+                 # NOTE: We use Llama scale as default, if it's set by
+                 # Transformers, it's updated in sglang_flash_attention_forward
+                 scaling=head_dim**-0.5,
+-                num_kv_heads=divide(config.num_key_value_heads, tp_size),
++                        # num_kv_heads=divide(config.num_key_value_heads, tp_size),
++                num_kv_heads=divide(getattr(config, "num_key_value_heads", config.num_attention_heads), tp_size),
+                 layer_id=i,
+                 quant_config=self.quant_config,
+                 prefix=f"{i}.attn",
+diff -ruN '--exclude=__pycache__' /home/fiona/sglang_origin/python/sglang/srt/server_args.py /home/fiona/sglang/python/sglang/srt/server_args.py
+--- /home/fiona/sglang_origin/python/sglang/srt/server_args.py	2025-07-21 17:35:29.696742651 +0100
++++ /home/fiona/sglang/python/sglang/srt/server_args.py	2025-06-24 16:47:47.539442830 +0100
+@@ -12,7 +12,7 @@
+ # limitations under the License.
+ # ==============================================================================
+ """The arguments of the server."""
+-
++from sglang.srt.configs.load_config import LoadFormat
+ import argparse
+ import dataclasses
+ import json
+@@ -599,38 +599,57 @@
+             help="If set, skip init tokenizer and pass input_ids in generate request.",
+         )
+         parser.add_argument(
+-            "--load-format",
+-            type=str,
+-            default=ServerArgs.load_format,
+-            choices=[
+-                "auto",
+-                "pt",
+-                "safetensors",
+-                "npcache",
+-                "dummy",
+-                "sharded_state",
+-                "gguf",
+-                "bitsandbytes",
+-                "layered",
+-                "remote",
+-            ],
+-            help="The format of the model weights to load. "
+-            '"auto" will try to load the weights in the safetensors format '
+-            "and fall back to the pytorch bin format if safetensors format "
+-            "is not available. "
+-            '"pt" will load the weights in the pytorch bin format. '
+-            '"safetensors" will load the weights in the safetensors format. '
+-            '"npcache" will load the weights in pytorch format and store '
+-            "a numpy cache to speed up the loading. "
+-            '"dummy" will initialize the weights with random values, '
+-            "which is mainly for profiling."
+-            '"gguf" will load the weights in the gguf format. '
+-            '"bitsandbytes" will load the weights using bitsandbytes '
+-            "quantization."
+-            '"layered" loads weights layer by layer so that one can quantize a '
+-            "layer before loading another to make the peak memory envelope "
+-            "smaller.",
+-        )
++        "--load-format",
++        type=str,
++        default=ServerArgs.load_format,
++        choices=[fmt.value for fmt in LoadFormat],
++        help=(
++            "The format of the model weights to load. "
++            '"auto" will try safetensors then bin; '
++            '"pt" loads PyTorch .bin; '
++            '"safetensors" loads .safetensors; '
++            '"npcache" …; '
++            '"sharded_state" …; '
++            '"gguf" …; '
++            '"bitsandbytes" …; '
++            '"layered" …; '
++            '"remote" …; '
++            '"serverless_llm" … (your new format).'
++        ),
++    )
++        # parser.add_argument(
++        #     "--load-format",
++        #     type=str,
++        #     default=ServerArgs.load_format,
++        #     choices=[
++        #         "auto",
++        #         "pt",
++        #         "safetensors",
++        #         "npcache",
++        #         "dummy",
++        #         "sharded_state",
++        #         "gguf",
++        #         "bitsandbytes",
++        #         "layered",
++        #         "remote",
++        #     ]
++        #     help="The format of the model weights to load. "
++        #     '"auto" will try to load the weights in the safetensors format '
++        #     "and fall back to the pytorch bin format if safetensors format "
++        #     "is not available. "
++        #     '"pt" will load the weights in the pytorch bin format. '
++        #     '"safetensors" will load the weights in the safetensors format. '
++        #     '"npcache" will load the weights in pytorch format and store '
++        #     "a numpy cache to speed up the loading. "
++        #     '"dummy" will initialize the weights with random values, '
++        #     "which is mainly for profiling."
++        #     '"gguf" will load the weights in the gguf format. '
++        #     '"bitsandbytes" will load the weights using bitsandbytes '
++        #     "quantization."
++        #     '"layered" loads weights layer by layer so that one can quantize a '
++        #     "layer before loading another to make the peak memory envelope "
++        #     "smaller.",
++        # )
+         parser.add_argument(
+             "--trust-remote-code",
+             action="store_true",
