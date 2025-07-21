@@ -112,7 +112,7 @@ def save_lora(model: PeftModel, lora_path: str):
     if not os.path.exists(lora_path):
         os.makedirs(lora_path, exist_ok=True)
 
-    model = model.cpu()
+    model = model.to("cpu")
 
     lora_state_dict = get_peft_model_state_dict(model)
 

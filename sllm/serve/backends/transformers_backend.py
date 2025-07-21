@@ -394,6 +394,13 @@ class TransformersBackend(SllmBackend):
                 return {"error": "Model not initialized"}
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        if tokenizer.pad_token is None:
+            if tokenizer.eos_token:
+                tokenizer.add_special_tokens({"pad_token": tokenizer.eos_token})
+            else:
+                logger.warning(
+                    "pad_token is not set and eos_token is not available; training may fail."
+                )
         dataset_config = request_data.get("dataset_config")
         try:
             dataset = self._load_dataset(dataset_config, tokenizer)
