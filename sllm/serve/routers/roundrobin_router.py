@@ -86,6 +86,9 @@ class RoundRobinRouter(SllmRouter):
         self.request_count = 0
         self.request_count_lock = asyncio.Lock()
 
+        self.fine_tuning_count = 0
+        self.fine_tuning_count_lock = asyncio.Lock()
+
         self.running = False
         self.running_lock = asyncio.Lock()
 
@@ -183,30 +186,84 @@ class RoundRobinRouter(SllmRouter):
         return result
 
     async def fine_tuning(self, request_data: dict):
-        logger.debug(f"Router received finetuning request")
+        logger.info(f"Starting fine-tuning for model {self.model_name}")
         async with self.running_lock:
             if not self.running:
                 return {"error": "Instance stopped"}
 
+        async with self.fine_tuning_count_lock:
+            self.fine_tuning_count += 1
+
         logger.debug(f"creating ft instance")
-        instance_id = await self._create_ft_instance()
-        logger.debug(f"instance id: {instance_id}, start fine tuning.")
-        async with self.instance_management_lock:
-            if instance_id not in self.ready_instances:
-                logger.error(f"Fine tuning instance {instance_id} not found")
-                return {"error": "Fine tuning instance not found"}
-            instance = self.ready_instances[instance_id]
+        try:
+            instance_id = await self._create_ft_instance()
+            logger.debug(
+                f"instance id: {instance_id}, waiting for instance to be ready."
+            )
+        except Exception as e:
+            logger.error(f"Failed to create fine-tuning instance: {str(e)}")
+            async with self.fine_tuning_count_lock:
+                self.fine_tuning_count -= 1
+            return {"error": f"Failed to create fine-tuning instance: {str(e)}"}
 
-        result = await instance.backend_instance.fine_tuning.remote(
-            request_data=request_data
-        )
+        # Wait for the instance to be ready
+        max_wait_time = 300  # 5 minutes timeout
+        wait_time = 0
+        while wait_time < max_wait_time:
+            async with self.instance_management_lock:
+                if instance_id in self.ready_instances:
+                    instance = self.ready_instances[instance_id]
+                    logger.debug(f"Fine tuning instance {instance_id} is ready")
+                    break
+                elif instance_id not in self.starting_instances:
+                    logger.error(
+                        f"Fine tuning instance {instance_id} not found in starting or ready instances"
+                    )
+                    async with self.fine_tuning_count_lock:
+                        self.fine_tuning_count -= 1
+                    return {"error": "Fine tuning instance not found"}
+            await asyncio.sleep(0.1)  # Wait a bit before checking again
+            wait_time += 0.1
+        else:
+            logger.error(
+                f"Timeout waiting for fine tuning instance {instance_id} to be ready"
+            )
+            async with self.fine_tuning_count_lock:
+                self.fine_tuning_count -= 1
+            return {
+                "error": "Timeout waiting for fine tuning instance to be ready"
+            }
 
-        logger.info(f"Finished processing fine-tuning {self.model_name}")
-        await instance.add_requests(-1)
+        try:
+            logger.info(f"Calling fine_tuning method on instance {instance_id}")
+            result = await instance.backend_instance.fine_tuning.remote(
+                request_data
+            )
+            logger.info(f"Fine_tuning method call completed successfully")
 
-        # the fine-tuning job is done, shutdown the instance
-        await self._shutdown_instance(instance_id)
-        return result
+            logger.info(f"Finished processing fine-tuning {self.model_name}")
+            await instance.add_requests(-1)
+
+            # the fine-tuning job is done, shutdown the instance
+            await self._shutdown_instance(instance_id)
+
+            async with self.fine_tuning_count_lock:
+                self.fine_tuning_count -= 1
+
+            logger.info(
+                f"Fine-tuning completed successfully for model {self.model_name}"
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Fine-tuning failed: {str(e)}")
+            await instance.add_requests(-1)
+            await self._shutdown_instance(instance_id)
+            async with self.fine_tuning_count_lock:
+                self.fine_tuning_count -= 1
+            logger.info(
+                f"Fine-tuning failed and cleaned up for model {self.model_name}"
+            )
+            return {"error": f"Fine-tuning failed: {str(e)}"}
 
     async def delete_adapters(self, lora_adapters: List[str]):
         async with self.lora_lock:
@@ -277,8 +334,12 @@ class RoundRobinRouter(SllmRouter):
             # logger.info(f"Auto-scaling for model {self.model_name}")
             async with self.auto_scaling_lock:
                 auto_scaling_config = self.auto_scaling_config.copy()
+            async with self.request_count_lock:
+                request_count = self.request_count
+            async with self.fine_tuning_count_lock:
+                fine_tuning_count = self.fine_tuning_count
             auto_scaling_metrics = {
-                "request_count": self.request_count + self.fine_tuning_count
+                "request_count": request_count + fine_tuning_count
             }
             desired_instances = await auto_scaler(
                 auto_scaling_metrics, auto_scaling_config
@@ -351,7 +412,11 @@ class RoundRobinRouter(SllmRouter):
         )
         async with self.instance_management_lock:
             self.starting_instances[instance_id] = instance
+        logger.debug(f"Created task for starting FT instance {instance_id}")
         self.loop.create_task(self._start_ft_instance(instance_id))
+        logger.debug(
+            f"Returning instance_id {instance_id} from _create_ft_instance"
+        )
         return instance_id
 
     async def _start_instance(self, instance_id):
@@ -406,6 +471,7 @@ class RoundRobinRouter(SllmRouter):
         return instance_id
 
     async def _start_ft_instance(self, instance_id: str):
+        logger.debug(f"Starting _start_ft_instance for {instance_id}")
         async with self.instance_management_lock:
             if instance_id not in self.starting_instances:
                 logger.error(f"FT Instance {instance_id} not found")
@@ -415,11 +481,20 @@ class RoundRobinRouter(SllmRouter):
         logger.info(
             f"Allocating FT resources for model {self.model_name} on {instance_id}"
         )
-        startup_node = (
-            await self.model_loading_scheduler.allocate_resource.remote(
-                self.model_name, instance_id, self.resource_requirements
+        try:
+            startup_node = (
+                await self.model_loading_scheduler.allocate_resource.remote(
+                    self.model_name, instance_id, self.resource_requirements
+                )
             )
-        )
+            logger.debug(
+                f"Allocated resources on node {startup_node} for FT instance {instance_id}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to allocate resources for FT instance {instance_id}: {str(e)}"
+            )
+            raise
 
         startup_config = {
             "num_cpus": self.resource_requirements["num_cpus"],
@@ -430,25 +505,47 @@ class RoundRobinRouter(SllmRouter):
             },
         }
 
-        await start_ft_instance.options(
-            resources=startup_config["resources"]
-        ).remote(
-            instance_id,
-            self.backend,
-            self.model_name,
-            self.backend_config,
-            startup_config,
-        )
-
-        instance.backend_instance = ray.get_actor(instance_id)
+        logger.debug(f"Starting fine-tuning instance {instance_id} with Ray")
+        try:
+            # Create the actor and get the handle directly
+            instance.backend_instance = await start_ft_instance.options(
+                resources=startup_config["resources"]
+            ).remote(
+                instance_id,
+                self.backend,
+                self.model_name,
+                self.backend_config,
+                startup_config,
+            )
+            logger.debug(
+                f"Successfully created and got Ray actor for fine-tuning instance {instance_id}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create Ray actor for fine-tuning instance {instance_id}: {str(e)}"
+            )
+            raise
         async with instance.lock:
             instance.ready = True
             instance.node_id = startup_node
-        await instance.backend_instance.init_backend.remote()
+        logger.debug(
+            f"Initializing backend for fine-tuning instance {instance_id}"
+        )
+        try:
+            await instance.backend_instance.init_backend.remote()
+            logger.debug(
+                f"Backend initialized for fine-tuning instance {instance_id}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to initialize backend for fine-tuning instance {instance_id}: {str(e)}"
+            )
+            raise
 
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
             self.starting_instances.pop(instance_id)
+        logger.debug(f"Fine-tuning instance {instance_id} is now ready")
         return instance_id
 
     async def _stop_instance(self, instance_id: Optional[str] = None):

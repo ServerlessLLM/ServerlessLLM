@@ -383,6 +383,10 @@ class SllmController:
                 f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
             )
             # Create fine-tuning router with resource limits
+            resource_requirements = {
+                "num_cpus": 1,
+                "num_gpus": job_info["config"].get("num_gpus", 0),
+            }
             ft_request_router = self.router_cls.options(
                 name=f"ft_{job_id}",
                 namespace="fine_tuning",
@@ -391,12 +395,15 @@ class SllmController:
                 resources={"control_node": 0.1},
             ).remote(
                 job_info["config"]["model"],
-                job_info["config"],
+                resource_requirements,
                 job_info["config"]["ft_backend"],
                 job_info["config"].get("backend_config", {}),
                 job_info["config"].get("router_config", {}),
             )
             logger.info(f"[FT Job {job_id}] Fine-tuning router created.")
+
+            # Start the router
+            await ft_request_router.start.remote({})
 
             # Start fine-tuning with timeout
             try:
@@ -431,8 +438,18 @@ class SllmController:
             logger.info(
                 f"[FT Job {job_id}] Job status updated to 'failed' due to exception."
             )
-        # TODO Cleanup resources or keep alive.
-        # finally:
+        finally:
+            try:
+                ft_request_router = ray.get_actor(
+                    f"ft_{job_id}", namespace="fine_tuning"
+                )
+                await ft_request_router.shutdown.remote()
+                ray.kill(ft_request_router)
+                logger.info(f"[FT Job {job_id}] Fine-tuning router cleaned up")
+            except Exception as e:
+                logger.warning(
+                    f"[FT Job {job_id}] Failed to cleanup fine-tuning router: {str(e)}"
+                )
 
     async def get_ft_job_status(self, job_id):
         return await self.job_store.get_job.remote(job_id)

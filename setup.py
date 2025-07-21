@@ -81,6 +81,7 @@ setup(
         "sllm.serve",
         "sllm.serve.commands.serve",
         "sllm.serve.backends",
+        "sllm.serve.ft_backends",
         "sllm.serve.routers",
         "sllm.serve.schedulers",
     ],

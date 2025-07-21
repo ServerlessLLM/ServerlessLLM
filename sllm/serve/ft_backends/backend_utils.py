@@ -21,8 +21,11 @@ from typing import Any, Dict, List, Optional
 
 
 class FineTuningBackendStatus(Enum):
+    UNINITIALIZED = "uninitialized"
     PENDING = "pending"
     RUNNING = "running"
+    STOPPING = "stopping"
+    DELETING = "deleting"
     COMPLETED = "completed"
     FAILED = "failed"
     ABORTED = "aborted"
@@ -48,5 +51,5 @@ class SllmFineTuningBackend(ABC):
         pass
 
     @abstractmethod
-    async def fine_tuning(self, request_data: Dict[str, Any]):
+    async def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
         pass

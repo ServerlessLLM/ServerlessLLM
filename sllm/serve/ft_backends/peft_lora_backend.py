@@ -15,15 +15,13 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import json
+import asyncio
 import os
 import threading
 import time
-import uuid
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
-import peft
 import torch
 import torch.nn.functional as F
 import transformers
@@ -41,7 +39,7 @@ from sllm.serve.ft_backends.backend_utils import (
     SllmFineTuningBackend,
 )
 from sllm.serve.logger import init_logger
-from sllm_store.transformers import save_lora
+from sllm_store.transformers import load_model, save_lora
 
 logger = init_logger(__name__)
 
@@ -123,7 +121,8 @@ class PeftLoraBackend(SllmFineTuningBackend):
         self.status: FineTuningBackendStatus = (
             FineTuningBackendStatus.UNINITIALIZED
         )
-        self.ft_status = FineTuningStatus(self.status)
+        # Initialize with a default job ID - this will be updated when fine-tuning starts
+        self.ft_status = FineTuningStatus("default_job_id")
         self.status_lock = threading.Lock()
         self.model = None
         self.tokenizer = None
@@ -135,23 +134,30 @@ class PeftLoraBackend(SllmFineTuningBackend):
                 return
             device_map = self.backend_config.get("device_map", "auto")
             torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
-            torch_dtype = getattr(torch, torch_dtype)
-            hf_model_class = self.backend_config.get("hf_model_class", None)
+
+            # Convert string torch_dtype to actual torch dtype if needed
+            if isinstance(torch_dtype, str):
+                torch_dtype = getattr(torch, torch_dtype, torch.float16)
+
             if torch_dtype is None:
                 logger.warning(
                     f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
                 )
                 torch_dtype = torch.float16
-            if hf_model_class is None:
-                logger.error(
-                    f"hf_model_class cannot be None. Please provide a valid model class"
-                )
-                raise ValueError(
-                    "hf_model_class cannot be None. Please provide a valid model class"
-                )
+
+            # Use default model class if not provided
+            hf_model_class = self.backend_config.get(
+                "hf_model_class", "AutoModelForCausalLM"
+            )
+            logger.info(f"Using model class: {hf_model_class}")
 
             storage_path = os.getenv("STORAGE_PATH", "./models")
             model_path = os.path.join("transformers", self.model_name)
+            logger.info(f"Loading model from path: {model_path}")
+            logger.info(f"Storage path: {storage_path}")
+            logger.info(f"Device map: {device_map}")
+            logger.info(f"Torch dtype: {torch_dtype}")
+
             self.model = load_model(
                 model_path,
                 device_map=device_map,
@@ -159,17 +165,27 @@ class PeftLoraBackend(SllmFineTuningBackend):
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )
+            logger.info(f"Model loaded successfully")
             tokenizer_path = os.path.join(
                 storage_path, "transformers", self.model_name, "tokenizer"
             )
+            logger.info(f"Looking for tokenizer at: {tokenizer_path}")
             if os.path.exists(tokenizer_path):
+                logger.info(
+                    f"Loading tokenizer from local path: {tokenizer_path}"
+                )
                 self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
             else:
                 # Fall back to load from system's cache
+                logger.info(
+                    f"Loading tokenizer from pretrained model: {self.pretrained_model_name_or_path}"
+                )
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     self.pretrained_model_name_or_path
                 )
+            logger.info(f"Tokenizer loaded successfully")
             self.status = FineTuningBackendStatus.RUNNING
+            logger.info(f"Backend initialization completed successfully")
 
     def _load_dataset(
         self,
@@ -229,28 +245,63 @@ class PeftLoraBackend(SllmFineTuningBackend):
             )
             return data
 
-    def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
-        logger.debug("Receive fine tune request on peft lora backend")
-        with self.status_lock:
-            if self.status != FineTuningBackendStatus.RUNNING:
-                return {"error": "Model not initialized"}
+    async def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+        logger.info("Receive fine tune request on peft lora backend")
+        try:
+            with self.status_lock:
+                if self.status != FineTuningBackendStatus.RUNNING:
+                    return {"error": "Model not initialized"}
+
+            # Update the job ID if provided in the request
+            job_id = request_data.get("job_id", "default_job_id")
+            self.ft_status = FineTuningStatus(job_id)
+            self.ft_status.start()
+            logger.info(f"Started fine-tuning job: {job_id}")
+        except Exception as e:
+            logger.error(f"Error in fine-tuning initialization: {str(e)}")
+            return {"error": f"Error in fine-tuning initialization: {str(e)}"}
 
         dataset_config = request_data.get("dataset_config")
+        logger.info(f"Loading dataset with config: {dataset_config}")
         try:
             dataset = self._load_dataset(dataset_config, self.tokenizer)
+            logger.info(
+                f"Dataset loaded successfully with {len(dataset)} samples"
+            )
         except ValueError as e:
             logger.error(f"Failed to load dataset: {e}")
+            self.ft_status.fail(f"Failed to load dataset: {e}")
             return {"error": str(e)}
+        except Exception as e:
+            logger.error(f"Unexpected error loading dataset: {e}")
+            self.ft_status.fail(f"Unexpected error loading dataset: {e}")
+            return {"error": f"Unexpected error loading dataset: {e}"}
 
         lora_config = request_data.get("lora_config")
+        logger.info(f"Creating LoRA config: {lora_config}")
         try:
             lora_config = LoraConfig(**lora_config)
+            logger.info("LoRA config created successfully")
         except TypeError as e:
             logger.error(f"Failed to load lora_config: {e}")
-            raise e
-        peft_model = get_peft_model(self.model, lora_config)
+            self.ft_status.fail(f"Failed to load lora_config: {e}")
+            return {"error": f"Failed to load lora_config: {e}"}
+        except Exception as e:
+            logger.error(f"Unexpected error creating LoRA config: {e}")
+            self.ft_status.fail(f"Unexpected error creating LoRA config: {e}")
+            return {"error": f"Unexpected error creating LoRA config: {e}"}
+
+        logger.info("Creating PEFT model")
+        try:
+            peft_model = get_peft_model(self.model, lora_config)
+            logger.info("PEFT model created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create PEFT model: {e}")
+            self.ft_status.fail(f"Failed to create PEFT model: {e}")
+            return {"error": f"Failed to create PEFT model: {e}"}
 
         training_config = request_data.get("training_config")
+        logger.info(f"Creating training config: {training_config}")
         storage_path = os.getenv("STORAGE_PATH", "./models")
         output_dir = request_data.get(
             "output_dir", f"ft_{self.model_name}_adapter"
@@ -260,27 +311,54 @@ class PeftLoraBackend(SllmFineTuningBackend):
             "transformers",
             output_dir,
         )
+        logger.info(f"LoRA will be saved to: {lora_save_path}")
         try:
             training_args = TrainingArguments(
                 output_dir=lora_save_path, **training_config
             )
+            logger.info("Training arguments created successfully")
         except TypeError as e:
             logger.error(f"Failed to load training_config: {e}")
-            raise e
-        trainer = Trainer(
-            model=peft_model,
-            args=training_args,
-            train_dataset=dataset,
-            data_collator=transformers.DataCollatorForLanguageModeling(
-                self.tokenizer, mlm=False
-            ),
-        )
-        trainer.train()
+            self.ft_status.fail(f"Failed to load training_config: {e}")
+            return {"error": f"Failed to load training_config: {e}"}
+        except Exception as e:
+            logger.error(f"Unexpected error creating training arguments: {e}")
+            self.ft_status.fail(
+                f"Unexpected error creating training arguments: {e}"
+            )
+            return {
+                "error": f"Unexpected error creating training arguments: {e}"
+            }
 
-        save_lora(peft_model, lora_save_path)
-        logger.info(
-            f"Fine-tuning completed. LoRA adapter and config saved to {lora_save_path}"
-        )
+        logger.info("Creating trainer")
+        try:
+            trainer = Trainer(
+                model=peft_model,
+                args=training_args,
+                train_dataset=dataset,
+                data_collator=transformers.DataCollatorForLanguageModeling(
+                    self.tokenizer, mlm=False
+                ),
+            )
+            logger.info("Trainer created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create trainer: {e}")
+            self.ft_status.fail(f"Failed to create trainer: {e}")
+            return {"error": f"Failed to create trainer: {e}"}
+        self.ft_status.log("Starting fine-tuning training")
+        try:
+            trainer.train()
+            self.ft_status.log("Fine-tuning training completed")
+
+            save_lora(peft_model, lora_save_path)
+            logger.info(
+                f"Fine-tuning completed. LoRA adapter and config saved to {lora_save_path}"
+            )
+            self.ft_status.complete()
+        except Exception as e:
+            logger.error(f"Fine-tuning failed: {str(e)}")
+            self.ft_status.fail(f"Fine-tuning failed: {str(e)}")
+            return {"error": f"Fine-tuning failed: {str(e)}"}
 
         response = {
             "model": self.model_name,
@@ -289,30 +367,33 @@ class PeftLoraBackend(SllmFineTuningBackend):
 
         return response
 
-    def shutdown(self):
+    async def shutdown(self):
         """Abort all requests and shutdown the backend."""
         with self.status_lock:
             if self.status == FineTuningBackendStatus.DELETING:
                 return
             self.status = FineTuningBackendStatus.DELETING
             if self.ft_status:
-                self.ft_status.status = FineTuningBackendStatus.DELETING
+                self.ft_status.abort()
 
-        while self.ft_status and len(self.ft_status.get()) > 0:
-            logger.info("Waiting for all requests to finish")
-            time.sleep(1)
+        # FineTuningStatus doesn't have a get() method, so we just wait a bit for cleanup
+        logger.info("Shutting down fine-tuning backend")
+        await asyncio.sleep(1)
 
         if self.model is not None:
             del self.model
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Wait for all requests to finish and shutdown the backend."""
         with self.status_lock:
-            if self.status.value >= FineTuningBackendStatus.STOPPING.value:
+            if self.status in [
+                FineTuningBackendStatus.STOPPING,
+                FineTuningBackendStatus.DELETING,
+            ]:
                 return
             self.status = FineTuningBackendStatus.STOPPING
-        while self.ft_status and len(self.ft_status.get()) > 0:
-            logger.info("Waiting for all requests to finish")
-            time.sleep(1)
+        # FineTuningStatus doesn't have a get() method, so we just wait a bit for cleanup
+        logger.info("Stopping fine-tuning backend")
+        await asyncio.sleep(1)
         logger.info("All requests finished. Shutting down the backend.")
-        self.shutdown()
+        await self.shutdown()

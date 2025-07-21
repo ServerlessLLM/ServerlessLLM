@@ -41,5 +41,8 @@ def start_ft_instance(
         raise ValueError(f"Unknown backend: {backend}")
 
     return model_backend_cls.options(
-        name=instance_id, **startup_config, max_concurrency=10
+        name=instance_id,
+        namespace="fine_tuning",
+        **startup_config,
+        max_concurrency=10,
     ).remote(model_name, backend_config)
