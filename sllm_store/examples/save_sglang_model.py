@@ -37,7 +37,7 @@ def save_sllm_model(
             ".bin",
             ".pt",
             ".safetensors",
-        ):  # 非权重文件
+        ):  
             src_path = os.path.join(input_dir, file)
             dest_path = os.path.join(model_path, file)
             if os.path.isdir(src_path):
