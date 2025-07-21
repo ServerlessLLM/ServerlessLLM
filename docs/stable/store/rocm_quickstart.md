@@ -95,7 +95,9 @@ Hello, my dog is cute and I want to give him a good home. I have a lot of experi
 Try to save and load a model in vLLM:
 
 ``` bash
+# Save the model
 sllm-store save --model facebook/opt-125m --backend vllm --storage-path /models
+# Load the model
 sllm-store load --model facebook/opt-125m --backend vllm --storage-path /models
 ```
 Expected output:
