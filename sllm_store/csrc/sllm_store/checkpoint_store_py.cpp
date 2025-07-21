@@ -71,7 +71,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
           py::arg("gpu_memory_handles"), py::arg("mem_copy_chunks"),
           "Load a model from memory asynchronously.")
       .def("allocate_shared_memory", &AllocateSharedMemory,
-           py::arg("tensor_sizes"), "Allocate shared memory")
+           py::arg("tensor_sizes"), py::arg("chunk_size"),
+           "Allocate shared memory for tensor storage")
       .def(
           "get_shared_memory_handles",
           [](const std::unordered_map<int, void*>& memory_ptrs) {

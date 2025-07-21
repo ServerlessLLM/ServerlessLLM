@@ -24,12 +24,15 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <functional>
 #include <thread>
 
 #include "error_handling.h"
+#include "memory_allocators.h"
+#include "shared_memory.h"
 
 CheckpointStore::CheckpointStore(const std::string& storage_path,
                                  size_t memory_pool_size, int num_thread,
@@ -485,12 +488,26 @@ CheckpointStore::GetSharedPinnedMemoryPool(ModelPtr model) const {
 
 std::unordered_map<int, void*> AllocateSharedMemory(
     const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size) {
-  SharedMemoryAllocator allocator("tensor_device");
+  // Generate a unique prefix for this allocation session
+  static std::atomic<size_t> session_counter{0};
+  std::string name_prefix =
+      "tensor_device_" + std::to_string(session_counter++);
+
+  // Create SharedMemoryAllocator on the fly - lifetime until client exit
+  SharedMemoryAllocator allocator(name_prefix);
   std::unordered_map<int, void*> shared_memory_ptrs;
 
   for (const auto& [device_id, memory_size] : tensor_sizes) {
-    size_t chunks_req = (memory_size + chunk_size - 1) / chunk_size;
-    void* ptr = allocator.allocate(chunks_req * chunk_size);
+    // Calculate total memory size needed, rounded up by chunk size
+    size_t chunks_needed = (memory_size + chunk_size - 1) / chunk_size;
+    size_t total_memory_size = chunks_needed * chunk_size;
+
+    LOG(INFO) << "Device " << device_id << " needs " << chunks_needed
+              << " chunks of " << chunk_size
+              << " bytes each, total: " << total_memory_size << " bytes";
+
+    // Allocate the total memory size using the allocator
+    void* ptr = allocator.allocate(total_memory_size);
     if (!ptr) {
       LOG(ERROR) << "Failed to allocate shared memory for device " << device_id;
       // Cleanup previously allocated memory
@@ -499,7 +516,6 @@ std::unordered_map<int, void*> AllocateSharedMemory(
           allocator.deallocate(mem_ptr);
         }
       }
-      LOG(ERROR) << "Deallocated previously allocated shared memory";
       return {};  // Return empty map on failure
     }
 
@@ -511,7 +527,18 @@ std::unordered_map<int, void*> AllocateSharedMemory(
 
 std::unordered_map<int, std::string> GetSharedMemoryHandles(
     const std::unordered_map<int, void*>& memory_ptrs) {
-  // Delegate to SharedMemoryAllocator
-  SharedMemoryAllocator allocator("tensor_device");
-  return allocator.GetSharedMemoryHandles(memory_ptrs);
+  std::unordered_map<int, std::string> shm_handles;
+
+  for (const auto& [device_id, ptr] : memory_ptrs) {
+    auto shm = MemoryRegistry::Instance().FindSharedMemory(ptr);
+    if (shm) {
+      std::string shm_name = shm->name();
+      shm_handles[device_id] = shm_name;
+    } else {
+      LOG(ERROR) << "Shared memory handle not found for device " << device_id;
+      return {};  // Return empty map on failure
+    }
+  }
+
+  return shm_handles;
 }
