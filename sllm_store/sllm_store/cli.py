@@ -321,7 +321,6 @@ def save(
 @click.option(
     "--precision",
     type=str,
-    default="int8",
     help="Precision of quantized model. Supports int8, fp4, and nf4",
 )
 @click.option(
@@ -419,9 +418,7 @@ def load(
                     torch_dtype=torch.float16,
                     storage_path=storage_path,
                     fully_parallel=True,
-                    quantization_config=quantization_config
-                    if precision
-                    else None,
+                    quantization_config=quantization_config,
                 )
             logger.info(
                 f"Model loading time: {time.time() - start_load_time:.2f}s"
