@@ -168,12 +168,12 @@ int CheckpointStore::LoadModelFromDisk(
       }
       auto& handle_list = shared_memory_handles.at(uuid);
       for (const auto& handle : handle_list) {
-        // Convert handle string to cuda handle
+        // Open shared memory handle
         std::unique_ptr<SharedMemoryInstance> shm =
             Open(handle.cuda_ipc_handle_);
         if (!shm || !shm->is_valid()) {
-          LOG(ERROR) << "Failed to open shared memory handle for device "
-                     << device_id;
+          LOG(ERROR) << "Failed to open shared memory handle "
+                     << handle.cuda_ipc_handle_ << " for device " << device_id;
           return -1;
         }
         shm_ptrs[device_id].push_back(shm->data());
