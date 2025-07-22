@@ -45,9 +45,7 @@ async def run_head_node(args: argparse.Namespace):
     store = RedisStore(host=args.redis_host, port=args.redis_port)
     model_manager = ModelManager(store)
     worker_manager = WorkerManager(store, config={"prune_interval": 15})
-    autoscaler = AutoScaler(
-        store=store, model_manager=model_manager, worker_manager=worker_manager
-    )
+    autoscaler = AutoScaler(store=store)
     dispatcher = Dispatcher(store)
 
     app = create_head_app(
