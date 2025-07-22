@@ -26,12 +26,26 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from sllm.serve.dispatcher import Dispatcher
-from sllm.serve.utils import *
 from sllm.serve.kv_store import RedisStore
-from sllm.serve.logger import init_logger
+from sllm.serve.logger import clear_context, init_logger, set_correlation_id
 from sllm.serve.model_manager import ModelManager
-from sllm.serve.response_utils import *
 from sllm.serve.schema import *
+from sllm.serve.utils import *
+from sllm.serve.utils import (
+    ValidationError,
+    health_response,
+    list_response,
+    map_to_http_status,
+    operation_response,
+    standardize_error_response,
+    success_response,
+    task_response,
+)
+from sllm.serve.validation import (
+    sanitize_log_data,
+    validate_model_config,
+    validate_model_identifier,
+)
 from sllm.serve.worker_manager import WorkerManager
 
 INFERENCE_REQUEST_TIMEOUT = 120
@@ -188,16 +202,36 @@ def create_app(
             )
 
     async def inference_handler(request: Request, action: str) -> Response:
-        body = await request.json()
-        model_identifier = body.get("model")
-
-        if not model_identifier or ":" not in model_identifier:
+        try:
+            body = await request.json()
+        except Exception as e:
+            logger.error(f"Failed to parse JSON body: {e}")
             raise HTTPException(
                 status_code=400,
-                detail="Request body must include a 'model' field in 'model_name:backend' format.",
+                detail="Invalid JSON in request body",
             )
 
-        model_name, backend = model_identifier.split(":", 1)
+        # Sanitize body for logging
+        sanitized_body = sanitize_log_data(body)
+        logger.info(f"Received inference request: {sanitized_body}")
+
+        model_identifier = body.get("model")
+        if not model_identifier:
+            raise HTTPException(
+                status_code=400,
+                detail="Request body must include a 'model' field",
+            )
+
+        try:
+            model_name, backend = validate_model_identifier(model_identifier)
+        except ValidationError as e:
+            logger.warning(
+                f"Invalid model identifier '{model_identifier}': {e}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            )
 
         if not await request.app.state.model_manager.get_model(
             model_name, backend
@@ -212,6 +246,10 @@ def create_app(
             if body.get("task_id") == None
             else body["task_id"]
         )
+
+        # Set correlation ID for structured logging
+        set_correlation_id(task_id)
+
         task_package = {"task_id": task_id, "action": action, "payload": body}
 
         store: RedisStore = request.app.state.redis_store
@@ -252,6 +290,8 @@ def create_app(
             )
         finally:
             listener_task.cancel()
+            # Clear logging context after request completes
+            clear_context()
 
     @app.post("/v1/chat/completions")
     async def generate_handler(request: Request):

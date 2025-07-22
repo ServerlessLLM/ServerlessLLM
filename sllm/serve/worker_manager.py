@@ -25,9 +25,9 @@ from typing import Any, Dict, List, Mapping, Optional, Set
 
 import aiohttp
 
-from sllm.serve.utils import HTTPRetryError, post_json_with_retry
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
+from sllm.serve.utils import HTTPRetryError, post_json_with_retry
 
 logger = init_logger(__name__)
 
@@ -390,18 +390,66 @@ class WorkerManager:
             registered_models = []
 
         try:
-            # Update worker record
-            worker_key = self.store._get_worker_key(node_id)
-            redis_hash = {
-                "node_id": node_id,
-                "node_ip": node_ip,
-                "hardware_info": json.dumps(hardware_info),
-                "instances_on_device": json.dumps(instances_on_device),
-                "registered_models": json.dumps(registered_models),
-                "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
-                "status": "ready",  # Reset to ready after successful heartbeat
+            # Try atomic heartbeat update first
+            heartbeat_data = {
+                "hardware_info": hardware_info,
+                "instances_on_device": instances_on_device,
+                "registered_models": registered_models,
             }
-            await self.store.client.hset(worker_key, mapping=redis_hash)
+
+            success = await self.store.atomic_worker_heartbeat_update(
+                node_id, heartbeat_data
+            )
+            if not success:
+                # Worker doesn't exist, need to register it first
+                logger.info(
+                    f"Worker {node_id} not found, creating new worker registration"
+                )
+
+                # Create new Worker object
+                from sllm.serve.schema import HardwareInfo, Worker
+
+                # Create HardwareInfo object from hardware_info dict
+                hardware_info_obj = HardwareInfo.model_validate(hardware_info)
+
+                new_worker = Worker(
+                    node_id=node_id,
+                    node_ip=node_ip,
+                    hardware_info=hardware_info_obj,
+                    instances_on_device=instances_on_device,
+                    last_heartbeat_time=datetime.now(timezone.utc),
+                )
+
+                # Use atomic worker registration to prevent race conditions
+                ip_to_node_key = f"ip_to_node:{node_ip}"
+                (
+                    registration_success,
+                    existing_node,
+                ) = await self.store.atomic_worker_registration(
+                    new_worker, ip_to_node_key
+                )
+
+                if not registration_success:
+                    logger.warning(
+                        f"Worker registration failed for {node_id}: IP {node_ip} already registered to {existing_node}"
+                    )
+                    return
+
+                logger.info(f"Successfully registered new worker {node_id}")
+
+            # Update additional fields using pipeline for atomicity
+            worker_key = self.store._get_worker_key(node_id)
+            async with self.store.client.pipeline(transaction=True) as pipe:
+                pipe.hset(
+                    worker_key,
+                    mapping={
+                        "hardware_info": json.dumps(hardware_info),
+                        "instances_on_device": json.dumps(instances_on_device),
+                        "registered_models": json.dumps(registered_models),
+                        "status": "ready",  # Reset to ready after successful heartbeat
+                    },
+                )
+                await pipe.execute()
 
             # Update worker state sets based on current instances
             await self._update_worker_state_sets(

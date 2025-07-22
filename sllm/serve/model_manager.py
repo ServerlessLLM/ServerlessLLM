@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 import asyncio
 import json
+import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sllm.serve.kv_store import RedisStore
@@ -244,16 +245,52 @@ class ModelManager:
 
             logger.info(f"All instances for {model_key} are terminated.")
 
-            pipe = self.store.client.pipeline()
-            pipe.delete(model_key)
-            pipe.delete(task_queue_key)
-            pipe.delete(f"workers:ready:{model_name}:{backend}")
-            pipe.delete(f"workers:busy:{model_name}:{backend}")
-            await pipe.execute()
+            # Use atomic model deletion to prevent race conditions
+            with self.store._deletion_locks_lock:
+                lock_value = self.store._deletion_locks.get(
+                    f"{model_name}:{backend}"
+                )
 
-            logger.info(
-                f"[{model_key}] Cleanup complete. Model definition and queue deleted."
-            )
+            if lock_value:
+                (
+                    deletion_success,
+                    error_msg,
+                ) = await self.store.atomic_model_deletion(
+                    model_key, "excommunicado", lock_value
+                )
+
+                if deletion_success:
+                    # Clean up additional resources
+                    pipe = self.store.client.pipeline()
+                    pipe.delete(task_queue_key)
+                    pipe.delete(f"workers:ready:{model_name}:{backend}")
+                    pipe.delete(f"workers:busy:{model_name}:{backend}")
+                    await pipe.execute()
+
+                    logger.info(
+                        f"[{model_key}] Cleanup complete. Model atomically deleted."
+                    )
+                else:
+                    logger.error(
+                        f"Atomic model deletion failed for {model_key}: {error_msg}"
+                    )
+
+            else:
+                logger.warning(
+                    f"No deletion lock found for {model_key}, cannot perform atomic deletion"
+                )
+
+                # Fallback to old method
+                pipe = self.store.client.pipeline()
+                pipe.delete(model_key)
+                pipe.delete(task_queue_key)
+                pipe.delete(f"workers:ready:{model_name}:{backend}")
+                pipe.delete(f"workers:busy:{model_name}:{backend}")
+                await pipe.execute()
+
+                logger.info(
+                    f"[{model_key}] Cleanup complete (fallback method used)."
+                )
 
         except Exception as e:
             logger.error(

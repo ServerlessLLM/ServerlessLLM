@@ -1,10 +1,10 @@
+aiohttp
 fastapi==0.115.12
 GPUtil==1.4.0
 openai==1.52.0
 pydantic==2.11.5
 pydantic_core==2.33.2
-ray==2.46.0
-redis=8.0.3
+redis==8.0.3
 requests==2.32.2
 serverless-llm-store
 speedtest-cli==2.1.3

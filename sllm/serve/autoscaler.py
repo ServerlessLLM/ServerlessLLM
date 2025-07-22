@@ -71,7 +71,8 @@ class AutoScaler:
 
         logger.info(f"Running scaling check for {len(all_models)} models.")
         tasks = [
-            self._calculate_and_set_decision(model.model_dump()) for model in all_models
+            self._calculate_and_set_decision(model.model_dump())
+            for model in all_models
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -84,7 +85,9 @@ class AutoScaler:
         decision_key = f"scaling_decision:{model_name}:{backend}"
 
         if model_data.get("status") == "excommunicado":
-            current_instances = await self._count_running_instances(model_identifier)
+            current_instances = await self._count_running_instances(
+                model_identifier
+            )
             if current_instances > 0:
                 logger.info(
                     f"Model '{model_identifier}' is 'excommunicado'. "
@@ -99,7 +102,9 @@ class AutoScaler:
         min_instances = auto_scaling_config.get("min_instances", 0)
         max_instances = auto_scaling_config.get("max_instances", 1)
 
-        current_instances = await self._count_running_instances(model_identifier)
+        current_instances = await self._count_running_instances(
+            model_identifier
+        )
         queue_length = await self.store.get_queue_length(model_name, backend)
 
         needed = min_instances

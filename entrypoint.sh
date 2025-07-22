@@ -20,86 +20,169 @@
 
 set -e
 
-# Default values
-DEFAULT_RAY_PORT=6379
-DEFAULT_RAY_RESOURCES_HEAD='{"control_node": 1}'
-DEFAULT_RAY_NUM_CPUS=20
-DEFAULT_RAY_HEAD_ADDRESS="sllm_head:6379"
+# Default values for HTTP-based architecture
+DEFAULT_HEAD_HOST="0.0.0.0"
+DEFAULT_HEAD_PORT="8080"
+DEFAULT_REDIS_HOST="redis"
+DEFAULT_REDIS_PORT="6379"
+DEFAULT_WORKER_PORT="8000"
 DEFAULT_STORAGE_PATH="/models"
+DEFAULT_LOG_LEVEL="INFO"
 
 # Source conda
 source /opt/conda/etc/profile.d/conda.sh
 
 # Function to initialize the head node
 initialize_head_node() {
-  echo "Initializing head node..."
+  echo "Initializing HTTP-based head node..."
 
   # Activate head environment
   echo "Activating head conda environment..."
   conda activate head
 
-  RAY_PORT="${RAY_PORT:-$DEFAULT_RAY_PORT}"
-  RAY_RESOURCES="${RAY_RESOURCES:-$DEFAULT_RAY_RESOURCES_HEAD}"
-  RAY_NUM_CPUS="${RAY_NUM_CPUS:-$DEFAULT_RAY_NUM_CPUS}"
+  # Set environment variables
+  export REDIS_HOST="${REDIS_HOST:-$DEFAULT_REDIS_HOST}"
+  export REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
+  export STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
+  export LOG_LEVEL="${LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
+  
+  HEAD_HOST="${HEAD_HOST:-$DEFAULT_HEAD_HOST}"
+  HEAD_PORT="${HEAD_PORT:-$DEFAULT_HEAD_PORT}"
 
-  # Construct the command
-  CMD="ray start --head --port=$RAY_PORT --resources='$RAY_RESOURCES' --num-cpus=$RAY_NUM_CPUS"
+  # Validate Redis connection
+  echo "Validating Redis connection to ${REDIS_HOST}:${REDIS_PORT}..."
+  timeout 30 bash -c "until echo > /dev/tcp/${REDIS_HOST}/${REDIS_PORT}; do sleep 1; done" || {
+    echo "ERROR: Cannot connect to Redis at ${REDIS_HOST}:${REDIS_PORT}"
+    echo "Please ensure Redis is running and accessible"
+    exit 1
+  }
+  echo "Redis connection validated successfully"
 
-  # Add node IP if specified
-  if [ ! -z "$RAY_NODE_IP" ]; then
-    echo "Using specified node IP: $RAY_NODE_IP"
-    CMD="$CMD --node-ip-address=$RAY_NODE_IP"
-  else
-    echo "No node IP specified. Ray will attempt to determine the best IP automatically."
-  fi
+  # Create storage directory if it doesn't exist
+  mkdir -p "$STORAGE_PATH"
+  echo "Storage path: $STORAGE_PATH"
 
-  # Display and execute the command
-  echo "Executing: $CMD"
-  eval "$CMD"
-
-  # Start sllm-serve with any additional arguments passed to the script
-  echo "Starting sllm-serve with arguments: $@"
-  exec sllm-serve start "$@"
+  # Start sllm-serve head node with HTTP API gateway
+  echo "Starting ServerlessLLM head node on ${HEAD_HOST}:${HEAD_PORT}"
+  echo "Redis: ${REDIS_HOST}:${REDIS_PORT}"
+  echo "Log level: ${LOG_LEVEL}"
+  
+  exec sllm-serve start \
+    --host="$HEAD_HOST" \
+    --port="$HEAD_PORT" \
+    --redis-host="$REDIS_HOST" \
+    --redis-port="$REDIS_PORT" \
+    --storage-path="$STORAGE_PATH" \
+    --log-level="$LOG_LEVEL" \
+    "$@"
 }
 
 # Function to initialize the worker node
 initialize_worker_node() {
-  echo "Initializing worker node..."
+  echo "Initializing HTTP-based worker node..."
 
   # Activate worker environment
   echo "Activating worker conda environment..."
   conda activate worker
 
-  # Start the worker
-  RAY_HEAD_ADDRESS="${RAY_HEAD_ADDRESS:-$DEFAULT_RAY_HEAD_ADDRESS}"
+  # Set environment variables
+  export STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
+  export LOG_LEVEL="${LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
+  
+  WORKER_HOST="${WORKER_HOST:-0.0.0.0}"
+  WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
+  HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:8080}"
 
-  if [ -z "$WORKER_ID" ]; then
-    echo "WORKER_ID must be set"
+  # Validate required environment variables
+  if [ -z "$HEAD_NODE_URL" ]; then
+    echo "ERROR: HEAD_NODE_URL must be set to the head node's URL (e.g., http://sllm_head:8080)"
     exit 1
   fi
 
-  RAY_RESOURCES='{"worker_node": 1, "worker_id_'$WORKER_ID'": 1}'
+  # Create storage directory if it doesn't exist
+  mkdir -p "$STORAGE_PATH"
+  echo "Storage path: $STORAGE_PATH"
 
-  # Construct the command
-  CMD="ray start --address=$RAY_HEAD_ADDRESS --resources='$RAY_RESOURCES'"
+  # Validate head node connection
+  echo "Validating head node connection to ${HEAD_NODE_URL}..."
+  timeout 30 bash -c "
+    while ! curl -s -o /dev/null -w '%{http_code}' ${HEAD_NODE_URL}/health | grep -q '200'; do
+      echo 'Waiting for head node to be ready...'
+      sleep 2
+    done
+  " || {
+    echo "WARNING: Cannot connect to head node at ${HEAD_NODE_URL}"
+    echo "Worker will start anyway and attempt to connect during runtime"
+  }
+  echo "Head node connection validated successfully"
 
-  # Add node IP if specified
-  if [ ! -z "$RAY_NODE_IP" ]; then
-    echo "Using specified node IP: $RAY_NODE_IP"
-    CMD="$CMD --node-ip-address=$RAY_NODE_IP"
-  else
-    echo "No node IP specified. Ray will attempt to determine the best IP automatically."
-  fi
-
-  # Display and execute the command
-  echo "Executing: $CMD"
-  eval "$CMD"
-
-  # Start sllm-store with any additional arguments passed to the script
-  STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
-  echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH $@"
-  exec sllm-store start --storage-path=$STORAGE_PATH "$@"
+  # Start worker with HTTP heartbeat to head node
+  echo "Starting ServerlessLLM worker node on ${WORKER_HOST}:${WORKER_PORT}"
+  echo "Head node: ${HEAD_NODE_URL}"
+  echo "Storage: ${STORAGE_PATH}"
+  echo "Log level: ${LOG_LEVEL}"
+  
+  exec sllm-store start \
+    --host="$WORKER_HOST" \
+    --port="$WORKER_PORT" \
+    --head-node-url="$HEAD_NODE_URL" \
+    --storage-path="$STORAGE_PATH" \
+    --log-level="$LOG_LEVEL" \
+    "$@"
 }
+
+# Health check function
+health_check() {
+  if [ "$MODE" == "HEAD" ]; then
+    HEAD_PORT="${HEAD_PORT:-$DEFAULT_HEAD_PORT}"
+    curl -f "http://localhost:${HEAD_PORT}/health" || exit 1
+  elif [ "$MODE" == "WORKER" ]; then
+    WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
+    curl -f "http://localhost:${WORKER_PORT}/health" || exit 1
+  else
+    echo "Unknown MODE for health check: $MODE"
+    exit 1
+  fi
+}
+
+# Print usage information
+usage() {
+  echo "ServerlessLLM HTTP-based Container Entrypoint"
+  echo ""
+  echo "Environment Variables:"
+  echo "  MODE                 - Required: 'HEAD' or 'WORKER'"
+  echo ""
+  echo "Head Node Variables:"
+  echo "  HEAD_HOST           - Host to bind to (default: 0.0.0.0)"
+  echo "  HEAD_PORT           - Port to bind to (default: 8080)"
+  echo "  REDIS_HOST          - Redis hostname (default: redis)"
+  echo "  REDIS_PORT          - Redis port (default: 6379)"
+  echo ""
+  echo "Worker Node Variables:"
+  echo "  WORKER_HOST         - Host to bind to (default: 0.0.0.0)"
+  echo "  WORKER_PORT         - Port to bind to (default: 8000)"
+  echo "  HEAD_NODE_URL       - Head node URL (required, e.g., http://sllm_head:8080)"
+  echo ""
+  echo "Common Variables:"
+  echo "  STORAGE_PATH        - Model storage path (default: /models)"
+  echo "  LOG_LEVEL           - Logging level (default: INFO)"
+  echo ""
+  echo "Special Commands:"
+  echo "  health              - Run health check"
+  echo "  help                - Show this help message"
+}
+
+# Handle special commands
+case "$1" in
+  "health")
+    health_check
+    exit 0
+    ;;
+  "help")
+    usage
+    exit 0
+    ;;
+esac
 
 # Determine the node type and call the appropriate initialization function
 if [ "$MODE" == "HEAD" ]; then
@@ -107,6 +190,8 @@ if [ "$MODE" == "HEAD" ]; then
 elif [ "$MODE" == "WORKER" ]; then
   initialize_worker_node "$@"
 else
-  echo "MODE must be set to either HEAD or WORKER"
+  echo "ERROR: MODE must be set to either 'HEAD' or 'WORKER'"
+  echo ""
+  usage
   exit 1
 fi

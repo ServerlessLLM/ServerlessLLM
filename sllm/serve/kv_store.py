@@ -31,6 +31,64 @@ from redis.exceptions import ConnectionError, TimeoutError
 from sllm.serve.logger import init_logger
 from sllm.serve.schema import Model, Worker
 
+logger = init_logger(__name__)
+
+# Lua scripts for atomic operations
+ATOMIC_WORKER_REGISTRATION_SCRIPT = """
+local worker_key = KEYS[1]
+local workers_index_key = KEYS[2]
+local ip_to_node_key = KEYS[3]
+local node_ip = ARGV[1]
+local node_id = ARGV[2]
+local worker_data = ARGV[3]
+
+-- Check if IP is already registered to a different node
+local existing_node = redis.call('GET', ip_to_node_key)
+if existing_node and existing_node ~= node_id then
+    return {1, existing_node}  -- Return error code 1 with existing node ID
+end
+
+-- Atomically register the worker
+redis.call('HSET', worker_key, 'data', worker_data)
+redis.call('SADD', workers_index_key, node_id)
+redis.call('SET', ip_to_node_key, node_id)
+
+return {0}  -- Success
+"""
+
+ATOMIC_MODEL_DELETION_SCRIPT = """
+local model_key = KEYS[1]
+local lock_key = KEYS[2]
+local models_index_key = KEYS[3]
+local status_index_key = KEYS[4]
+local expected_status = ARGV[1]
+local lock_value = ARGV[2]
+
+-- Check if we have the deletion lock
+local current_lock = redis.call('GET', lock_key)
+if not current_lock or current_lock ~= lock_value then
+    return {1, "Lock not held"}  -- Error code 1
+end
+
+-- Check current model status
+local model_data = redis.call('HGET', model_key, 'status')
+if not model_data then
+    return {2, "Model not found"}  -- Error code 2
+end
+
+if model_data ~= expected_status then
+    return {3, "Status mismatch"}  -- Error code 3
+end
+
+-- Atomically delete the model
+redis.call('DEL', model_key)
+redis.call('SREM', models_index_key, model_key)
+redis.call('SREM', status_index_key, model_key)
+redis.call('DEL', lock_key)
+
+return {0}  -- Success
+"""
+
 """
 - workermanager
 - modelmanager
@@ -38,8 +96,6 @@ from sllm.serve.schema import Model, Worker
 - pubsub channel
 """
 TIMEOUT = 60
-
-logger = init_logger(__name__)
 
 
 class RedisStore:
@@ -362,13 +418,9 @@ class RedisStore:
             worker.last_heartbeat_time.isoformat()
         )
 
-        # Use pipeline for atomic registration with index updates
         async with self.client.pipeline(transaction=True) as pipe:
-            # Register the worker
             pipe.hset(key, mapping=worker_dict)
-            # Add to master index
             pipe.sadd(self._get_workers_index_key(), key)
-            # Add to status index (default: ready)
             pipe.sadd(self._get_workers_status_index_key("ready"), key)
             await pipe.execute()
 
@@ -383,7 +435,6 @@ class RedisStore:
 
     async def get_all_workers(self) -> List[Worker]:
         """Get all workers using efficient index-based lookup with pipeline."""
-        # Get all worker keys from the master index (O(1) operation)
         worker_keys = await self._execute_with_retry(
             self.client.smembers, self._get_workers_index_key()
         )
@@ -391,7 +442,6 @@ class RedisStore:
         if not worker_keys:
             return []
 
-        # Decode keys from bytes
         decoded_keys = [
             key.decode() if isinstance(key, bytes) else key
             for key in worker_keys
@@ -840,3 +890,65 @@ class RedisStore:
             lua_script, 2, worker_key, workers_index, timestamp
         )
         return bool(result)
+
+    async def atomic_worker_registration(
+        self, worker: Worker, ip_to_node_key: str
+    ) -> tuple[bool, Optional[str]]:
+        """Atomically register a worker using Lua script to prevent race conditions."""
+        worker_key = self._get_worker_key(worker.node_id)
+        workers_index_key = self._get_workers_index_key()
+
+        # Serialize worker data
+        worker_dict = worker.model_dump()
+        worker_dict["hardware_info"] = worker.hardware_info.model_dump_json()
+        worker_dict["instances_on_device"] = json.dumps(
+            worker.instances_on_device
+        )
+        worker_dict["last_heartbeat_time"] = (
+            worker.last_heartbeat_time.isoformat()
+        )
+        worker_data = json.dumps(worker_dict)
+
+        result = await self.client.eval(
+            ATOMIC_WORKER_REGISTRATION_SCRIPT,
+            3,
+            worker_key,
+            workers_index_key,
+            ip_to_node_key,
+            worker.node_ip,
+            worker.node_id,
+            worker_data,
+        )
+
+        if result[0] == 0:
+            # Also add to status index
+            await self.client.sadd(
+                self._get_workers_status_index_key("ready"), worker_key
+            )
+            return True, None
+        else:
+            return False, result[1]  # Return existing node ID
+
+    async def atomic_model_deletion(
+        self, model_key: str, expected_status: str, lock_value: str
+    ) -> tuple[bool, Optional[str]]:
+        """Atomically delete a model using Lua script to prevent race conditions."""
+        lock_key = f"deletion_lock:{model_key}"
+        models_index_key = self._get_models_index_key()
+        status_index_key = self._get_model_status_index_key(expected_status)
+
+        result = await self.client.eval(
+            ATOMIC_MODEL_DELETION_SCRIPT,
+            4,
+            model_key,
+            lock_key,
+            models_index_key,
+            status_index_key,
+            expected_status,
+            lock_value,
+        )
+
+        if result[0] == 0:
+            return True, None
+        else:
+            return False, result[1]  # Return error message

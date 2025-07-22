@@ -16,7 +16,6 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import importlib
-import logging
 import os
 import shutil
 from typing import Optional
@@ -24,17 +23,9 @@ from typing import Optional
 from torch import nn
 from transformers import AutoTokenizer
 
-logger = logging.getLogger(__name__)
+from sllm.serve.logger import init_logger
 
-
-# def get_directory_size(directory):
-#     total_size = 0
-#     for dirpath, dirnames, filenames in os.walk(directory):
-#         for filename in filenames:
-#             file_path = os.path.join(dirpath, filename)
-#             if not os.path.islink(file_path):
-#                 total_size += os.path.getsize(file_path)
-#     return total_size
+logger = init_logger(__name__)
 
 
 async def download_transformers_model(
@@ -83,9 +74,6 @@ async def download_transformers_model(
         raise RuntimeError(
             f"Failed to save {model_name} for transformer backend: {e}"
         )
-
-    # model_size = get_directory_size(model_path)
-    # logger.info(f"{model_name} (size: {model_size}) downloaded")
 
     return True
 
