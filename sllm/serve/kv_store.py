@@ -100,7 +100,7 @@ TIMEOUT = 60
 
 class RedisStore:
     def __init__(
-        self, host: str = "localhost", port: int = 6379, max_retries: int = 3
+        self, host: str = "localhost", port: int = 8008, max_retries: int = 3
     ):
         redis_host = os.environ.get("REDIS_HOST", "localhost")
         final_host = host if host is not None else redis_host

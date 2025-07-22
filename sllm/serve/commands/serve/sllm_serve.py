@@ -153,7 +153,7 @@ def main():
         help="Hostname of the Redis server.",
     )
     head_parser.add_argument(
-        "--redis-port", default=6379, type=int, help="Port of the Redis server."
+        "--redis-port", default=8008, type=int, help="Port of the Redis server."
     )
 
     # --- Arguments for WORKER mode ---
@@ -166,7 +166,7 @@ def main():
     )
     worker_parser.add_argument(
         "--port",
-        default=8001,
+        default=8000,
         type=int,
         help="Port for the worker's API server.",
     )
