@@ -22,10 +22,10 @@ set -e
 
 # Default values for HTTP-based architecture
 DEFAULT_HEAD_HOST="0.0.0.0"
-DEFAULT_HEAD_PORT="8080"
-DEFAULT_REDIS_HOST="redis"
+DEFAULT_HEAD_PORT="8343"  # Updated to match Python default
+DEFAULT_REDIS_HOST="localhost"  # Updated to match Python default
 DEFAULT_REDIS_PORT="6379"
-DEFAULT_WORKER_PORT="8000"
+DEFAULT_WORKER_PORT="8001"  # Updated to match Python default
 DEFAULT_STORAGE_PATH="/models"
 DEFAULT_LOG_LEVEL="INFO"
 
@@ -67,13 +67,11 @@ initialize_head_node() {
   echo "Redis: ${REDIS_HOST}:${REDIS_PORT}"
   echo "Log level: ${LOG_LEVEL}"
   
-  exec sllm-serve start \
+  exec sllm-serve head \
     --host="$HEAD_HOST" \
     --port="$HEAD_PORT" \
     --redis-host="$REDIS_HOST" \
     --redis-port="$REDIS_PORT" \
-    --storage-path="$STORAGE_PATH" \
-    --log-level="$LOG_LEVEL" \
     "$@"
 }
 
@@ -91,11 +89,17 @@ initialize_worker_node() {
   
   WORKER_HOST="${WORKER_HOST:-0.0.0.0}"
   WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
-  HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:8080}"
+  HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
+
+  # Get node ID from environment or generate one
+  if [ -z "$NODE_ID" ]; then
+    NODE_ID="${HOSTNAME:-worker-$(date +%s)}"
+    echo "Generated NODE_ID: $NODE_ID"
+  fi
 
   # Validate required environment variables
   if [ -z "$HEAD_NODE_URL" ]; then
-    echo "ERROR: HEAD_NODE_URL must be set to the head node's URL (e.g., http://sllm_head:8080)"
+    echo "ERROR: HEAD_NODE_URL must be set to the head node's URL (e.g., http://sllm_head:8343)"
     exit 1
   fi
 
@@ -119,15 +123,15 @@ initialize_worker_node() {
   # Start worker with HTTP heartbeat to head node
   echo "Starting ServerlessLLM worker node on ${WORKER_HOST}:${WORKER_PORT}"
   echo "Head node: ${HEAD_NODE_URL}"
+  echo "Node ID: ${NODE_ID}"
   echo "Storage: ${STORAGE_PATH}"
   echo "Log level: ${LOG_LEVEL}"
   
-  exec sllm-store start \
+  exec sllm-serve worker \
     --host="$WORKER_HOST" \
     --port="$WORKER_PORT" \
+    --node-id="$NODE_ID" \
     --head-node-url="$HEAD_NODE_URL" \
-    --storage-path="$STORAGE_PATH" \
-    --log-level="$LOG_LEVEL" \
     "$@"
 }
 
@@ -154,14 +158,15 @@ usage() {
   echo ""
   echo "Head Node Variables:"
   echo "  HEAD_HOST           - Host to bind to (default: 0.0.0.0)"
-  echo "  HEAD_PORT           - Port to bind to (default: 8080)"
-  echo "  REDIS_HOST          - Redis hostname (default: redis)"
+  echo "  HEAD_PORT           - Port to bind to (default: 8343)"
+  echo "  REDIS_HOST          - Redis hostname (default: localhost)"
   echo "  REDIS_PORT          - Redis port (default: 6379)"
   echo ""
   echo "Worker Node Variables:"
   echo "  WORKER_HOST         - Host to bind to (default: 0.0.0.0)"
-  echo "  WORKER_PORT         - Port to bind to (default: 8000)"
-  echo "  HEAD_NODE_URL       - Head node URL (required, e.g., http://sllm_head:8080)"
+  echo "  WORKER_PORT         - Port to bind to (default: 8001)"
+  echo "  HEAD_NODE_URL       - Head node URL (required, e.g., http://sllm_head:8343)"
+  echo "  NODE_ID             - Unique worker node ID (default: hostname or generated)"
   echo ""
   echo "Common Variables:"
   echo "  STORAGE_PATH        - Model storage path (default: /models)"
