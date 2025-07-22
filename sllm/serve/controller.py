@@ -375,14 +375,12 @@ class SllmController:
     async def _start_ft_job(self, job_id, job_info):
         try:
             logger.info(f"[FT Job {job_id}] Updating job status to 'running'.")
-            # Update job status
             await self.job_store.update_status.remote(job_id, "running")
             logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
 
             logger.info(
                 f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
             )
-            # Create fine-tuning router with resource limits
             resource_requirements = {
                 "num_cpus": 1,
                 "num_gpus": job_info["config"].get("num_gpus", 0),
@@ -402,10 +400,8 @@ class SllmController:
             )
             logger.info(f"[FT Job {job_id}] Fine-tuning router created.")
 
-            # Start the router
             await ft_request_router.start.remote({}, mode="fine_tuning")
 
-            # Start fine-tuning with timeout
             try:
                 logger.info(
                     f"[FT Job {job_id}] Starting fine-tuning with timeout {job_info['config'].get('timeout', 3600)} seconds."
