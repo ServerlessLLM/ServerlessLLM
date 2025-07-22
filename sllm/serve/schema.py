@@ -36,7 +36,7 @@ class ModelDeploymentRequest(BaseModel):
 # =============================================================================
 class StartInstanceRequest(BaseModel):
     instance_id: str
-    model_config: ModelDeploymentRequest
+    model_deployment_config: ModelDeploymentRequest
 
 
 # =============================================================================
