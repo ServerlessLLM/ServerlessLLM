@@ -193,10 +193,7 @@ class SllmController:
             try:
                 # TODO: Get available resources, calculate resource availability
 
-                # Get pending jobs with resource requirements
                 pending_jobs = await self.job_store.get_pending_jobs.remote()
-
-                # Sort jobs by priority/age
                 sorted_jobs = sorted(
                     pending_jobs.items(),
                     key=lambda x: (

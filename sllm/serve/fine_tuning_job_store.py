@@ -32,18 +32,15 @@ class FineTuningJobStore:
         self.lock = asyncio.Lock()
 
     async def add_job(self, job_id: str, job_info: dict) -> None:
-        """Add a new job to the store."""
         async with self.lock:
             self.jobs[job_id] = job_info
             logger.info(f"Added job {job_id} to store")
 
     async def get_job(self, job_id: str) -> Optional[dict]:
-        """Get job information by ID."""
         async with self.lock:
             return self.jobs.get(job_id)
 
     async def get_pending_jobs(self) -> Dict[str, dict]:
-        """Get all pending jobs."""
         async with self.lock:
             return {
                 job_id: job_info
@@ -54,7 +51,6 @@ class FineTuningJobStore:
     async def update_status(
         self, job_id: str, status: str, error: Optional[str] = None
     ) -> None:
-        """Update job status and optionally add error information."""
         async with self.lock:
             if job_id in self.jobs:
                 self.jobs[job_id]["status"] = status
@@ -63,13 +59,11 @@ class FineTuningJobStore:
                 logger.info(f"Updated job {job_id} status to {status}")
 
     async def delete_job(self, job_id: str) -> None:
-        """Delete a job from the store."""
         async with self.lock:
             if job_id in self.jobs:
                 del self.jobs[job_id]
                 logger.info(f"Deleted job {job_id} from store")
 
     async def cleanup_old_jobs(self, max_age_hours: int = 24) -> None:
-        """Clean up jobs older than max_age_hours."""
         # TODO: Implement cleanup logic for old jobs
         pass
