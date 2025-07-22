@@ -29,7 +29,7 @@ from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger  # logger my beloved
 from sllm.serve.model_manager import ModelManager
 from sllm.serve.worker.api import create_worker_app
-from sllm.serve.worker.hardware import benchmark_static_hardware
+from sllm.serve.worker.hardware_utils import benchmark_static_hardware
 from sllm.serve.worker.heartbeat import run_heartbeat_loop
 from sllm.serve.worker.instance_manager import InstanceManager
 from sllm.serve.worker_manager import WorkerManager
