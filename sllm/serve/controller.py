@@ -371,7 +371,6 @@ class SllmController:
 
     async def _start_ft_job(self, job_id, job_info):
         try:
-            logger.info(f"[FT Job {job_id}] Updating job status to 'running'.")
             await self.job_store.update_status.remote(job_id, "running")
             logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
 
@@ -395,7 +394,6 @@ class SllmController:
                 job_info["config"].get("backend_config", {}),
                 job_info["config"].get("router_config", {}),
             )
-            logger.info(f"[FT Job {job_id}] Fine-tuning router created.")
 
             await ft_request_router.start.remote({}, mode="fine_tuning")
 
@@ -435,18 +433,6 @@ class SllmController:
             logger.info(
                 f"[FT Job {job_id}] Job status updated to 'failed' due to exception."
             )
-        finally:
-            try:
-                ft_request_router = ray.get_actor(
-                    f"{job_id}", namespace="fine_tuning"
-                )
-                await ft_request_router.shutdown.remote()
-                ray.kill(ft_request_router)
-                logger.info(f"[FT Job {job_id}] Fine-tuning router cleaned up")
-            except Exception as e:
-                logger.warning(
-                    f"[FT Job {job_id}] Failed to cleanup fine-tuning router: {str(e)}"
-                )
 
     async def get_ft_job_status(self, job_id):
         return await self.job_store.get_job.remote(job_id)

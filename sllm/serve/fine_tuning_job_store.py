@@ -63,7 +63,3 @@ class FineTuningJobStore:
             if job_id in self.jobs:
                 del self.jobs[job_id]
                 logger.info(f"Deleted job {job_id} from store")
-
-    async def cleanup_old_jobs(self, max_age_hours: int = 24) -> None:
-        # TODO: Implement cleanup logic for old jobs
-        pass
