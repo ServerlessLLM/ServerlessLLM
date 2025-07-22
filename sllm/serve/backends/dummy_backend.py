@@ -110,7 +110,3 @@ class DummyBackend(SllmBackend):
     async def resume_kv_cache(self, request_datas):
         self.log("Not implemented")
         raise NotImplementedError
-
-    async def fine_tuning(self, request_data: Dict[str, Any]):
-        self.log("Not implemented")
-        raise NotImplementedError
