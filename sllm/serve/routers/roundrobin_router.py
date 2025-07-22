@@ -75,9 +75,14 @@ class RoundRobinRouter(SllmRouter):
         self.loop_interval = 1
         self.loop = asyncio.get_running_loop()
         self.request_queue = asyncio.Queue()  # type:ignore
-        self.starting_instances: Dict[str, InstanceHandle] = {}  # type:ignore
-        self.deleting_instances: Dict[str, InstanceHandle] = {}  # type:ignore
-        self.ready_instances: Dict[str, InstanceHandle] = {}  # type:ignore
+        # Inference instance pools
+        self.starting_inference_instances: Dict[str, InstanceHandle] = {}  # type:ignore
+        self.deleting_inference_instances: Dict[str, InstanceHandle] = {}  # type:ignore
+        self.ready_inference_instances: Dict[str, InstanceHandle] = {}  # type:ignore
+        # Fine-tuning instance pools
+        self.starting_ft_instances: Dict[str, InstanceHandle] = {}  # type:ignore
+        self.deleting_ft_instances: Dict[str, InstanceHandle] = {}  # type:ignore
+        self.ready_ft_instances: Dict[str, InstanceHandle] = {}  # type:ignore
         self.instance_management_lock = asyncio.Lock()
 
         self.auto_scaling_config = {}
@@ -102,12 +107,15 @@ class RoundRobinRouter(SllmRouter):
         self.auto_scaler = None
         logger.info(f"Created new handler for model {self.model_name}")
 
-    async def start(self, auto_scaling_config: Dict[str, int]):
+    async def start(
+        self, auto_scaling_config: Dict[str, int], mode: str = "inference"
+    ):
         self.model_loading_scheduler = ray.get_actor("model_loading_scheduler")
-        async with self.auto_scaling_lock:
-            self.auto_scaling_config = auto_scaling_config
-        self.auto_scaler = asyncio.create_task(self._auto_scaler_loop())
-        self.load_balancer = asyncio.create_task(self._load_balancer_loop())
+        if mode == "inference":
+            async with self.auto_scaling_lock:
+                self.auto_scaling_config = auto_scaling_config
+            self.auto_scaler = asyncio.create_task(self._auto_scaler_loop())
+            self.load_balancer = asyncio.create_task(self._load_balancer_loop())
         async with self.running_lock:
             self.running = True
         logger.info(f"Started handler for model {self.model_name}")
@@ -151,10 +159,10 @@ class RoundRobinRouter(SllmRouter):
         instance_id = await instance_allocation
         logger.info(f"{request_data}, type: {type(request_data)}")
         async with self.instance_management_lock:
-            if instance_id not in self.ready_instances:
+            if instance_id not in self.ready_inference_instances:
                 logger.error(f"Instance {instance_id} not found")
                 return {"error": "Instance not found"}
-            instance = self.ready_instances[instance_id]
+            instance = self.ready_inference_instances[instance_id]
 
         # sanity check
         if self.enable_lora and "lora_adapter_name" in request_data:
@@ -211,11 +219,11 @@ class RoundRobinRouter(SllmRouter):
         wait_time = 0
         while wait_time < max_wait_time:
             async with self.instance_management_lock:
-                if instance_id in self.ready_instances:
-                    instance = self.ready_instances[instance_id]
+                if instance_id in self.ready_ft_instances:
+                    instance = self.ready_ft_instances[instance_id]
                     logger.debug(f"Fine tuning instance {instance_id} is ready")
                     break
-                elif instance_id not in self.starting_instances:
+                elif instance_id not in self.starting_ft_instances:
                     logger.error(
                         f"Fine tuning instance {instance_id} not found in starting or ready instances"
                     )
@@ -237,7 +245,7 @@ class RoundRobinRouter(SllmRouter):
         try:
             logger.info(f"Calling fine_tuning method on instance {instance_id}")
             result = await instance.backend_instance.fine_tuning.remote(
-                request_data
+                request_data=request_data
             )
             logger.info(f"Fine_tuning method call completed successfully")
 
@@ -245,7 +253,7 @@ class RoundRobinRouter(SllmRouter):
             await instance.add_requests(-1)
 
             # the fine-tuning job is done, shutdown the instance
-            await self._shutdown_instance(instance_id)
+            await self._shutdown_instance(instance_id, is_ft=True)
 
             async with self.fine_tuning_count_lock:
                 self.fine_tuning_count -= 1
@@ -257,7 +265,7 @@ class RoundRobinRouter(SllmRouter):
         except Exception as e:
             logger.error(f"Fine-tuning failed: {str(e)}")
             await instance.add_requests(-1)
-            await self._shutdown_instance(instance_id)
+            await self._shutdown_instance(instance_id, is_ft=True)
             async with self.fine_tuning_count_lock:
                 self.fine_tuning_count -= 1
             logger.info(
@@ -284,9 +292,11 @@ class RoundRobinRouter(SllmRouter):
             done_event.set_result({"error": "Instance cancelled"})
 
         async with self.instance_management_lock:
-            deleted_instance_id = list(self.ready_instances.keys())
+            deleted_instance_id = list(
+                self.ready_inference_instances.keys()
+            ) + list(self.ready_ft_instances.keys())
         delete_tasks = [
-            self._shutdown_instance(instance_id)
+            self._shutdown_instance(instance_id, is_ft=False)
             for instance_id in deleted_instance_id
         ]
         await asyncio.gather(*delete_tasks)
@@ -306,7 +316,9 @@ class RoundRobinRouter(SllmRouter):
                 while not instance_options:
                     await asyncio.sleep(1)
                     async with self.instance_management_lock:
-                        instance_options = list(self.ready_instances.keys())
+                        instance_options = list(
+                            self.ready_inference_instances.keys()
+                        )
                     logger.info(f"{instance_options}")
                 logger.info(f"Got ready instances {instance_options}")
                 instance_id = instance_options[
@@ -314,9 +326,9 @@ class RoundRobinRouter(SllmRouter):
                 ]
                 round_robin_index += 1
                 async with self.instance_management_lock:
-                    if instance_id not in self.ready_instances:
+                    if instance_id not in self.ready_inference_instances:
                         continue
-                    instance = self.ready_instances[instance_id]
+                    instance = self.ready_inference_instances[instance_id]
                     # check if the request queue reaches max length
                     if await instance.check_request_queue():
                         allocated = await instance.add_requests(1)
@@ -336,18 +348,14 @@ class RoundRobinRouter(SllmRouter):
                 auto_scaling_config = self.auto_scaling_config.copy()
             async with self.request_count_lock:
                 request_count = self.request_count
-            async with self.fine_tuning_count_lock:
-                fine_tuning_count = self.fine_tuning_count
-            auto_scaling_metrics = {
-                "request_count": request_count + fine_tuning_count
-            }
+            auto_scaling_metrics = {"request_count": request_count}
             desired_instances = await auto_scaler(
                 auto_scaling_metrics, auto_scaling_config
             )
             async with self.instance_management_lock:
-                num_running_instances = len(self.starting_instances) + len(
-                    self.ready_instances
-                )
+                num_running_instances = len(
+                    self.starting_inference_instances
+                ) + len(self.ready_inference_instances)
             logger.info(
                 f"{self.model_name}: {num_running_instances} instances,"
                 f"need {desired_instances} instances",
@@ -394,7 +402,7 @@ class RoundRobinRouter(SllmRouter):
             num_gpu=self.resource_requirements["num_gpus"],
         )
         async with self.instance_management_lock:
-            self.starting_instances[instance_id] = instance
+            self.starting_inference_instances[instance_id] = instance
         self.loop.create_task(self._start_instance(instance_id))
 
         return instance_id
@@ -411,7 +419,7 @@ class RoundRobinRouter(SllmRouter):
             num_gpu=self.resource_requirements["num_gpus"],
         )
         async with self.instance_management_lock:
-            self.starting_instances[instance_id] = instance
+            self.starting_ft_instances[instance_id] = instance
         logger.debug(f"Created task for starting FT instance {instance_id}")
         self.loop.create_task(self._start_ft_instance(instance_id))
         logger.debug(
@@ -421,10 +429,10 @@ class RoundRobinRouter(SllmRouter):
 
     async def _start_instance(self, instance_id):
         async with self.instance_management_lock:
-            if instance_id not in self.starting_instances:
+            if instance_id not in self.starting_inference_instances:
                 logger.error(f"Instance {instance_id} not found")
                 return
-            instance = self.starting_instances[instance_id]
+            instance = self.starting_inference_instances[instance_id]
         # Now ask model loading scheduler to load the model
         logger.info(
             f"Allocating resources for model {self.model_name} on instance {instance_id}"
@@ -466,17 +474,17 @@ class RoundRobinRouter(SllmRouter):
         await instance.backend_instance.init_backend.remote()
 
         async with self.instance_management_lock:
-            self.ready_instances[instance_id] = instance
-            self.starting_instances.pop(instance_id)
+            self.ready_inference_instances[instance_id] = instance
+            self.starting_inference_instances.pop(instance_id)
         return instance_id
 
     async def _start_ft_instance(self, instance_id: str):
         logger.debug(f"Starting _start_ft_instance for {instance_id}")
         async with self.instance_management_lock:
-            if instance_id not in self.starting_instances:
+            if instance_id not in self.starting_ft_instances:
                 logger.error(f"FT Instance {instance_id} not found")
                 return
-            instance = self.starting_instances[instance_id]
+            instance = self.starting_ft_instances[instance_id]
 
         logger.info(
             f"Allocating FT resources for model {self.model_name} on {instance_id}"
@@ -543,24 +551,24 @@ class RoundRobinRouter(SllmRouter):
             raise
 
         async with self.instance_management_lock:
-            self.ready_instances[instance_id] = instance
-            self.starting_instances.pop(instance_id)
+            self.ready_ft_instances[instance_id] = instance
+            self.starting_ft_instances.pop(instance_id)
         logger.debug(f"Fine-tuning instance {instance_id} is now ready")
         return instance_id
 
     async def _stop_instance(self, instance_id: Optional[str] = None):
-        while len(self.ready_instances) <= 0:
+        while len(self.ready_inference_instances) <= 0:
             await asyncio.sleep(1)
 
         async with self.instance_management_lock:
             if instance_id is None:
-                instance_id, instance = self.ready_instances.popitem()
-            elif instance_id in self.ready_instances:
-                instance = self.ready_instances.pop(instance_id)
+                instance_id, instance = self.ready_inference_instances.popitem()
+            elif instance_id in self.ready_inference_instances:
+                instance = self.ready_inference_instances.pop(instance_id)
             else:
                 logger.error(f"Instance {instance_id} not found")
                 return
-            self.deleting_instances[instance_id] = instance
+            self.deleting_inference_instances[instance_id] = instance
         logger.info(
             f"Stopping instance {instance_id} for model {self.model_name}"
         )
@@ -568,10 +576,10 @@ class RoundRobinRouter(SllmRouter):
 
     async def _finish_instance(self, instance_id: str):
         async with self.instance_management_lock:
-            if instance_id not in self.deleting_instances:
+            if instance_id not in self.deleting_inference_instances:
                 logger.error(f"Instance {instance_id} not found")
                 return
-            instance = self.deleting_instances.pop(instance_id)
+            instance = self.deleting_inference_instances.pop(instance_id)
         async with instance.lock:
             instance.status = False
         await instance.backend_instance.stop.remote()
@@ -580,15 +588,19 @@ class RoundRobinRouter(SllmRouter):
             self.model_name, instance_id, self.resource_requirements
         )
 
-    async def _shutdown_instance(self, instance_id: str):
+    async def _shutdown_instance(self, instance_id: str, is_ft: bool = False):
         logger.info(
             f"Force deleting an instance (even if it is busy) for model {self.model_name}"
         )
         async with self.instance_management_lock:
-            if instance_id not in self.ready_instances:
+            if is_ft:
+                pool = self.ready_ft_instances
+            else:
+                pool = self.ready_inference_instances
+            if instance_id not in pool:
                 logger.error(f"Instance {instance_id} not found")
                 return
-            instance = self.ready_instances.pop(instance_id)
+            instance = pool.pop(instance_id)
             async with instance.lock:
                 instance.status = False
         await instance.backend_instance.shutdown.remote()

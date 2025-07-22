@@ -403,15 +403,19 @@ class SllmController:
             logger.info(f"[FT Job {job_id}] Fine-tuning router created.")
 
             # Start the router
-            await ft_request_router.start.remote({})
+            await ft_request_router.start.remote({}, mode="fine_tuning")
 
             # Start fine-tuning with timeout
             try:
                 logger.info(
                     f"[FT Job {job_id}] Starting fine-tuning with timeout {job_info['config'].get('timeout', 3600)} seconds."
                 )
+                job_backend_config = job_info["config"].get(
+                    "backend_config", {}
+                )
+                job_backend_config["job_id"] = job_id
                 await asyncio.wait_for(
-                    ft_request_router.fine_tuning.remote(job_info["config"]),
+                    ft_request_router.fine_tuning.remote(job_backend_config),
                     timeout=job_info["config"].get("timeout", 3600),
                 )
                 logger.info(
@@ -441,7 +445,7 @@ class SllmController:
         finally:
             try:
                 ft_request_router = ray.get_actor(
-                    f"ft_{job_id}", namespace="fine_tuning"
+                    f"{job_id}", namespace="fine_tuning"
                 )
                 await ft_request_router.shutdown.remote()
                 ray.kill(ft_request_router)

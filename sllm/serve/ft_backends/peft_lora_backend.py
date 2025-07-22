@@ -15,7 +15,6 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import asyncio
 import os
 import threading
 import time
@@ -245,7 +244,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
             )
             return data
 
-    async def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+    def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
         logger.info("Receive fine tune request on peft lora backend")
         try:
             with self.status_lock:
@@ -367,7 +366,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
 
         return response
 
-    async def shutdown(self):
+    def shutdown(self):
         """Abort all requests and shutdown the backend."""
         with self.status_lock:
             if self.status == FineTuningBackendStatus.DELETING:
@@ -378,12 +377,12 @@ class PeftLoraBackend(SllmFineTuningBackend):
 
         # FineTuningStatus doesn't have a get() method, so we just wait a bit for cleanup
         logger.info("Shutting down fine-tuning backend")
-        await asyncio.sleep(1)
+        time.sleep(1)
 
         if self.model is not None:
             del self.model
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Wait for all requests to finish and shutdown the backend."""
         with self.status_lock:
             if self.status in [
@@ -394,6 +393,6 @@ class PeftLoraBackend(SllmFineTuningBackend):
             self.status = FineTuningBackendStatus.STOPPING
         # FineTuningStatus doesn't have a get() method, so we just wait a bit for cleanup
         logger.info("Stopping fine-tuning backend")
-        await asyncio.sleep(1)
+        time.sleep(1)
         logger.info("All requests finished. Shutting down the backend.")
-        await self.shutdown()
+        self.shutdown()
