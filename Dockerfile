@@ -16,9 +16,10 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-# HTTP-based ServerlessLLM Architecture (No Ray dependencies)
+
 ARG CUDA_VERSION=12.1.1
 #################### BASE BUILD IMAGE ####################
+# prepare basic build environment
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
 ARG CUDA_VERSION=12.1.1
 ARG PYTHON_VERSION=3.10
@@ -61,7 +62,7 @@ COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
 RUN cd sllm_store && python3 setup.py bdist_wheel
 
-# Build ServerlessLLM HTTP-based version
+
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/serve /app/sllm/serve
@@ -81,9 +82,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LOG_LEVEL=INFO \
     # Head node defaults
     HEAD_HOST=0.0.0.0 \
-    HEAD_PORT=8080 \
+    HEAD_PORT=8343\
     REDIS_HOST=redis \
-    REDIS_PORT=6379 \
+    REDIS_PORT=8008\
     # Worker node defaults  
     WORKER_HOST=0.0.0.0 \
     WORKER_PORT=8000
@@ -131,11 +132,7 @@ RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
 # Apply vLLM patch in worker environment
 RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
 
-# Create model storage directory
-RUN mkdir -p /models && \
-    chmod 755 /models
-
-# Copy the updated HTTP-based entrypoint
+# Copy the entrypoint
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
@@ -146,7 +143,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose ports
 # Head node: 8080 (API Gateway)
 # Worker node: 8000 (Worker API)
-EXPOSE 8080 8000
+EXPOSE 8343 8000
 
 # Labels for container identification
 LABEL org.opencontainers.image.title="ServerlessLLM HTTP" \
@@ -155,5 +152,5 @@ LABEL org.opencontainers.image.title="ServerlessLLM HTTP" \
       org.opencontainers.image.vendor="ServerlessLLM Team" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-# Set the entrypoint to our HTTP-based startup script
+# Set the entrypoint directly to the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]
