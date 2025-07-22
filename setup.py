@@ -81,5 +81,6 @@ setup(
         "sllm.serve",
         "sllm.serve.commands.serve",
         "sllm.serve.backends",
+        "sllm.serve.worker",
     ],
 )
