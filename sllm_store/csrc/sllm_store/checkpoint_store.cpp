@@ -394,12 +394,56 @@ int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
 
 std::unordered_map<int, void*> AllocateSharedMemory(
     const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size) {
-  std::unordered_map<int, void*> gpu_ptrs;
-  return gpu_ptrs;
+  // Generate a unique prefix for this allocation session
+  static std::atomic<size_t> session_counter{0};
+  std::string name_prefix =
+      "tensor_device_" + std::to_string(session_counter++);
+
+  // Create SharedMemoryAllocator on the fly - lifetime until client exit
+  SharedMemoryAllocator allocator(name_prefix);
+  std::unordered_map<int, void*> shared_memory_ptrs;
+
+  for (const auto& [device_id, memory_size] : tensor_sizes) {
+    // Calculate total memory size needed, rounded up by chunk size
+    size_t chunks_needed = (memory_size + chunk_size - 1) / chunk_size;
+    size_t total_memory_size = chunks_needed * chunk_size;
+
+    LOG(INFO) << "Device " << device_id << " needs " << chunks_needed
+              << " chunks of " << chunk_size
+              << " bytes each, total: " << total_memory_size << " bytes";
+
+    // Allocate the total memory size using the allocator
+    void* ptr = allocator.allocate(total_memory_size);
+    if (!ptr) {
+      LOG(ERROR) << "Failed to allocate shared memory for device " << device_id;
+      // Cleanup previously allocated memory
+      for (auto& [id, mem_ptr] : shared_memory_ptrs) {
+        if (mem_ptr) {
+          allocator.deallocate(mem_ptr);
+        }
+      }
+      return {};  // Return empty map on failure
+    }
+
+    shared_memory_ptrs[device_id] = ptr;
+  }
+
+  return shared_memory_ptrs;
 }
 
 std::unordered_map<int, std::string> GetSharedMemoryHandles(
     const std::unordered_map<int, void*>& memory_ptrs) {
   std::unordered_map<int, std::string> shm_handles;
+  for (const auto& [device_id, ptr] : memory_ptrs) {
+    auto shm = MemoryRegistry::Instance().FindSharedMemory(ptr);
+    if (shm) {
+      std::string shm_name = shm->name();
+      shm_handles[device_id] = shm_name;
+    } else {
+      LOG(ERROR) << "Shared memory handle not found for device " << device_id;
+      return {};  // Return empty map on failure
+    }
+  }
+
   return shm_handles;
 }
