@@ -37,6 +37,7 @@ async def run_heartbeat_loop(
     static_hardware_info: dict,
     app_state,
     interval_seconds: int = 15,
+    worker_port: int = 8001,
 ):
     # Start with provided node_id (may be None for new workers)
     current_node_id = node_id if node_id else None
@@ -61,6 +62,7 @@ async def run_heartbeat_loop(
                 # Build payload - only include node_id if we have one
                 payload = {
                     "node_ip": node_ip,
+                    "node_port": worker_port,
                     "instances_on_device": instance_manager.get_running_instances_info(),
                     "hardware_info": {**static_hardware_info, **dynamic_info},
                 }

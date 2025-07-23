@@ -313,9 +313,10 @@ class WorkerManager:
 
         from .utils import generate_name
 
-        # Extract node_id and node_ip first
+        # Extract node_id, node_ip, and node_port
         node_id = payload.get("node_id")
         node_ip = payload.get("node_ip")
+        node_port = payload.get("node_port", 8001)  # Default to 8001 if not provided
 
         if not node_ip:
             logger.warning("Received a heartbeat with no node_ip. Ignoring.")
@@ -335,8 +336,8 @@ class WorkerManager:
             else:
                 # Generate new unique instance ID for new worker
                 node_id = await self._generate_unique_worker_id()
-                await self._send_confirmation(node_ip, node_id)
-                logger.info(f"Generated new worker ID {node_id} for {node_ip}")
+                await self._send_confirmation(node_ip, node_port, node_id)
+                logger.info(f"Generated new worker ID {node_id} for {node_ip}:{node_port}")
                 return
 
         # Validate provided node_id and handle reconnections
@@ -362,7 +363,7 @@ class WorkerManager:
                 f"Worker {node_id} IP changed from {existing_ip} to {node_ip}, updating record and restarting instances"
             )
             await self._send_confirmation_with_instances(
-                node_ip, node_id, existing_worker
+                node_ip, node_port, node_id, existing_worker
             )
             return
 
@@ -679,10 +680,10 @@ class WorkerManager:
             logger.error(f"Failed to get worker {node_id} status: {e}")
             return "ready"
 
-    async def _send_confirmation(self, worker_ip: str, node_id: str) -> None:
+    async def _send_confirmation(self, worker_ip: str, worker_port: int, node_id: str) -> None:
         """Send confirmation with generated node_id to worker."""
         try:
-            confirmation_url = f"http://{worker_ip}/confirmation"
+            confirmation_url = f"http://{worker_ip}:{worker_port}/confirmation"
             payload = {"node_id": node_id}
 
             async with aiohttp.ClientSession() as session:
@@ -694,15 +695,15 @@ class WorkerManager:
                     timeout=5.0,
                 )
                 logger.info(
-                    f"Successfully sent confirmation to worker at {worker_ip}"
+                    f"Successfully sent confirmation to worker at {worker_ip}:{worker_port}"
                 )
         except HTTPRetryError as e:
             logger.error(
-                f"Failed to send confirmation to worker at {worker_ip}: {e}"
+                f"Failed to send confirmation to worker at {worker_ip}:{worker_port}: {e}"
             )
 
     async def _send_confirmation_with_instances(
-        self, worker_ip: str, node_id: str, existing_worker: Dict[str, Any]
+        self, worker_ip: str, worker_port: int, node_id: str, existing_worker: Dict[str, Any]
     ) -> None:
         """Send confirmation with node_id and restart instances for registered models."""
         import json as json_lib
@@ -714,7 +715,7 @@ class WorkerManager:
             await self._set_worker_status(node_id, "initializing")
 
             # First send confirmation with node_id
-            confirmation_url = f"http://{worker_ip}/confirmation"
+            confirmation_url = f"http://{worker_ip}:{worker_port}/confirmation"
             payload = {"node_id": node_id}
 
             async with aiohttp.ClientSession() as session:
