@@ -79,6 +79,23 @@ initialize_head_node() {
 initialize_worker_node() {
   echo "Initializing HTTP-based worker node..."
 
+  # Parse sllm-store specific arguments
+  STORE_ARGS=()
+  WORKER_ARGS=()
+  
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --mem-pool-size|--registration-required)
+        STORE_ARGS+=("$1" "$2")
+        shift 2
+        ;;
+      *)
+        WORKER_ARGS+=("$1")
+        shift
+        ;;
+    esac
+  done
+
   # Activate worker environment
   echo "Activating worker conda environment..."
   conda activate worker
@@ -131,11 +148,12 @@ initialize_worker_node() {
     --host="$WORKER_HOST" \
     --port="$WORKER_PORT" \
     --node-id="$NODE_ID" \
-    --head-node-url="$HEAD_NODE_URL" &
+    --head-node-url="$HEAD_NODE_URL" \
+    "${WORKER_ARGS[@]}" &
 
-  # Start sllm-store with any additional arguments passed to the script
-  echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH $@"
-  exec sllm-store start --storage-path="$STORAGE_PATH" "$@"
+  # Start sllm-store with sllm-store specific arguments
+  echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH ${STORE_ARGS[*]}"
+  exec sllm-store start --storage-path="$STORAGE_PATH" "${STORE_ARGS[@]}"
 }
 
 # Health check function
