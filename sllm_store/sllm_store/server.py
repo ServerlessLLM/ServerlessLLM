@@ -138,7 +138,7 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
                 ret = self.storage.wait_model_in_gpu(model_path, replica_uuid)
             if ret == 0:
                 logger.info(
-                    f"Confirm model {model_path} replica {replica_uuid} success in {device_type.name}"
+                    f"Confirm model {model_path} replica {replica_uuid} success"
                 )
                 return storage_pb2.ConfirmModelResponse(model_path=model_path)
             logger.info(f"Confirm model failed, retry {i + 1}")
@@ -146,7 +146,7 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             await asyncio.sleep(0.05)
 
         logger.error(
-            f"Confirm model {model_path} replica {replica_uuid} failed in {device_type.name}"
+            f"Confirm model {model_path} replica {replica_uuid} failed"
         )
         context.set_code(grpc.StatusCode.INTERNAL)
         return storage_pb2.ConfirmModelResponse()
