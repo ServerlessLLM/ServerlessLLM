@@ -391,3 +391,15 @@ int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
     return model->AllocatePinnedMemory(memory_pool_);
   }
 }
+
+std::unordered_map<int, void*> AllocateSharedMemory(
+    const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size) {
+  std::unordered_map<int, void*> gpu_ptrs;
+  return gpu_ptrs;
+}
+
+std::unordered_map<int, std::string> GetSharedMemoryHandles(
+    const std::unordered_map<int, void*>& memory_ptrs) {
+  std::unordered_map<int, std::string> shm_handles;
+  return shm_handles;
+}

@@ -15,6 +15,8 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 //  ----------------------------------------------------------------------------
+#include "shared_memory.h"
+
 #include <cuda_runtime.h>
 #include <fcntl.h>
 #include <glog/logging.h>
@@ -27,8 +29,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <vector>
-
-#include "shared_memory.h"
 
 #define CUDA_CHECK(call)                                       \
   do {                                                         \
@@ -43,68 +43,83 @@ constexpr size_t kPageSize = 4096;
 constexpr mode_t kFileMode = 0660;
 
 // Global registry for cleanup
-class MemoryRegistry {
- public:
-  static MemoryRegistry& Instance() {
-    static MemoryRegistry instance;
-    return instance;
+MemoryRegistry& MemoryRegistry::Instance() {
+  static MemoryRegistry instance;
+  return instance;
+}
+
+MemoryRegistry::MemoryRegistry() { RegisterCleanupHandlers(); }
+
+void MemoryRegistry::Register(SharedMemoryInstance* pm) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  regions_.push_back(pm);
+}
+
+void MemoryRegistry::Unregister(SharedMemoryInstance* pm) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  regions_.erase(std::remove(regions_.begin(), regions_.end(), pm),
+                 regions_.end());
+}
+
+void MemoryRegistry::RegisterSharedMemory(
+    void* ptr, std::unique_ptr<SharedMemoryInstance> shm) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  shared_memories_[ptr] = std::move(shm);
+}
+
+// Remove shared memory instance from registry
+void MemoryRegistry::UnregisterSharedMemory(void* ptr) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = shared_memories_.find(ptr);
+  if (it != shared_memories_.end()) {
+    shared_memories_.erase(it);
   }
+}
 
-  void Register(SharedMemoryInstance* pm) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    regions_.push_back(pm);
-  }
+// Find shared memory instance by pointer
+SharedMemoryInstance* MemoryRegistry::FindSharedMemory(void* ptr) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = shared_memories_.find(ptr);
+  return (it != shared_memories_.end()) ? it->second.get() : nullptr;
+}
 
-  void Unregister(SharedMemoryInstance* pm) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    regions_.erase(std::remove(regions_.begin(), regions_.end(), pm),
-                   regions_.end());
-  }
+void MemoryRegistry::CleanupAll() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  // Clear the list first to prevent double cleanup
+  std::vector<SharedMemoryInstance*> to_cleanup = std::move(regions_);
+  regions_.clear();
 
-  void CleanupAll() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    // Clear the list first to prevent double cleanup
-    std::vector<SharedMemoryInstance*> to_cleanup = std::move(regions_);
-    regions_.clear();
-
-    for (auto* pm : to_cleanup) {
-      // Force cleanup even if not owner in emergency
-      if (std::getenv("FORCE_CLEANUP")) {
-        pm->is_owner_ = true;
-      }
+  for (auto* pm : to_cleanup) {
+    // Force cleanup even if not owner in emergency
+    if (std::getenv("FORCE_CLEANUP")) {
+      pm->SetOwner(true);
     }
-    // Destructors will run when unique_ptrs go out of scope
   }
+  // Destructors will run when unique_ptrs go out of scope
+}
 
- private:
-  std::mutex mutex_;
-  std::vector<SharedMemoryInstance*> regions_;
+void MemoryRegistry::RegisterCleanupHandlers() {
+  // Register exit handler
+  std::atexit([]() { MemoryRegistry::Instance().CleanupAll(); });
 
-  MemoryRegistry() { RegisterCleanupHandlers(); }
+  // Register signal handlers
+  struct sigaction sa = {};
+  sa.sa_handler = [](int sig) {
+    LOG(WARNING) << "Caught signal " << sig << ", cleaning up...";
+    MemoryRegistry::Instance().CleanupAll();
 
-  void RegisterCleanupHandlers() {
-    // Register exit handler
-    std::atexit([]() { MemoryRegistry::Instance().CleanupAll(); });
+    // Re-raise the signal for default handling
+    signal(sig, SIG_DFL);
+    raise(sig);
+  };
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_RESETHAND;
 
-    // Register signal handlers
-    struct sigaction sa = {};
-    sa.sa_handler = [](int sig) {
-      LOG(WARNING) << "Caught signal " << sig << ", cleaning up...";
-      MemoryRegistry::Instance().CleanupAll();
-
-      // Re-raise the signal for default handling
-      signal(sig, SIG_DFL);
-      raise(sig);
-    };
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESETHAND;
-
-    sigaction(SIGINT, &sa, nullptr);
-    sigaction(SIGTERM, &sa, nullptr);
-    sigaction(SIGQUIT, &sa, nullptr);
-    sigaction(SIGABRT, &sa, nullptr);
-  }
-};
+  sigaction(SIGINT, &sa, nullptr);
+  sigaction(SIGTERM, &sa, nullptr);
+  sigaction(SIGQUIT, &sa, nullptr);
+  sigaction(SIGABRT, &sa, nullptr);
+}
 
 // File metadata structure
 struct FileMetadata {

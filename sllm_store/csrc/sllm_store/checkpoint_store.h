@@ -130,3 +130,8 @@ inline std::shared_ptr<SharedPinnedMemoryPool>
 CheckpointStore::GetMemoryPool<SharedPinnedMemoryPool>() const {
   return shared_memory_pool_;
 }
+
+std::unordered_map<int, void*> AllocateSharedMemory(
+    const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size);
+std::unordered_map<int, std::string> GetSharedMemoryHandles(
+    const std::unordered_map<int, void*>& memory_ptrs);
