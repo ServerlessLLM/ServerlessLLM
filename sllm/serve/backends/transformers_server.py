@@ -27,8 +27,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from transformers import AutoTokenizer
 
-from sllm_store.transformers import load_model
 from sllm.serve.logger import init_logger
+from sllm_store.transformers import load_model
 
 logger = init_logger(__name__)
 
@@ -66,17 +66,17 @@ def initialize_model(
 ):
     """Initialize the model and tokenizer using sllm_store."""
     global model, tokenizer, model_name
-    
+
     model_name = model_name_param
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join("transformers", model_name)
     tokenizer_path = os.path.join(storage_path, "transformers", model_name)
-    
+
     logger.info(f"Loading model from {model_path}")
-    
+
     # Convert torch_dtype string to actual dtype
     torch_dtype_obj = getattr(torch, torch_dtype)
-    
+
     # Load model using sllm_store
     model = load_model(
         model_path=model_path,
@@ -86,12 +86,12 @@ def initialize_model(
         storage_path=storage_path,
         hf_model_class=hf_model_class,
     )
-    
+
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    
+
     logger.info(f"Model and tokenizer loaded successfully for {model_name}")
 
 
@@ -103,14 +103,16 @@ async def health():
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest):
     global model, tokenizer
-    
+
     if not model or not tokenizer:
         return {"error": "Model not loaded"}
-    
+
     try:
         # Use request_id from task_id if available
-        response_id = request.task_id or request.request_id or "chatcmpl-transformers"
-        
+        response_id = (
+            request.task_id or request.request_id or "chatcmpl-transformers"
+        )
+
         # Convert messages to prompt
         prompt = ""
         for message in request.messages:
@@ -119,13 +121,13 @@ async def chat_completions(request: ChatRequest):
             elif message.get("role") == "assistant":
                 prompt += f"Assistant: {message.get('content', '')}\n"
         prompt += "Assistant: "
-        
+
         # Tokenize
         inputs = tokenizer(prompt, return_tensors="pt")
         input_ids = inputs.input_ids
-        
+
         # Move to same device as model
-        if hasattr(model, 'hf_device_map') and model.hf_device_map:
+        if hasattr(model, "hf_device_map") and model.hf_device_map:
             # Get the device of the first layer
             first_device = next(iter(model.hf_device_map.values()))
             if isinstance(first_device, int):
@@ -133,50 +135,52 @@ async def chat_completions(request: ChatRequest):
             else:
                 device = first_device
             input_ids = input_ids.to(device)
-        
+
         # Generate
         with torch.no_grad():
             outputs = model.generate(
                 input_ids,
                 max_new_tokens=request.max_tokens,
-                temperature=request.temperature if request.temperature > 0 else 1.0,
+                temperature=request.temperature
+                if request.temperature > 0
+                else 1.0,
                 top_p=request.top_p,
                 do_sample=request.temperature > 0,
                 pad_token_id=tokenizer.eos_token_id,
                 eos_token_id=tokenizer.eos_token_id,
                 use_cache=True,
             )
-        
+
         # Decode response
         response_text = tokenizer.decode(
-            outputs[0][input_ids.shape[-1]:], 
-            skip_special_tokens=True
+            outputs[0][input_ids.shape[-1] :], skip_special_tokens=True
         )
-        
+
         # Count tokens for usage
         prompt_tokens = input_ids.shape[-1]
-        completion_tokens = len(tokenizer.encode(response_text)) if response_text else 0
-        
+        completion_tokens = (
+            len(tokenizer.encode(response_text)) if response_text else 0
+        )
+
         return {
             "id": response_id,
             "object": "chat.completion",
             "created": int(time.time()),
             "model": request.model or model_name,
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": response_text
-                },
-                "finish_reason": "stop"
-            }],
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": response_text},
+                    "finish_reason": "stop",
+                }
+            ],
             "usage": {
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens
-            }
+                "total_tokens": prompt_tokens + completion_tokens,
+            },
         }
-        
+
     except Exception as e:
         logger.error(f"Error in chat completion: {e}")
         return {"error": str(e)}
@@ -190,17 +194,27 @@ async def embeddings(request: EmbeddingRequest):
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", required=True, help="Name of the model to load")
+    parser.add_argument(
+        "--model_name", required=True, help="Name of the model to load"
+    )
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
-    parser.add_argument("--port", type=int, default=8001, help="Port to bind to")
-    parser.add_argument("--device_map", default="auto", help="Device map for model")
+    parser.add_argument(
+        "--port", type=int, default=8001, help="Port to bind to"
+    )
+    parser.add_argument(
+        "--device_map", default="auto", help="Device map for model"
+    )
     parser.add_argument("--torch_dtype", default="float16", help="Torch dtype")
-    parser.add_argument("--hf_model_class", default="AutoModelForCausalLM", help="HuggingFace model class")
-    
+    parser.add_argument(
+        "--hf_model_class",
+        default="AutoModelForCausalLM",
+        help="HuggingFace model class",
+    )
+
     args = parser.parse_args()
-    
+
     # Initialize model on startup
     initialize_model(
         model_name_param=args.model_name,
@@ -208,6 +222,6 @@ if __name__ == "__main__":
         torch_dtype=args.torch_dtype,
         hf_model_class=args.hf_model_class,
     )
-    
+
     # Start server
     uvicorn.run(app, host=args.host, port=args.port)

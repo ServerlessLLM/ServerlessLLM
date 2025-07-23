@@ -84,10 +84,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HEAD_HOST=0.0.0.0 \
     HEAD_PORT=8343\
     REDIS_HOST=redis \
-    REDIS_PORT=8008\
-    # Worker node defaults  
+    REDIS_PORT=6379\
+    # Worker node defaults
     WORKER_HOST=0.0.0.0 \
-    WORKER_PORT=8000
+    WORKER_PORT=8001
 
 # Install additional runtime dependencies
 RUN apt-get update -y && \
@@ -142,8 +142,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Expose ports
 # Head node: 8080 (API Gateway)
-# Worker node: 8000 (Worker API)
-EXPOSE 8343 8000
+# Worker node: 8001 (Worker API)
+EXPOSE 8343 8001
 
 # Labels for container identification
 LABEL org.opencontainers.image.title="ServerlessLLM HTTP" \

@@ -45,7 +45,7 @@ initialize_head_node() {
   export REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
   export STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
   export LOG_LEVEL="${LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
-  
+
   HEAD_HOST="${HEAD_HOST:-$DEFAULT_HEAD_HOST}"
   HEAD_PORT="${HEAD_PORT:-$DEFAULT_HEAD_PORT}"
 
@@ -66,7 +66,7 @@ initialize_head_node() {
   echo "Starting ServerlessLLM head node on ${HEAD_HOST}:${HEAD_PORT}"
   echo "Redis: ${REDIS_HOST}:${REDIS_PORT}"
   echo "Log level: ${LOG_LEVEL}"
-  
+
   exec sllm-serve head \
     --host="$HEAD_HOST" \
     --port="$HEAD_PORT" \
@@ -86,7 +86,7 @@ initialize_worker_node() {
   # Set environment variables
   export STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
   export LOG_LEVEL="${LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
-  
+
   WORKER_HOST="${WORKER_HOST:-0.0.0.0}"
   WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
   HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
@@ -120,19 +120,22 @@ initialize_worker_node() {
   }
   echo "Head node connection validated successfully"
 
-  # Start worker with HTTP heartbeat to head node
+  # Start worker with HTTP heartbeat to head node in background
   echo "Starting ServerlessLLM worker node on ${WORKER_HOST}:${WORKER_PORT}"
   echo "Head node: ${HEAD_NODE_URL}"
   echo "Node ID: ${NODE_ID}"
   echo "Storage: ${STORAGE_PATH}"
   echo "Log level: ${LOG_LEVEL}"
-  
-  exec sllm-serve worker \
+
+  sllm-serve worker \
     --host="$WORKER_HOST" \
     --port="$WORKER_PORT" \
     --node-id="$NODE_ID" \
-    --head-node-url="$HEAD_NODE_URL" \
-    "$@"
+    --head-node-url="$HEAD_NODE_URL" &
+
+  # Start sllm-store with any additional arguments passed to the script
+  echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH $@"
+  exec sllm-store start --storage-path="$STORAGE_PATH" "$@"
 }
 
 # Health check function

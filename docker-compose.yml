@@ -15,7 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-
 # Docker Compose for ServerlessLLM HTTP-based Architecture
 version: '3.8'
 
@@ -25,7 +24,7 @@ services:
     image: redis:7-alpine
     container_name: sllm-redis
     ports:
-      - "8008:8008"
+      - "6380:6379"  # Non-standard port to avoid Ray conflict
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
@@ -49,11 +48,11 @@ services:
       - HEAD_HOST=0.0.0.0
       - HEAD_PORT=8343
       - REDIS_HOST=redis
-      - REDIS_PORT=8008
+      - REDIS_PORT=6379  # Internal Redis port (container-to-container)
       - STORAGE_PATH=/models
       - LOG_LEVEL=INFO
     ports:
-      - "8008:8008"
+      - "8343:8343"  # Match HEAD_PORT
     volumes:
       - models_data:/models
       - ./logs:/app/logs
@@ -61,7 +60,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8343/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -85,13 +84,14 @@ services:
     environment:
       - MODE=WORKER
       - WORKER_HOST=0.0.0.0
-      - WORKER_PORT=8000
-      - HEAD_NODE_URL=http://head:8343
+      - WORKER_PORT=8001  # Match the Python default
+      - HEAD_NODE_URL=http://head:8343  # Use correct head port
+      - NODE_ID=worker1  # Add node ID
       - STORAGE_PATH=/models
       - LOG_LEVEL=INFO
       - CUDA_VISIBLE_DEVICES=0
     ports:
-      - "8001:8000"
+      - "8001:8001"  # Match WORKER_PORT
     volumes:
       - models_data:/models
       - ./logs:/app/logs
@@ -99,7 +99,7 @@ services:
       head:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -127,13 +127,14 @@ services:
     environment:
       - MODE=WORKER
       - WORKER_HOST=0.0.0.0
-      - WORKER_PORT=8000
+      - WORKER_PORT=8001  # Internal port same as worker1
       - HEAD_NODE_URL=http://head:8343
+      - NODE_ID=worker2  # Add unique node ID
       - STORAGE_PATH=/models
       - LOG_LEVEL=INFO
       - CUDA_VISIBLE_DEVICES=1
     ports:
-      - "8002:8000"
+      - "8002:8001"  # Different external port, same internal
     volumes:
       - models_data:/models
       - ./logs:/app/logs
@@ -141,7 +142,7 @@ services:
       head:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -161,34 +162,6 @@ services:
           memory: 4G
         limits:
           memory: 16G
-
-  # Optional: Redis monitoring with Redis Insight
-  redis-insight:
-    image: redislabs/redisinsight:latest
-    container_name: sllm-redis-insight
-    ports:
-      - "8001:8001"
-    environment:
-      - REDIS_HOSTS=local:redis:8008
-    depends_on:
-      - redis
-    networks:
-      - sllm-network
-    profiles:
-      - monitoring
-
-  # Optional: Log aggregation with simple log viewer
-  logs:
-    image: amir20/dozzle:latest
-    container_name: sllm-logs
-    ports:
-      - "9999:8008"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - sllm-network
-    profiles:
-      - monitoring
 
 volumes:
   # Shared model storage across all nodes
