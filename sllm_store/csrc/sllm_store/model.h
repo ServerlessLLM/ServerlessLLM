@@ -67,6 +67,7 @@ class Model {
   int FreeHost();
   int TryFreeHost();
   uint64_t GetModelSize() const { return model_size_; }
+  const std::string& GetModelPath() const { return model_path_; }
 
  private:
   std::mutex mutex_;
