@@ -108,11 +108,9 @@ initialize_worker_node() {
   WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
   HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
 
-  # Get node ID from environment or generate one
-  if [ -z "$NODE_ID" ]; then
-    NODE_ID="${HOSTNAME:-worker-$(date +%s)}"
-    echo "Generated NODE_ID: $NODE_ID"
-  fi
+  # Worker starts without node ID - head node will assign one during registration
+  NODE_ID=""
+  echo "Starting worker without node ID - will be assigned by head node"
 
   # Validate required environment variables
   if [ -z "$HEAD_NODE_URL" ]; then

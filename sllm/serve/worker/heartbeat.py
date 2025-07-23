@@ -37,6 +37,13 @@ async def run_heartbeat_loop(
     static_hardware_info: dict,
     interval_seconds: int = 15,
 ):
+    from sllm.serve.utils import generate_name
+    
+    # Use generate_name() if no node_id provided
+    if not node_id:
+        node_id = generate_name()
+        logger.info(f"Generated node ID: {node_id}")
+    
     logger.info(
         f"Starting heartbeat loop for node {node_id}. Reporting to {head_node_url}."
     )
