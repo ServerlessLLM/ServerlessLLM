@@ -103,6 +103,7 @@ async def run_worker_node(args: argparse.Namespace):
             node_id=args.node_id,
             node_ip=args.host,
             static_hardware_info=static_hardware_info,
+            app_state=worker_app.state,
         )
     )
 
