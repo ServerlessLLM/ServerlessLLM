@@ -26,12 +26,14 @@ import torch
 # from accelerate.hooks import add_hook_to_module
 from sllm_store._C import (
     allocate_cuda_memory,
-    allocate_shared_memory,
     get_cuda_memory_handles,
-    get_shared_memory_handles,
     get_device_uuid_map,
     restore_tensors,
     save_tensors,
+)
+from sllm_store._checkpoint_store import (
+    allocate_shared_memory,
+    get_shared_memory_handles,
 )
 from sllm_store.client import SllmStoreClient
 from sllm_store.device_map_utils import _expand_tensor_name
