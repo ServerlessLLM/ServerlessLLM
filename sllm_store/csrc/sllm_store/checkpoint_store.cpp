@@ -441,6 +441,9 @@ std::unordered_map<int, std::string> GetSharedMemoryHandles(
       std::string shm_name = shm->name();
       shm_handles[device_id] = shm_name;
     } else {
+      for (const auto& [id, mem_ptr] : memory_ptrs) {
+        MemoryRegistry::Instance().UnregisterSharedMemory(mem_ptr);
+      }
       LOG(ERROR) << "Shared memory handle not found for device " << device_id;
       return {};  // Return empty map on failure
     }
