@@ -28,13 +28,13 @@ class DummyBackend(SllmBackend):
     def __init__(self, backend_config: Optional[Dict[str, Any]] = None) -> None:
         self.backend_config = backend_config
 
-    def init_backend(self) -> None:
+    async def init_backend(self) -> None:
         # sleep to simulate model latency
         sleep_time = 5
         self.log(
             f"Sleeping for {sleep_time} seconds to simulate model init time."
         )
-        time.sleep(sleep_time)
+        await asyncio.sleep(sleep_time)
 
     def log(self, msg):
         logger = init_logger(__name__)

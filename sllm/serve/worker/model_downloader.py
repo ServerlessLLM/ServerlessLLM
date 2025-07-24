@@ -20,6 +20,7 @@ import os
 import shutil
 from typing import Optional
 
+import torch
 from torch import nn
 from transformers import AutoTokenizer
 
@@ -44,7 +45,6 @@ async def download_transformers_model(
         logger.info(f"{model_path} already exists")
         return True
 
-    import torch
 
     torch_dtype = getattr(torch, torch_dtype)
     if torch_dtype is None:
@@ -94,7 +94,6 @@ async def download_lora_adapter(
         logger.info(f"{adapter_path} already exists")
         return True
 
-    import torch
 
     torch_dtype = getattr(torch, torch_dtype)
     if torch_dtype is None:
@@ -154,8 +153,7 @@ class VllmModelDownloader:
         import gc
         from tempfile import TemporaryDirectory
 
-        import torch
-        from huggingface_hub import snapshot_download
+            from huggingface_hub import snapshot_download
         from vllm import LLM
 
         # set the storage path

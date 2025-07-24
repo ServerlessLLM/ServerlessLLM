@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------------- #
 import asyncio
 import json
+import time
 from typing import Any, Dict, List, Mapping, Optional
 
 import aiohttp
@@ -204,7 +205,6 @@ class Dispatcher:
                 f"Failed to use Redis counter for round-robin, falling back to local selection: {e}"
             )
             # Fallback to simple modulo selection based on instance count
-            import time
 
             fallback_index = int(time.time()) % len(instances)
             return instances[fallback_index]

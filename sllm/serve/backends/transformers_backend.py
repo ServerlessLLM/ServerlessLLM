@@ -26,7 +26,8 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 
-from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
+import sllm.serve.backends.transformers_server
+from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend, cleanup_subprocess
 from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)
@@ -98,7 +99,6 @@ class TransformersBackend(SllmBackend):
             )
 
         # Use the dedicated transformers server
-        import sllm.serve.backends.transformers_server
 
         server_script_path = sllm.serve.worker.transformers_server.__file__
 
@@ -225,24 +225,8 @@ class TransformersBackend(SllmBackend):
             return {"error": f"Encoding failed: {str(e)}"}
 
     def _cleanup_process(self):
-        if self.process:
-            try:
-                # Kill the process group to ensure all child processes are terminated
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-
-                # Wait a bit for graceful shutdown
-                try:
-                    self.process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    # Force kill if it doesn't shut down gracefully
-                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
-                    self.process.wait()
-
-            except (ProcessLookupError, OSError):
-                # Process already terminated
-                pass
-            finally:
-                self.process = None
+        cleanup_subprocess(self.process)
+        self.process = None
 
     async def shutdown(self):
         async with self.status_lock:

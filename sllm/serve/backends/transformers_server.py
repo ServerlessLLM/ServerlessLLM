@@ -16,6 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 
+import argparse
 import asyncio
 import os
 import time
@@ -193,7 +194,6 @@ async def embeddings(request: EmbeddingRequest):
 
 
 if __name__ == "__main__":
-    import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

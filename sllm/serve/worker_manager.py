@@ -15,7 +15,6 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-import aiohttp
 import asyncio
 import json
 import random
@@ -29,6 +28,7 @@ import aiohttp
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
 from sllm.serve.utils import HTTPRetryError, post_json_with_retry, generate_name
+from sllm.serve.schema import HardwareInfo, Worker
 
 logger = init_logger(__name__)
 
@@ -331,24 +331,21 @@ class WorkerManager:
             registered_models = []
 
         if not node_id:
-            # New worker registration
+            # Worker has no node_id - check if IP is registered
             existing_worker = await self._find_worker_by_ip(node_ip)
             if existing_worker:
-                logger.warning(
-                    f"Registration rejected: IP {node_ip} already registered to worker {existing_worker['node_id']}"
-                )
-                return
-
-            node_id = await self._generate_unique_worker_id()
-            await self._send_confirmation(node_ip, node_port, node_id)
-            logger.info(f"Generated new worker ID {node_id} for {node_ip}:{node_port}")
+                # IP is registered but worker has no node_id - relink worker
+                await self._relink_worker(node_ip, node_port, existing_worker, hardware_info, instances_on_device, registered_models)
+            else:
+                # New worker with no node_id and no matching IP - register worker
+                await self._register_worker(node_ip, node_port, hardware_info, instances_on_device, registered_models)
             return
 
-        # Check if worker exists
+        # Worker has node_id - validate it
         existing_worker = await self.store.get_worker(node_id)
         
         if existing_worker:
-            # Handle IP change
+            # Worker exists - handle IP changes or normal operation
             existing_ip = existing_worker.get("node_ip")
             if existing_ip != node_ip:
                 ip_conflict_worker = await self._find_worker_by_ip(node_ip)
@@ -371,9 +368,25 @@ class WorkerManager:
             if worker_status == "initializing":
                 logger.debug(f"Worker {node_id} is initializing, skipping heartbeat")
                 return
+        else:
+            # Worker has node_id but doesn't exist in store
+            existing_ip_worker = await self._find_worker_by_ip(node_ip)
+            if existing_ip_worker:
+                # Non-matching node_id with registered IP - warn and reset
+                logger.warning(
+                    f"Worker with unrecognized node_id '{node_id}' from registered IP {node_ip}. "
+                    f"Expected node_id '{existing_ip_worker['node_id']}'. Resetting worker."
+                )
+                # Treat as relink since IP is registered
+                await self._relink_worker(node_ip, node_port, existing_ip_worker, hardware_info, instances_on_device, registered_models)
+                return
+            else:
+                # Completely uninitialized worker - register it
+                await self._register_worker_with_id(node_id, node_ip, node_port, hardware_info, instances_on_device, registered_models)
+                return
 
         try:
-            # Update heartbeat
+            # Normal heartbeat update for existing worker
             heartbeat_data = {
                 "hardware_info": hardware_info,
                 "instances_on_device": instances_on_device,
@@ -386,8 +399,6 @@ class WorkerManager:
             
             if not success:
                 # Create new worker
-                from sllm.serve.schema import HardwareInfo, Worker
-
                 hardware_info_obj = HardwareInfo.model_validate(hardware_info)
                 new_worker = Worker(
                     node_id=node_id,
@@ -613,18 +624,12 @@ class WorkerManager:
 
     async def _generate_unique_worker_id(self) -> str:
         """Generate a unique worker ID using utils.generate_name()."""
-        from .utils import generate_name
-
         max_attempts = 100
         for _ in range(max_attempts):
             potential_id = generate_name()
-            # Check if this ID already exists
             existing_worker = await self.store.get_worker(potential_id)
             if not existing_worker:
                 return potential_id
-
-        # Fallback if we can't find a unique name
-        import uuid
 
         return f"worker-{str(uuid.uuid4())[:8]}"
 
@@ -655,17 +660,16 @@ class WorkerManager:
             confirmation_url = f"http://{worker_ip}:{worker_port}/confirmation"
             payload = {"node_id": node_id}
 
-            async with aiohttp.ClientSession() as session:
-                await post_json_with_retry(
-                    session=session,
-                    url=confirmation_url,
-                    payload=payload,
-                    max_retries=2,
-                    timeout=5.0,
-                )
-                logger.info(
-                    f"Successfully sent confirmation to worker at {worker_ip}:{worker_port}"
-                )
+            await post_json_with_retry(
+                session=self.http_session,
+                url=confirmation_url,
+                payload=payload,
+                max_retries=2,
+                timeout=5.0,
+            )
+            logger.info(
+                f"Successfully sent confirmation to worker at {worker_ip}:{worker_port}"
+            )
         except HTTPRetryError as e:
             logger.error(
                 f"Failed to send confirmation to worker at {worker_ip}:{worker_port}: {e}"
@@ -675,87 +679,24 @@ class WorkerManager:
         self, worker_ip: str, worker_port: int, node_id: str, existing_worker: Dict[str, Any]
     ) -> None:
         """Send confirmation with node_id and restart instances for registered models."""
-        import json as json_lib
-
-        import aiohttp
-
         try:
-            # Set worker to initializing state
             await self._set_worker_status(node_id, "initializing")
-
-            # First send confirmation with node_id
-            confirmation_url = f"http://{worker_ip}:{worker_port}/confirmation"
-            payload = {"node_id": node_id}
-
-            async with aiohttp.ClientSession() as session:
-                await post_json_with_retry(
-                    session=session,
-                    url=confirmation_url,
-                    payload=payload,
-                    max_retries=2,
-                    timeout=5.0,
-                )
-
-            # Parse instances_on_device from the existing worker record
-            instances_on_device = {}
-            if "instances_on_device" in existing_worker:
-                try:
-                    instances_on_device = json_lib.loads(
-                        existing_worker["instances_on_device"]
-                    )
-                except (json_lib.JSONDecodeError, TypeError):
-                    instances_on_device = {}
-
-            # Restart each instance by calling /start_instance endpoint
-            start_instance_url = f"http://{worker_ip}/start_instance"
-            restarted_instances = 0
-
-            for model_name, instance_list in instances_on_device.items():
-                if isinstance(instance_list, list):
-                    for instance_id in instance_list:
-                        # Parse model_name to extract backend if needed
-                        # For now, assume default backend or extract from registered_models
-                        backend = "default"  # This should be derived properly
-
-                        model_config = {
-                            "model_name": model_name,
-                            "backend": backend,
-                        }
-
-                        restart_payload = {
-                            "model_config": model_config,
-                            "instance_id": instance_id,
-                        }
-
-                        try:
-                            await post_json_with_retry(
-                                session=session,
-                                url=start_instance_url,
-                                payload=restart_payload,
-                                max_retries=2,
-                                timeout=30.0,
-                            )
-                            restarted_instances += 1
-                            logger.info(
-                                f"Restarted instance {instance_id} for model {model_name} on worker {node_id}"
-                            )
-                        except HTTPRetryError as instance_error:
-                            logger.error(
-                                f"Error restarting instance {instance_id} on worker {node_id}: {instance_error}"
-                            )
-
-            logger.info(
-                f"Successfully sent confirmation and restarted {restarted_instances} instances on worker at {worker_ip}"
+            await self._send_confirmation(worker_ip, worker_port, node_id)
+            
+            instances_on_device = self._parse_instances_from_worker(existing_worker)
+            restarted_count = await self._restart_worker_instances(
+                worker_ip, node_id, instances_on_device
             )
-
-            # Reset worker status to ready after successful initialization
+            
+            logger.info(
+                f"Successfully sent confirmation and restarted {restarted_count} instances on worker at {worker_ip}"
+            )
             await self._set_worker_status(node_id, "ready")
-
+            
         except Exception as e:
             logger.error(
                 f"Failed to send confirmation with instances to worker at {worker_ip}: {e}"
             )
-            # Reset worker status on failure
             await self._set_worker_status(node_id, "ready")
 
     async def get_queue_length(self, model_name: str, backend: str) -> int:
@@ -765,3 +706,223 @@ class WorkerManager:
     @staticmethod
     def get_queue_name(model_name: str, backend: str) -> str:
         return f"queue:{model_name}:{backend}"
+
+    async def _register_worker(self, node_ip: str, node_port: int, hardware_info: Dict[str, Any], 
+                              instances_on_device: Dict[str, List[str]], registered_models: List[str]) -> None:
+        """Register a new worker with no node_id and no matching IP."""
+        try:
+            node_id = await self._generate_unique_worker_id()
+            await self._send_confirmation(node_ip, node_port, node_id)
+            logger.info(f"Generated new worker ID {node_id} for {node_ip}:{node_port}")
+        except Exception as e:
+            logger.error(f"Error registering new worker at {node_ip}:{node_port}: {e}", exc_info=True)
+
+    async def _register_worker_with_id(self, node_id: str, node_ip: str, node_port: int, 
+                                      hardware_info: Dict[str, Any], instances_on_device: Dict[str, List[str]], 
+                                      registered_models: List[str]) -> None:
+        """Register a worker with a provided node_id (completely uninitialized)."""
+        try:
+            # Create worker record directly in store without Pydantic validation
+            # since the existing heartbeat logic doesn't use the Worker model
+            worker_key = self.store._get_worker_key(node_id)
+            ip_to_node_key = f"ip_to_node:{node_ip}"
+            
+            # Check if IP is already registered to another worker
+            existing_node_for_ip = await self.store.client.get(ip_to_node_key)
+            if existing_node_for_ip and existing_node_for_ip.decode("utf-8") != node_id:
+                logger.warning(
+                    f"Worker registration failed for {node_id}: IP {node_ip} already registered to {existing_node_for_ip.decode('utf-8')}"
+                )
+                return
+
+            # Create worker record
+            async with self.store.client.pipeline(transaction=True) as pipe:
+                pipe.hset(
+                    worker_key,
+                    mapping={
+                        "node_id": node_id,
+                        "node_ip": node_ip,
+                        "hardware_info": json.dumps(hardware_info),
+                        "instances_on_device": json.dumps(instances_on_device),
+                        "registered_models": json.dumps(registered_models),
+                        "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
+                        "status": "ready",
+                    },
+                )
+                pipe.set(ip_to_node_key, node_id)
+                pipe.sadd(self.store._get_workers_index_key(), node_id)
+                await pipe.execute()
+
+            await self._update_worker_state_sets(
+                node_id, instances_on_device, registered_models
+            )
+
+            logger.info(f"Successfully registered worker {node_id} with existing ID")
+
+        except Exception as e:
+            logger.error(f"Error registering worker {node_id} at {node_ip}:{node_port}: {e}", exc_info=True)
+
+    async def _relink_worker(self, node_ip: str, node_port: int, existing_worker: Dict[str, Any],
+                            hardware_info: Dict[str, Any], instances_on_device: Dict[str, List[str]], 
+                            registered_models: List[str]) -> None:
+        """Relink a worker with no node_id but registered IP, reinstantiating previous models."""
+        node_id = existing_worker['node_id']
+        
+        try:
+            await self._set_worker_status(node_id, "initializing")
+            logger.info(f"Relinking worker {node_id} at {node_ip}:{node_port} and reinstantiating models")
+
+            await self._send_confirmation(node_ip, node_port, node_id)
+            logger.info(f"Sent confirmation to relinked worker {node_id}")
+
+            stored_instances = self._parse_instances_from_worker(existing_worker)
+            reinstantiated_count = await self._restart_worker_instances(
+                node_ip, node_id, stored_instances
+            )
+            
+            logger.info(
+                f"Successfully relinked worker {node_id} and reinstantiated {reinstantiated_count} instances"
+            )
+
+            await self._update_worker_record(
+                node_id, node_ip, hardware_info, instances_on_device, registered_models
+            )
+            await self._update_worker_state_sets(
+                node_id, instances_on_device, registered_models
+            )
+
+        except Exception as e:
+            logger.error(f"Error relinking worker {node_id} at {node_ip}:{node_port}: {e}", exc_info=True)
+            await self._set_worker_status(node_id, "ready")
+
+    def _parse_instances_from_worker(self, worker: Dict[str, Any]) -> Dict[str, List[str]]:
+        """Parse instances_on_device from worker record with error handling."""
+        instances_on_device = {}
+        if "instances_on_device" in worker:
+            try:
+                instances_on_device = json.loads(worker["instances_on_device"])
+            except (json.JSONDecodeError, TypeError):
+                instances_on_device = {}
+        return instances_on_device
+
+    async def _restart_worker_instances(
+        self, worker_ip: str, node_id: str, instances_on_device: Dict[str, List[str]]
+    ) -> int:
+        """Restart instances on a worker. Returns count of successfully restarted instances."""
+        start_instance_url = f"http://{worker_ip}:8001/start_instance"
+        restarted_count = 0
+
+        for model_identifier, instance_list in instances_on_device.items():
+            if not isinstance(instance_list, list):
+                continue
+                
+            try:
+                model_name, backend = model_identifier.split(":", 1)
+            except ValueError:
+                logger.warning(f"Invalid model identifier format: {model_identifier}")
+                continue
+
+            model_config = await self.store.get_model(model_name, backend)
+            if not model_config:
+                logger.warning(
+                    f"Cannot reinstantiate {model_identifier}: model config not found in store"
+                )
+                continue
+
+            for instance_id in instance_list:
+                restart_payload = {
+                    "model_config": model_config.get("backend_config", {}),
+                    "instance_id": instance_id,
+                }
+
+                try:
+                    await post_json_with_retry(
+                        session=self.http_session,
+                        url=start_instance_url,
+                        payload=restart_payload,
+                        max_retries=2,
+                        timeout=30.0,
+                    )
+                    restarted_count += 1
+                    logger.info(
+                        f"Reinstantiated instance {instance_id} for model {model_identifier} on worker {node_id}"
+                    )
+                except HTTPRetryError as instance_error:
+                    logger.error(
+                        f"Error reinstantiating instance {instance_id} on worker {node_id}: {instance_error}"
+                    )
+
+        return restarted_count
+
+    async def _update_worker_record(
+        self, node_id: str, node_ip: str, hardware_info: Dict[str, Any],
+        instances_on_device: Dict[str, List[str]], registered_models: List[str]
+    ) -> None:
+        """Update worker record in store with current data."""
+        worker_key = self.store._get_worker_key(node_id)
+        async with self.store.client.pipeline(transaction=True) as pipe:
+            pipe.hset(
+                worker_key,
+                mapping={
+                    "node_ip": node_ip,
+                    "hardware_info": json.dumps(hardware_info),
+                    "instances_on_device": json.dumps(instances_on_device),
+                    "registered_models": json.dumps(registered_models),
+                    "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
+                    "status": "ready",
+                },
+            )
+            await pipe.execute()
+
+    async def _register_worker(self, node_ip: str, node_port: int, hardware_info: Dict[str, Any], 
+                              instances_on_device: Dict[str, List[str]], registered_models: List[str]) -> None:
+        """Register a new worker with no node_id and no matching IP."""
+        try:
+            node_id = await self._generate_unique_worker_id()
+            await self._send_confirmation(node_ip, node_port, node_id)
+            logger.info(f"Generated new worker ID {node_id} for {node_ip}:{node_port}")
+        except Exception as e:
+            logger.error(f"Error registering new worker at {node_ip}:{node_port}: {e}", exc_info=True)
+
+    async def _register_worker_with_id(self, node_id: str, node_ip: str, node_port: int, 
+                                      hardware_info: Dict[str, Any], instances_on_device: Dict[str, List[str]], 
+                                      registered_models: List[str]) -> None:
+        """Register a worker with a provided node_id (completely uninitialized)."""
+        try:
+            ip_to_node_key = f"ip_to_node:{node_ip}"
+            
+            # Check if IP is already registered to another worker
+            existing_node_for_ip = await self.store.client.get(ip_to_node_key)
+            if existing_node_for_ip and existing_node_for_ip.decode("utf-8") != node_id:
+                logger.warning(
+                    f"Worker registration failed for {node_id}: IP {node_ip} already registered to {existing_node_for_ip.decode('utf-8')}"
+                )
+                return
+
+            # Create worker record
+            worker_key = self.store._get_worker_key(node_id)
+            async with self.store.client.pipeline(transaction=True) as pipe:
+                pipe.hset(
+                    worker_key,
+                    mapping={
+                        "node_id": node_id,
+                        "node_ip": node_ip,
+                        "hardware_info": json.dumps(hardware_info),
+                        "instances_on_device": json.dumps(instances_on_device),
+                        "registered_models": json.dumps(registered_models),
+                        "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
+                        "status": "ready",
+                    },
+                )
+                pipe.set(ip_to_node_key, node_id)
+                pipe.sadd(self.store._get_workers_index_key(), node_id)
+                await pipe.execute()
+
+            await self._update_worker_state_sets(
+                node_id, instances_on_device, registered_models
+            )
+
+            logger.info(f"Successfully registered worker {node_id} with existing ID")
+
+        except Exception as e:
+            logger.error(f"Error registering worker {node_id} at {node_ip}:{node_port}: {e}", exc_info=True)

@@ -28,6 +28,7 @@ import aiohttp
 from sllm.serve.backends.backend_utils import (
     BackendStatus,
     SllmBackend,
+    cleanup_subprocess,
 )
 from sllm.serve.logger import init_logger
 
@@ -206,20 +207,8 @@ class VllmBackend(SllmBackend):
             return {"error": f"Generation failed: {str(e)}"}
 
     def _cleanup_process(self):
-        if self.process:
-            try:
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-                try:
-                    self.process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
-                    self.process.wait()
-
-            except (ProcessLookupError, OSError):
-                # Process already terminated
-                pass
-            finally:
-                self.process = None
+        cleanup_subprocess(self.process)
+        self.process = None
 
     async def shutdown(self):
         async with self.status_lock:

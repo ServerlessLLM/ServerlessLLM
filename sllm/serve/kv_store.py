@@ -38,6 +38,7 @@ ATOMIC_WORKER_REGISTRATION_SCRIPT = """
 local worker_key = KEYS[1]
 local workers_index_key = KEYS[2]
 local ip_to_node_key = KEYS[3]
+local status_index_key = KEYS[4]
 local node_ip = ARGV[1]
 local node_id = ARGV[2]
 local worker_data = ARGV[3]
@@ -52,6 +53,7 @@ end
 redis.call('HSET', worker_key, 'data', worker_data)
 redis.call('SADD', workers_index_key, node_id)
 redis.call('SET', ip_to_node_key, node_id)
+redis.call('SADD', status_index_key, worker_key)
 
 return {0}  -- Success
 """
@@ -897,6 +899,7 @@ class RedisStore:
         """Atomically register a worker using Lua script to prevent race conditions."""
         worker_key = self._get_worker_key(worker.node_id)
         workers_index_key = self._get_workers_index_key()
+        status_index_key = self._get_workers_status_index_key("ready")
 
         # Serialize worker data
         worker_dict = worker.model_dump()
@@ -911,20 +914,17 @@ class RedisStore:
 
         result = await self.client.eval(
             ATOMIC_WORKER_REGISTRATION_SCRIPT,
-            3,
+            4,
             worker_key,
             workers_index_key,
             ip_to_node_key,
+            status_index_key,
             worker.node_ip,
             worker.node_id,
             worker_data,
         )
 
         if result[0] == 0:
-            # Also add to status index
-            await self.client.sadd(
-                self._get_workers_status_index_key("ready"), worker_key
-            )
             return True, None
         else:
             return False, result[1]  # Return existing node ID
