@@ -54,15 +54,16 @@ def create_app(
                 status_code=400, detail=f"Invalid JSON payload: {str(e)}"
             )
 
-        if not body.get("model"):
+        if not (body.get("model_name") or body.get("model")):
             raise HTTPException(
-                status_code=400, detail="Missing required field: model"
+                status_code=400, detail="Missing required field: model_name or model"
             )
 
         try:
             await request.app.state.model_manager.register(body)
+            model_name = body.get("model_name") or body.get("model")
             return {
-                "message": f"Model {body.get('model')} registered successfully"
+                "message": f"Model {model_name} registered successfully"
             }
         except (ValueError, KeyError) as e:
             raise HTTPException(

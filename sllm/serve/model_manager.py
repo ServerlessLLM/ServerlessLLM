@@ -89,7 +89,7 @@ class ModelManager:
                     await asyncio.sleep(5)
 
     async def register(self, model_config: ModelConfig) -> None:
-        model_name = model_config.get("model")
+        model_name = model_config.get("model_name") or model_config.get("model")
         backend = model_config.get("backend", None)
         if not model_name or not backend:
             raise ValueError(
