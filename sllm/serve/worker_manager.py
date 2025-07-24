@@ -15,6 +15,7 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
+import aiohttP
 import asyncio
 import json
 import random
@@ -27,7 +28,7 @@ import aiohttp
 
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
-from sllm.serve.utils import HTTPRetryError, post_json_with_retry
+from sllm.serve.utils import HTTPRetryError, post_json_with_retry, generate_name
 
 logger = init_logger(__name__)
 
@@ -309,89 +310,70 @@ class WorkerManager:
 
     async def process_heartbeat(self, payload: Dict[str, Any]) -> None:
         """Process worker heartbeat with validation and state management."""
-        import aiohttp
-
-        from .utils import generate_name
-
-        # Extract node_id, node_ip, and node_port
         node_id = payload.get("node_id")
         node_ip = payload.get("node_ip")
-        node_port = payload.get("node_port", 8001)  # Default to 8001 if not provided
+        node_port = payload.get("node_port", 8001)
 
         if not node_ip:
             logger.warning("Received a heartbeat with no node_ip. Ignoring.")
             return
 
-        # Handle instance ID generation and confirmation
-        if not node_id:
-            # Check if IP already exists in worker registry
-            existing_worker = await self._find_worker_by_ip(node_ip)
-
-            if existing_worker:
-                # Reject registration - IP conflict without proper node_id
-                logger.warning(
-                    f"Registration rejected: IP {node_ip} already registered to worker {existing_worker['node_id']}. Provide valid node_id to reconnect."
-                )
-                return
-            else:
-                # Generate new unique instance ID for new worker
-                node_id = await self._generate_unique_worker_id()
-                await self._send_confirmation(node_ip, node_port, node_id)
-                logger.info(f"Generated new worker ID {node_id} for {node_ip}:{node_port}")
-                return
-
-        # Validate provided node_id and handle reconnections
-        existing_worker = await self.store.get_worker(node_id)
-        if not existing_worker:
-            logger.warning(
-                f"Registration rejected: Invalid node_id {node_id} provided by {node_ip}"
-            )
-            return
-
-        # Check if worker IP changed (worker moved/restarted)
-        existing_ip = existing_worker.get("node_ip")
-        if existing_ip != node_ip:
-            # Security check: ensure new IP isn't already used by another worker
-            ip_conflict_worker = await self._find_worker_by_ip(node_ip)
-            if ip_conflict_worker and ip_conflict_worker["node_id"] != node_id:
-                logger.warning(
-                    f"Registration rejected: Worker {node_id} trying to use IP {node_ip} already registered to worker {ip_conflict_worker['node_id']}"
-                )
-                return
-
-            logger.info(
-                f"Worker {node_id} IP changed from {existing_ip} to {node_ip}, updating record and restarting instances"
-            )
-            await self._send_confirmation_with_instances(
-                node_ip, node_port, node_id, existing_worker
-            )
-            return
-
-        # Check if worker is in initializing state (prevent race conditions)
-        worker_status = await self._get_worker_status(node_id)
-        if worker_status == "initializing":
-            logger.debug(
-                f"Worker {node_id} is initializing, skipping heartbeat processing"
-            )
-            return
-
-        # Validate and parse optional fields
         hardware_info = payload.get("hardware_info", {})
         instances_on_device = payload.get("instances_on_device", {})
         registered_models = payload.get("registered_models", [])
 
-        # Validate instances_on_device structure
         if not isinstance(instances_on_device, dict):
             logger.warning(f"Invalid instances_on_device format from {node_id}")
             instances_on_device = {}
 
-        # Validate registered_models
         if not isinstance(registered_models, list):
             logger.warning(f"Invalid registered_models format from {node_id}")
             registered_models = []
 
+        if not node_id:
+            # New worker registration
+            existing_worker = await self._find_worker_by_ip(node_ip)
+            if existing_worker:
+                logger.warning(
+                    f"Registration rejected: IP {node_ip} already registered to worker {existing_worker['node_id']}"
+                )
+                return
+
+            node_id = await self._generate_unique_worker_id()
+            await self._send_confirmation(node_ip, node_port, node_id)
+            logger.info(f"Generated new worker ID {node_id} for {node_ip}:{node_port}")
+            return
+
+        # Check if worker exists
+        existing_worker = await self.store.get_worker(node_id)
+        
+        if existing_worker:
+            # Handle IP change
+            existing_ip = existing_worker.get("node_ip")
+            if existing_ip != node_ip:
+                ip_conflict_worker = await self._find_worker_by_ip(node_ip)
+                if ip_conflict_worker and ip_conflict_worker["node_id"] != node_id:
+                    logger.warning(
+                        f"Registration rejected: Worker {node_id} trying to use IP {node_ip} already registered to worker {ip_conflict_worker['node_id']}"
+                    )
+                    return
+
+                logger.info(
+                    f"Worker {node_id} IP changed from {existing_ip} to {node_ip}"
+                )
+                await self._send_confirmation_with_instances(
+                    node_ip, node_port, node_id, existing_worker
+                )
+                return
+
+            # Check initialization state
+            worker_status = await self._get_worker_status(node_id)
+            if worker_status == "initializing":
+                logger.debug(f"Worker {node_id} is initializing, skipping heartbeat")
+                return
+
         try:
-            # Try atomic heartbeat update first
+            # Update heartbeat
             heartbeat_data = {
                 "hardware_info": hardware_info,
                 "instances_on_device": instances_on_device,
@@ -401,18 +383,12 @@ class WorkerManager:
             success = await self.store.atomic_worker_heartbeat_update(
                 node_id, heartbeat_data
             )
+            
             if not success:
-                # Worker doesn't exist, need to register it first
-                logger.info(
-                    f"Worker {node_id} not found, creating new worker registration"
-                )
-
-                # Create new Worker object
+                # Create new worker
                 from sllm.serve.schema import HardwareInfo, Worker
 
-                # Create HardwareInfo object from hardware_info dict
                 hardware_info_obj = HardwareInfo.model_validate(hardware_info)
-
                 new_worker = Worker(
                     node_id=node_id,
                     node_ip=node_ip,
@@ -421,12 +397,8 @@ class WorkerManager:
                     last_heartbeat_time=datetime.now(timezone.utc),
                 )
 
-                # Use atomic worker registration to prevent race conditions
                 ip_to_node_key = f"ip_to_node:{node_ip}"
-                (
-                    registration_success,
-                    existing_node,
-                ) = await self.store.atomic_worker_registration(
+                registration_success, existing_node = await self.store.atomic_worker_registration(
                     new_worker, ip_to_node_key
                 )
 
@@ -438,7 +410,7 @@ class WorkerManager:
 
                 logger.info(f"Successfully registered new worker {node_id}")
 
-            # Update additional fields using pipeline for atomicity
+            # Update additional fields
             worker_key = self.store._get_worker_key(node_id)
             async with self.store.client.pipeline(transaction=True) as pipe:
                 pipe.hset(
@@ -447,12 +419,11 @@ class WorkerManager:
                         "hardware_info": json.dumps(hardware_info),
                         "instances_on_device": json.dumps(instances_on_device),
                         "registered_models": json.dumps(registered_models),
-                        "status": "ready",  # Reset to ready after successful heartbeat
+                        "status": "ready",
                     },
                 )
                 await pipe.execute()
 
-            # Update worker state sets based on current instances
             await self._update_worker_state_sets(
                 node_id, instances_on_device, registered_models
             )
@@ -460,9 +431,7 @@ class WorkerManager:
             logger.debug(f"Processed heartbeat from worker {node_id}")
 
         except Exception as e:
-            logger.error(
-                f"Error processing heartbeat from {node_id}: {e}", exc_info=True
-            )
+            logger.error(f"Error processing heartbeat from {node_id}: {e}", exc_info=True)
 
     async def _update_worker_state_sets(
         self,
