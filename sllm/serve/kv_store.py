@@ -327,11 +327,14 @@ class RedisStore:
             model_dict["auto_scaling_config"] = json.dumps(model["auto_scaling_config"])
         model_dict["instances"] = json.dumps([])
         model_dict["status"] = "alive"
+        enable_lora = backend_config.get("enable_lora", False)
+        lora_adapters = backend_config.get("lora_adapters", {})
 
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(key, mapping=model_dict)
             pipe.sadd(self._get_models_index_key(), key)
             pipe.sadd(self._get_model_status_index_key("alive"), key)
+            # TODO: implement lora registration logic
             await pipe.execute()
 
     async def get_model(self, model_name: str, backend: str) -> Optional[dict]:
@@ -418,8 +421,10 @@ class RedisStore:
             )
             message = {"model_key": model_key}
             pipe.publish("model:delete:notifications", json.dumps(message))
+            # TODO: delete lora adapters associated with the model too
             await pipe.execute()
 
+    # TODO: make consistent with lora adapter storage in sllm
     async def delete_lora_adapters(
         self,
         model_name: str,

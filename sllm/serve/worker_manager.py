@@ -247,12 +247,11 @@ class WorkerManager:
             return False
 
         url = f"http://{node_ip}:8001/start_instance"
-        payload = {"model_config": model_config.get("backend_config", {})}
         try:
             await post_json_with_retry(
                 session=self.http_session,
                 url=url,
-                payload=payload,
+                payload=model_config,
                 max_retries=3,
                 timeout=30.0,
             )
