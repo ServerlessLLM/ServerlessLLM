@@ -133,6 +133,13 @@ class WorkerManager:
 
         all_workers = await self.get_all_worker_info()
         model_identifier = f"{model_name}:{backend}"
+        
+        # Debug logging to show all workers
+        logger.info(f"DEBUG: Found {len(all_workers)} total workers:")
+        for i, worker in enumerate(all_workers):
+            worker_id = worker.get("node_id", "unknown")
+            registered_models = worker.get("registered_models", [])
+            logger.info(f"DEBUG: Worker {i+1} - ID: {worker_id}, registered_models: {registered_models}")
 
         eligible_workers = []
         for worker in all_workers:
@@ -140,6 +147,8 @@ class WorkerManager:
             if model_identifier in registered_models:
                 eligible_workers.append(worker)
 
+        logger.info(f"DEBUG: Found {len(eligible_workers)} eligible workers for {model_identifier}")
+        
         if not eligible_workers:
             logger.warning(
                 f"No eligible workers available to scale up for {model_identifier}."

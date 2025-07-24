@@ -445,6 +445,10 @@ class RedisStore:
         redis_hash["instances_on_device"] = json.loads(
             redis_hash["instances_on_device"]
         )
+        if "registered_models" in redis_hash:
+            redis_hash["registered_models"] = json.loads(redis_hash["registered_models"])
+        else:
+            redis_hash["registered_models"] = []
         return redis_hash
 
     async def register_worker(self, worker: dict) -> None:
