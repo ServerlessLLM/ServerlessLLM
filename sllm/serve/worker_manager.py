@@ -418,7 +418,7 @@ class WorkerManager:
                     "node_ip": node_ip,
                     "hardware_info": hardware_info,
                     "instances_on_device": instances_on_device,
-                    "last_heartbeat_time": datetime.now(timezone.utc),
+                    "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
                 }
 
                 ip_to_node_key = f"ip_to_node:{node_ip}"
@@ -457,6 +457,7 @@ class WorkerManager:
                         "hardware_info": json.dumps(hardware_info),
                         "instances_on_device": json.dumps(instances_on_device),
                         "registered_models": json.dumps(registered_models),
+                        "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
                         "status": "ready",
                     },
                 )
