@@ -20,7 +20,7 @@ import os
 import sys
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 ROOT_DIR = os.path.dirname(__file__)
 
@@ -67,21 +67,13 @@ setup(
     extras_require=extras,
     entry_points={
         "console_scripts": [
-            "sllm = sllm.clic:cli",
-            "sllm-serve=sllm.serve.commands.serve.sllm_serve:main",
+            "sllm = sllm.cli.clic:cli",
         ],
     },
     include_package_data=True,
     package_data={
-        "sllm.serve": ["py.typed", "sllm.sllm_serve"],
-        "sllm": ["default_config.json"],
+        "sllm.cli": ["default_config.json"],
+        "": ["py.typed"],
     },
-    packages=[
-        "sllm",
-        "sllm.serve",
-        "sllm.serve.commands.serve",
-        "sllm.serve.backends",
-        "sllm.serve.routers",
-        "sllm.serve.schedulers",
-    ],
+    packages=find_packages(),
 )

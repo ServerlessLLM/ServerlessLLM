@@ -18,7 +18,7 @@
 
 import ray
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 
@@ -29,15 +29,15 @@ def start_instance(
 ):
     logger.info(f"Starting instance {instance_id} with backend {backend}")
     if backend == "vllm":
-        from sllm.serve.backends import VllmBackend
+        from sllm.backends import VllmBackend
 
         model_backend_cls = VllmBackend
     elif backend == "dummy":
-        from sllm.serve.backends import DummyBackend
+        from sllm.backends import DummyBackend
 
         model_backend_cls = DummyBackend
     elif backend == "transformers":
-        from sllm.serve.backends import TransformersBackend
+        from sllm.backends import TransformersBackend
 
         model_backend_cls = TransformersBackend
     else:
