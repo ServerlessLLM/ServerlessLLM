@@ -95,11 +95,6 @@ def init_logger(name: str):
     return logger
 
 
-def set_correlation_id(correlation_id: str) -> None:
-    """Set correlation ID for structured logging."""
-    correlation_id_var.set(correlation_id)
-
-
 def set_worker_context(worker_id: str) -> None:
     """Set worker ID for structured logging."""
     worker_id_var.set(worker_id)
@@ -108,10 +103,3 @@ def set_worker_context(worker_id: str) -> None:
 def set_model_context(model_id: str) -> None:
     """Set model ID for structured logging."""
     model_id_var.set(model_id)
-
-
-def clear_context() -> None:
-    """Clear all logging context."""
-    correlation_id_var.set(None)
-    worker_id_var.set(None)
-    model_id_var.set(None)

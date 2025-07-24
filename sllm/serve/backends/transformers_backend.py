@@ -27,7 +27,11 @@ from typing import Any, Dict, Optional
 import aiohttp
 
 import sllm.serve.backends.transformers_server
-from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend, cleanup_subprocess
+from sllm.serve.backends.backend_utils import (
+    BackendStatus,
+    SllmBackend,
+    cleanup_subprocess,
+)
 from sllm.serve.logger import init_logger
 
 logger = init_logger(__name__)

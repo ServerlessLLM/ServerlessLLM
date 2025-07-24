@@ -81,7 +81,7 @@ class SllmBackend(ABC):
 def cleanup_subprocess(process: Optional[subprocess.Popen]) -> None:
     """
     Safely cleanup a subprocess with graceful and force termination.
-    
+
     Args:
         process: The subprocess.Popen object to cleanup
     """

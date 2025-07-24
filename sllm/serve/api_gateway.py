@@ -1,21 +1,3 @@
-# ---------------------------------------------------------------------------- #
-#  serverlessllm                                                               #
-#  copyright (c) serverlessllm team 2024                                       #
-#                                                                              #
-#  licensed under the apache license, version 2.0 (the "license");             #
-#  you may not use this file except in compliance with the license.            #
-#                                                                              #
-#  you may obtain a copy of the license at                                     #
-#                                                                              #
-#                  http://www.apache.org/licenses/license-2.0                  #
-#                                                                              #
-#  unless required by applicable law or agreed to in writing, software         #
-#  distributed under the license is distributed on an "as is" basis,           #
-#  without warranties or conditions of any kind, either express or implied.    #
-#  see the license for the specific language governing permissions and         #
-#  limitations under the license.                                              #
-# ---------------------------------------------------------------------------- #
-
 import asyncio
 import json
 import uuid
@@ -27,12 +9,10 @@ from fastapi.responses import JSONResponse
 
 from sllm.serve.dispatcher import Dispatcher
 from sllm.serve.kv_store import RedisStore
-from sllm.serve.logger import clear_context, init_logger, set_correlation_id
+from sllm.serve.logger import init_logger
 from sllm.serve.model_manager import ModelManager
-from sllm.serve.schema import *
 from sllm.serve.utils import *
 from sllm.serve.utils import (
-    ValidationError,
     health_response,
     list_response,
     map_to_http_status,
@@ -40,11 +20,6 @@ from sllm.serve.utils import (
     standardize_error_response,
     success_response,
     task_response,
-)
-from sllm.serve.validation import (
-    sanitize_log_data,
-    validate_model_config,
-    validate_model_identifier,
 )
 from sllm.serve.worker_manager import WorkerManager
 
@@ -67,18 +42,7 @@ def create_app(
 
         yield
 
-        logger.info("API Gateway is shutting down.")
-
     app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
-
-    @app.exception_handler(ServerlessLLMError)
-    async def serverlessllm_exception_handler(
-        request: Request, exc: ServerlessLLMError
-    ):
-        status_code = map_to_http_status(exc)
-        return JSONResponse(
-            status_code=status_code, content=standardize_error_response(exc)
-        )
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
@@ -97,12 +61,14 @@ def create_app(
         try:
             body = await request.json()
         except Exception as e:
-            raise ValidationError(
-                "Invalid JSON payload", details={"parse_error": str(e)}
+            raise HTTPException(
+                status_code=400, detail=f"Invalid JSON payload: {str(e)}"
             )
 
         if not body.get("model_name"):
-            raise ValidationError("Missing required field: model_name")
+            raise HTTPException(
+                status_code=400, detail="Missing required field: model_name"
+            )
 
         try:
             await request.app.state.model_manager.register_model(body)
@@ -112,8 +78,9 @@ def create_app(
                 resource_id=body.get("model_name"),
             )
         except (ValueError, KeyError) as e:
-            raise ValidationError(
-                f"Model registration validation failed: {str(e)}"
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model registration validation failed: {str(e)}",
             )
         except Exception as e:
             logger.error(f"Cannot register model: {e}", exc_info=True)
@@ -207,13 +174,8 @@ def create_app(
         except Exception as e:
             logger.error(f"Failed to parse JSON body: {e}")
             raise HTTPException(
-                status_code=400,
-                detail="Invalid JSON in request body",
+                status_code=400, detail="Invalid JSON in request body"
             )
-
-        # Sanitize body for logging
-        sanitized_body = sanitize_log_data(body)
-        logger.info(f"Received inference request: {sanitized_body}")
 
         model_identifier = body.get("model")
         if not model_identifier:
@@ -222,16 +184,13 @@ def create_app(
                 detail="Request body must include a 'model' field",
             )
 
-        try:
-            model_name, backend = validate_model_identifier(model_identifier)
-        except ValidationError as e:
-            logger.warning(
-                f"Invalid model identifier '{model_identifier}': {e}"
-            )
+        if ":" not in model_identifier:
             raise HTTPException(
                 status_code=400,
-                detail=str(e),
+                detail="Model identifier must be in format 'model_name:backend'",
             )
+
+        model_name, backend = model_identifier.split(":", 1)
 
         if not await request.app.state.model_manager.get_model(
             model_name, backend
@@ -246,9 +205,6 @@ def create_app(
             if body.get("task_id") == None
             else body["task_id"]
         )
-
-        # Set correlation ID for structured logging
-        set_correlation_id(task_id)
 
         task_package = {"task_id": task_id, "action": action, "payload": body}
 
@@ -290,8 +246,6 @@ def create_app(
             )
         finally:
             listener_task.cancel()
-            # Clear logging context after request completes
-            clear_context()
 
     @app.post("/v1/chat/completions")
     async def generate_handler(request: Request):

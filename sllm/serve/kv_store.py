@@ -29,7 +29,6 @@ import redis.asyncio as redis
 from redis.exceptions import ConnectionError, TimeoutError
 
 from sllm.serve.logger import init_logger
-from sllm.serve.schema import Model, Worker
 
 logger = init_logger(__name__)
 

@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
-from sllm.serve.schema import *
 
 logger = init_logger(__name__)
 ModelConfig = Dict[str, Any]

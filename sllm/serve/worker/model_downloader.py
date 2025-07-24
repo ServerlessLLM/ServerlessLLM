@@ -45,7 +45,6 @@ async def download_transformers_model(
         logger.info(f"{model_path} already exists")
         return True
 
-
     torch_dtype = getattr(torch, torch_dtype)
     if torch_dtype is None:
         raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
@@ -93,7 +92,6 @@ async def download_lora_adapter(
     if os.path.exists(adapter_path):
         logger.info(f"{adapter_path} already exists")
         return True
-
 
     torch_dtype = getattr(torch, torch_dtype)
     if torch_dtype is None:

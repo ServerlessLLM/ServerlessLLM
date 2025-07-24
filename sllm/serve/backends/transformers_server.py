@@ -25,7 +25,6 @@ from typing import Any, Dict, Optional
 import torch
 import uvicorn
 from fastapi import FastAPI
-from pydantic import BaseModel
 from transformers import AutoTokenizer
 
 from sllm.serve.logger import init_logger
@@ -41,21 +40,35 @@ tokenizer = None
 model_name = None
 
 
-class ChatRequest(BaseModel):
-    messages: list
-    max_tokens: int = 100
-    temperature: float = 0.7
-    top_p: float = 1.0
-    model: str = None
-    request_id: str = None
-    task_id: str = None
+def create_chat_request(
+    messages,
+    max_tokens=100,
+    temperature=0.7,
+    top_p=1.0,
+    model=None,
+    request_id=None,
+    task_id=None,
+):
+    return {
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "top_p": top_p,
+        "model": model,
+        "request_id": request_id,
+        "task_id": task_id,
+    }
 
 
-class EmbeddingRequest(BaseModel):
-    input: list
-    model: str = None
-    request_id: str = None
-    task_id: str = None
+def create_embedding_request(
+    input_data, model=None, request_id=None, task_id=None
+):
+    return {
+        "input": input_data,
+        "model": model,
+        "request_id": request_id,
+        "task_id": task_id,
+    }
 
 
 def initialize_model(
@@ -194,7 +207,6 @@ async def embeddings(request: EmbeddingRequest):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_name", required=True, help="Name of the model to load"
