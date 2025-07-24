@@ -133,12 +133,16 @@ class WorkerManager:
 
         all_workers = await self.get_all_worker_info()
         model_identifier = f"{model_name}:{backend}"
-        
+
         if not all_workers:
-            logger.warning(f"No workers available to scale up for {model_identifier}.")
+            logger.warning(
+                f"No workers available to scale up for {model_identifier}."
+            )
             return
-            
-        logger.info(f"Found {len(all_workers)} workers available for scaling {model_identifier}")
+
+        logger.info(
+            f"Found {len(all_workers)} workers available for scaling {model_identifier}"
+        )
 
         successful_starts = 0
         for i in range(count):
@@ -346,8 +350,12 @@ class WorkerManager:
                     logger.info(
                         f"IP {node_ip} registered to different worker {ip_conflict_worker['node_id']}, resetting worker and proceeding with {node_id}"
                     )
-                    await self._cleanup_worker_from_all_sets(ip_conflict_worker["node_id"])
-                    await self.store.delete_worker(ip_conflict_worker["node_id"])
+                    await self._cleanup_worker_from_all_sets(
+                        ip_conflict_worker["node_id"]
+                    )
+                    await self.store.delete_worker(
+                        ip_conflict_worker["node_id"]
+                    )
 
                 logger.info(
                     f"Worker {node_id} IP changed from {existing_ip} to {node_ip}"
@@ -404,7 +412,9 @@ class WorkerManager:
                     "node_ip": node_ip,
                     "hardware_info": hardware_info,
                     "instances_on_device": instances_on_device,
-                    "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
+                    "last_heartbeat_time": datetime.now(
+                        timezone.utc
+                    ).isoformat(),
                 }
 
                 ip_to_node_key = f"ip_to_node:{node_ip}"
@@ -421,16 +431,18 @@ class WorkerManager:
                     )
                     await self._cleanup_worker_from_all_sets(existing_node)
                     await self.store.delete_worker(existing_node)
-                    
+
                     (
                         retry_success,
                         _,
                     ) = await self.store.atomic_worker_registration(
                         new_worker, ip_to_node_key
                     )
-                    
+
                     if not retry_success:
-                        logger.error(f"Failed to register worker {node_id} after cleaning up conflicting worker")
+                        logger.error(
+                            f"Failed to register worker {node_id} after cleaning up conflicting worker"
+                        )
                         return
 
                 logger.info(f"Successfully registered new worker {node_id}")
@@ -442,15 +454,15 @@ class WorkerManager:
                     mapping={
                         "hardware_info": json.dumps(hardware_info),
                         "instances_on_device": json.dumps(instances_on_device),
-                        "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
+                        "last_heartbeat_time": datetime.now(
+                            timezone.utc
+                        ).isoformat(),
                         "status": "ready",
                     },
                 )
                 await pipe.execute()
 
-            await self._update_worker_state_sets(
-                node_id, instances_on_device
-            )
+            await self._update_worker_state_sets(node_id, instances_on_device)
 
             logger.debug(f"Processed heartbeat from worker {node_id}")
 
@@ -534,7 +546,7 @@ class WorkerManager:
                     try:
                         if isinstance(last_heartbeat_str, str):
                             last_heartbeat = datetime.fromisoformat(
-                                last_heartbeat_str.replace('Z', '+00:00')
+                                last_heartbeat_str.replace("Z", "+00:00")
                             ).timestamp()
                         else:
                             last_heartbeat = float(last_heartbeat_str)
@@ -542,7 +554,7 @@ class WorkerManager:
                         last_heartbeat = 0
                 else:
                     last_heartbeat = 0
-                
+
                 if (current_time - last_heartbeat) > self.worker_timeout:
                     node_id = worker["node_id"]
                     logger.warning(
@@ -744,7 +756,7 @@ class WorkerManager:
                 existing_node_for_ip
                 and existing_node_for_ip.decode("utf-8") != node_id
             ):
-                conflicting_node_id = existing_node_for_ip.decode("utf-8")  
+                conflicting_node_id = existing_node_for_ip.decode("utf-8")
                 logger.info(
                     f"IP {node_ip} registered to different worker {conflicting_node_id}, resetting worker and proceeding with {node_id}"
                 )
@@ -769,9 +781,7 @@ class WorkerManager:
                 pipe.sadd(self.store._get_workers_index_key(), node_id)
                 await pipe.execute()
 
-            await self._update_worker_state_sets(
-                node_id, instances_on_device
-            )
+            await self._update_worker_state_sets(node_id, instances_on_device)
 
             logger.info(
                 f"Successfully registered worker {node_id} with existing ID"
@@ -819,9 +829,7 @@ class WorkerManager:
                 hardware_info,
                 instances_on_device,
             )
-            await self._update_worker_state_sets(
-                node_id, instances_on_device
-            )
+            await self._update_worker_state_sets(node_id, instances_on_device)
 
         except Exception as e:
             logger.error(

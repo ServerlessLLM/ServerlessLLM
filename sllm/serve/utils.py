@@ -891,7 +891,9 @@ async def post_json_with_retry(
             delay = min(1.0 * (2**attempt), 10.0)
             await asyncio.sleep(delay)
 
-    raise Exception(f"HTTP request to {url} failed after {max_retries + 1} attempts: {last_exception}")
+    raise Exception(
+        f"HTTP request to {url} failed after {max_retries + 1} attempts: {last_exception}"
+    )
 
 
 async def get_with_retry(

@@ -202,12 +202,14 @@ class RedisStore:
             logger.error(f"Failed to reset Redis store: {e}")
             return False
 
-    async def initialize_store(self, reset_on_start: bool = True, full_reset: bool = False) -> bool:
+    async def initialize_store(
+        self, reset_on_start: bool = True, full_reset: bool = False
+    ) -> bool:
         try:
             if not await self._ensure_connection():
                 logger.error("Failed to connect to Redis during initialization")
                 return False
-            
+
             if reset_on_start:
                 if full_reset:
                     success = await self.reset_store()
@@ -216,75 +218,112 @@ class RedisStore:
                 else:
                     cleanup_stats = await self.cleanup_store_data()
                     logger.info(f"Selective cleanup completed: {cleanup_stats}")
-            
+
             logger.info("Redis store initialized successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize Redis store: {e}")
             return False
 
-    async def cleanup_store_data(self, cleanup_models: bool = True, cleanup_workers: bool = True, 
-                                cleanup_queues: bool = True, cleanup_locks: bool = True) -> Dict[str, int]:
-        cleanup_stats = {"models": 0, "workers": 0, "queues": 0, "locks": 0, "channels": 0}
-        
+    async def cleanup_store_data(
+        self,
+        cleanup_models: bool = True,
+        cleanup_workers: bool = True,
+        cleanup_queues: bool = True,
+        cleanup_locks: bool = True,
+    ) -> Dict[str, int]:
+        cleanup_stats = {
+            "models": 0,
+            "workers": 0,
+            "queues": 0,
+            "locks": 0,
+            "channels": 0,
+        }
+
         try:
             if cleanup_models:
                 model_keys = await self._execute_with_retry(
                     self.client.smembers, self._get_models_index_key()
                 )
                 if model_keys:
-                    decoded_keys = [key.decode() if isinstance(key, bytes) else key for key in model_keys]
-                    await self._execute_with_retry(self.client.delete, *decoded_keys)
-                    await self._execute_with_retry(self.client.delete, self._get_models_index_key())
-                    await self._execute_with_retry(self.client.delete, 
+                    decoded_keys = [
+                        key.decode() if isinstance(key, bytes) else key
+                        for key in model_keys
+                    ]
+                    await self._execute_with_retry(
+                        self.client.delete, *decoded_keys
+                    )
+                    await self._execute_with_retry(
+                        self.client.delete, self._get_models_index_key()
+                    )
+                    await self._execute_with_retry(
+                        self.client.delete,
                         self._get_model_status_index_key("alive"),
-                        self._get_model_status_index_key("excommunicado")
+                        self._get_model_status_index_key("excommunicado"),
                     )
                     cleanup_stats["models"] = len(decoded_keys)
-            
+
             if cleanup_workers:
                 worker_keys = await self._execute_with_retry(
                     self.client.smembers, self._get_workers_index_key()
                 )
                 if worker_keys:
-                    decoded_keys = [key.decode() if isinstance(key, bytes) else key for key in worker_keys]
-                    await self._execute_with_retry(self.client.delete, *decoded_keys)
-                    await self._execute_with_retry(self.client.delete, self._get_workers_index_key())
-                    await self._execute_with_retry(self.client.delete,
+                    decoded_keys = [
+                        key.decode() if isinstance(key, bytes) else key
+                        for key in worker_keys
+                    ]
+                    await self._execute_with_retry(
+                        self.client.delete, *decoded_keys
+                    )
+                    await self._execute_with_retry(
+                        self.client.delete, self._get_workers_index_key()
+                    )
+                    await self._execute_with_retry(
+                        self.client.delete,
                         self._get_workers_status_index_key("ready"),
-                        self._get_workers_status_index_key("busy"), 
-                        self._get_workers_status_index_key("initializing")
+                        self._get_workers_status_index_key("busy"),
+                        self._get_workers_status_index_key("initializing"),
                     )
                     cleanup_stats["workers"] = len(decoded_keys)
-            
+
             if cleanup_queues:
                 queue_keys = []
                 async for key in self.client.scan_iter("queue:*"):
-                    queue_keys.append(key.decode() if isinstance(key, bytes) else key)
+                    queue_keys.append(
+                        key.decode() if isinstance(key, bytes) else key
+                    )
                 async for key in self.client.scan_iter("workers:*"):
-                    queue_keys.append(key.decode() if isinstance(key, bytes) else key)
+                    queue_keys.append(
+                        key.decode() if isinstance(key, bytes) else key
+                    )
                 if queue_keys:
-                    await self._execute_with_retry(self.client.delete, *queue_keys)
+                    await self._execute_with_retry(
+                        self.client.delete, *queue_keys
+                    )
                     cleanup_stats["queues"] = len(queue_keys)
-            
+
             if cleanup_locks:
                 lock_keys = []
                 async for key in self.client.scan_iter("deletion_lock:*"):
-                    lock_keys.append(key.decode() if isinstance(key, bytes) else key)
+                    lock_keys.append(
+                        key.decode() if isinstance(key, bytes) else key
+                    )
                 if lock_keys:
-                    await self._execute_with_retry(self.client.delete, *lock_keys)
+                    await self._execute_with_retry(
+                        self.client.delete, *lock_keys
+                    )
                     cleanup_stats["locks"] = len(lock_keys)
-            
+
             channel_count = await self.cleanup_expired_result_channels()
             cleanup_stats["channels"] = channel_count
-            
+
             with self._deletion_locks_lock:
                 self._deletion_locks.clear()
                 self._lock_timestamps.clear()
-            
+
             logger.info(f"Store cleanup completed: {cleanup_stats}")
             return cleanup_stats
-            
+
         except Exception as e:
             logger.error(f"Failed to cleanup store data: {e}")
             return cleanup_stats
@@ -322,13 +361,16 @@ class RedisStore:
         model_dict["model"] = model_name
 
         if "backend_config" in model:
-            model_dict["backend_config"] = json.dumps(model["backend_config"])
+            backend_config = json.dumps(model["backend_config"])
+            model_dict["backend_config"] = backend_config
+            enable_lora = backend_config.get("enable_lora", False)
+            lora_adapters = backend_config.get("lora_adapters", {})
         if "auto_scaling_config" in model:
-            model_dict["auto_scaling_config"] = json.dumps(model["auto_scaling_config"])
+            model_dict["auto_scaling_config"] = json.dumps(
+                model["auto_scaling_config"]
+            )
         model_dict["instances"] = json.dumps([])
         model_dict["status"] = "alive"
-        enable_lora = backend_config.get("enable_lora", False)
-        lora_adapters = backend_config.get("lora_adapters", {})
 
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(key, mapping=model_dict)
@@ -463,7 +505,9 @@ class RedisStore:
         if isinstance(worker["last_heartbeat_time"], str):
             worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"]
         else:
-            worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"].isoformat()
+            worker_dict["last_heartbeat_time"] = worker[
+                "last_heartbeat_time"
+            ].isoformat()
 
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(key, mapping=worker_dict)
@@ -592,11 +636,15 @@ class RedisStore:
         ready_set = self._get_worker_set_key(model_name, backend, "ready")
         return await self._execute_with_retry(self.client.spop, ready_set)
 
-    async def worker_heartbeat(self, node_id: str, heartbeat_data: Optional[dict] = None) -> None:
+    async def worker_heartbeat(
+        self, node_id: str, heartbeat_data: Optional[dict] = None
+    ) -> None:
         key = self._get_worker_key(node_id)
         if heartbeat_data:
             heartbeat_data_copy = heartbeat_data.copy()
-            heartbeat_data_copy["last_heartbeat_time"] = datetime.now(timezone.utc).isoformat()
+            heartbeat_data_copy["last_heartbeat_time"] = datetime.now(
+                timezone.utc
+            ).isoformat()
             for field, value in heartbeat_data_copy.items():
                 await self._execute_with_retry(
                     self.client.hset, key, field, value
@@ -642,7 +690,11 @@ class RedisStore:
             self.client.brpop, queue_keys, timeout
         )
         if result:
-            queue_name = result[0].decode() if isinstance(result[0], bytes) else result[0]
+            queue_name = (
+                result[0].decode()
+                if isinstance(result[0], bytes)
+                else result[0]
+            )
             task_data = json.loads(result[1])
             return queue_name, task_data
         return None
@@ -911,7 +963,9 @@ class RedisStore:
         )
         return bool(result)
 
-    async def atomic_worker_heartbeat_update(self, node_id: str, heartbeat_data: dict) -> bool:
+    async def atomic_worker_heartbeat_update(
+        self, node_id: str, heartbeat_data: dict
+    ) -> bool:
         lua_script = """
         local worker_key = KEYS[1]
         local workers_index = KEYS[2]
@@ -934,14 +988,16 @@ class RedisStore:
 
         worker_key = self._get_worker_key(node_id)
         workers_index = self._get_workers_index_key()
-        
+
         heartbeat_data_copy = {}
         for key, value in heartbeat_data.items():
             if isinstance(value, (dict, list)):
                 heartbeat_data_copy[key] = json.dumps(value)
             else:
                 heartbeat_data_copy[key] = value
-        heartbeat_data_copy["last_heartbeat_time"] = datetime.now(timezone.utc).isoformat()
+        heartbeat_data_copy["last_heartbeat_time"] = datetime.now(
+            timezone.utc
+        ).isoformat()
         heartbeat_json = json.dumps(heartbeat_data_copy)
 
         result = await self._execute_with_retry(
@@ -969,7 +1025,9 @@ class RedisStore:
         if isinstance(worker["last_heartbeat_time"], str):
             worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"]
         else:
-            worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"].isoformat()
+            worker_dict["last_heartbeat_time"] = worker[
+                "last_heartbeat_time"
+            ].isoformat()
         worker_data = json.dumps(worker_dict)
 
         result = await self._execute_with_retry(

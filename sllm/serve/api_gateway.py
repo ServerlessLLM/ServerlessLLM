@@ -62,9 +62,7 @@ def create_app(
         try:
             await request.app.state.model_manager.register(body)
             model_name = body.get("model")
-            return {
-                "message": f"Model {model_name} registered successfully"
-            }
+            return {"message": f"Model {model_name} registered successfully"}
         except (ValueError, KeyError) as e:
             raise HTTPException(
                 status_code=400,
@@ -125,9 +123,7 @@ def create_app(
 
             else:
                 await model_manager.delete_model(model, "all")
-                return {
-                    "status": f"deleted all backends for model {model}"
-                }
+                return {"status": f"deleted all backends for model {model}"}
 
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
@@ -173,36 +169,38 @@ def create_app(
             )
 
         explicit_backend = body.get("backend")
-        
+
         if ":" in model_identifier:
             model, backend = model_identifier.split(":", 1)
             if explicit_backend and explicit_backend != backend:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Backend mismatch: model specifies '{backend}' but request body specifies '{explicit_backend}'"
+                    detail=f"Backend mismatch: model specifies '{backend}' but request body specifies '{explicit_backend}'",
                 )
         else:
             model = model_identifier
             backend = explicit_backend
-            
+
             if not backend:
-                all_models = await request.app.state.model_manager.get_all_models()
+                all_models = (
+                    await request.app.state.model_manager.get_all_models()
+                )
                 available_backends = [
-                    m.get("backend") for m in all_models 
-                    if m.get("model") == model and m.get("status") != "excommunicado"
+                    m.get("backend")
+                    for m in all_models
+                    if m.get("model") == model
+                    and m.get("status") != "excommunicado"
                 ]
-                
+
                 if not available_backends:
                     raise HTTPException(
                         status_code=404,
-                        detail=f"No available backends found for model '{model}'"
+                        detail=f"No available backends found for model '{model}'",
                     )
-                
+
                 backend = available_backends[0]
 
-        if not await request.app.state.model_manager.get_model(
-            model, backend
-        ):
+        if not await request.app.state.model_manager.get_model(model, backend):
             raise HTTPException(
                 status_code=404,
                 detail=f"Model '{model_identifier}' not found or not registered.",

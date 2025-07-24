@@ -53,8 +53,7 @@ class AutoScaler:
 
         logger.info(f"Running scaling check for {len(all_models)} models.")
         tasks = [
-            self._calculate_and_set_decision(model)
-            for model in all_models
+            self._calculate_and_set_decision(model) for model in all_models
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 

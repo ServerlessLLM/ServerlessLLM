@@ -94,8 +94,7 @@ class Dispatcher:
                     continue
 
                 queue_keys = [
-                    f"queue:{m['model']}:{m['backend']}"
-                    for m in all_models
+                    f"queue:{m['model']}:{m['backend']}" for m in all_models
                 ]
                 logger.debug(f"Listening on queues: {queue_keys}")
 
@@ -120,7 +119,7 @@ class Dispatcher:
         self, queue_name: str, task_data: Dict[str, Any]
     ) -> None:
         task_id = task_data.get("task_id")
-        
+
         try:
             payload = task_data.get("payload")
             # Handle case where queue_name might be bytes
@@ -134,10 +133,14 @@ class Dispatcher:
                     f"Invalid task received from queue '{queue_name}': {task_data}"
                 )
                 if task_id:
-                    await self._publish_error_result(task_id, "Invalid task data")
+                    await self._publish_error_result(
+                        task_id, "Invalid task data"
+                    )
                 return
 
-            logger.info(f"Processing task {task_id} for model '{model_identifier}'")
+            logger.info(
+                f"Processing task {task_id} for model '{model_identifier}'"
+            )
 
             available_instances = await self._find_available_instances(
                 model_identifier
@@ -173,25 +176,30 @@ class Dispatcher:
                     f"Failed to forward task {task_id} to worker {target_worker['node_id']} after retries: {e}. Requeuing."
                 )
                 await self.store.enqueue_task(model_name, backend, task_data)
-                
+
         except Exception as e:
-            logger.error(f"Critical error processing task {task_id}: {e}", exc_info=True)
+            logger.error(
+                f"Critical error processing task {task_id}: {e}", exc_info=True
+            )
             if task_id:
-                await self._publish_error_result(task_id, f"Internal error: {str(e)}")
-    
-    async def _publish_error_result(self, task_id: str, error_message: str) -> None:
+                await self._publish_error_result(
+                    task_id, f"Internal error: {str(e)}"
+                )
+
+    async def _publish_error_result(
+        self, task_id: str, error_message: str
+    ) -> None:
         """Publish an error result to notify listeners of task failure."""
         error_response = {
-            "error": {
-                "message": error_message,
-                "type": "internal_error"
-            }
+            "error": {"message": error_message, "type": "internal_error"}
         }
         try:
             await self.store.publish_result(task_id, error_response)
             logger.info(f"Published error result for task {task_id}")
         except Exception as e:
-            logger.error(f"Failed to publish error result for task {task_id}: {e}")
+            logger.error(
+                f"Failed to publish error result for task {task_id}: {e}"
+            )
 
     async def _select_instance_round_robin(
         self, model_identifier: str, instances: List[Dict]
