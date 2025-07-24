@@ -12,6 +12,12 @@ set(TEST_SOURCES test_load_to_host.cpp test_pinned_memory.cpp)
 # Create an executable for the tests
 add_executable(runTests ${TEST_SOURCES})
 
+# Add include directories for the headers
+target_include_directories(runTests PRIVATE
+    ${CMAKE_SOURCE_DIR}/csrc/sllm_store
+    ${CMAKE_SOURCE_DIR}/csrc/checkpoint
+)
+
 # set CUDA or HIP
 find_package(CUDAToolkit QUIET)
 find_package(HIP QUIET)
@@ -26,7 +32,7 @@ else()
 endif()
 
 # Link the test executable with GTest and the main project
-target_link_libraries(runTests GTest::gtest_main sllm_store)
+target_link_libraries(runTests GTest::gtest_main sllm_store_static)
 
 # Register the test
 add_test(NAME runTests COMMAND runTests)
