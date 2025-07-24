@@ -764,257 +764,6 @@ def generate_name():
 
 
 # =============================================================================
-# Response Formatting Utilities
-# =============================================================================
-
-
-def success_response(
-    message: str, data: Optional[Any] = None, status: str = "ok"
-) -> Dict[str, Any]:
-    """
-    Create a standardized success response.
-
-    Args:
-        message: Success message
-        data: Optional response data
-        status: Status string (default: "ok")
-
-    Returns:
-        Standardized success response dictionary
-    """
-    response = {
-        "status": status,
-        "message": message,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-
-    if data is not None:
-        response["data"] = data
-
-    return response
-
-
-def operation_response(
-    operation: str,
-    resource: str,
-    resource_id: Optional[str] = None,
-    data: Optional[Any] = None,
-) -> Dict[str, Any]:
-    """
-    Create a standardized operation response.
-
-    Args:
-        operation: The operation performed (e.g., "created", "updated", "deleted")
-        resource: The resource type (e.g., "model", "worker", "task")
-        resource_id: Optional resource identifier
-        data: Optional response data
-
-    Returns:
-        Standardized operation response dictionary
-    """
-    message = f"{resource.title()} {operation} successfully"
-    if resource_id:
-        message += f": {resource_id}"
-
-    return success_response(message=message, data=data)
-
-
-def task_response(task_id: str, data: Optional[Any] = None) -> Dict[str, Any]:
-    """
-    Create a standardized task response.
-
-    Args:
-        task_id: The task identifier
-        data: Optional task result data
-
-    Returns:
-        Standardized task response dictionary
-    """
-    return success_response(
-        message=f"Task {task_id} completed successfully",
-        data={"task_id": task_id, "result": data},
-    )
-
-
-def list_response(
-    items: list, resource_type: str, total_count: Optional[int] = None
-) -> Dict[str, Any]:
-    """
-    Create a standardized list response.
-
-    Args:
-        items: List of items
-        resource_type: Type of resources being listed
-        total_count: Optional total count (if different from len(items))
-
-    Returns:
-        Standardized list response dictionary
-    """
-    count = total_count if total_count is not None else len(items)
-
-    return success_response(
-        message=f"Retrieved {count} {resource_type}(s)",
-        data={"items": items, "count": count},
-    )
-
-
-def health_response(
-    services: Optional[Dict[str, str]] = None,
-) -> Dict[str, Any]:
-    """
-    Create a standardized health check response.
-
-    Args:
-        services: Optional dict of service name -> status
-
-    Returns:
-        Standardized health response dictionary
-    """
-    data = {"healthy": True}
-    if services:
-        data["services"] = services
-
-    return success_response(message="Service is healthy", data=data)
-
-
-# =============================================================================
-# Exception Hierarchy
-# =============================================================================
-
-
-class ServerlessLLMError(Exception):
-    """Base exception for all ServerlessLLM errors."""
-
-    def __init__(
-        self,
-        message: str,
-        error_code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(message)
-        self.message = message
-        self.error_code = error_code or self.__class__.__name__
-        self.details = details or {}
-
-
-class ValidationError(ServerlessLLMError):
-    """Raised when input validation fails."""
-
-    pass
-
-
-class ResourceNotFoundError(ServerlessLLMError):
-    """Raised when a requested resource cannot be found."""
-
-    pass
-
-
-class ResourceConflictError(ServerlessLLMError):
-    """Raised when a resource operation conflicts with current state."""
-
-    pass
-
-
-class InternalServerError(ServerlessLLMError):
-    """Raised for internal server errors."""
-
-    pass
-
-
-class WorkerError(ServerlessLLMError):
-    """Raised for worker-related errors."""
-
-    pass
-
-
-class ModelError(ServerlessLLMError):
-    """Raised for model-related errors."""
-
-    pass
-
-
-class TaskError(ServerlessLLMError):
-    """Raised for task processing errors."""
-
-    pass
-
-
-class RedisError(ServerlessLLMError):
-    """Raised for Redis connection/operation errors."""
-
-    pass
-
-
-class TimeoutError(ServerlessLLMError):
-    """Raised when an operation times out."""
-
-    pass
-
-
-class HTTPRetryError(Exception):
-    """Raised when HTTP request fails after all retries."""
-
-    pass
-
-
-def standardize_error_response(error: Exception) -> Dict[str, Any]:
-    """
-    Convert any exception to a standardized error response format.
-
-    Args:
-        error: The exception to convert
-
-    Returns:
-        Standardized error response dictionary
-    """
-    if isinstance(error, ServerlessLLMError):
-        return {
-            "error": {
-                "code": error.error_code,
-                "message": error.message,
-                "details": error.details,
-            }
-        }
-    else:
-        # Handle non-ServerlessLLM exceptions
-        return {
-            "error": {
-                "code": "InternalError",
-                "message": str(error),
-                "details": {},
-            }
-        }
-
-
-def map_to_http_status(error: Exception) -> int:
-    """
-    Map exception types to appropriate HTTP status codes.
-
-    Args:
-        error: The exception to map
-
-    Returns:
-        HTTP status code
-    """
-    if isinstance(error, ValidationError):
-        return 400
-    elif isinstance(error, ResourceNotFoundError):
-        return 404
-    elif isinstance(error, ResourceConflictError):
-        return 409
-    elif isinstance(error, TimeoutError):
-        return 408
-    elif isinstance(error, (WorkerError, ModelError, TaskError)):
-        return 503  # Service Unavailable
-    elif isinstance(error, RedisError):
-        return 503  # Service Unavailable
-    elif isinstance(error, InternalServerError):
-        return 500
-    else:
-        return 500  # Default to internal server error
-
-
-# =============================================================================
 # HTTP Utilities
 # =============================================================================
 
@@ -1046,7 +795,7 @@ async def http_request_with_retry(
         aiohttp.ClientResponse object
 
     Raises:
-        HTTPRetryError: If all retries are exhausted
+        Exception: If all retries are exhausted
     """
     last_exception = None
 
@@ -1082,7 +831,7 @@ async def http_request_with_retry(
             )
             await asyncio.sleep(delay)
 
-    raise HTTPRetryError(
+    raise Exception(
         f"HTTP request to {url} failed after {max_retries + 1} attempts: {last_exception}"
     )
 
@@ -1110,7 +859,7 @@ async def post_json_with_retry(
         Parsed JSON response as dict
 
     Raises:
-        HTTPRetryError: If all retries are exhausted
+        Exception: If all retries are exhausted
         ValueError: If response is not valid JSON
     """
     kwargs.setdefault("json", payload)
@@ -1151,7 +900,7 @@ async def get_with_retry(
         aiohttp.ClientResponse object
 
     Raises:
-        HTTPRetryError: If all retries are exhausted
+        Exception: If all retries are exhausted
     """
     return await http_request_with_retry(
         session=session,

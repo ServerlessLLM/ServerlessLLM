@@ -18,15 +18,6 @@
 
 from fastapi import FastAPI, HTTPException, Request
 
-from sllm.serve.utils import (
-    health_response,
-    list_response,
-    map_to_http_status,
-    operation_response,
-    standardize_error_response,
-    success_response,
-    task_response,
-)
 from sllm.serve.worker.instance_manager import InstanceManager
 
 
@@ -49,9 +40,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
             # Store the assigned node_id
             app.state.node_id = node_id
 
-            return operation_response(
-                operation="confirmed", resource="node", resource_id=node_id
-            )
+            return {"message": f"Node {node_id} confirmed successfully"}
 
         except Exception as e:
             raise HTTPException(
@@ -76,11 +65,9 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
             raise HTTPException(
                 status_code=500, detail="Failed to start model instance"
             )
-        return operation_response(
-            operation="started",
-            resource="instance",
-            resource_id=started_instance_id,
-        )
+        return {
+            "message": f"Instance {started_instance_id} started successfully"
+        }
 
     @app.post("/stop_instance")
     async def stop_instance_api(request: Request):
@@ -94,9 +81,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
             raise HTTPException(
                 status_code=500, detail="Failed to stop model instance"
             )
-        return operation_response(
-            operation="stopped", resource="instance", resource_id=instance_id
-        )
+        return {"message": f"Instance {instance_id} stopped successfully"}
 
     @app.post("/invoke")
     async def invoke_handler(request: Request):

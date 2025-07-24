@@ -11,16 +11,6 @@ from sllm.serve.dispatcher import Dispatcher
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
 from sllm.serve.model_manager import ModelManager
-from sllm.serve.utils import *
-from sllm.serve.utils import (
-    health_response,
-    list_response,
-    map_to_http_status,
-    operation_response,
-    standardize_error_response,
-    success_response,
-    task_response,
-)
 from sllm.serve.worker_manager import WorkerManager
 
 INFERENCE_REQUEST_TIMEOUT = 120
@@ -47,14 +37,13 @@ def create_app(
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         logger.error(f"Unhandled exception: {exc}", exc_info=True)
-        status_code = map_to_http_status(exc)
         return JSONResponse(
-            status_code=status_code, content=standardize_error_response(exc)
+            status_code=500, content={"error": {"message": str(exc)}}
         )
 
     @app.get("/health")
     async def health_check():
-        return health_response()
+        return {"status": "ok"}
 
     @app.post("/register")
     async def register_handler(request: Request):
@@ -72,11 +61,9 @@ def create_app(
 
         try:
             await request.app.state.model_manager.register_model(body)
-            return operation_response(
-                operation="registered",
-                resource="model",
-                resource_id=body.get("model_name"),
-            )
+            return {
+                "message": f"Model {body.get('model_name')} registered successfully"
+            }
         except (ValueError, KeyError) as e:
             raise HTTPException(
                 status_code=400,
@@ -84,7 +71,7 @@ def create_app(
             )
         except Exception as e:
             logger.error(f"Cannot register model: {e}", exc_info=True)
-            raise InternalServerError("Model registration failed")
+            raise RuntimeError("Model registration failed")
 
     @app.post("/update")
     async def update_handler(request: Request):

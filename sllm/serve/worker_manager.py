@@ -27,7 +27,7 @@ import aiohttp
 
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
-from sllm.serve.utils import HTTPRetryError, generate_name, post_json_with_retry
+from sllm.serve.utils import generate_name, post_json_with_retry
 
 logger = init_logger(__name__)
 
@@ -266,7 +266,7 @@ class WorkerManager:
                 f"Successfully sent start instance command to {worker['node_id']}."
             )
             return True
-        except HTTPRetryError as e:
+        except Exception as e:
             logger.error(
                 f"HTTP request to start instance on {worker['node_id']} failed: {e}"
             )
@@ -296,7 +296,7 @@ class WorkerManager:
                 f"Successfully sent stop command for {instance_id} to {worker['node_id']}."
             )
             return True
-        except HTTPRetryError as e:
+        except Exception as e:
             logger.error(
                 f"HTTP request to stop instance on {worker['node_id']} failed: {e}"
             )
@@ -412,14 +412,13 @@ class WorkerManager:
             )
 
             if not success:
-                hardware_info_obj = HardwareInfo.model_validate(hardware_info)
-                new_worker = Worker(
-                    node_id=node_id,
-                    node_ip=node_ip,
-                    hardware_info=hardware_info_obj,
-                    instances_on_device=instances_on_device,
-                    last_heartbeat_time=datetime.now(timezone.utc),
-                )
+                new_worker = {
+                    "node_id": node_id,
+                    "node_ip": node_ip,
+                    "hardware_info": hardware_info,
+                    "instances_on_device": instances_on_device,
+                    "last_heartbeat_time": datetime.now(timezone.utc),
+                }
 
                 ip_to_node_key = f"ip_to_node:{node_ip}"
                 (
@@ -665,7 +664,7 @@ class WorkerManager:
             logger.info(
                 f"Successfully sent confirmation to worker at {worker_ip}:{worker_port}"
             )
-        except HTTPRetryError as e:
+        except Exception as e:
             logger.error(
                 f"Failed to send confirmation to worker at {worker_ip}:{worker_port}: {e}"
             )
@@ -888,7 +887,7 @@ class WorkerManager:
                     logger.info(
                         f"Reinstantiated instance {instance_id} for model {model_identifier} on worker {node_id}"
                     )
-                except HTTPRetryError as instance_error:
+                except Exception as instance_error:
                     logger.error(
                         f"Error reinstantiating instance {instance_id} on worker {node_id}: {instance_error}"
                     )

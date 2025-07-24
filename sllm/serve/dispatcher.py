@@ -24,17 +24,7 @@ import aiohttp
 
 from sllm.serve.kv_store import RedisStore
 from sllm.serve.logger import init_logger
-from sllm.serve.utils import (
-    HTTPRetryError,
-    health_response,
-    list_response,
-    map_to_http_status,
-    operation_response,
-    post_json_with_retry,
-    standardize_error_response,
-    success_response,
-    task_response,
-)
+from sllm.serve.utils import post_json_with_retry
 
 logger = init_logger(__name__)
 
@@ -171,7 +161,7 @@ class Dispatcher:
             logger.info(
                 f"Successfully processed and published result for task {task_id}"
             )
-        except HTTPRetryError as e:
+        except Exception as e:
             logger.error(
                 f"Failed to forward task {task_id} to worker {target_worker['node_id']} after retries: {e}. Requeuing."
             )
@@ -186,7 +176,7 @@ class Dispatcher:
                 f"An unexpected error occurred while processing task {task_id}: {e}",
                 exc_info=True,
             )
-            error_response = standardize_error_response(e)
+            error_response = {"error": {"message": str(e)}}
             await self.store.publish_result(task_id, error_response)
 
     async def _select_instance_round_robin(
@@ -267,7 +257,7 @@ class Dispatcher:
                 timeout=self.forward_timeout,
             )
             return response
-        except HTTPRetryError as e:
+        except Exception as e:
             raise aiohttp.ClientConnectionError(
                 f"Failed to forward to worker {worker['node_id']} after retries: {e}"
             )
