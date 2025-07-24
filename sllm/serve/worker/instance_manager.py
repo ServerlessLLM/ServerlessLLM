@@ -46,7 +46,7 @@ class InstanceManager:
         self, model_config: Dict[str, Any]
     ) -> None:
         """Ensure the model is downloaded before starting the backend."""
-        model_name = model_config["model"]
+        model = model_config["model"]
         backend = model_config["backend"]
         backend_config = model_config.get("backend_config", {})
 
@@ -57,14 +57,14 @@ class InstanceManager:
             )
 
         if backend == "vllm":
-            model_path = os.path.join(storage_path, "vllm", model_name)
+            model_path = os.path.join(storage_path, "vllm", model)
             if not os.path.exists(model_path):
-                logger.info(f"Downloading VLLM model {model_name}")
+                logger.info(f"Downloading VLLM model {model}")
                 downloader = VllmModelDownloader()
 
                 # Extract download parameters from config
                 pretrained_model_name_or_path = backend_config.get(
-                    "pretrained_model_name_or_path", model_name
+                    "pretrained_model_name_or_path", model
                 )
                 torch_dtype = backend_config.get("torch_dtype", "float16")
                 tensor_parallel_size = backend_config.get(
@@ -74,8 +74,8 @@ class InstanceManager:
                 max_size = backend_config.get("max_size", None)
 
                 await downloader.download_vllm_model(
-                    model_name=model_name,
-                    pretrained_model_name_or_path=pretrained_model_name_or_path,
+                    model=model,
+                    pretrained_model_name_or_path=pretrained_model_or_path,
                     torch_dtype=torch_dtype,
                     tensor_parallel_size=tensor_parallel_size,
                     pattern=pattern,
@@ -83,13 +83,13 @@ class InstanceManager:
                 )
 
         elif backend == "transformers":
-            model_path = os.path.join(storage_path, "transformers", model_name)
+            model_path = os.path.join(storage_path, "transformers", model)
             if not os.path.exists(model_path):
-                logger.info(f"Downloading Transformers model {model_name}")
+                logger.info(f"Downloading Transformers model {model}")
 
                 # Extract download parameters from config
                 pretrained_model_name_or_path = backend_config.get(
-                    "pretrained_model_name_or_path", model_name
+                    "pretrained_model_name_or_path", model
                 )
                 torch_dtype = backend_config.get("torch_dtype", "float16")
                 hf_model_class = backend_config.get(
@@ -97,8 +97,8 @@ class InstanceManager:
                 )
 
                 await download_transformers_model(
-                    model_name=model_name,
-                    pretrained_model_name_or_path=pretrained_model_name_or_path,
+                    model=model,
+                    pretrained_model_name_or_path=pretrained_model_or_path,
                     torch_dtype=torch_dtype,
                     hf_model_class=hf_model_class,
                 )
@@ -112,7 +112,7 @@ class InstanceManager:
                         "adapter_name", adapter_name_or_path
                     )
                     await download_lora_adapter(
-                        base_model_name=model_name,
+                        base_model=model,
                         adapter_name=adapter_name,
                         adapter_name_or_path=adapter_name_or_path,
                         hf_model_class=hf_model_class,
@@ -131,7 +131,7 @@ class InstanceManager:
         self, model_config: Dict[str, Any], instance_id: Optional[str] = None
     ) -> str:
         model_identifier = (
-            f"{model_config['model_name']}:{model_config['backend']}"
+            f"{model_config['model']}:{model_config['backend']}"
         )
 
         # Use provided instance_id or generate new one
@@ -328,6 +328,6 @@ class InstanceManager:
             info = {}
         return info
 
-    def _generate_instance_id(self, model_name: str, backend: str) -> str:
+    def _generate_instance_id(self, model: str, backend: str) -> str:
         unique_part = uuid.uuid4().hex[:8]
-        return f"{model_name}-{backend}-{unique_part}"
+        return f"{model}-{backend}-{unique_part}"
