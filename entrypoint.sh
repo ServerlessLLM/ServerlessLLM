@@ -82,7 +82,7 @@ initialize_worker_node() {
   # Parse sllm-store specific arguments
   STORE_ARGS=()
   WORKER_ARGS=()
-  
+
   while [[ $# -gt 0 ]]; do
     case $1 in
       --mem-pool-size|--registration-required)

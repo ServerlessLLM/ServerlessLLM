@@ -20,7 +20,7 @@
 ARG CUDA_VERSION=12.1.1
 #################### BASE BUILD IMAGE ####################
 # prepare basic build environment
-FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu20.04 AS builder
 ARG CUDA_VERSION=12.1.1
 ARG PYTHON_VERSION=3.10
 ARG TARGETPLATFORM
@@ -70,22 +70,17 @@ COPY sllm/cli /app/sllm/cli
 COPY README.md /app/
 RUN python3 setup.py bdist_wheel
 
-#################### RUNTIME IMAGE ####################
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
 # Set environment for HTTP-based architecture
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    # Default values for HTTP architecture
     STORAGE_PATH=/models \
-    LOG_LEVEL=INFO \
-    # Head node defaults
     HEAD_HOST=0.0.0.0 \
     HEAD_PORT=8343\
     REDIS_HOST=redis \
     REDIS_PORT=6379\
-    # Worker node defaults
     WORKER_HOST=0.0.0.0 \
     WORKER_PORT=8001
 
