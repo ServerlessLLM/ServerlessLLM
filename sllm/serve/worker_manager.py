@@ -15,7 +15,7 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-import aiohttP
+import aiohttp
 import asyncio
 import json
 import random
