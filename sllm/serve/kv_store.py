@@ -441,14 +441,6 @@ class RedisStore:
         redis_hash["instances_on_device"] = json.loads(
             redis_hash["instances_on_device"]
         )
-        if "last_heartbeat_time" in redis_hash:
-            redis_hash["last_heartbeat_time"] = datetime.fromisoformat(
-                redis_hash["last_heartbeat_time"]
-            )
-        elif "last_heartbeat_ts" in redis_hash:
-            redis_hash["last_heartbeat_time"] = datetime.fromtimestamp(
-                float(redis_hash["last_heartbeat_ts"]), tz=timezone.utc
-            )
         return redis_hash
 
     async def register_worker(self, worker: dict) -> None:

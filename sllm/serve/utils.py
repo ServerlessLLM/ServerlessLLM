@@ -864,19 +864,34 @@ async def post_json_with_retry(
     """
     kwargs.setdefault("json", payload)
 
-    response = await http_request_with_retry(
-        session=session,
-        method="POST",
-        url=url,
-        max_retries=max_retries,
-        timeout=timeout,
-        **kwargs,
-    )
+    last_exception = None
 
-    try:
-        return await response.json()
-    except Exception as e:
-        raise ValueError(f"Failed to parse JSON response from {url}: {e}")
+    for attempt in range(max_retries + 1):
+        try:
+            timeout_obj = aiohttp.ClientTimeout(total=timeout)
+            kwargs.setdefault("timeout", timeout_obj)
+            kwargs.setdefault("json", payload)
+
+            async with session.request("POST", url, **kwargs) as response:
+                if response.status >= 500:
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=f"Server error: {response.status}",
+                    )
+                return await response.json()
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            last_exception = e
+
+            if attempt == max_retries:
+                break
+
+            delay = min(1.0 * (2**attempt), 10.0)
+            await asyncio.sleep(delay)
+
+    raise Exception(f"HTTP request to {url} failed after {max_retries + 1} attempts: {last_exception}")
 
 
 async def get_with_retry(
