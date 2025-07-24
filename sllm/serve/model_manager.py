@@ -99,7 +99,7 @@ class ModelManager:
         model_key = self._get_model_key(model_name, backend)
         if await self.store.client.exists(model_key):
             raise ValueError(
-                f"Model '{model.model_name}:{model.backend}' is already registered."
+                f"Model '{model_name}:{backend}' is already registered."
             )
 
         logger.info(f"Registering model '{model_name}:{backend}'")

@@ -171,13 +171,33 @@ def create_app(
                 detail="Request body must include a 'model' field",
             )
 
-        if ":" not in model_identifier:
-            raise HTTPException(
-                status_code=400,
-                detail="Model identifier must be in format 'model:backend'",
-            )
-
-        model, backend = model_identifier.split(":", 1)
+        explicit_backend = body.get("backend")
+        
+        if ":" in model_identifier:
+            model, backend = model_identifier.split(":", 1)
+            if explicit_backend and explicit_backend != backend:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Backend mismatch: model specifies '{backend}' but request body specifies '{explicit_backend}'"
+                )
+        else:
+            model = model_identifier
+            backend = explicit_backend
+            
+            if not backend:
+                all_models = await request.app.state.model_manager.get_all_models()
+                available_backends = [
+                    m.get("backend") for m in all_models 
+                    if m.get("model_name") == model and m.get("status") != "excommunicado"
+                ]
+                
+                if not available_backends:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No available backends found for model '{model}'"
+                    )
+                
+                backend = available_backends[0]
 
         if not await request.app.state.model_manager.get_model(
             model, backend
