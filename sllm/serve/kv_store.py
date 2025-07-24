@@ -934,7 +934,12 @@ class RedisStore:
         worker_key = self._get_worker_key(node_id)
         workers_index = self._get_workers_index_key()
         
-        heartbeat_data_copy = heartbeat_data.copy()
+        heartbeat_data_copy = {}
+        for key, value in heartbeat_data.items():
+            if isinstance(value, (dict, list)):
+                heartbeat_data_copy[key] = json.dumps(value)
+            else:
+                heartbeat_data_copy[key] = value
         heartbeat_data_copy["last_heartbeat_time"] = datetime.now(timezone.utc).isoformat()
         heartbeat_json = json.dumps(heartbeat_data_copy)
 
