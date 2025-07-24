@@ -61,7 +61,7 @@ class AutoScaler:
     async def _calculate_and_set_decision(
         self, model_data: Dict[str, Any]
     ) -> None:
-        model_name = model_data["model_name"]
+        model_name = model_data["model"]
         backend = model_data["backend"]
         model_identifier = f"{model_name}:{backend}"
         decision_key = f"scaling_decision:{model_name}:{backend}"

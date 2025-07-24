@@ -314,12 +314,12 @@ class RedisStore:
         return redis_hash
 
     async def register_model(self, model: dict) -> None:
-        model_name = model.get("model_name") or model.get("model")
+        model_name = model.get("model")
         if not model_name:
-            raise ValueError("Model configuration must include 'model_name' or 'model' key")
+            raise ValueError("Model configuration must include 'model' key")
         key = self._get_model_key(model_name, model["backend"])
         model_dict = model.copy()
-        model_dict["model_name"] = model_name
+        model_dict["model"] = model_name
 
         if "backend_config" in model:
             model_dict["backend_config"] = json.dumps(model["backend_config"])
@@ -768,7 +768,7 @@ class RedisStore:
             async with self.client.pipeline() as pipe:
                 for model in all_models:
                     queue_key = self._get_task_queue_key(
-                        model["model_name"], model["backend"]
+                        model.get("model"), model["backend"]
                     )
                     pipe.llen(queue_key)
 

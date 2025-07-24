@@ -46,7 +46,7 @@ class InstanceManager:
         self, model_config: Dict[str, Any]
     ) -> None:
         """Ensure the model is downloaded before starting the backend."""
-        model_name = model_config["model_name"]
+        model_name = model_config["model"]
         backend = model_config["backend"]
         backend_config = model_config.get("backend_config", {})
 
@@ -137,7 +137,7 @@ class InstanceManager:
         # Use provided instance_id or generate new one
         if instance_id is None:
             instance_id = self._generate_instance_id(
-                model_config["model_name"], model_config["backend"]
+                model_config["model"], model_config["backend"]
             )
 
         logger.info(
@@ -173,7 +173,7 @@ class InstanceManager:
         backend_instance = None
         try:
             backend_instance = model_backend_cls(
-                model_config["model_name"], backend_config
+                model_config["model"], backend_config
             )
 
             # Initialize the backend

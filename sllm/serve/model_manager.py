@@ -89,7 +89,7 @@ class ModelManager:
                     await asyncio.sleep(5)
 
     async def register(self, model_config: ModelConfig) -> None:
-        model_name = model_config.get("model_name") or model_config.get("model")
+        model_name = model_config.get("model")
         backend = model_config.get("backend", None)
         if not model_name or not backend:
             raise ValueError(
@@ -326,7 +326,7 @@ class ModelManager:
         backends = [
             model["backend"]
             for model in all_models
-            if model["model_name"] == model_name
+            if model.get("model") == model_name
         ]
         return backends
 
@@ -335,7 +335,7 @@ class ModelManager:
         model_list = []
 
         for model_config in models:
-            model_name = model_config.get("model_name")
+            model_name = model_config.get("model")
             backend = model_config.get("backend")
 
             if not model_name or not backend:

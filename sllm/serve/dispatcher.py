@@ -94,7 +94,7 @@ class Dispatcher:
                     continue
 
                 queue_keys = [
-                    f"queue:{m['model_name']}:{m['backend']}"
+                    f"queue:{m['model']}:{m['backend']}"
                     for m in all_models
                 ]
                 logger.debug(f"Listening on queues: {queue_keys}")
