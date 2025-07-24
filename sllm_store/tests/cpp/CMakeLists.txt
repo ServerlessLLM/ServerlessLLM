@@ -26,7 +26,7 @@ else()
 endif()
 
 # Link the test executable with GTest and the main project
-target_link_libraries(runTests GTest::gtest_main sllm_store)
+target_link_libraries(runTests GTest::gtest_main sllm_store_static)
 
 # Register the test
 add_test(NAME runTests COMMAND runTests)

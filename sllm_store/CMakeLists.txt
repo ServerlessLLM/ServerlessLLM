@@ -206,5 +206,33 @@ define_gpu_extension_target(
 if(BUILD_SLLM_TESTS)
     enable_testing()
 
+    # Create a static library for testing (without Python bindings)
+    add_library(sllm_store_static STATIC
+        ${CHECKPOINT_STORE_CXX_SOURCES}
+        "csrc/sllm_store/checkpoint_store.cpp"
+        "csrc/sllm_store/cuda_memory.cpp"
+        "csrc/sllm_store/cuda_memory_pool.cpp"
+        "csrc/sllm_store/gpu_replica.cpp"
+        "csrc/sllm_store/model.cpp"
+        "csrc/sllm_store/pinned_memory_pool.cpp"
+    )
+
+    target_include_directories(sllm_store_static PUBLIC
+        ${CMAKE_SOURCE_DIR}/csrc/sllm_store
+        ${CMAKE_SOURCE_DIR}/csrc/checkpoint
+    )
+
+    target_link_libraries(sllm_store_static
+        ${CHECKPOINT_STORE_LIBRARIES}
+        ${TORCH_LIBRARIES}
+    )
+
+    # Set target properties for CUDA if available
+    if (CUDAToolkit_FOUND)
+        set_target_properties(sllm_store_static PROPERTIES
+            CUDA_SEPARABLE_COMPILATION ON
+        )
+    endif()
+
     add_subdirectory(tests/cpp)
 endif()
