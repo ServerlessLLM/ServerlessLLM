@@ -120,64 +120,75 @@ class Dispatcher:
         self, queue_name: str, task_data: Dict[str, Any]
     ) -> None:
         task_id = task_data.get("task_id")
-        payload = task_data.get("payload")
-        model_identifier = queue_name.replace("queue:", "", 1)
-        model_name, backend = model_identifier.split(":", 1)
-
-        if not all([task_id, payload, model_identifier]):
-            logger.error(
-                f"Invalid task received from queue '{queue_name}': {task_data}"
-            )
-            return
-
-        logger.info(f"Processing task {task_id} for model '{model_identifier}'")
-
-        available_instances = await self._find_available_instances(
-            model_identifier
-        )
-
-        if not available_instances:
-            logger.warning(
-                f"No available workers for '{model_identifier}'. Requeuing task {task_id} to the front."
-            )
-            await self.store.enqueue_task(model_name, backend, task_data)
-            return
-
-        target = await self._select_instance_round_robin(
-            model_identifier, available_instances
-        )
-        target_worker = target["worker"]
-        target_instance_id = target["instance_id"]
-
-        logger.info(
-            f"Dispatching task {task_id} to instance {target_instance_id} on worker {target_worker['node_id']}"
-        )
-
+        
         try:
-            worker_response = await self._forward_to_worker(
-                target_worker, target_instance_id, payload
+            payload = task_data.get("payload")
+            model_identifier = queue_name.replace("queue:", "", 1)
+            model_name, backend = model_identifier.split(":", 1)
+
+            if not all([task_id, payload, model_identifier]):
+                logger.error(
+                    f"Invalid task received from queue '{queue_name}': {task_data}"
+                )
+                if task_id:
+                    await self._publish_error_result(task_id, "Invalid task data")
+                return
+
+            logger.info(f"Processing task {task_id} for model '{model_identifier}'")
+
+            available_instances = await self._find_available_instances(
+                model_identifier
             )
-            await self.store.publish_result(task_id, worker_response)
+
+            if not available_instances:
+                logger.warning(
+                    f"No available workers for '{model_identifier}'. Requeuing task {task_id} to the front."
+                )
+                await self.store.enqueue_task(model_name, backend, task_data)
+                return
+
+            target = await self._select_instance_round_robin(
+                model_identifier, available_instances
+            )
+            target_worker = target["worker"]
+            target_instance_id = target["instance_id"]
+
             logger.info(
-                f"Successfully processed and published result for task {task_id}"
+                f"Dispatching task {task_id} to instance {target_instance_id} on worker {target_worker['node_id']}"
             )
+
+            try:
+                worker_response = await self._forward_to_worker(
+                    target_worker, target_instance_id, payload
+                )
+                await self.store.publish_result(task_id, worker_response)
+                logger.info(
+                    f"Successfully processed and published result for task {task_id}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to forward task {task_id} to worker {target_worker['node_id']} after retries: {e}. Requeuing."
+                )
+                await self.store.enqueue_task(model_name, backend, task_data)
+                
         except Exception as e:
-            logger.error(
-                f"Failed to forward task {task_id} to worker {target_worker['node_id']} after retries: {e}. Requeuing."
-            )
-            await self.store.enqueue_task(model_name, backend, task_data)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            logger.error(
-                f"Failed to forward task {task_id} to worker {target_worker['node_id']}: {e}. Requeuing."
-            )
-            await self.store.enqueue_task(model_name, backend, task_data)
-        except Exception as e:
-            logger.error(
-                f"An unexpected error occurred while processing task {task_id}: {e}",
-                exc_info=True,
-            )
-            error_response = {"error": {"message": str(e)}}
+            logger.error(f"Critical error processing task {task_id}: {e}", exc_info=True)
+            if task_id:
+                await self._publish_error_result(task_id, f"Internal error: {str(e)}")
+    
+    async def _publish_error_result(self, task_id: str, error_message: str) -> None:
+        """Publish an error result to notify listeners of task failure."""
+        error_response = {
+            "error": {
+                "message": error_message,
+                "type": "internal_error"
+            }
+        }
+        try:
             await self.store.publish_result(task_id, error_response)
+            logger.info(f"Published error result for task {task_id}")
+        except Exception as e:
+            logger.error(f"Failed to publish error result for task {task_id}: {e}")
 
     async def _select_instance_round_robin(
         self, model_identifier: str, instances: List[Dict]

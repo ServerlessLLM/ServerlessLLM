@@ -314,8 +314,12 @@ class RedisStore:
         return redis_hash
 
     async def register_model(self, model: dict) -> None:
-        key = self._get_model_key(model["model_name"], model["backend"])
+        model_name = model.get("model_name") or model.get("model")
+        if not model_name:
+            raise ValueError("Model configuration must include 'model_name' or 'model' key")
+        key = self._get_model_key(model_name, model["backend"])
         model_dict = model.copy()
+        model_dict["model_name"] = model_name
 
         if "backend_config" in model:
             model_dict["backend_config"] = json.dumps(model["backend_config"])
@@ -633,7 +637,7 @@ class RedisStore:
             self.client.brpop, queue_keys, timeout
         )
         if result:
-            queue_name = result[0]
+            queue_name = result[0].decode() if isinstance(result[0], bytes) else result[0]
             task_data = json.loads(result[1])
             return queue_name, task_data
         return None
