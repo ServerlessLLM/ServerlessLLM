@@ -54,15 +54,15 @@ def create_app(
                 status_code=400, detail=f"Invalid JSON payload: {str(e)}"
             )
 
-        if not body.get("model_name"):
+        if not body.get("model"):
             raise HTTPException(
-                status_code=400, detail="Missing required field: model_name"
+                status_code=400, detail="Missing required field: model"
             )
 
         try:
-            await request.app.state.model_manager.register_model(body)
+            await request.app.state.model_manager.register(body)
             return {
-                "message": f"Model {body.get('model_name')} registered successfully"
+                "message": f"Model {body.get('model')} registered successfully"
             }
         except (ValueError, KeyError) as e:
             raise HTTPException(
@@ -77,19 +77,19 @@ def create_app(
     async def update_handler(request: Request):
         try:
             body = await request.json()
-            model_name = body.get("model_name")
+            model = body.get("model")
             backend = body.get("backend")
 
-            if not all([model_name, backend]):
+            if not all([model, backend]):
                 raise HTTPException(
                     status_code=400,
-                    detail="Missing 'model_name' or 'backend' in request body.",
+                    detail="Missing 'model' or 'backend' in request body.",
                 )
 
             await request.app.state.model_manager.update_model(
-                model_name, backend, body
+                model, backend, body
             )
-            return {"status": f"updated model {model_name}:{backend}"}
+            return {"status": f"updated model {model}:{backend}"}
 
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
@@ -101,11 +101,11 @@ def create_app(
     async def delete_model_handler(request: Request):
         try:
             body = await request.json()
-            model_name = body.get("model_name")
-            if not model_name:
+            model = body.get("model")
+            if not model:
                 raise HTTPException(
                     status_code=400,
-                    detail="Missing 'model_name' in request body.",
+                    detail="Missing 'model' in request body.",
                 )
 
             backend = body.get("backend", None)
@@ -114,25 +114,25 @@ def create_app(
 
             if lora_adapters:
                 await model_manager.delete_model(
-                    model_name, "transformers", lora_adapters
+                    model, "transformers", lora_adapters
                 )
-                return {"status": f"deleted LoRA adapters from {model_name}"}
+                return {"status": f"deleted LoRA adapters from {model}"}
 
             elif backend:
-                await model_manager.delete_model(model_name, backend)
-                return {"status": f"deleted model {model_name}:{backend}"}
+                await model_manager.delete_model(model, backend)
+                return {"status": f"deleted model {model}:{backend}"}
 
             else:
-                await model_manager.delete_model(model_name, "all")
+                await model_manager.delete_model(model, "all")
                 return {
-                    "status": f"deleted all backends for model {model_name}"
+                    "status": f"deleted all backends for model {model}"
                 }
 
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
             logger.error(
-                f"Error during delete operation for '{model_name}': {e}",
+                f"Error during delete operation for '{model}': {e}",
                 exc_info=True,
             )
             raise HTTPException(
@@ -174,13 +174,13 @@ def create_app(
         if ":" not in model_identifier:
             raise HTTPException(
                 status_code=400,
-                detail="Model identifier must be in format 'model_name:backend'",
+                detail="Model identifier must be in format 'model:backend'",
             )
 
-        model_name, backend = model_identifier.split(":", 1)
+        model, backend = model_identifier.split(":", 1)
 
         if not await request.app.state.model_manager.get_model(
-            model_name, backend
+            model, backend
         ):
             raise HTTPException(
                 status_code=404,
@@ -219,7 +219,7 @@ def create_app(
             _result_listener(f"result-channel:{task_id}")
         )
 
-        await store.enqueue_task(model_name, backend, task_package)
+        await store.enqueue_task(model, backend, task_package)
 
         try:
             result = await asyncio.wait_for(

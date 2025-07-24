@@ -32,7 +32,7 @@ from sllm.serve.utils import generate_name, post_json_with_retry
 logger = init_logger(__name__)
 
 DEFAULT_WORKER_TIMEOUT = 60
-DEFAULT_PRUNE_INTERVAL = 15
+DEFAULT_PRUNE_INTERVAL = 120
 DEFAULT_SCALING_LOOP_INTERVAL = 5
 
 
