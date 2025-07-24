@@ -123,6 +123,9 @@ class Dispatcher:
         
         try:
             payload = task_data.get("payload")
+            # Handle case where queue_name might be bytes
+            if isinstance(queue_name, bytes):
+                queue_name = queue_name.decode()
             model_identifier = queue_name.replace("queue:", "", 1)
             model_name, backend = model_identifier.split(":", 1)
 
