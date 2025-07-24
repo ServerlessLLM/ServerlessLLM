@@ -1,4 +1,5 @@
 import asyncio
+import json
 import math
 import os
 from typing import Any, Dict
@@ -52,7 +53,7 @@ class AutoScaler:
 
         logger.info(f"Running scaling check for {len(all_models)} models.")
         tasks = [
-            self._calculate_and_set_decision(model.model_dump())
+            self._calculate_and_set_decision(model)
             for model in all_models
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -110,6 +111,11 @@ class AutoScaler:
         all_workers = await self.store.get_all_workers()
         count = 0
         for worker in all_workers:
-            instances_on_device = worker.instances_on_device
+            instances_on_device = worker.get("instances_on_device", {})
+            if isinstance(instances_on_device, str):
+                try:
+                    instances_on_device = json.loads(instances_on_device)
+                except (json.JSONDecodeError, TypeError):
+                    instances_on_device = {}
             count += len(instances_on_device.get(model_identifier, []))
         return count

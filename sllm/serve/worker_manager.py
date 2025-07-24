@@ -354,10 +354,11 @@ class WorkerManager:
                     ip_conflict_worker
                     and ip_conflict_worker["node_id"] != node_id
                 ):
-                    logger.warning(
-                        f"Registration rejected: Worker {node_id} trying to use IP {node_ip} already registered to worker {ip_conflict_worker['node_id']}"
+                    logger.info(
+                        f"IP {node_ip} registered to different worker {ip_conflict_worker['node_id']}, resetting worker and proceeding with {node_id}"
                     )
-                    return
+                    await self._cleanup_worker_from_all_sets(ip_conflict_worker["node_id"])
+                    await self.store.delete_worker(ip_conflict_worker["node_id"])
 
                 logger.info(
                     f"Worker {node_id} IP changed from {existing_ip} to {node_ip}"
@@ -429,10 +430,22 @@ class WorkerManager:
                 )
 
                 if not registration_success:
-                    logger.warning(
-                        f"Worker registration failed for {node_id}: IP {node_ip} already registered to {existing_node}"
+                    logger.info(
+                        f"IP {node_ip} registered to different worker {existing_node}, resetting worker and retrying registration for {node_id}"
                     )
-                    return
+                    await self._cleanup_worker_from_all_sets(existing_node)
+                    await self.store.delete_worker(existing_node)
+                    
+                    (
+                        retry_success,
+                        _,
+                    ) = await self.store.atomic_worker_registration(
+                        new_worker, ip_to_node_key
+                    )
+                    
+                    if not retry_success:
+                        logger.error(f"Failed to register worker {node_id} after cleaning up conflicting worker")
+                        return
 
                 logger.info(f"Successfully registered new worker {node_id}")
 
@@ -533,18 +546,22 @@ class WorkerManager:
                 last_heartbeat_str = worker.get("last_heartbeat_time")
                 if last_heartbeat_str:
                     try:
-                        last_heartbeat = datetime.fromisoformat(
-                            last_heartbeat_str
-                        ).timestamp()
+                        if isinstance(last_heartbeat_str, str):
+                            last_heartbeat = datetime.fromisoformat(
+                                last_heartbeat_str.replace('Z', '+00:00')
+                            ).timestamp()
+                        else:
+                            last_heartbeat = float(last_heartbeat_str)
                     except (ValueError, TypeError):
                         last_heartbeat = 0
                 else:
-                    last_heartbeat = worker.get("last_heartbeat_ts", 0)
-                if (current_time - float(last_heartbeat)) > self.worker_timeout:
+                    last_heartbeat = 0
+                
+                if (current_time - last_heartbeat) > self.worker_timeout:
                     node_id = worker["node_id"]
                     logger.warning(
                         f"Pruning stale worker {node_id}. Last heartbeat was "
-                        f"{current_time - float(last_heartbeat):.2f} seconds ago."
+                        f"{current_time - last_heartbeat:.2f} seconds ago."
                     )
 
                     await self._cleanup_worker_from_all_sets(node_id)
@@ -743,10 +760,12 @@ class WorkerManager:
                 existing_node_for_ip
                 and existing_node_for_ip.decode("utf-8") != node_id
             ):
-                logger.warning(
-                    f"Worker registration failed for {node_id}: IP {node_ip} already registered to {existing_node_for_ip.decode('utf-8')}"
+                conflicting_node_id = existing_node_for_ip.decode("utf-8")  
+                logger.info(
+                    f"IP {node_ip} registered to different worker {conflicting_node_id}, resetting worker and proceeding with {node_id}"
                 )
-                return
+                await self._cleanup_worker_from_all_sets(conflicting_node_id)
+                await self.store.delete_worker(conflicting_node_id)
 
             async with self.store.client.pipeline(transaction=True) as pipe:
                 pipe.hset(
