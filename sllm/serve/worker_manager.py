@@ -134,36 +134,21 @@ class WorkerManager:
         all_workers = await self.get_all_worker_info()
         model_identifier = f"{model_name}:{backend}"
         
-        # Debug logging to show all workers
-        logger.info(f"DEBUG: Found {len(all_workers)} total workers:")
-        for i, worker in enumerate(all_workers):
-            worker_id = worker.get("node_id", "unknown")
-            registered_models = worker.get("registered_models", [])
-            logger.info(f"DEBUG: Worker {i+1} - ID: {worker_id}, registered_models: {registered_models}")
-
-        eligible_workers = []
-        for worker in all_workers:
-            registered_models = worker.get("registered_models", [])
-            if model_identifier in registered_models:
-                eligible_workers.append(worker)
-
-        logger.info(f"DEBUG: Found {len(eligible_workers)} eligible workers for {model_identifier}")
-        
-        if not eligible_workers:
-            logger.warning(
-                f"No eligible workers available to scale up for {model_identifier}."
-            )
+        if not all_workers:
+            logger.warning(f"No workers available to scale up for {model_identifier}.")
             return
+            
+        logger.info(f"Found {len(all_workers)} workers available for scaling {model_identifier}")
 
         successful_starts = 0
         for i in range(count):
-            if not eligible_workers:
+            if not all_workers:
                 logger.warning(
-                    f"No more eligible workers available for {model_identifier}"
+                    f"No more workers available for {model_identifier}"
                 )
                 break
 
-            target_worker = random.choice(eligible_workers)
+            target_worker = random.choice(all_workers)
 
             logger.info(
                 f"Attempting to start instance on worker {target_worker['node_id']}"
@@ -180,7 +165,7 @@ class WorkerManager:
                 logger.error(
                     f"Failed to start instance on worker {target_worker['node_id']}. Removing from eligible list."
                 )
-                eligible_workers.remove(target_worker)
+                all_workers.remove(target_worker)
 
         logger.info(
             f"Successfully started {successful_starts}/{count} instances for {model_identifier}"
@@ -322,15 +307,13 @@ class WorkerManager:
 
         hardware_info = payload.get("hardware_info", {})
         instances_on_device = payload.get("instances_on_device", {})
-        registered_models = payload.get("registered_models", [])
 
         if not isinstance(instances_on_device, dict):
             logger.warning(f"Invalid instances_on_device format from {node_id}")
             instances_on_device = {}
 
-        if not isinstance(registered_models, list):
-            logger.warning(f"Invalid registered_models format from {node_id}")
-            registered_models = []
+        # Derive registered_models from instances_on_device keys
+        registered_models = list(instances_on_device.keys())
 
         if not node_id:
             existing_worker = await self._find_worker_by_ip(node_ip)
@@ -341,7 +324,6 @@ class WorkerManager:
                     existing_worker,
                     hardware_info,
                     instances_on_device,
-                    registered_models,
                 )
             else:
                 await self._register_worker(
@@ -349,7 +331,6 @@ class WorkerManager:
                     node_port,
                     hardware_info,
                     instances_on_device,
-                    registered_models,
                 )
             return
 
@@ -396,7 +377,6 @@ class WorkerManager:
                     existing_ip_worker,
                     hardware_info,
                     instances_on_device,
-                    registered_models,
                 )
                 return
             else:
@@ -406,7 +386,6 @@ class WorkerManager:
                     node_port,
                     hardware_info,
                     instances_on_device,
-                    registered_models,
                 )
                 return
 
@@ -414,7 +393,6 @@ class WorkerManager:
             heartbeat_data = {
                 "hardware_info": hardware_info,
                 "instances_on_device": instances_on_device,
-                "registered_models": registered_models,
             }
 
             success = await self.store.atomic_worker_heartbeat_update(
@@ -465,7 +443,6 @@ class WorkerManager:
                     mapping={
                         "hardware_info": json.dumps(hardware_info),
                         "instances_on_device": json.dumps(instances_on_device),
-                        "registered_models": json.dumps(registered_models),
                         "last_heartbeat_time": datetime.now(timezone.utc).isoformat(),
                         "status": "ready",
                     },
@@ -473,7 +450,7 @@ class WorkerManager:
                 await pipe.execute()
 
             await self._update_worker_state_sets(
-                node_id, instances_on_device, registered_models
+                node_id, instances_on_device
             )
 
             logger.debug(f"Processed heartbeat from worker {node_id}")
@@ -487,8 +464,8 @@ class WorkerManager:
         self,
         node_id: str,
         instances_on_device: Dict[str, List[str]],
-        registered_models: List[str],
     ) -> None:
+        registered_models = list(instances_on_device.keys())
         for model_identifier in registered_models:
             try:
                 model_name, backend = model_identifier.split(":", 1)
@@ -738,7 +715,6 @@ class WorkerManager:
         node_port: int,
         hardware_info: Dict[str, Any],
         instances_on_device: Dict[str, List[str]],
-        registered_models: List[str],
     ) -> None:
         try:
             node_id = await self._generate_unique_worker_id()
@@ -759,7 +735,6 @@ class WorkerManager:
         node_port: int,
         hardware_info: Dict[str, Any],
         instances_on_device: Dict[str, List[str]],
-        registered_models: List[str],
     ) -> None:
         try:
             worker_key = self.store._get_worker_key(node_id)
@@ -785,7 +760,6 @@ class WorkerManager:
                         "node_ip": node_ip,
                         "hardware_info": json.dumps(hardware_info),
                         "instances_on_device": json.dumps(instances_on_device),
-                        "registered_models": json.dumps(registered_models),
                         "last_heartbeat_time": datetime.now(
                             timezone.utc
                         ).isoformat(),
@@ -797,7 +771,7 @@ class WorkerManager:
                 await pipe.execute()
 
             await self._update_worker_state_sets(
-                node_id, instances_on_device, registered_models
+                node_id, instances_on_device
             )
 
             logger.info(
@@ -817,7 +791,6 @@ class WorkerManager:
         existing_worker: Dict[str, Any],
         hardware_info: Dict[str, Any],
         instances_on_device: Dict[str, List[str]],
-        registered_models: List[str],
     ) -> None:
         node_id = existing_worker["node_id"]
 
@@ -846,10 +819,9 @@ class WorkerManager:
                 node_ip,
                 hardware_info,
                 instances_on_device,
-                registered_models,
             )
             await self._update_worker_state_sets(
-                node_id, instances_on_device, registered_models
+                node_id, instances_on_device
             )
 
         except Exception as e:
@@ -929,7 +901,6 @@ class WorkerManager:
         node_ip: str,
         hardware_info: Dict[str, Any],
         instances_on_device: Dict[str, List[str]],
-        registered_models: List[str],
     ) -> None:
         worker_key = self.store._get_worker_key(node_id)
         async with self.store.client.pipeline(transaction=True) as pipe:
@@ -939,7 +910,6 @@ class WorkerManager:
                     "node_ip": node_ip,
                     "hardware_info": json.dumps(hardware_info),
                     "instances_on_device": json.dumps(instances_on_device),
-                    "registered_models": json.dumps(registered_models),
                     "last_heartbeat_time": datetime.now(
                         timezone.utc
                     ).isoformat(),
