@@ -171,3 +171,11 @@ def _get_network_bandwidth(speedtest_module) -> tuple:
     except Exception as e:
         logger.error(f"Network bandwidth test failed: {e}", exc_info=True)
         return 0.0, 0.0
+
+def validate_storage_path(storage_path: str) -> bool:
+    """Validate storage path exists and is writable."""
+    try:
+        path = Path(storage_path)
+        return path.exists() and path.is_dir() and os.access(path, os.W_OK)
+    except Exception:
+        return False

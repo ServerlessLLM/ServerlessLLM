@@ -29,38 +29,9 @@ from sllm.serve.worker.model_downloader import (
     download_lora_adapter,
     download_transformers_model,
 )
+from sllm.serve.worker.utils import validate_storage_path
 
 logger = init_logger(__name__)
-
-
-def validate_model_name(model_name: str) -> bool:
-    """Validate model name to prevent path traversal attacks."""
-    if not model_name or not isinstance(model_name, str):
-        return False
-
-    # Check for path traversal sequences
-    if ".." in model_name or "/" in model_name or "\\" in model_name:
-        return False
-
-    # Check for valid characters (alphanumeric, hyphens, underscores, dots)
-    if not re.match(r"^[a-zA-Z0-9._-]+$", model_name):
-        return False
-
-    # Check length
-    if len(model_name) > 100:
-        return False
-
-    return True
-
-
-def validate_storage_path(storage_path: str) -> bool:
-    """Validate storage path exists and is writable."""
-    try:
-        path = Path(storage_path)
-        return path.exists() and path.is_dir() and os.access(path, os.W_OK)
-    except Exception:
-        return False
-
 
 class InstanceManager:
     def __init__(self):
@@ -77,10 +48,6 @@ class InstanceManager:
         model_name = model_config["model_name"]
         backend = model_config["backend"]
         backend_config = model_config.get("backend_config", {})
-
-        # Validate inputs
-        if not validate_model_name(model_name):
-            raise ValueError(f"Invalid model name: {model_name}")
 
         storage_path = os.getenv("STORAGE_PATH", "./models")
         if not validate_storage_path(storage_path):

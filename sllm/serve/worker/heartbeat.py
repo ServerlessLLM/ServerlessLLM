@@ -23,7 +23,7 @@ import uuid
 import aiohttp
 
 from sllm.serve.logger import init_logger
-from sllm.serve.worker.hardware_utils import get_dynamic_metrics
+from sllm.serve.worker.utils import get_dynamic_metrics
 from sllm.serve.worker.instance_manager import InstanceManager
 
 logger = init_logger(__name__)

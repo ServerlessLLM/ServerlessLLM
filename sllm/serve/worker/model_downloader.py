@@ -153,7 +153,7 @@ class VllmModelDownloader:
         import gc
         from tempfile import TemporaryDirectory
 
-            from huggingface_hub import snapshot_download
+        from huggingface_hub import snapshot_download
         from vllm import LLM
 
         # set the storage path
