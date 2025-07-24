@@ -221,10 +221,10 @@ class RedisStore:
         key = self._get_model_key(model["model_name"], model["backend"])
         model_dict = model.copy()
 
-        model_dict["backend_config"] = json.dumps(model["backend_config"])
-        model_dict["auto_scaling_config"] = json.dumps(
-            model["auto_scaling_config"]
-        )
+        if "backend_config" in model:
+            model_dict["backend_config"] = json.dumps(model["backend_config"])
+        if "auto_scaling_config" in model:
+            model_dict["auto_scaling_config"] = json.dumps(model["auto_scaling_config"])
         model_dict["instances"] = json.dumps([])
         model_dict["status"] = "alive"
 
@@ -308,7 +308,8 @@ class RedisStore:
             self.client.scard, self._get_model_status_index_key(status)
         )
 
-    async def delete_model(self, model_key: str) -> None:
+    async def delete_model(self, model_name: str, backend: str) -> None:
+        model_key = self._get_model_key(model_name, backend)
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(model_key, "status", "excommunicado")
             pipe.srem(self._get_model_status_index_key("alive"), model_key)
@@ -362,9 +363,10 @@ class RedisStore:
         worker_dict["instances_on_device"] = json.dumps(
             worker["instances_on_device"]
         )
-        worker_dict["last_heartbeat_time"] = worker[
-            "last_heartbeat_time"
-        ].isoformat()
+        if isinstance(worker["last_heartbeat_time"], str):
+            worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"]
+        else:
+            worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"].isoformat()
 
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(key, mapping=worker_dict)
@@ -467,21 +469,21 @@ class RedisStore:
 
     ### DYNAMIC WORKER STATE & HEARTBEAT ###
     def _get_worker_set_key(
-        self, model_name: str, backend: str, state: str
+        self, model_name: str, backend: str, status: str
     ) -> str:
-        return f"workers:{state}:{model_name}:{backend}"
+        return f"workers:{status}:{model_name}:{backend}"
 
     async def set_worker_status(
-        self, node_id: str, model_name: str, backend: str, state: str
+        self, model_name: str, backend: str, node_id: str, status: str
     ) -> None:
-        if state == "ready":
+        if status == "ready":
             source_set = self._get_worker_set_key(model_name, backend, "busy")
             dest_set = self._get_worker_set_key(model_name, backend, "ready")
-        elif state == "busy":
+        elif status == "busy":
             source_set = self._get_worker_set_key(model_name, backend, "ready")
             dest_set = self._get_worker_set_key(model_name, backend, "busy")
         else:
-            raise ValueError("State must be 'ready' or 'busy'")
+            raise ValueError("Status must be 'ready' or 'busy'")
 
         await self._execute_with_retry(
             self.client.smove, source_set, dest_set, node_id
@@ -493,14 +495,22 @@ class RedisStore:
         ready_set = self._get_worker_set_key(model_name, backend, "ready")
         return await self._execute_with_retry(self.client.spop, ready_set)
 
-    async def worker_heartbeat(self, node_id: str) -> None:
+    async def worker_heartbeat(self, node_id: str, heartbeat_data: Optional[dict] = None) -> None:
         key = self._get_worker_key(node_id)
-        await self._execute_with_retry(
-            self.client.hset,
-            key,
-            "last_heartbeat_time",
-            datetime.now(timezone.utc).isoformat(),
-        )
+        if heartbeat_data:
+            heartbeat_data_copy = heartbeat_data.copy()
+            heartbeat_data_copy["last_heartbeat_time"] = datetime.now(timezone.utc).isoformat()
+            for field, value in heartbeat_data_copy.items():
+                await self._execute_with_retry(
+                    self.client.hset, key, field, value
+                )
+        else:
+            await self._execute_with_retry(
+                self.client.hset,
+                key,
+                "last_heartbeat_time",
+                datetime.now(timezone.utc).isoformat(),
+            )
 
     ### TASK QUEUE METHODS ###
     def _get_task_queue_key(self, model_name: str, backend: str) -> str:
@@ -704,14 +714,14 @@ class RedisStore:
         return {"expired_channels": channel_count, "expired_locks": lock_count}
 
     async def cleanup_expired_deletion_locks(
-        self, max_age_seconds: int = 3600
+        self, timeout_seconds: int = 3600
     ) -> int:
         current_time = time.time()
         expired_locks = []
 
         with self._deletion_locks_lock:
             for lock_key, timestamp in list(self._lock_timestamps.items()):
-                if current_time - timestamp > max_age_seconds:
+                if current_time - timestamp > timeout_seconds:
                     expired_locks.append(lock_key)
 
             for lock_key in expired_locks:
@@ -768,14 +778,14 @@ class RedisStore:
         return bool(result)
 
     async def atomic_worker_transition(
-        self, node_id: str, from_state: str, to_state: str
+        self, node_id: str, from_status: str, to_status: str
     ) -> bool:
         lua_script = """
         local worker_key = KEYS[1]
         local from_index = KEYS[2]
         local to_index = KEYS[3]
         local node_id = ARGV[1]
-        local to_state = ARGV[2]
+        local to_status = ARGV[2]
 
         local is_in_from_state = redis.call("SISMEMBER", from_index, worker_key)
         if is_in_from_state == 0 then
@@ -783,14 +793,14 @@ class RedisStore:
         end
 
         redis.call("SMOVE", from_index, to_index, worker_key)
-        redis.call("HSET", worker_key, "status", to_state)
+        redis.call("HSET", worker_key, "status", to_status)
 
         return 1
         """
 
         worker_key = self._get_worker_key(node_id)
-        from_index = self._get_workers_status_index_key(from_state)
-        to_index = self._get_workers_status_index_key(to_state)
+        from_index = self._get_workers_status_index_key(from_status)
+        to_index = self._get_workers_status_index_key(to_status)
 
         result = await self._execute_with_retry(
             self.client.eval,
@@ -800,22 +810,25 @@ class RedisStore:
             from_index,
             to_index,
             node_id,
-            to_state,
+            to_status,
         )
         return bool(result)
 
-    async def atomic_worker_heartbeat_update(self, node_id: str) -> bool:
+    async def atomic_worker_heartbeat_update(self, node_id: str, heartbeat_data: dict) -> bool:
         lua_script = """
         local worker_key = KEYS[1]
         local workers_index = KEYS[2]
-        local timestamp = ARGV[1]
+        local heartbeat_json = ARGV[1]
 
         local exists = redis.call("EXISTS", worker_key)
         if exists == 0 then
             return 0
         end
 
-        redis.call("HSET", worker_key, "last_heartbeat_time", timestamp)
+        local heartbeat_fields = cjson.decode(heartbeat_json)
+        for field, value in pairs(heartbeat_fields) do
+            redis.call("HSET", worker_key, field, value)
+        end
 
         redis.call("SADD", workers_index, worker_key)
 
@@ -824,7 +837,10 @@ class RedisStore:
 
         worker_key = self._get_worker_key(node_id)
         workers_index = self._get_workers_index_key()
-        timestamp = datetime.now(timezone.utc).isoformat()
+        
+        heartbeat_data_copy = heartbeat_data.copy()
+        heartbeat_data_copy["last_heartbeat_time"] = datetime.now(timezone.utc).isoformat()
+        heartbeat_json = json.dumps(heartbeat_data_copy)
 
         result = await self._execute_with_retry(
             self.client.eval,
@@ -832,7 +848,7 @@ class RedisStore:
             2,
             worker_key,
             workers_index,
-            timestamp,
+            heartbeat_json,
         )
         return bool(result)
 
@@ -848,9 +864,10 @@ class RedisStore:
         worker_dict["instances_on_device"] = json.dumps(
             worker["instances_on_device"]
         )
-        worker_dict["last_heartbeat_time"] = worker[
-            "last_heartbeat_time"
-        ].isoformat()
+        if isinstance(worker["last_heartbeat_time"], str):
+            worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"]
+        else:
+            worker_dict["last_heartbeat_time"] = worker["last_heartbeat_time"].isoformat()
         worker_data = json.dumps(worker_dict)
 
         result = await self._execute_with_retry(
