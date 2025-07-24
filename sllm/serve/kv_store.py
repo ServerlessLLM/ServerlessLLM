@@ -193,6 +193,102 @@ class RedisStore:
     async def close(self):
         await self.pool.disconnect()
 
+    async def reset_store(self) -> bool:
+        try:
+            await self._execute_with_retry(self.client.flushdb)
+            logger.info("Redis store reset successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to reset Redis store: {e}")
+            return False
+
+    async def initialize_store(self, reset_on_start: bool = True, full_reset: bool = False) -> bool:
+        try:
+            if not await self._ensure_connection():
+                logger.error("Failed to connect to Redis during initialization")
+                return False
+            
+            if reset_on_start:
+                if full_reset:
+                    success = await self.reset_store()
+                    if not success:
+                        return False
+                else:
+                    cleanup_stats = await self.cleanup_store_data()
+                    logger.info(f"Selective cleanup completed: {cleanup_stats}")
+            
+            logger.info("Redis store initialized successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to initialize Redis store: {e}")
+            return False
+
+    async def cleanup_store_data(self, cleanup_models: bool = True, cleanup_workers: bool = True, 
+                                cleanup_queues: bool = True, cleanup_locks: bool = True) -> Dict[str, int]:
+        cleanup_stats = {"models": 0, "workers": 0, "queues": 0, "locks": 0, "channels": 0}
+        
+        try:
+            if cleanup_models:
+                model_keys = await self._execute_with_retry(
+                    self.client.smembers, self._get_models_index_key()
+                )
+                if model_keys:
+                    decoded_keys = [key.decode() if isinstance(key, bytes) else key for key in model_keys]
+                    await self._execute_with_retry(self.client.delete, *decoded_keys)
+                    await self._execute_with_retry(self.client.delete, self._get_models_index_key())
+                    await self._execute_with_retry(self.client.delete, 
+                        self._get_model_status_index_key("alive"),
+                        self._get_model_status_index_key("excommunicado")
+                    )
+                    cleanup_stats["models"] = len(decoded_keys)
+            
+            if cleanup_workers:
+                worker_keys = await self._execute_with_retry(
+                    self.client.smembers, self._get_workers_index_key()
+                )
+                if worker_keys:
+                    decoded_keys = [key.decode() if isinstance(key, bytes) else key for key in worker_keys]
+                    await self._execute_with_retry(self.client.delete, *decoded_keys)
+                    await self._execute_with_retry(self.client.delete, self._get_workers_index_key())
+                    await self._execute_with_retry(self.client.delete,
+                        self._get_workers_status_index_key("ready"),
+                        self._get_workers_status_index_key("busy"), 
+                        self._get_workers_status_index_key("initializing")
+                    )
+                    cleanup_stats["workers"] = len(decoded_keys)
+            
+            if cleanup_queues:
+                queue_keys = []
+                async for key in self.client.scan_iter("queue:*"):
+                    queue_keys.append(key.decode() if isinstance(key, bytes) else key)
+                async for key in self.client.scan_iter("workers:*"):
+                    queue_keys.append(key.decode() if isinstance(key, bytes) else key)
+                if queue_keys:
+                    await self._execute_with_retry(self.client.delete, *queue_keys)
+                    cleanup_stats["queues"] = len(queue_keys)
+            
+            if cleanup_locks:
+                lock_keys = []
+                async for key in self.client.scan_iter("deletion_lock:*"):
+                    lock_keys.append(key.decode() if isinstance(key, bytes) else key)
+                if lock_keys:
+                    await self._execute_with_retry(self.client.delete, *lock_keys)
+                    cleanup_stats["locks"] = len(lock_keys)
+            
+            channel_count = await self.cleanup_expired_result_channels()
+            cleanup_stats["channels"] = channel_count
+            
+            with self._deletion_locks_lock:
+                self._deletion_locks.clear()
+                self._lock_timestamps.clear()
+            
+            logger.info(f"Store cleanup completed: {cleanup_stats}")
+            return cleanup_stats
+            
+        except Exception as e:
+            logger.error(f"Failed to cleanup store data: {e}")
+            return cleanup_stats
+
     ### MODEL METHODS ###
     def _get_model_key(self, model_name: str, backend: str) -> str:
         return f"model:{model_name}:{backend}"

@@ -43,6 +43,7 @@ async def run_head_node(args: argparse.Namespace):
 
     logger.info(f"Connecting to Redis at {args.redis_host}:{args.redis_port}")
     store = RedisStore(host=args.redis_host, port=args.redis_port)
+    await store.initialize_store(reset_on_start=True, full_reset=True)
     model_manager = ModelManager(store)
     worker_manager = WorkerManager(store, config={"prune_interval": 15})
     autoscaler = AutoScaler(store=store)
