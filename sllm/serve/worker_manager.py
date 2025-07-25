@@ -154,12 +154,30 @@ class WorkerManager:
             )
             return
 
-        # Filter out workers that are currently busy
+        # Filter out workers that are currently busy or have pending start requests
         eligible_workers = []
+        limbo_up_instances = await self.store.get_limbo_up_instances(model_name, backend)
+        
         for worker in all_workers:
             instances_on_device = worker.get("instances_on_device", {})
-            if model_identifier not in instances_on_device or len(instances_on_device[model_identifier]) == 0:
+            running_instances = instances_on_device.get(model_identifier, [])
+            
+            # Check if any limbo_up instances belong to this worker (by node_id in instance_id)
+            node_id = worker["node_id"]
+            worker_pattern = f"{model_name}-{backend}-{node_id}-"
+            has_pending_starts = any(
+                instance_id.startswith(worker_pattern) 
+                for instance_id in limbo_up_instances
+            )
+            
+            # Only include workers with no running instances and no pending starts
+            if len(running_instances) == 0 and not has_pending_starts:
                 eligible_workers.append(worker)
+            else:
+                logger.debug(
+                    f"Excluding worker {node_id} from scaling: "
+                    f"running={len(running_instances)}, pending_starts={has_pending_starts}"
+                )
 
         logger.info(
             f"Found {len(eligible_workers)} eligible workers for scaling {model_identifier}"
@@ -292,7 +310,7 @@ class WorkerManager:
         # Generate instance_id at the head
         model_name = model_config.get("model")
         backend = model_config.get("backend")
-        instance_id = self._generate_instance_id(model_name, backend)
+        instance_id = self._generate_instance_id(model_name, backend, worker["node_id"])
 
         url = f"http://{node_ip}:8001/start_instance"
         try:
@@ -301,7 +319,7 @@ class WorkerManager:
                 url=url,
                 payload={"model_config": model_config, "instance_id": instance_id},
                 max_retries=3,
-                timeout=30.0,
+                timeout=120.0,
             )
             logger.info(
                 f"Successfully sent start instance command to {worker['node_id']} with instance_id {instance_id}."
@@ -331,7 +349,7 @@ class WorkerManager:
                 url=url,
                 payload=payload,
                 max_retries=3,
-                timeout=30.0,
+                timeout=120.0,
             )
             logger.info(
                 f"Successfully sent stop command for {instance_id} to {worker['node_id']}."
@@ -727,9 +745,12 @@ class WorkerManager:
 
         return f"worker-{str(uuid.uuid4())[:8]}"
 
-    def _generate_instance_id(self, model: str, backend: str) -> str:
+    def _generate_instance_id(self, model: str, backend: str, node_id: str = None) -> str:
         unique_part = uuid.uuid4().hex[:8]
-        return f"{model}-{backend}-{unique_part}"
+        if node_id:
+            return f"{model}-{backend}-{node_id}-{unique_part}"
+        else:
+            return f"{model}-{backend}-{unique_part}"
 
     async def _set_worker_status(self, node_id: str, status: str) -> None:
         try:

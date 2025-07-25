@@ -63,6 +63,7 @@ class InstanceManager:
         backend_config = model_config.get("backend_config", {})
 
         storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.path.abspath(storage_path)
         if not validate_storage_path(storage_path):
             raise ValueError(
                 f"Invalid or inaccessible storage path: {storage_path}"

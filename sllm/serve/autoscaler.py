@@ -87,6 +87,7 @@ class AutoScaler:
             model_identifier
         )
         queue_length = await self.store.get_queue_length(model_name, backend)
+        limbo_up, limbo_down = await self.store.get_limbo_counters(model_name, backend)
 
         needed = min_instances
         if queue_length > (current_instances * self.queue_threshold):
@@ -98,7 +99,7 @@ class AutoScaler:
 
         logger.info(
             f"Model '{model_identifier}': "
-            f"current={current_instances}, queue={queue_length} -> "
+            f"current={current_instances}, queue={queue_length}, limbo_up={limbo_up}, limbo_down={limbo_down} -> "
             f"needed={final_needed} (min:{min_instances}, max:{max_instances}). "
             f"Decision: change by {instance_delta}."
         )
