@@ -363,8 +363,8 @@ class RedisStore:
         if "backend_config" in model:
             backend_config = json.dumps(model["backend_config"])
             model_dict["backend_config"] = backend_config
-            enable_lora = backend_config.get("enable_lora", False)
-            lora_adapters = backend_config.get("lora_adapters", {})
+            enable_lora = model["backend_config"].get("enable_lora", False)
+            lora_adapters = model["backend_config"].get("lora_adapters", {})
         if "auto_scaling_config" in model:
             model_dict["auto_scaling_config"] = json.dumps(
                 model["auto_scaling_config"]
