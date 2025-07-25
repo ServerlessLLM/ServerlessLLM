@@ -32,10 +32,6 @@ def start_ft_instance(
         from sllm.serve.ft_backends import PeftLoraBackend
 
         model_backend_cls = ray.remote(PeftLoraBackend)
-    # elif backend == "dummy":
-    #     from sllm.serve.ft_backends import DummyFTBackend
-
-    #     model_backend_cls = ray.remote(DummyFTBackend)
     else:
         logger.error(f"Unknown backend: {backend}")
         raise ValueError(f"Unknown backend: {backend}")

@@ -99,7 +99,7 @@ class FineTuningStatus:
                 "job_id": self.job_id,
                 "state": self.state.value,
                 "metrics": self.metrics,
-                "logs": self.logs[-10:],  # return last 10 logs
+                "logs": self.logs[-10:],
                 "created_at": self.created_at,
                 "updated_at": self.updated_at,
             }
@@ -134,7 +134,6 @@ class PeftLoraBackend(SllmFineTuningBackend):
             device_map = self.backend_config.get("device_map", "auto")
             torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
 
-            # Convert string torch_dtype to actual torch dtype if needed
             if isinstance(torch_dtype, str):
                 torch_dtype = getattr(torch, torch_dtype, torch.float16)
 
@@ -245,20 +244,15 @@ class PeftLoraBackend(SllmFineTuningBackend):
             return data
 
     def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
-        logger.info("Receive fine tune request on peft lora backend")
-        try:
-            with self.status_lock:
-                if self.status != FineTuningBackendStatus.RUNNING:
-                    return {"error": "Model not initialized"}
+        with self.status_lock:
+            if self.status != FineTuningBackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
 
-            # Update the job ID if provided in the request
-            job_id = request_data.get("job_id", "default_job_id")
-            self.ft_status = FineTuningStatus(job_id)
-            self.ft_status.start()
-            logger.info(f"Started fine-tuning job: {job_id}")
-        except Exception as e:
-            logger.error(f"Error in fine-tuning initialization: {str(e)}")
-            return {"error": f"Error in fine-tuning initialization: {str(e)}"}
+        # Update the job ID if provided in the request
+        job_id = request_data.get("job_id", "default_job_id")
+        self.ft_status = FineTuningStatus(job_id)
+        self.ft_status.start()
+        logger.info(f"Started fine-tuning job: {job_id}")
 
         dataset_config = request_data.get("dataset_config")
         logger.info(f"Loading dataset with config: {dataset_config}")
@@ -267,28 +261,20 @@ class PeftLoraBackend(SllmFineTuningBackend):
             logger.info(
                 f"Dataset loaded successfully with {len(dataset)} samples"
             )
-        except ValueError as e:
+        except Exception as e:
             logger.error(f"Failed to load dataset: {e}")
             self.ft_status.fail(f"Failed to load dataset: {e}")
             return {"error": str(e)}
-        except Exception as e:
-            logger.error(f"Unexpected error loading dataset: {e}")
-            self.ft_status.fail(f"Unexpected error loading dataset: {e}")
-            return {"error": f"Unexpected error loading dataset: {e}"}
 
         lora_config = request_data.get("lora_config")
         logger.info(f"Creating LoRA config: {lora_config}")
         try:
             lora_config = LoraConfig(**lora_config)
             logger.info("LoRA config created successfully")
-        except TypeError as e:
+        except Exception as e:
             logger.error(f"Failed to load lora_config: {e}")
             self.ft_status.fail(f"Failed to load lora_config: {e}")
             return {"error": f"Failed to load lora_config: {e}"}
-        except Exception as e:
-            logger.error(f"Unexpected error creating LoRA config: {e}")
-            self.ft_status.fail(f"Unexpected error creating LoRA config: {e}")
-            return {"error": f"Unexpected error creating LoRA config: {e}"}
 
         logger.info("Creating PEFT model")
         try:
@@ -316,18 +302,10 @@ class PeftLoraBackend(SllmFineTuningBackend):
                 output_dir=lora_save_path, **training_config
             )
             logger.info("Training arguments created successfully")
-        except TypeError as e:
+        except Exception as e:
             logger.error(f"Failed to load training_config: {e}")
             self.ft_status.fail(f"Failed to load training_config: {e}")
             return {"error": f"Failed to load training_config: {e}"}
-        except Exception as e:
-            logger.error(f"Unexpected error creating training arguments: {e}")
-            self.ft_status.fail(
-                f"Unexpected error creating training arguments: {e}"
-            )
-            return {
-                "error": f"Unexpected error creating training arguments: {e}"
-            }
 
         logger.info("Creating trainer")
         try:
@@ -367,7 +345,6 @@ class PeftLoraBackend(SllmFineTuningBackend):
         return response
 
     def shutdown(self):
-        """Abort all requests and shutdown the backend."""
         with self.status_lock:
             if self.status == FineTuningBackendStatus.DELETING:
                 return
@@ -375,7 +352,6 @@ class PeftLoraBackend(SllmFineTuningBackend):
             if self.ft_status:
                 self.ft_status.abort()
 
-        # FineTuningStatus doesn't have a get() method, so we just wait a bit for cleanup
         logger.info("Shutting down fine-tuning backend")
         time.sleep(1)
 
@@ -383,7 +359,6 @@ class PeftLoraBackend(SllmFineTuningBackend):
             del self.model
 
     def stop(self) -> None:
-        """Wait for all requests to finish and shutdown the backend."""
         with self.status_lock:
             if self.status in [
                 FineTuningBackendStatus.STOPPING,
@@ -391,7 +366,6 @@ class PeftLoraBackend(SllmFineTuningBackend):
             ]:
                 return
             self.status = FineTuningBackendStatus.STOPPING
-        # FineTuningStatus doesn't have a get() method, so we just wait a bit for cleanup
         logger.info("Stopping fine-tuning backend")
         time.sleep(1)
         logger.info("All requests finished. Shutting down the backend.")
