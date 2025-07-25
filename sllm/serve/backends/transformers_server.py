@@ -89,7 +89,11 @@ def initialize_model(
     logger.info(f"Loading model from {model_path}")
 
     # Convert torch_dtype string to actual dtype
-    torch_dtype_obj = getattr(torch, torch_dtype)
+    try:
+        torch_dtype_obj = getattr(torch, torch_dtype)
+    except AttributeError:
+        logger.error(f"Invalid torch dtype: {torch_dtype}, defaulting to float16")
+        torch_dtype_obj = torch.float16
 
     # Load model using sllm_store
     model = load_model(
@@ -115,7 +119,7 @@ async def health():
 
 
 @app.post("/v1/chat/completions")
-async def chat_completions(request: ChatRequest):
+async def chat_completions(request):
     global model, tokenizer
 
     if not model or not tokenizer:
@@ -201,9 +205,8 @@ async def chat_completions(request: ChatRequest):
 
 
 @app.post("/v1/embeddings")
-async def embeddings(request: EmbeddingRequest):
-    # Transformers backend typically doesn't handle embeddings
-    return {"error": "Embeddings not supported by transformers backend"}
+async def embeddings(request):
+    pass
 
 
 if __name__ == "__main__":
