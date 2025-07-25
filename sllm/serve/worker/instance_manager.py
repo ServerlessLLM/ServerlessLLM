@@ -78,7 +78,7 @@ class InstanceManager:
 
                 await downloader.download_vllm_model(
                     model=model,
-                    pretrained_model_name_or_path=pretrained_model_or_path,
+                    pretrained_model_name_or_path=pretrained_model_name_or_path,
                     torch_dtype=torch_dtype,
                     tensor_parallel_size=tensor_parallel_size,
                     pattern=pattern,
@@ -101,7 +101,7 @@ class InstanceManager:
 
                 await download_transformers_model(
                     model=model,
-                    pretrained_model_name_or_path=pretrained_model_or_path,
+                    pretrained_model_name_or_path=pretrained_model_name_or_path,
                     torch_dtype=torch_dtype,
                     hf_model_class=hf_model_class,
                 )
@@ -134,8 +134,9 @@ class InstanceManager:
         self, model_config: Dict[str, Any], instance_id: Optional[str] = None
     ) -> str:
         model_identifier = f"{model_config['model']}:{model_config['backend']}"
+        model = model_config.get("model")
+        backend = model_config.get("backend")
 
-        # Use provided instance_id or generate new one
         if instance_id is None:
             instance_id = self._generate_instance_id(
                 model, backend
@@ -145,9 +146,7 @@ class InstanceManager:
             f"Starting instance {instance_id} with backend {backend}"
         )
 
-        # Ensure model is downloaded before starting backend
         await self._ensure_model_downloaded(model_config)
-
         backend_config = model_config.get("backend_config", {})
         startup_config = model_config.get("startup_config", {})
 

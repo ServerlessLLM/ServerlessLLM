@@ -219,7 +219,7 @@ class VllmModelDownloader:
         except Exception as e:
             logger.info(f"An error occurred while saving the model: {e}")
             # remove the output dir
-            shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
+            shutil.rmtree(model_path)
             raise RuntimeError(
                 f"Failed to save {model_name} for vllm backend: {e}"
             )
