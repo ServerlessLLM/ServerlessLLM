@@ -99,6 +99,7 @@ void MemoryRegistry::CleanupAll() {
     if (std::getenv("FORCE_CLEANUP")) {
       pm->SetOwner(true);
     }
+    delete pm;
   }
   // Destructors will run when unique_ptrs go out of scope
 }
