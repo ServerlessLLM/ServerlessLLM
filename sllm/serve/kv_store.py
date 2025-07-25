@@ -231,6 +231,7 @@ class RedisStore:
         cleanup_workers: bool = True,
         cleanup_queues: bool = True,
         cleanup_locks: bool = True,
+        cleanup_limbo: bool = True,
     ) -> Dict[str, int]:
         cleanup_stats = {
             "models": 0,
@@ -238,6 +239,7 @@ class RedisStore:
             "queues": 0,
             "locks": 0,
             "channels": 0,
+            "limbo": 0,
         }
 
         try:
@@ -316,6 +318,18 @@ class RedisStore:
 
             channel_count = await self.cleanup_expired_result_channels()
             cleanup_stats["channels"] = channel_count
+
+            if cleanup_limbo:
+                limbo_keys = []
+                async for key in self.client.scan_iter("limbo:*"):
+                    limbo_keys.append(
+                        key.decode() if isinstance(key, bytes) else key
+                    )
+                if limbo_keys:
+                    await self._execute_with_retry(
+                        self.client.delete, *limbo_keys
+                    )
+                    cleanup_stats["limbo"] = len(limbo_keys)
 
             with self._deletion_locks_lock:
                 self._deletion_locks.clear()
@@ -600,6 +614,10 @@ class RedisStore:
 
     async def delete_worker(self, node_id: str) -> None:
         key = self._get_worker_key(node_id)
+        
+        # Clean up limbo data before deleting the worker
+        await self.cleanup_worker_limbo_data(node_id)
+        
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.delete(key)
             pipe.srem(self._get_workers_index_key(), key)
@@ -613,6 +631,71 @@ class RedisStore:
         self, model_name: str, backend: str, status: str
     ) -> str:
         return f"workers:{status}:{model_name}:{backend}"
+
+    ### LIMBO TRACKING METHODS ###
+    def _get_limbo_key(self, node_id: str, model_name: str, backend: str) -> str:
+        return f"limbo:{node_id}:{model_name}:{backend}"
+
+    async def get_worker_limbo_count(
+        self, node_id: str, model_name: str, backend: str
+    ) -> int:
+        """Get the current limbo count for a worker-model combination."""
+        limbo_key = self._get_limbo_key(node_id, model_name, backend)
+        count = await self._execute_with_retry(self.client.get, limbo_key)
+        return int(count) if count else 0
+
+    async def increment_worker_limbo(
+        self, node_id: str, model_name: str, backend: str
+    ) -> int:
+        """Increment limbo count when sending a start instance request."""
+        limbo_key = self._get_limbo_key(node_id, model_name, backend)
+        new_count = await self._execute_with_retry(self.client.incr, limbo_key)
+        # Set expiry to prevent limbo keys from accumulating indefinitely
+        await self._execute_with_retry(self.client.expire, limbo_key, 300)
+        return new_count
+
+    async def decrement_worker_limbo(
+        self, node_id: str, model_name: str, backend: str
+    ) -> int:
+        """Decrement limbo count when instance start is confirmed."""
+        limbo_key = self._get_limbo_key(node_id, model_name, backend)
+        lua_script = """
+        local key = KEYS[1]
+        local current = redis.call('GET', key)
+        if current and tonumber(current) > 0 then
+            local new_value = redis.call('DECR', key)
+            if new_value <= 0 then
+                redis.call('DEL', key)
+            end
+            return new_value
+        else
+            redis.call('DEL', key)
+            return 0
+        end
+        """
+        result = await self._execute_with_retry(
+            self.client.eval, lua_script, 1, limbo_key
+        )
+        return max(0, int(result))
+
+    async def reset_worker_limbo(
+        self, node_id: str, model_name: str, backend: str
+    ) -> None:
+        """Reset limbo count to zero for a worker-model combination."""
+        limbo_key = self._get_limbo_key(node_id, model_name, backend)
+        await self._execute_with_retry(self.client.delete, limbo_key)
+
+    async def cleanup_worker_limbo_data(self, node_id: str) -> int:
+        """Clean up all limbo data for a specific worker."""
+        pattern = f"limbo:{node_id}:*"
+        limbo_keys = []
+        async for key in self.client.scan_iter(pattern):
+            limbo_keys.append(key.decode() if isinstance(key, bytes) else key)
+        
+        if limbo_keys:
+            await self._execute_with_retry(self.client.delete, *limbo_keys)
+        
+        return len(limbo_keys)
 
     async def set_worker_status(
         self, model_name: str, backend: str, node_id: str, status: str

@@ -140,19 +140,39 @@ class WorkerManager:
             )
             return
 
+        # Filter out workers that already have pending start requests (in limbo)
+        eligible_workers = []
+        for worker in all_workers:
+            limbo_count = await self.store.get_worker_limbo_count(
+                worker["node_id"], model_name, backend
+            )
+            if limbo_count == 0:
+                eligible_workers.append(worker)
+
         logger.info(
-            f"Found {len(all_workers)} workers available for scaling {model_identifier}"
+            f"Found {len(eligible_workers)} eligible workers for scaling {model_identifier} (filtered out {len(all_workers) - len(eligible_workers)} workers with pending requests)"
         )
+
+        if not eligible_workers:
+            logger.warning(
+                f"No eligible workers available for {model_identifier} - all have pending requests"
+            )
+            return
 
         successful_starts = 0
         for i in range(count):
-            if not all_workers:
+            if not eligible_workers:
                 logger.warning(
-                    f"No more workers available for {model_identifier}"
+                    f"No more eligible workers available for {model_identifier}"
                 )
                 break
 
-            target_worker = random.choice(all_workers)
+            target_worker = random.choice(eligible_workers)
+
+            # Increment limbo count before sending request
+            await self.store.increment_worker_limbo(
+                target_worker["node_id"], model_name, backend
+            )
 
             logger.info(
                 f"Attempting to start instance on worker {target_worker['node_id']}"
@@ -162,14 +182,19 @@ class WorkerManager:
             )
             if success:
                 successful_starts += 1
+                # Limbo will be decremented when heartbeat confirms instance is running
                 await self.store.set_worker_status(
                     target_worker["node_id"], model_name, backend, "ready"
                 )
             else:
+                # Decrement limbo count if request failed
+                await self.store.decrement_worker_limbo(
+                    target_worker["node_id"], model_name, backend
+                )
                 logger.error(
                     f"Failed to start instance on worker {target_worker['node_id']}. Removing from eligible list."
                 )
-                all_workers.remove(target_worker)
+                eligible_workers.remove(target_worker)
 
         logger.info(
             f"Successfully started {successful_starts}/{count} instances for {model_identifier}"
@@ -190,13 +215,19 @@ class WorkerManager:
             instances_on_device = worker.get("instances_on_device", {})
             if model_identifier in instances_on_device:
                 for instance_id in instances_on_device[model_identifier]:
-                    running_instances.append(
-                        {"worker": worker, "instance_id": instance_id}
+                    # Only include instances that don't already have a pending stop request
+                    limbo_count = await self.store.get_worker_limbo_count(
+                        worker["node_id"], model_name, backend
                     )
+                    # For scale-down, we use negative limbo values to track pending stops
+                    if limbo_count >= 0:  # No pending stop requests
+                        running_instances.append(
+                            {"worker": worker, "instance_id": instance_id}
+                        )
 
         if not running_instances:
             logger.warning(
-                f"No running instances of {model_identifier} found to scale down."
+                f"No eligible running instances of {model_identifier} found to scale down (all may have pending stop requests)."
             )
             return
 
@@ -216,6 +247,17 @@ class WorkerManager:
         for item in instances_to_stop:
             worker = item["worker"]
             instance_id = item["instance_id"]
+            
+            # Use negative limbo count to track pending stop requests
+            current_limbo = await self.store.get_worker_limbo_count(
+                worker["node_id"], model_name, backend
+            )
+            await self.store.client.set(
+                self.store._get_limbo_key(worker["node_id"], model_name, backend),
+                current_limbo - 1,
+                ex=300
+            )
+            
             logger.info(
                 f"Attempting to stop instance {instance_id} on worker {worker['node_id']}"
             )
@@ -224,8 +266,19 @@ class WorkerManager:
             )
             if success:
                 successful_stops += 1
+                # Limbo will be adjusted when heartbeat confirms instance is stopped
                 await self._cleanup_worker_from_sets(
                     worker["node_id"], model_name, backend
+                )
+            else:
+                # Restore limbo count if request failed
+                await self.store.client.set(
+                    self.store._get_limbo_key(worker["node_id"], model_name, backend),
+                    current_limbo,
+                    ex=300
+                )
+                logger.error(
+                    f"Failed to stop instance {instance_id} on worker {worker['node_id']}"
                 )
 
         logger.info(
@@ -476,6 +529,13 @@ class WorkerManager:
         node_id: str,
         instances_on_device: Dict[str, List[str]],
     ) -> None:
+        # Get the previous state to detect changes
+        try:
+            previous_worker = await self.store.get_worker(node_id)
+            previous_instances = previous_worker.get("instances_on_device", {}) if previous_worker else {}
+        except Exception:
+            previous_instances = {}
+
         registered_models = list(instances_on_device.keys())
         for model_identifier in registered_models:
             try:
@@ -485,6 +545,25 @@ class WorkerManager:
                     f"Invalid model identifier format: {model_identifier}"
                 )
                 continue
+
+            current_instances = set(instances_on_device.get(model_identifier, []))
+            previous_instances_set = set(previous_instances.get(model_identifier, []))
+
+            # Detect newly started instances (decrement limbo for starts)
+            new_instances = current_instances - previous_instances_set
+            if new_instances:
+                for _ in new_instances:
+                    await self.store.decrement_worker_limbo(node_id, model_name, backend)
+                logger.debug(f"Decremented limbo for {len(new_instances)} new instances on {node_id}")
+
+            # Detect stopped instances (increment limbo back to 0 from negative for stops)  
+            stopped_instances = previous_instances_set - current_instances
+            if stopped_instances:
+                current_limbo = await self.store.get_worker_limbo_count(node_id, model_name, backend)
+                if current_limbo < 0:
+                    # Restore limbo to 0 as instances have actually stopped
+                    await self.store.reset_worker_limbo(node_id, model_name, backend)
+                logger.debug(f"Reset limbo for {len(stopped_instances)} stopped instances on {node_id}")
 
             running_instances = instances_on_device.get(model_identifier, [])
 
@@ -522,6 +601,9 @@ class WorkerManager:
             for key in all_keys:
                 pipe.srem(key, node_id)
             await pipe.execute()
+
+        # Clean up limbo data for this worker
+        await self.store.cleanup_worker_limbo_data(node_id)
 
     async def _prune_loop(self):
         while not self._shutdown_event.is_set():
