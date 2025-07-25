@@ -84,9 +84,12 @@ SharedMemoryInstance* MemoryRegistry::FindSharedMemory(void* ptr) {
 }
 
 void MemoryRegistry::CleanupAll() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  // Clear the shared_memories_ map to release shared memory instances
+  if (shared_memories_.empty() && regions_.empty()) {
+    return;  // Already cleaned up
+  }
+  // Clear the shared memories map to release shared_memory instances
   shared_memories_.clear();
+  std::lock_guard<std::mutex> lock(mutex_);
   // Clear the list first to prevent double cleanup
   std::vector<SharedMemoryInstance*> to_cleanup = std::move(regions_);
   regions_.clear();
