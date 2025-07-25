@@ -190,24 +190,40 @@ class SllmController:
 
     async def _process_ft_jobs(self):
         while True:
+            pending_jobs = await self.job_store.get_pending_jobs.remote()
+            sorted_jobs = sorted(
+                pending_jobs.items(),
+                key=lambda x: (
+                    x[1].get("priority", 0),
+                    x[1]["created_time"],
+                ),
+            )
+
             try:
-                # TODO: Get available resources, calculate resource availability
-
-                pending_jobs = await self.job_store.get_pending_jobs.remote()
-                sorted_jobs = sorted(
-                    pending_jobs.items(),
-                    key=lambda x: (
-                        x[1].get("priority", 0),
-                        x[1]["created_time"],
-                    ),
-                )
-
-                # Process jobs based on available resources
-                for job_id, job_info in sorted_jobs:
-                    await self._start_ft_job(job_id, job_info)
-
+                available_resources = ray.available_resources()
             except Exception as e:
-                logger.error(f"Error in fine-tuning job processor: {str(e)}")
+                logger.error(f"Error in getting available resources: {str(e)}")
+                continue
+
+            for job_id, job_info in sorted_jobs:
+                required_cpus = job_info["config"].get("num_cpus", 1)
+                required_gpus = job_info["config"].get("num_gpus", 1)
+                if (
+                    available_resources.get("CPU", 0) >= required_cpus
+                    and available_resources.get("GPU", 0) >= required_gpus
+                ):
+                    await self._start_ft_job(job_id, job_info)
+                    # Update available_resources after scheduling
+                    available_resources["CPU"] = (
+                        available_resources.get("CPU", 0) - required_cpus
+                    )
+                    available_resources["GPU"] = (
+                        available_resources.get("GPU", 0) - required_gpus
+                    )
+                else:
+                    logger.info(
+                        f"Not enough resources for job {job_id}, skipping for now."
+                    )
 
             await asyncio.sleep(30)
 
@@ -378,13 +394,13 @@ class SllmController:
                 f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
             )
             resource_requirements = {
-                "num_cpus": 1,
+                "num_cpus": job_info["config"].get("num_cpus", 1),
                 "num_gpus": job_info["config"].get("num_gpus", 0),
             }
             ft_request_router = self.router_cls.options(
                 name=f"ft_{job_id}",
                 namespace="fine_tuning",
-                num_cpus=1,
+                num_cpus=job_info["config"].get("num_cpus", 1),
                 num_gpus=job_info["config"].get("num_gpus", 0),
                 resources={"control_node": 0.1},
             ).remote(
