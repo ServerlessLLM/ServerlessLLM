@@ -15,6 +15,7 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import asyncio
 import importlib
 import os
 import shutil
@@ -35,6 +36,9 @@ async def download_transformers_model(
     torch_dtype: str,
     hf_model_class: str,
 ) -> bool:
+    # Get event loop for thread pool operations
+    loop = asyncio.get_event_loop()
+    
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
     tokenizer_path = os.path.join(
@@ -56,8 +60,6 @@ async def download_transformers_model(
     logger.info(f"Downloading {model_path}")
 
     # Run blocking operations in thread pool to avoid blocking heartbeats
-    import asyncio
-    loop = asyncio.get_event_loop()
     
     def _load_model():
         module = importlib.import_module("transformers")
@@ -176,6 +178,9 @@ class VllmModelDownloader:
         from huggingface_hub import snapshot_download
         from vllm import LLM
 
+        # Get event loop for thread pool operations
+        loop = asyncio.get_event_loop()
+
         # set the storage path
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = os.path.join(storage_path, "vllm", model_name)
@@ -189,8 +194,6 @@ class VllmModelDownloader:
                 input_dir = pretrained_model_name_or_path
             else:
                 # download from huggingface (run in thread pool to avoid blocking)
-                import asyncio
-                loop = asyncio.get_event_loop()
                 
                 def _download():
                     return snapshot_download(
