@@ -255,7 +255,7 @@ class WorkerManager:
             await post_json_with_retry(
                 session=self.http_session,
                 url=url,
-                payload=model_config,
+                payload={"model_config": model_config},
                 max_retries=3,
                 timeout=30.0,
             )
