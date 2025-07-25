@@ -47,7 +47,7 @@ class VllmModelDownloader:
     def download_vllm_model(
         self,
         model_name: str,
-        torch_dtype: str,
+        torch_dtype: str = "auto",
         tensor_parallel_size: int = 1,
         storage_path: str = "./models",
         local_model_path: Optional[str] = None,
@@ -261,7 +261,6 @@ def save(
             downloader = VllmModelDownloader()
             downloader.download_vllm_model(
                 model_name,
-                "float16",
                 tensor_parallel_size=tensor_parallel_size,
                 storage_path=storage_path,
                 local_model_path=local_model_path,
@@ -272,7 +271,6 @@ def save(
                     model_name,
                     trust_remote_code=True,
                 )
-                config.torch_dtype = torch.float16
                 module = importlib.import_module("transformers")
                 hf_model_cls = module.AutoModelForCausalLM
                 base_model = hf_model_cls.from_config(
@@ -289,7 +287,7 @@ def save(
             else:
                 # Load a model from HuggingFace model hub
                 model = AutoModelForCausalLM.from_pretrained(
-                    model_name, torch_dtype=torch.float16
+                    model_name, torch_dtype=config.torch_dtype
                 )
 
                 # Save the model to the local path
@@ -381,7 +379,7 @@ def load(
             llm = LLM(
                 model=model_full_path,
                 load_format="serverless_llm",
-                dtype="float16",
+                dtype="auto",
             )
             logger.info(
                 f"Model loading time: {time.time() - start_load_time:.2f}s"
@@ -395,11 +393,12 @@ def load(
             for i in range(num_gpus):
                 torch.ones(1).to(f"cuda:{i}")
                 torch.cuda.synchronize()
+            config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
             if adapter_name:
                 model = load_model(
                     model_name,
                     device_map="auto",
-                    torch_dtype=torch.float16,
+                    torch_dtype=config.torch_dtype,
                     storage_path=storage_path,
                     fully_parallel=True,
                 )
@@ -410,13 +409,13 @@ def load(
                     adapter_path=adapter_name,
                     device_map="auto",
                     storage_path=storage_path,
-                    torch_dtype=torch.float16,
+                    torch_dtype=config.torch_dtype,
                 )
             else:
                 model = load_model(
                     model_name,
                     device_map="auto",
-                    torch_dtype=torch.float16,
+                    torch_dtype=config.torch_dtype,
                     storage_path=storage_path,
                     fully_parallel=True,
                     quantization_config=quantization_config
