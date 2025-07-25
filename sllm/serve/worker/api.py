@@ -53,7 +53,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
         model_config = payload.get("model_config")
         instance_id = payload.get(
             "instance_id"
-        )  # Optional existing instance_id
+        )  
 
         if not model_config:
             raise HTTPException(status_code=400, detail="Missing model_config")

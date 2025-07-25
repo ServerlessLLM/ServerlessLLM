@@ -30,68 +30,15 @@ from sllm.serve.worker.model_downloader import (
     download_lora_adapter,
     download_transformers_model,
 )
-from sllm.serve.worker.utils import validate_storage_path
+from sllm.serve.worker.utils import (
+    validate_storage_path,
+    validate_vllm_model_path,
+    validate_transformers_model_path,
+    validate_lora_adapter_path,
+)
 
 logger = init_logger(__name__)
 
-
-def _validate_vllm_model_path(model_path: str) -> bool:
-    if not os.path.exists(model_path) or not os.path.isdir(model_path):
-        return False
-    
-    config_path = os.path.join(model_path, "config.json")
-    if not os.path.exists(config_path):
-        return False
-    
-    weight_extensions = [".safetensors", ".bin", ".pt"]
-    try:
-        for item in os.listdir(model_path):
-            if any(item.endswith(ext) for ext in weight_extensions):
-                return True
-    except OSError:
-        return False
-    
-    return False
-
-
-def _validate_transformers_model_path(model_path: str) -> bool:
-    if not os.path.exists(model_path) or not os.path.isdir(model_path):
-        return False
-    
-    config_path = os.path.join(model_path, "config.json")
-    tokenizer_path = os.path.join(model_path, "tokenizer")
-    
-    if not os.path.exists(config_path) or not os.path.isdir(tokenizer_path):
-        return False
-    
-    weight_extensions = [".safetensors", ".bin", ".pt"]
-    try:
-        for item in os.listdir(model_path):
-            if any(item.endswith(ext) for ext in weight_extensions):
-                return True
-    except OSError:
-        return False
-    
-    return False
-
-
-def _validate_lora_adapter_path(adapter_path: str) -> bool:
-    if not os.path.exists(adapter_path) or not os.path.isdir(adapter_path):
-        return False
-    
-    adapter_config = os.path.join(adapter_path, "adapter_config.json")
-    if not os.path.exists(adapter_config):
-        return False
-    
-    weight_extensions = [".safetensors", ".bin", ".pt"]
-    try:
-        for item in os.listdir(adapter_path):
-            if any(item.endswith(ext) for ext in weight_extensions):
-                return True
-    except OSError:
-        return False
-    
-    return False
 
 
 class InstanceManager:
@@ -123,7 +70,7 @@ class InstanceManager:
 
         if backend == "vllm":
             model_path = os.path.join(storage_path, "vllm", model)
-            if not _validate_vllm_model_path(model_path):
+            if not validate_vllm_model_path(model_path):
                 if os.path.exists(model_path):
                     logger.warning(f"Incomplete vLLM model found at {model_path}, re-downloading")
                     shutil.rmtree(model_path)
@@ -151,7 +98,7 @@ class InstanceManager:
                         max_size=max_size,
                     )
 
-                    if not _validate_vllm_model_path(model_path):
+                    if not validate_vllm_model_path(model_path):
                         raise RuntimeError(
                             f"Model download incomplete: {model_path} validation failed"
                         )
@@ -167,7 +114,7 @@ class InstanceManager:
 
         elif backend == "transformers":
             model_path = os.path.join(storage_path, "transformers", model)
-            if not _validate_transformers_model_path(model_path):
+            if not validate_transformers_model_path(model_path):
                 if os.path.exists(model_path):
                     logger.warning(f"Incomplete transformers model found at {model_path}, re-downloading")
                     shutil.rmtree(model_path)
@@ -189,7 +136,7 @@ class InstanceManager:
                         hf_model_class=hf_model_class,
                     )
 
-                    if not _validate_transformers_model_path(model_path):
+                    if not validate_transformers_model_path(model_path):
                         raise RuntimeError(
                             f"Model download incomplete: {model_path} validation failed"
                         )
@@ -207,7 +154,7 @@ class InstanceManager:
             adapter_name_or_path = backend_config.get("adapter_name_or_path")
             if adapter_name_or_path:
                 adapter_path = os.path.join(storage_path, "transformers", adapter_name_or_path)
-                if not _validate_lora_adapter_path(adapter_path):
+                if not validate_lora_adapter_path(adapter_path):
                     if os.path.exists(adapter_path):
                         logger.warning(f"Incomplete LoRA adapter found at {adapter_path}, re-downloading")
                         shutil.rmtree(adapter_path)
@@ -221,7 +168,7 @@ class InstanceManager:
                         torch_dtype=torch_dtype,
                     )
                     
-                    if not _validate_lora_adapter_path(adapter_path):
+                    if not validate_lora_adapter_path(adapter_path):
                         raise RuntimeError(
                             f"LoRA adapter download incomplete: {adapter_path} validation failed"
                         )

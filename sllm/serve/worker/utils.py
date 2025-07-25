@@ -181,3 +181,15 @@ def validate_storage_path(storage_path: str) -> bool:
         return path.exists() and path.is_dir()
     except Exception:
         return False
+
+
+def validate_vllm_model_path(model_path: str) -> bool:
+    return os.path.exists(model_path) and os.path.isdir(model_path)
+
+
+def validate_transformers_model_path(model_path: str) -> bool:
+    return os.path.exists(model_path) and os.path.isdir(model_path)
+
+
+def validate_lora_adapter_path(adapter_path: str) -> bool:
+    return os.path.exists(adapter_path) and os.path.isdir(adapter_path)
