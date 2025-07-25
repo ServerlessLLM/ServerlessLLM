@@ -19,6 +19,7 @@
 import asyncio
 import os
 import re
+import shutil
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -32,6 +33,65 @@ from sllm.serve.worker.model_downloader import (
 from sllm.serve.worker.utils import validate_storage_path
 
 logger = init_logger(__name__)
+
+
+def _validate_vllm_model_path(model_path: str) -> bool:
+    if not os.path.exists(model_path) or not os.path.isdir(model_path):
+        return False
+    
+    config_path = os.path.join(model_path, "config.json")
+    if not os.path.exists(config_path):
+        return False
+    
+    weight_extensions = [".safetensors", ".bin", ".pt"]
+    try:
+        for item in os.listdir(model_path):
+            if any(item.endswith(ext) for ext in weight_extensions):
+                return True
+    except OSError:
+        return False
+    
+    return False
+
+
+def _validate_transformers_model_path(model_path: str) -> bool:
+    if not os.path.exists(model_path) or not os.path.isdir(model_path):
+        return False
+    
+    config_path = os.path.join(model_path, "config.json")
+    tokenizer_path = os.path.join(model_path, "tokenizer")
+    
+    if not os.path.exists(config_path) or not os.path.isdir(tokenizer_path):
+        return False
+    
+    weight_extensions = [".safetensors", ".bin", ".pt"]
+    try:
+        for item in os.listdir(model_path):
+            if any(item.endswith(ext) for ext in weight_extensions):
+                return True
+    except OSError:
+        return False
+    
+    return False
+
+
+def _validate_lora_adapter_path(adapter_path: str) -> bool:
+    if not os.path.exists(adapter_path) or not os.path.isdir(adapter_path):
+        return False
+    
+    adapter_config = os.path.join(adapter_path, "adapter_config.json")
+    if not os.path.exists(adapter_config):
+        return False
+    
+    weight_extensions = [".safetensors", ".bin", ".pt"]
+    try:
+        for item in os.listdir(adapter_path):
+            if any(item.endswith(ext) for ext in weight_extensions):
+                return True
+    except OSError:
+        return False
+    
+    return False
 
 
 class InstanceManager:
@@ -63,12 +123,15 @@ class InstanceManager:
 
         if backend == "vllm":
             model_path = os.path.join(storage_path, "vllm", model)
-            if not os.path.exists(model_path):
+            if not _validate_vllm_model_path(model_path):
+                if os.path.exists(model_path):
+                    logger.warning(f"Incomplete vLLM model found at {model_path}, re-downloading")
+                    shutil.rmtree(model_path)
+                
                 logger.info(f"Downloading VLLM model {model} to {model_path}")
                 try:
                     downloader = VllmModelDownloader()
 
-                    # Extract download parameters from config
                     pretrained_model_name_or_path = backend_config.get(
                         "pretrained_model_name_or_path", model
                     )
@@ -88,25 +151,29 @@ class InstanceManager:
                         max_size=max_size,
                     )
 
-                    # Verify download succeeded
-                    if not os.path.exists(model_path):
+                    if not _validate_vllm_model_path(model_path):
                         raise RuntimeError(
-                            f"Model download failed: {model_path} still doesn't exist after download"
+                            f"Model download incomplete: {model_path} validation failed"
                         )
 
                     logger.info(f"Successfully downloaded VLLM model {model}")
                 except Exception as e:
                     logger.error(f"Failed to download VLLM model {model}: {e}")
+                    if os.path.exists(model_path):
+                        shutil.rmtree(model_path)
                     raise
+            else:
+                logger.info(f"VLLM model {model} already exists and is valid")
 
         elif backend == "transformers":
             model_path = os.path.join(storage_path, "transformers", model)
-            if not os.path.exists(model_path):
-                logger.info(
-                    f"Downloading Transformers model {model} to {model_path}"
-                )
+            if not _validate_transformers_model_path(model_path):
+                if os.path.exists(model_path):
+                    logger.warning(f"Incomplete transformers model found at {model_path}, re-downloading")
+                    shutil.rmtree(model_path)
+                
+                logger.info(f"Downloading Transformers model {model} to {model_path}")
                 try:
-                    # Extract download parameters from config
                     pretrained_model_name_or_path = backend_config.get(
                         "pretrained_model_name_or_path", model
                     )
@@ -122,29 +189,30 @@ class InstanceManager:
                         hf_model_class=hf_model_class,
                     )
 
-                    # Verify download succeeded
-                    if not os.path.exists(model_path):
+                    if not _validate_transformers_model_path(model_path):
                         raise RuntimeError(
-                            f"Model download failed: {model_path} still doesn't exist after download"
+                            f"Model download incomplete: {model_path} validation failed"
                         )
 
-                    logger.info(
-                        f"Successfully downloaded Transformers model {model}"
-                    )
+                    logger.info(f"Successfully downloaded Transformers model {model}")
                 except Exception as e:
-                    logger.error(
-                        f"Failed to download Transformers model {model}: {e}"
-                    )
+                    logger.error(f"Failed to download Transformers model {model}: {e}")
+                    if os.path.exists(model_path):
+                        shutil.rmtree(model_path)
                     raise
+            else:
+                logger.info(f"Transformers model {model} already exists and is valid")
 
-                # Handle LoRA adapter if specified
-                adapter_name_or_path = backend_config.get(
-                    "adapter_name_or_path"
-                )
-                if adapter_name_or_path:
-                    adapter_name = backend_config.get(
-                        "adapter_name", adapter_name_or_path
-                    )
+            # Handle LoRA adapter if specified
+            adapter_name_or_path = backend_config.get("adapter_name_or_path")
+            if adapter_name_or_path:
+                adapter_path = os.path.join(storage_path, "transformers", adapter_name_or_path)
+                if not _validate_lora_adapter_path(adapter_path):
+                    if os.path.exists(adapter_path):
+                        logger.warning(f"Incomplete LoRA adapter found at {adapter_path}, re-downloading")
+                        shutil.rmtree(adapter_path)
+                    
+                    adapter_name = backend_config.get("adapter_name", adapter_name_or_path)
                     await download_lora_adapter(
                         base_model_name=model,
                         adapter_name=adapter_name,
@@ -152,6 +220,13 @@ class InstanceManager:
                         hf_model_class=hf_model_class,
                         torch_dtype=torch_dtype,
                     )
+                    
+                    if not _validate_lora_adapter_path(adapter_path):
+                        raise RuntimeError(
+                            f"LoRA adapter download incomplete: {adapter_path} validation failed"
+                        )
+                else:
+                    logger.info(f"LoRA adapter {adapter_name_or_path} already exists and is valid")
 
         elif backend == "dummy":
             # Dummy backend doesn't need model downloading
