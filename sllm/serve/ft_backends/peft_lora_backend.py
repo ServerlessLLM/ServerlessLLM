@@ -43,10 +43,6 @@ from sllm_store.transformers import load_model, save_lora
 logger = init_logger(__name__)
 
 
-class DeletingException(Exception):
-    pass
-
-
 class FineTuningStatus:
     def __init__(self, job_id: str):
         self.job_id = job_id
@@ -150,11 +146,9 @@ class PeftLoraBackend(SllmFineTuningBackend):
             logger.info(f"Using model class: {hf_model_class}")
 
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = os.path.join("transformers", self.model_name)
-            logger.info(f"Loading model from path: {model_path}")
-            logger.info(f"Storage path: {storage_path}")
-            logger.info(f"Device map: {device_map}")
-            logger.info(f"Torch dtype: {torch_dtype}")
+            model_path = os.path.join(
+                storage_path, "transformers", self.model_name
+            )
 
             self.model = load_model(
                 model_path,
