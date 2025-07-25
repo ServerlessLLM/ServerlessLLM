@@ -107,8 +107,9 @@ def initialize_model(
         hf_model_class=hf_model_class,
     )
 
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+    # Load tokenizer (use same path as model)
+    full_model_path = os.path.join(storage_path, model_path)
+    tokenizer = AutoTokenizer.from_pretrained(full_model_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -208,7 +209,7 @@ async def chat_completions(request):
 
 @app.post("/v1/embeddings")
 async def embeddings(request):
-    pass
+    return {"error": "Embeddings not implemented for Transformers backend"}
 
 
 if __name__ == "__main__":

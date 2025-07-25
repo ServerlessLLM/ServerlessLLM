@@ -80,18 +80,20 @@ class InstanceManager:
                     max_size = backend_config.get("max_size", None)
 
                     await downloader.download_vllm_model(
-                        model=model,
+                        model_name=model,
                         pretrained_model_name_or_path=pretrained_model_name_or_path,
                         torch_dtype=torch_dtype,
                         tensor_parallel_size=tensor_parallel_size,
                         pattern=pattern,
                         max_size=max_size,
                     )
-                    
+
                     # Verify download succeeded
                     if not os.path.exists(model_path):
-                        raise RuntimeError(f"Model download failed: {model_path} still doesn't exist after download")
-                    
+                        raise RuntimeError(
+                            f"Model download failed: {model_path} still doesn't exist after download"
+                        )
+
                     logger.info(f"Successfully downloaded VLLM model {model}")
                 except Exception as e:
                     logger.error(f"Failed to download VLLM model {model}: {e}")
@@ -100,7 +102,9 @@ class InstanceManager:
         elif backend == "transformers":
             model_path = os.path.join(storage_path, "transformers", model)
             if not os.path.exists(model_path):
-                logger.info(f"Downloading Transformers model {model} to {model_path}")
+                logger.info(
+                    f"Downloading Transformers model {model} to {model_path}"
+                )
                 try:
                     # Extract download parameters from config
                     pretrained_model_name_or_path = backend_config.get(
@@ -112,19 +116,25 @@ class InstanceManager:
                     )
 
                     await download_transformers_model(
-                        model=model,
+                        model_name=model,
                         pretrained_model_name_or_path=pretrained_model_name_or_path,
                         torch_dtype=torch_dtype,
                         hf_model_class=hf_model_class,
                     )
-                    
+
                     # Verify download succeeded
                     if not os.path.exists(model_path):
-                        raise RuntimeError(f"Model download failed: {model_path} still doesn't exist after download")
-                    
-                    logger.info(f"Successfully downloaded Transformers model {model}")
+                        raise RuntimeError(
+                            f"Model download failed: {model_path} still doesn't exist after download"
+                        )
+
+                    logger.info(
+                        f"Successfully downloaded Transformers model {model}"
+                    )
                 except Exception as e:
-                    logger.error(f"Failed to download Transformers model {model}: {e}")
+                    logger.error(
+                        f"Failed to download Transformers model {model}: {e}"
+                    )
                     raise
 
                 # Handle LoRA adapter if specified
@@ -136,7 +146,7 @@ class InstanceManager:
                         "adapter_name", adapter_name_or_path
                     )
                     await download_lora_adapter(
-                        base_model=model,
+                        base_model_name=model,
                         adapter_name=adapter_name,
                         adapter_name_or_path=adapter_name_or_path,
                         hf_model_class=hf_model_class,
@@ -188,9 +198,7 @@ class InstanceManager:
         # Create and initialize the backend instance
         backend_instance = None
         try:
-            backend_instance = model_backend_cls(
-                model, backend_config
-            )
+            backend_instance = model_backend_cls(model, backend_config)
 
             # Initialize the backend
             await backend_instance.init_backend()

@@ -45,9 +45,13 @@ async def download_transformers_model(
         logger.info(f"{model_path} already exists")
         return True
 
-    torch_dtype = getattr(torch, torch_dtype)
-    if torch_dtype is None:
-        raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
+    try:
+        torch_dtype = getattr(torch, torch_dtype)
+    except AttributeError:
+        logger.error(
+            f"Invalid torch dtype: {torch_dtype}, defaulting to float16"
+        )
+        torch_dtype = torch.float16
 
     logger.info(f"Downloading {model_path}")
 
@@ -93,9 +97,13 @@ async def download_lora_adapter(
         logger.info(f"{adapter_path} already exists")
         return True
 
-    torch_dtype = getattr(torch, torch_dtype)
-    if torch_dtype is None:
-        raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
+    try:
+        torch_dtype = getattr(torch, torch_dtype)
+    except AttributeError:
+        logger.error(
+            f"Invalid torch dtype: {torch_dtype}, defaulting to float16"
+        )
+        torch_dtype = torch.float16
 
     from transformers import AutoConfig
 

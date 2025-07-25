@@ -22,7 +22,7 @@ import os
 import signal
 import subprocess
 import time
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 

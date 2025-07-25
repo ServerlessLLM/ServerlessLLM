@@ -21,7 +21,7 @@ import os
 import signal
 import subprocess
 import time
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 
@@ -321,7 +321,7 @@ class VllmBackend(SllmBackend):
             for response in responses:
                 if isinstance(response, Exception):
                     logger.warning(f"Cache warming request failed: {response}")
-                elif hasattr(response, 'close'):
+                elif hasattr(response, "close"):
                     await response.close()
 
         except Exception as e:

@@ -63,11 +63,17 @@ COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
 RUN cd sllm_store && python3 setup.py bdist_wheel
 
 
+# Copy only dependencies and build config first (for caching)
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
+COPY README.md /app/
+
+# Install Python dependencies (cached layer)
+RUN pip install -r requirements.txt -r requirements-worker.txt
+
+# Copy source code last (invalidates cache only for code changes)
 COPY sllm/serve /app/sllm/serve
 COPY sllm/cli /app/sllm/cli
-COPY README.md /app/
 RUN python3 setup.py bdist_wheel
 
 FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
