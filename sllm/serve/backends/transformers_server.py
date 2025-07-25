@@ -92,7 +92,9 @@ def initialize_model(
     try:
         torch_dtype_obj = getattr(torch, torch_dtype)
     except AttributeError:
-        logger.error(f"Invalid torch dtype: {torch_dtype}, defaulting to float16")
+        logger.error(
+            f"Invalid torch dtype: {torch_dtype}, defaulting to float16"
+        )
         torch_dtype_obj = torch.float16
 
     # Load model using sllm_store

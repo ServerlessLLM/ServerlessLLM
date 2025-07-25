@@ -22,7 +22,7 @@ import os
 import signal
 import subprocess
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import aiohttp
 
@@ -104,7 +104,7 @@ class TransformersBackend(SllmBackend):
 
         # Use the dedicated transformers server
 
-        server_script_path = sllm.serve.worker.transformers_server.__file__
+        server_script_path = sllm.serve.backends.transformers_server.__file__
 
         cmd = [
             "python",
@@ -263,14 +263,18 @@ class TransformersBackend(SllmBackend):
         """Return a list of all ongoing request tokens."""
         if self.status != BackendStatus.RUNNING:
             return []
-        
+
         try:
-            async with self.session.get(f"{self.base_url}/get_current_tokens") as response:
+            async with self.session.get(
+                f"{self.base_url}/get_current_tokens"
+            ) as response:
                 if response.status == 200:
                     result = await response.json()
                     return result.get("tokens", [])
                 else:
-                    logger.warning(f"Failed to get current tokens: {response.status}")
+                    logger.warning(
+                        f"Failed to get current tokens: {response.status}"
+                    )
                     return []
         except Exception as e:
             logger.error(f"Error getting current tokens: {e}")
@@ -280,14 +284,16 @@ class TransformersBackend(SllmBackend):
         """Resume KV cache for given request token sequences."""
         if self.status != BackendStatus.RUNNING:
             return
-        
+
         try:
             payload = {"request_datas": request_datas}
             async with self.session.post(
                 f"{self.base_url}/resume_kv_cache", json=payload
             ) as response:
                 if response.status != 200:
-                    logger.warning(f"Failed to resume KV cache: {response.status}")
+                    logger.warning(
+                        f"Failed to resume KV cache: {response.status}"
+                    )
         except Exception as e:
             logger.error(f"Error resuming KV cache: {e}")
 

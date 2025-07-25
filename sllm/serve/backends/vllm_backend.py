@@ -21,7 +21,7 @@ import os
 import signal
 import subprocess
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import aiohttp
 
@@ -272,14 +272,18 @@ class VllmBackend(SllmBackend):
         """Return a list of all ongoing request tokens."""
         if self.status != BackendStatus.RUNNING:
             return []
-        
+
         try:
-            async with self.session.get(f"{self.base_url}/get_current_tokens") as response:
+            async with self.session.get(
+                f"{self.base_url}/get_current_tokens"
+            ) as response:
                 if response.status == 200:
                     result = await response.json()
                     return result.get("tokens", [])
                 else:
-                    logger.warning(f"Failed to get current tokens: {response.status}")
+                    logger.warning(
+                        f"Failed to get current tokens: {response.status}"
+                    )
                     return []
         except Exception as e:
             logger.error(f"Error getting current tokens: {e}")
@@ -289,7 +293,7 @@ class VllmBackend(SllmBackend):
         """Resume KV cache for given request token sequences."""
         if self.status != BackendStatus.RUNNING:
             return
-        
+
         try:
             # For vLLM, simulate cache warming by sending short generation requests
             constructed_inputs = [
@@ -300,22 +304,26 @@ class VllmBackend(SllmBackend):
                 }
                 for request_data in request_datas
             ]
-            
+
             tasks = []
-            for i, (inputs, tokens) in enumerate(zip(constructed_inputs, request_datas)):
+            for i, (inputs, tokens) in enumerate(
+                zip(constructed_inputs, request_datas)
+            ):
                 # Convert tokens back to text (simplified approach)
                 inputs["prompt"] = f"<resume_cache_{i}>"
-                task = self.session.post(f"{self.base_url}/v1/completions", json=inputs)
+                task = self.session.post(
+                    f"{self.base_url}/v1/completions", json=inputs
+                )
                 tasks.append(task)
-            
+
             # Execute all cache warming requests
             responses = await asyncio.gather(*tasks, return_exceptions=True)
             for response in responses:
                 if isinstance(response, Exception):
                     logger.warning(f"Cache warming request failed: {response}")
-                else:
-                    response.close()
-                    
+                elif hasattr(response, 'close'):
+                    await response.close()
+
         except Exception as e:
             logger.error(f"Error resuming KV cache: {e}")
 
