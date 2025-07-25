@@ -55,22 +55,36 @@ async def download_transformers_model(
 
     logger.info(f"Downloading {model_path}")
 
-    module = importlib.import_module("transformers")
-    hf_model_cls = getattr(module, hf_model_class)
-    model = hf_model_cls.from_pretrained(
-        pretrained_model_name_or_path,
-        torch_dtype=torch_dtype,
-        trust_remote_code=True,
-    )
+    # Run blocking operations in thread pool to avoid blocking heartbeats
+    import asyncio
+    loop = asyncio.get_event_loop()
+    
+    def _load_model():
+        module = importlib.import_module("transformers")
+        hf_model_cls = getattr(module, hf_model_class)
+        return hf_model_cls.from_pretrained(
+            pretrained_model_name_or_path,
+            torch_dtype=torch_dtype,
+            trust_remote_code=True,
+        )
+    
+    model = await loop.run_in_executor(None, _load_model)
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    def _load_tokenizer():
+        return AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
+    
+    tokenizer = await loop.run_in_executor(None, _load_tokenizer)
 
     from sllm_store.transformers import save_model
 
     logger.info(f"Saving {model_path}")
-    try:
+    
+    def _save_model_and_tokenizer():
         save_model(model, model_path)
         tokenizer.save_pretrained(tokenizer_path)
+    
+    try:
+        await loop.run_in_executor(None, _save_model_and_tokenizer)
     except Exception as e:
         logger.error(f"Failed to save {model_path}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
@@ -174,35 +188,45 @@ class VllmModelDownloader:
             if os.path.exists(pretrained_model_name_or_path):
                 input_dir = pretrained_model_name_or_path
             else:
-                # download from huggingface
-                input_dir = snapshot_download(
-                    model_name,
-                    cache_dir=cache_dir.name,
-                    allow_patterns=[
-                        "*.safetensors",
-                        "*.bin",
-                        "*.json",
-                        "*.txt",
-                    ],
-                )
+                # download from huggingface (run in thread pool to avoid blocking)
+                import asyncio
+                loop = asyncio.get_event_loop()
+                
+                def _download():
+                    return snapshot_download(
+                        model_name,
+                        cache_dir=cache_dir.name,
+                        allow_patterns=[
+                            "*.safetensors",
+                            "*.bin",
+                            "*.json",
+                            "*.txt",
+                        ],
+                    )
+                
+                input_dir = await loop.run_in_executor(None, _download)
             logger.info(f"Loading model from {input_dir}")
 
-            # load models from the input directory
-            llm_writer = LLM(
-                model=input_dir,
-                download_dir=input_dir,
-                dtype=torch_dtype,
-                tensor_parallel_size=tensor_parallel_size,
-                num_gpu_blocks_override=1,
-                enforce_eager=True,
-                max_model_len=1,
-            )
-            # model_executer = llm_writer.llm_engine.model_executor #V0
-            model_executer = llm_writer.llm_engine.engine_core  # For engine V1
-            # save the models in the ServerlessLLM format
-            model_executer.save_serverless_llm_state(
-                path=model_path, pattern=pattern, max_size=max_size
-            )
+            # load models from the input directory (run in thread pool)
+            def _create_and_save_llm():
+                llm_writer = LLM(
+                    model=input_dir,
+                    download_dir=input_dir,
+                    dtype=torch_dtype,
+                    tensor_parallel_size=tensor_parallel_size,
+                    num_gpu_blocks_override=1,
+                    enforce_eager=True,
+                    max_model_len=1,
+                )
+                # model_executer = llm_writer.llm_engine.model_executor #V0
+                model_executer = llm_writer.llm_engine.engine_core  # For engine V1
+                # save the models in the ServerlessLLM format
+                model_executer.save_serverless_llm_state(
+                    path=model_path, pattern=pattern, max_size=max_size
+                )
+                return llm_writer, model_executer
+            
+            llm_writer, model_executer = await loop.run_in_executor(None, _create_and_save_llm)
             for file in os.listdir(input_dir):
                 # Copy the metadata files into the output directory
                 if os.path.splitext(file)[1] not in (

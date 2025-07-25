@@ -94,6 +94,8 @@ class VllmBackend(SllmBackend):
             "vllm",
             "serve",
             model_path,
+            "--load-format",
+            "serverless_llm",
             "--port",
             str(self.port),
             "--host",
