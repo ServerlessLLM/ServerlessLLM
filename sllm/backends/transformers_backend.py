@@ -38,8 +38,8 @@ from transformers import (
 )
 from transformers.generation.streamers import BaseStreamer
 
-from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
-from sllm.serve.logger import init_logger
+from sllm.backends.backend_utils import BackendStatus, SllmBackend
+from sllm.logger import init_logger
 from sllm_store.transformers import load_lora, load_model, save_lora
 
 logger = init_logger(__name__)

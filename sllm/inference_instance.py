@@ -15,52 +15,40 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import argparse
-import asyncio
 
-from sllm.cli.delete import DeleteCommand
-from sllm.cli.deploy import DeployCommand
-from sllm.cli.encode import EncodeCommand
-from sllm.cli.fine_tuning import FineTuningCommand
-from sllm.cli.generate import GenerateCommand
-from sllm.cli.replay import ReplayCommand
-from sllm.cli.status import StatusCommand
-from sllm.cli.update import UpdateCommand
-from sllm.serve.logger import init_logger
+import ray
+
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        "sllm-cli", usage="sllm-cli <command> [<args>]"
-    )
-    commands_parser = parser.add_subparsers(help="sllm-cli command helpers")
+@ray.remote
+def start_instance(
+    instance_id, backend, model_name, backend_config, startup_config
+):
+    logger.info(f"Starting instance {instance_id} with backend {backend}")
+    if backend == "vllm":
+        from sllm.backends import VllmBackend
 
-    # Register commands
-    DeployCommand.register_subcommand(commands_parser)
-    GenerateCommand.register_subcommand(commands_parser)
-    EncodeCommand.register_subcommand(commands_parser)
-    ReplayCommand.register_subcommand(commands_parser)
-    DeleteCommand.register_subcommand(commands_parser)
-    UpdateCommand.register_subcommand(commands_parser)
-    FineTuningCommand.register_subcommand(commands_parser)
-    StatusCommand.register_subcommand(commands_parser)
+        model_backend_cls = VllmBackend
+    elif backend == "dummy":
+        from sllm.backends import DummyBackend
 
-    # Let's go
-    args = parser.parse_args()
+        model_backend_cls = DummyBackend
+    elif backend == "transformers":
+        from sllm.backends import TransformersBackend
 
-    if not hasattr(args, "func"):
-        parser.print_help()
-        exit(1)
-
-    # Run
-    service = args.func(args)
-    if asyncio.iscoroutinefunction(service.run):
-        asyncio.run(service.run())
+        model_backend_cls = TransformersBackend
     else:
-        service.run()
+        logger.error(f"Unknown backend: {backend}")
+        raise ValueError(f"Unknown backend: {backend}")
 
+    model_actor_cls = ray.remote(model_backend_cls)
 
-if __name__ == "__main__":
-    main()
+    return model_actor_cls.options(
+        name=instance_id,
+        **startup_config,
+        max_concurrency=10,
+        lifetime="detached",
+    ).remote(model_name, backend_config)

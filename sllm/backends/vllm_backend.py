@@ -38,7 +38,7 @@ from vllm import (
 from vllm.inputs import TokensPrompt
 from vllm.utils import Counter
 
-from sllm.serve.backends.backend_utils import (
+from sllm.backends.backend_utils import (
     BackendStatus,
     SllmBackend,
 )

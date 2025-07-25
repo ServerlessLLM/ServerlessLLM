@@ -22,8 +22,8 @@ from typing import Dict, List, Optional
 
 import ray
 
-from sllm.serve.inference_instance import start_instance
-from sllm.serve.logger import init_logger
+from sllm.inference_instance import start_instance
+from sllm.logger import init_logger
 
 from ..utils import InstanceHandle
 from .router_utils import SllmRouter
