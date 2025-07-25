@@ -259,6 +259,38 @@ class TransformersBackend(SllmBackend):
         logger.info("Stopping Transformers server backend")
         await self.shutdown()
 
+    async def get_current_tokens(self) -> List[List[int]]:
+        """Return a list of all ongoing request tokens."""
+        if self.status != BackendStatus.RUNNING:
+            return []
+        
+        try:
+            async with self.session.get(f"{self.base_url}/get_current_tokens") as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result.get("tokens", [])
+                else:
+                    logger.warning(f"Failed to get current tokens: {response.status}")
+                    return []
+        except Exception as e:
+            logger.error(f"Error getting current tokens: {e}")
+            return []
+
+    async def resume_kv_cache(self, request_datas: List[List[int]]) -> None:
+        """Resume KV cache for given request token sequences."""
+        if self.status != BackendStatus.RUNNING:
+            return
+        
+        try:
+            payload = {"request_datas": request_datas}
+            async with self.session.post(
+                f"{self.base_url}/resume_kv_cache", json=payload
+            ) as response:
+                if response.status != 200:
+                    logger.warning(f"Failed to resume KV cache: {response.status}")
+        except Exception as e:
+            logger.error(f"Error resuming KV cache: {e}")
+
     async def fine_tuning(self, request_data: Dict[str, Any]):
         raise NotImplementedError(
             "Fine-tuning is not supported in this HTTP backend version"
