@@ -46,8 +46,11 @@ class InstanceManager:
         self, model_config: Dict[str, Any]
     ) -> None:
         """Ensure the model is downloaded before starting the backend."""
-        model = model_config["model"]
-        backend = model_config["backend"]
+        model = model_config.get("model")
+        backend = model_config.get("backend")
+        
+        if not model or not backend:
+            raise ValueError("model_config must contain 'model' and 'backend' keys")
         backend_config = model_config.get("backend_config", {})
 
         storage_path = os.getenv("STORAGE_PATH", "./models")
@@ -135,17 +138,16 @@ class InstanceManager:
         # Use provided instance_id or generate new one
         if instance_id is None:
             instance_id = self._generate_instance_id(
-                model_config["model"], model_config["backend"]
+                model, backend
             )
 
         logger.info(
-            f"Starting instance {instance_id} with backend {model_config['backend']}"
+            f"Starting instance {instance_id} with backend {backend}"
         )
 
         # Ensure model is downloaded before starting backend
         await self._ensure_model_downloaded(model_config)
 
-        backend = model_config.get("backend")
         backend_config = model_config.get("backend_config", {})
         startup_config = model_config.get("startup_config", {})
 

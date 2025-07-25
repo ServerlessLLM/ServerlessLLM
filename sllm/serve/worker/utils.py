@@ -174,9 +174,9 @@ def _get_network_bandwidth(speedtest_module) -> tuple:
 
 
 def validate_storage_path(storage_path: str) -> bool:
-    """Validate storage path exists and is writable."""
+    """Validate storage path exists and is a directory."""
     try:
         path = Path(storage_path)
-        return path.exists() and path.is_dir() and os.access(path, os.W_OK)
+        return path.exists() and path.is_dir()
     except Exception:
         return False
