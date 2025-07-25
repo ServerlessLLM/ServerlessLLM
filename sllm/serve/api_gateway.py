@@ -85,9 +85,7 @@ def create_app(
                     detail="Missing 'model' or 'backend' in request body.",
                 )
 
-            await request.app.state.model_manager.update(
-                model, backend, body
-            )
+            await request.app.state.model_manager.update(model, backend, body)
             return {"status": f"updated model {model}:{backend}"}
 
         except ValueError as e:
@@ -112,9 +110,7 @@ def create_app(
             model_manager = request.app.state.model_manager
 
             if lora_adapters:
-                await model_manager.delete(
-                    model, "transformers", lora_adapters
-                )
+                await model_manager.delete(model, "transformers", lora_adapters)
                 return {"status": f"deleted LoRA adapters from {model}"}
 
             elif backend:

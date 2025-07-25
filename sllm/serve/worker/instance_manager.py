@@ -48,9 +48,11 @@ class InstanceManager:
         """Ensure the model is downloaded before starting the backend."""
         model = model_config.get("model")
         backend = model_config.get("backend")
-        
+
         if not model or not backend:
-            raise ValueError("model_config must contain 'model' and 'backend' keys")
+            raise ValueError(
+                "model_config must contain 'model' and 'backend' keys"
+            )
         backend_config = model_config.get("backend_config", {})
 
         storage_path = os.getenv("STORAGE_PATH", "./models")
@@ -62,49 +64,68 @@ class InstanceManager:
         if backend == "vllm":
             model_path = os.path.join(storage_path, "vllm", model)
             if not os.path.exists(model_path):
-                logger.info(f"Downloading VLLM model {model}")
-                downloader = VllmModelDownloader()
+                logger.info(f"Downloading VLLM model {model} to {model_path}")
+                try:
+                    downloader = VllmModelDownloader()
 
-                # Extract download parameters from config
-                pretrained_model_name_or_path = backend_config.get(
-                    "pretrained_model_name_or_path", model
-                )
-                torch_dtype = backend_config.get("torch_dtype", "float16")
-                tensor_parallel_size = backend_config.get(
-                    "tensor_parallel_size", 1
-                )
-                pattern = backend_config.get("pattern", None)
-                max_size = backend_config.get("max_size", None)
+                    # Extract download parameters from config
+                    pretrained_model_name_or_path = backend_config.get(
+                        "pretrained_model_name_or_path", model
+                    )
+                    torch_dtype = backend_config.get("torch_dtype", "float16")
+                    tensor_parallel_size = backend_config.get(
+                        "tensor_parallel_size", 1
+                    )
+                    pattern = backend_config.get("pattern", None)
+                    max_size = backend_config.get("max_size", None)
 
-                await downloader.download_vllm_model(
-                    model=model,
-                    pretrained_model_name_or_path=pretrained_model_name_or_path,
-                    torch_dtype=torch_dtype,
-                    tensor_parallel_size=tensor_parallel_size,
-                    pattern=pattern,
-                    max_size=max_size,
-                )
+                    await downloader.download_vllm_model(
+                        model=model,
+                        pretrained_model_name_or_path=pretrained_model_name_or_path,
+                        torch_dtype=torch_dtype,
+                        tensor_parallel_size=tensor_parallel_size,
+                        pattern=pattern,
+                        max_size=max_size,
+                    )
+                    
+                    # Verify download succeeded
+                    if not os.path.exists(model_path):
+                        raise RuntimeError(f"Model download failed: {model_path} still doesn't exist after download")
+                    
+                    logger.info(f"Successfully downloaded VLLM model {model}")
+                except Exception as e:
+                    logger.error(f"Failed to download VLLM model {model}: {e}")
+                    raise
 
         elif backend == "transformers":
             model_path = os.path.join(storage_path, "transformers", model)
             if not os.path.exists(model_path):
-                logger.info(f"Downloading Transformers model {model}")
+                logger.info(f"Downloading Transformers model {model} to {model_path}")
+                try:
+                    # Extract download parameters from config
+                    pretrained_model_name_or_path = backend_config.get(
+                        "pretrained_model_name_or_path", model
+                    )
+                    torch_dtype = backend_config.get("torch_dtype", "float16")
+                    hf_model_class = backend_config.get(
+                        "hf_model_class", "AutoModelForCausalLM"
+                    )
 
-                # Extract download parameters from config
-                pretrained_model_name_or_path = backend_config.get(
-                    "pretrained_model_name_or_path", model
-                )
-                torch_dtype = backend_config.get("torch_dtype", "float16")
-                hf_model_class = backend_config.get(
-                    "hf_model_class", "AutoModelForCausalLM"
-                )
-
-                await download_transformers_model(
-                    model=model,
-                    pretrained_model_name_or_path=pretrained_model_name_or_path,
-                    torch_dtype=torch_dtype,
-                    hf_model_class=hf_model_class,
-                )
+                    await download_transformers_model(
+                        model=model,
+                        pretrained_model_name_or_path=pretrained_model_name_or_path,
+                        torch_dtype=torch_dtype,
+                        hf_model_class=hf_model_class,
+                    )
+                    
+                    # Verify download succeeded
+                    if not os.path.exists(model_path):
+                        raise RuntimeError(f"Model download failed: {model_path} still doesn't exist after download")
+                    
+                    logger.info(f"Successfully downloaded Transformers model {model}")
+                except Exception as e:
+                    logger.error(f"Failed to download Transformers model {model}: {e}")
+                    raise
 
                 # Handle LoRA adapter if specified
                 adapter_name_or_path = backend_config.get(
@@ -138,13 +159,9 @@ class InstanceManager:
         backend = model_config.get("backend")
 
         if instance_id is None:
-            instance_id = self._generate_instance_id(
-                model, backend
-            )
+            instance_id = self._generate_instance_id(model, backend)
 
-        logger.info(
-            f"Starting instance {instance_id} with backend {backend}"
-        )
+        logger.info(f"Starting instance {instance_id} with backend {backend}")
 
         await self._ensure_model_downloaded(model_config)
         backend_config = model_config.get("backend_config", {})
@@ -172,7 +189,7 @@ class InstanceManager:
         backend_instance = None
         try:
             backend_instance = model_backend_cls(
-                model_config["model"], backend_config
+                model, backend_config
             )
 
             # Initialize the backend
