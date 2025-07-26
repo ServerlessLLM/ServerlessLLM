@@ -455,6 +455,11 @@ class SllmController:
 
     async def cancel_ft_job(self, job_id):
         job_info = await self.job_store.get_job.remote(job_id)
+        if job_info is None:
+            logger.error(f"Job {job_id} does not exist.")
+            raise SllmControllerException(
+                f"Job {job_id} not found", method="cancel_ft_job"
+            )
         if job_info["status"] == "running":
             ft_request_router = ray.get_actor(
                 f"ft_{job_id}", namespace="fine_tuning"

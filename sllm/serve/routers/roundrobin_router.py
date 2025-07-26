@@ -241,12 +241,10 @@ class RoundRobinRouter(SllmRouter):
             result = await instance.backend_instance.fine_tuning.remote(
                 request_data=request_data
             )
-            logger.info(f"Fine_tuning method call completed successfully")
 
             logger.info(f"Finished processing fine-tuning {self.model_name}")
             await instance.add_requests(-1)
 
-            # the fine-tuning job is done, shutdown the instance
             await self._shutdown_instance(instance_id, is_ft=True)
 
             async with self.fine_tuning_count_lock:
