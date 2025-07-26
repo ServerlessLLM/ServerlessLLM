@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------- #
 #  serverlessllm                                                               #
-#  copyright (c) serverlessllm team 2024                                       #
+#  copyright (c) serverlessllm team 2025                                       #
 #                                                                              #
 #  licensed under the apache license, version 2.0 (the "license");             #
 #  you may not use this file except in compliance with the license.            #
@@ -15,49 +15,30 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-from abc import ABC, abstractmethod
-from enum import Enum, auto
-from typing import Any, Dict, List, Optional
+
+import ray
+
+from sllm.serve.logger import init_logger
+
+logger = init_logger(__name__)
 
 
-class BackendStatus(Enum):
-    UNINITIALIZED = auto()
-    RUNNING = auto()
-    STOPPING = auto()
-    DELETING = auto()
+@ray.remote
+def start_ft_instance(
+    instance_id, backend, model_name, backend_config, startup_config
+):
+    logger.info(f"Starting instance {instance_id} with backend {backend}")
+    if backend == "peft_lora":
+        from sllm.serve.ft_backends import PeftLoraBackend
 
+        model_backend_cls = ray.remote(PeftLoraBackend)
+    else:
+        logger.error(f"Unknown backend: {backend}")
+        raise ValueError(f"Unknown backend: {backend}")
 
-class SllmBackend(ABC):
-    @abstractmethod
-    def __init__(
-        self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
-    ) -> None:
-        pass
-
-    @abstractmethod
-    async def init_backend(self) -> None:
-        pass
-
-    @abstractmethod
-    async def encode(self, request_data: Dict[str, Any]):
-        pass
-
-    @abstractmethod
-    async def generate(self, request_data: Dict[str, Any]):
-        pass
-
-    @abstractmethod
-    async def shutdown(self):
-        pass
-
-    @abstractmethod
-    async def stop(self):
-        pass
-
-    @abstractmethod
-    async def get_current_tokens(self) -> List[List[int]]:
-        pass
-
-    @abstractmethod
-    async def resume_kv_cache(self, request_datas: List[List[int]]) -> None:
-        pass
+    return model_backend_cls.options(
+        name=instance_id,
+        namespace="fine_tuning",
+        **startup_config,
+        max_concurrency=10,
+    ).remote(model_name, backend_config)
