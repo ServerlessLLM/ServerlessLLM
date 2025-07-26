@@ -39,17 +39,17 @@ class SllmFineTuningBackend(ABC):
         pass
 
     @abstractmethod
-    async def init_backend(self) -> None:
+    def init_backend(self) -> None:
         pass
 
     @abstractmethod
-    async def shutdown(self):
+    def shutdown(self):
         pass
 
     @abstractmethod
-    async def stop(self):
+    def stop(self):
         pass
 
     @abstractmethod
-    async def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+    def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
         pass
