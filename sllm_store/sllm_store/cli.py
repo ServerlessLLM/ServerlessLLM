@@ -393,7 +393,9 @@ def load(
             for i in range(num_gpus):
                 torch.ones(1).to(f"cuda:{i}")
                 torch.cuda.synchronize()
-            config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+            config = AutoConfig.from_pretrained(
+                model_name, trust_remote_code=True
+            )
             if adapter_name:
                 model = load_model(
                     model_name,
