@@ -286,8 +286,14 @@ def save(
                 save_lora(model, model_path)
             else:
                 # Load a model from HuggingFace model hub
+                config = AutoConfig.from_pretrained(
+                    model_name,
+                    trust_remote_code=True,
+                )
                 model = AutoModelForCausalLM.from_pretrained(
-                    model_name, torch_dtype=config.torch_dtype
+                    model_name,
+                    torch_dtype=config.torch_dtype,
+                    trust_remote_code=True,
                 )
 
                 # Save the model to the local path
