@@ -36,18 +36,22 @@ from sllm.serve.worker.utils import (
     validate_transformers_model_path,
     validate_lora_adapter_path,
 )
+from sllm_store.client import SllmStoreClient
 
 logger = init_logger(__name__)
 
 
 
 class InstanceManager:
-    def __init__(self):
+    def __init__(self, node_ip: str = "127.0.0.1"):
         self._running_instances: Dict[str, Dict[str, Any]] = {}
         self._instances_lock = asyncio.Lock()  # Protect concurrent access
         self._instance_lookup: Dict[
             str, str
         ] = {}  # instance_id -> model_identifier for fast lookup
+        
+        # SLLM Store Client - based on node IP
+        self.client = SllmStoreClient(f"{node_ip}:8073")
 
     async def _ensure_model_downloaded(
         self, model_config: Dict[str, Any]
@@ -184,6 +188,46 @@ class InstanceManager:
                 f"Unknown backend {backend}, skipping model download"
             )
 
+    async def _ensure_model_registered(
+        self, model_name: str, backend: str, model_config: Dict[str, Any]
+    ) -> None:
+        """Ensure model is registered with the checkpoint store."""
+        try:
+            if backend == "vllm":
+                # Register vLLM model with rank-based paths
+                backend_config = model_config.get("backend_config", {})
+                tensor_parallel_size = backend_config.get("tensor_parallel_size", 1)
+                
+                for rank in range(tensor_parallel_size):
+                    model_path = f"vllm/{model_name}/rank_{rank}"
+                    try:
+                        model_size = self.client.register_model(model_path)
+                        if model_size < 0:
+                            logger.warning(f"Model {model_path} may already be registered")
+                        else:
+                            logger.info(f"Registered {model_path}, size: {model_size} bytes")
+                    except Exception as e:
+                        logger.warning(f"Error registering {model_path}: {e}")
+                        
+            elif backend == "transformers":
+                # Register transformers model
+                model_path = f"transformers/{model_name}"
+                try:
+                    model_size = self.client.register_model(model_path)
+                    if model_size < 0:
+                        logger.warning(f"Model {model_path} may already be registered")
+                    else:
+                        logger.info(f"Registered {model_path}, size: {model_size} bytes")
+                except Exception as e:
+                    logger.warning(f"Error registering {model_path}: {e}")
+                    
+            else:
+                logger.info(f"Backend {backend} does not require checkpoint store registration")
+                
+        except Exception as e:
+            logger.error(f"Failed to register model {model_name} with checkpoint store: {e}")
+            # Don't raise - allow instance to continue, registration might not be critical
+
     async def start_instance(
         self, model_config: Dict[str, Any], instance_id: Optional[str] = None
     ) -> str:
@@ -197,6 +241,10 @@ class InstanceManager:
         logger.info(f"Starting instance {instance_id} with backend {backend}")
 
         await self._ensure_model_downloaded(model_config)
+        
+        # Register model with checkpoint store
+        await self._ensure_model_registered(model, backend, model_config)
+        
         backend_config = model_config.get("backend_config", {})
         startup_config = model_config.get("startup_config", {})
 

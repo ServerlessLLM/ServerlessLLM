@@ -89,7 +89,7 @@ async def run_worker_node(args: argparse.Namespace):
 
     static_hardware_info = benchmark_static_hardware()
 
-    instance_manager = InstanceManager()
+    instance_manager = InstanceManager(node_ip=args.host)
     worker_app = create_worker_app(instance_manager)
     uvicorn_config = Config(
         worker_app, host=args.host, port=args.port, log_level="info"
