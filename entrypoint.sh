@@ -43,7 +43,6 @@ initialize_head_node() {
   # Set environment variables
   export REDIS_HOST="${REDIS_HOST:-$DEFAULT_REDIS_HOST}"
   export REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
-  export STORAGE_PATH="${STORAGE_PATH:-$DEFAULT_STORAGE_PATH}"
   export LOG_LEVEL="${LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
 
   HEAD_HOST="${HEAD_HOST:-$DEFAULT_HEAD_HOST}"
@@ -57,10 +56,6 @@ initialize_head_node() {
     exit 1
   }
   echo "Redis connection validated successfully"
-
-  # Create storage directory if it doesn't exist
-  mkdir -p "$STORAGE_PATH"
-  echo "Storage path: $STORAGE_PATH"
 
   # Start sllm-serve head node with HTTP API gateway
   echo "Starting ServerlessLLM head node on ${HEAD_HOST}:${HEAD_PORT}"
