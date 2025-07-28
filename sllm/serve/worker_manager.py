@@ -204,13 +204,6 @@ class WorkerManager:
             if success:
                 successful_starts += 1
                 
-                # Immediately add instance to running instances (since worker confirmed receipt)
-                logger.info(f"[WORKER_MGR] Adding instance {instance_id} to running instances for {model_name}:{backend}")
-                await self.store.add_instance_to_worker(
-                    target_worker["node_id"], model_name, backend, instance_id
-                )
-                
-                # Add specific instance to limbo_up tracking for confirmation monitoring
                 logger.info(f"[LIMBO] Adding instance {instance_id} to limbo_up for {model_name}:{backend}")
                 added = await self.store.add_limbo_up_instance(model_name, backend, instance_id)
                 if not added:
@@ -218,7 +211,7 @@ class WorkerManager:
                 else:
                     logger.info(f"[LIMBO] Successfully added {instance_id} to limbo_up")
                     
-                # Mark worker as busy until heartbeat confirms instance is running
+                # NOTE: is this necessary? 
                 await self.store.set_worker_status(
                     model_name, backend, target_worker["node_id"], "busy"
                 )
