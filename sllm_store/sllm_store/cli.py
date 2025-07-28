@@ -320,8 +320,8 @@ def save(
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
 @click.option(
     "--precision",
-    type=str,
-    help="Precision of quantized model. Supports int8, fp4, and nf4",
+    type=click.Choice(["int8", "fp4", "nf4"]),
+    help="Precision of quantized model.",
 )
 @click.option(
     "--storage-path",
@@ -357,12 +357,6 @@ def load(
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4"
             )
-        else:
-            logger.error(
-                f"Unsupported precision: {precision}. "
-                f"Supports int8, fp4, and nf4."
-            )
-            sys.exit(1)
 
     try:
         start_load_time = time.time()
