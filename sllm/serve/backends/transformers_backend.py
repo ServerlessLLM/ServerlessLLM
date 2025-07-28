@@ -237,13 +237,13 @@ class TransformersBackend(SllmBackend):
         )
         
         # Load tokenizer
-        tokenizer_path = os.path.join(storage_path, "transformers", self.model_name)
+        tokenizer_path = os.path.join(storage_path, "transformers", self.model_name, "tokenizer")
         if os.path.exists(tokenizer_path):
             self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         else:
             # Fall back to load from system's cache
             self.tokenizer = AutoTokenizer.from_pretrained(
-                self.pretrained_model_name_or_path or self.model_name
+                self.pretrained_model_name_or_path
             )
         
         if self.tokenizer.pad_token is None:

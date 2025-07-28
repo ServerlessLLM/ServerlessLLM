@@ -34,10 +34,7 @@ source /opt/conda/etc/profile.d/conda.sh
 
 # Function to initialize the head node
 initialize_head_node() {
-  echo "Initializing HTTP-based head node..."
-
   # Activate head environment
-  echo "Activating head conda environment..."
   conda activate head
 
   # Set environment variables
@@ -49,19 +46,12 @@ initialize_head_node() {
   HEAD_PORT="${HEAD_PORT:-$DEFAULT_HEAD_PORT}"
 
   # Validate Redis connection
-  echo "Validating Redis connection to ${REDIS_HOST}:${REDIS_PORT}..."
   timeout 30 bash -c "until echo > /dev/tcp/${REDIS_HOST}/${REDIS_PORT}; do sleep 1; done" || {
     echo "ERROR: Cannot connect to Redis at ${REDIS_HOST}:${REDIS_PORT}"
-    echo "Please ensure Redis is running and accessible"
     exit 1
   }
-  echo "Redis connection validated successfully"
 
   # Start sllm-serve head node with HTTP API gateway
-  echo "Starting ServerlessLLM head node on ${HEAD_HOST}:${HEAD_PORT}"
-  echo "Redis: ${REDIS_HOST}:${REDIS_PORT}"
-  echo "Log level: ${LOG_LEVEL}"
-
   exec sllm-serve head \
     --host="$HEAD_HOST" \
     --port="$HEAD_PORT" \
@@ -72,8 +62,6 @@ initialize_head_node() {
 
 # Function to initialize the worker node
 initialize_worker_node() {
-  echo "Initializing HTTP-based worker node..."
-
   # Parse sllm-store specific arguments
   STORE_ARGS=()
   WORKER_ARGS=()
@@ -92,7 +80,6 @@ initialize_worker_node() {
   done
 
   # Activate worker environment
-  echo "Activating worker conda environment..."
   conda activate worker
 
   # Set environment variables
@@ -105,7 +92,6 @@ initialize_worker_node() {
 
   # Worker starts without node ID - head node will assign one during registration
   NODE_ID=""
-  echo "Starting worker without node ID - will be assigned by head node"
 
   # Validate required environment variables
   if [ -z "$HEAD_NODE_URL" ]; then
@@ -115,28 +101,17 @@ initialize_worker_node() {
 
   # Create storage directory if it doesn't exist
   mkdir -p "$STORAGE_PATH"
-  echo "Storage path: $STORAGE_PATH"
 
   # Validate head node connection
-  echo "Validating head node connection to ${HEAD_NODE_URL}..."
   timeout 30 bash -c "
     while ! curl -s -o /dev/null -w '%{http_code}' ${HEAD_NODE_URL}/health | grep -q '200'; do
-      echo 'Waiting for head node to be ready...'
       sleep 2
     done
   " || {
     echo "WARNING: Cannot connect to head node at ${HEAD_NODE_URL}"
-    echo "Worker will start anyway and attempt to connect during runtime"
   }
-  echo "Head node connection validated successfully"
 
   # Start worker with HTTP heartbeat to head node in background
-  echo "Starting ServerlessLLM worker node on ${WORKER_HOST}:${WORKER_PORT}"
-  echo "Head node: ${HEAD_NODE_URL}"
-  echo "Node ID: ${NODE_ID}"
-  echo "Storage: ${STORAGE_PATH}"
-  echo "Log level: ${LOG_LEVEL}"
-
   sllm-serve worker \
     --host="$WORKER_HOST" \
     --port="$WORKER_PORT" \
@@ -145,7 +120,6 @@ initialize_worker_node() {
     "${WORKER_ARGS[@]}" &
 
   # Start sllm-store with sllm-store specific arguments
-  echo "Starting sllm-store with arguments: --storage-path=$STORAGE_PATH ${STORE_ARGS[*]}"
   exec sllm-store start --storage-path="$STORAGE_PATH" "${STORE_ARGS[@]}"
 }
 
