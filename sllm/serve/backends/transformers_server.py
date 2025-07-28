@@ -82,7 +82,7 @@ def initialize_model(
     global model, tokenizer, model_name
 
     model_name = model_name_param
-    storage_path = os.getenv("STORAGE_PATH", "./models")
+    storage_path = os.getenv("STORAGE_PATH", "/models")
     model_path = os.path.join("transformers", model_name)
     tokenizer_path = os.path.join(storage_path, "transformers", model_name)
 

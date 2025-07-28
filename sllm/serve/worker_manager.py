@@ -108,10 +108,6 @@ class WorkerManager:
                         # Scale down: add limbo_down (already requested to stop but not confirmed)
                         instances_needed = instances_required + limbo_down_count
 
-                    logger.info(
-                        f"Found scaling task for '{model_name}:{backend}': required={instances_required}, limbo_up={limbo_up_count}, limbo_down={limbo_down_count} -> need {instances_needed} instances."
-                    )
-
                     if instances_needed > 0:
                         await self._execute_scale_up(
                             model_name, backend, instances_needed
@@ -207,13 +203,21 @@ class WorkerManager:
             )
             if success:
                 successful_starts += 1
-                # Add specific instance to limbo_up tracking (atomically updates counter too)
+                
+                # Immediately add instance to running instances (since worker confirmed receipt)
+                logger.info(f"[WORKER_MGR] Adding instance {instance_id} to running instances for {model_name}:{backend}")
+                await self.store.add_instance_to_worker(
+                    target_worker["node_id"], model_name, backend, instance_id
+                )
+                
+                # Add specific instance to limbo_up tracking for confirmation monitoring
                 logger.info(f"[LIMBO] Adding instance {instance_id} to limbo_up for {model_name}:{backend}")
                 added = await self.store.add_limbo_up_instance(model_name, backend, instance_id)
                 if not added:
                     logger.warning(f"[LIMBO] Instance {instance_id} was already in limbo_up")
                 else:
                     logger.info(f"[LIMBO] Successfully added {instance_id} to limbo_up")
+                    
                 # Mark worker as busy until heartbeat confirms instance is running
                 await self.store.set_worker_status(
                     model_name, backend, target_worker["node_id"], "busy"
@@ -325,7 +329,7 @@ class WorkerManager:
                 url=url,
                 payload={"model_config": model_config, "instance_id": instance_id},
                 max_retries=3,
-                timeout=120.0,
+                timeout=300.0,
             )
             logger.info(
                 f"Successfully sent start instance command to {worker['node_id']} with instance_id {instance_id}."

@@ -16,9 +16,23 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 
+import asyncio
 from fastapi import FastAPI, HTTPException, Request
 
 from sllm.serve.worker.instance_manager import InstanceManager
+from sllm.serve.logger import init_logger
+
+logger = init_logger(__name__)
+
+
+async def _start_instance_background(instance_manager: InstanceManager, model_config: dict, instance_id: str):
+    """Background task to actually start the instance."""
+    try:
+        logger.info(f"[WORKER_API] Starting background instance creation for {instance_id}")
+        started_instance_id = await instance_manager.start_instance(model_config, instance_id)
+        logger.info(f"[WORKER_API] Successfully started instance {started_instance_id}")
+    except Exception as e:
+        logger.error(f"[WORKER_API] Failed to start instance {instance_id} in background: {e}")
 
 
 def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
@@ -51,23 +65,26 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
     async def start_instance_api(request: Request):
         payload = await request.json()
         model_config = payload.get("model_config")
-        instance_id = payload.get(
-            "instance_id"
-        )  
+        instance_id = payload.get("instance_id")
 
         if not model_config:
             raise HTTPException(status_code=400, detail="Missing model_config")
 
-        started_instance_id = await instance_manager.start_instance(
-            model_config, instance_id
-        )
-        if not started_instance_id:
-            raise HTTPException(
-                status_code=500, detail="Failed to start model instance"
-            )
-        return {
-            "message": f"Instance {started_instance_id} started successfully"
+        logger.info(f"[WORKER_API] Received start instance request for {instance_id}")
+        
+        # Send immediate confirmation that request was received
+        response = {
+            "status": "received",
+            "instance_id": instance_id,
+            "message": f"Instance {instance_id} start request received and processing"
         }
+        
+        # Start instance in background (don't await)
+        asyncio.create_task(
+            _start_instance_background(instance_manager, model_config, instance_id)
+        )
+        
+        return response
 
     @app.post("/stop_instance")
     async def stop_instance_api(request: Request):

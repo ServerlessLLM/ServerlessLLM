@@ -93,7 +93,7 @@ class TransformersBackend(SllmBackend):
                 raise
 
     def _build_serve_command(self) -> list:
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", "/models")
         model_path = os.path.join(storage_path, "transformers", self.model_name)
 
         # Validate model exists

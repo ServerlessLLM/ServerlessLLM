@@ -39,7 +39,7 @@ async def download_transformers_model(
     # Get event loop for thread pool operations
     loop = asyncio.get_event_loop()
     
-    storage_path = os.getenv("STORAGE_PATH", "./models")
+    storage_path = os.getenv("STORAGE_PATH", "/models")
     model_path = os.path.join(storage_path, "transformers", model_name)
     tokenizer_path = os.path.join(
         storage_path, "transformers", model_name, "tokenizer"
@@ -104,7 +104,7 @@ async def download_lora_adapter(
     hf_model_class: str,
     torch_dtype: str,
 ) -> bool:
-    storage_path = os.getenv("STORAGE_PATH", "./models")
+    storage_path = os.getenv("STORAGE_PATH", "/models")
     adapter_path = os.path.join(
         storage_path, "transformers", adapter_name_or_path
     )
@@ -182,7 +182,7 @@ class VllmModelDownloader:
         loop = asyncio.get_event_loop()
 
         # set the storage path
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", "/models")
         model_path = os.path.join(storage_path, "vllm", model_name)
         if os.path.exists(model_path):
             logger.info(f"{model_path} already exists")
