@@ -31,6 +31,7 @@ from sllm.serve.backends.backend_utils import (
     cleanup_subprocess,
 )
 from sllm.serve.logger import init_logger
+from sllm.serve.worker.utils import allocate_backend_port
 
 logger = init_logger(__name__)
 
@@ -47,10 +48,14 @@ class VllmBackend(SllmBackend):
         self.backend_config = backend_config
         self.model = model
         self.process = None
-        self.port = backend_config.get("port", 8000)
-        self.host = backend_config.get("host", "127.0.0.1")
+        self.port = backend_config.get("port") or allocate_backend_port("vllm")
+        self.host = backend_config.get("host", "0.0.0.0")
         self.base_url = f"http://{self.host}:{self.port}"
         self.session = None
+        
+        # Update backend_config with allocated port for reference
+        self.backend_config["port"] = self.port
+        self.backend_config["host"] = self.host
 
     async def init_backend(self) -> None:
         async with self.status_lock:
