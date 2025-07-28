@@ -1,5 +1,40 @@
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#                                                                              #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+# ---------------------------------------------------------------------------- #
 services:
-  # Head Node
+  # Redis for coordination and task queuing
+  redis:
+    image: redis:7-alpine
+    container_name: sllm-redis
+    ports:
+      - "6380:6379"  # Non-standard port to avoid Ray conflict
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - sllm-network
+
+  # Head Node (API Gateway + Management)
   sllm_head:
     build:
       context: ../../
@@ -7,38 +42,68 @@ services:
     image: serverlessllm/sllm:latest
     container_name: sllm_head
     environment:
-      - MODEL_FOLDER=${MODEL_FOLDER}
       - MODE=HEAD
+      - HEAD_HOST=0.0.0.0
+      - HEAD_PORT=8343
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379  # Internal Redis port (container-to-container)
+      - MODEL_FOLDER=${MODEL_FOLDER}
+      - LOG_LEVEL=INFO
     ports:
-      - "6379:6379"    # Redis port
-      - "8343:8343"    # ServerlessLLM port
+      - "8343:8343"  # Match HEAD_PORT
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8343/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     networks:
-      - sllm_network
-    command: []
+      - sllm-network
+    volumes:
+      - ${MODEL_FOLDER}:/models
 
-  # Worker Node 0
+  # Worker Node 0 (GPU-based inference)
   sllm_worker_0:
     build:
       context: ../../
       dockerfile: Dockerfile
-    image: serverlessllm/sllm:latest
     container_name: sllm_worker_0
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              capabilities: ["gpu"]
-              device_ids: ["0"] # Assigns GPU 0 to the worker
+              capabilities: [gpu]
+              device_ids: ["0"]
     environment:
-      - WORKER_ID=0
-      - STORAGE_PATH=/models
       - MODE=WORKER
+      - WORKER_HOST=0.0.0.0
+      - WORKER_PORT=8001  
+      - STORAGE_PATH=/models
+      - HEAD_NODE_URL=http://sllm_head:8343
+    ports:
+      - "8001:8001"  
+    depends_on:
+      sllm_head:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
-      - sllm_network
+      - sllm-network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["--mem-pool-size", "4GB", "--registration-required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "4GB", "--registration-required", "true"]
+
+volumes:
+  redis_data:
+    driver: local
 
 networks:
   sllm_network:

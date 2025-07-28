@@ -16,6 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import os
+import socket
 import tempfile
 import time
 from pathlib import Path
@@ -202,3 +203,25 @@ def validate_lora_adapter_path(adapter_path: str) -> bool:
     is_dir = os.path.isdir(adapter_path) if exists else False
     logger.info(f"[VALIDATE] LoRA path {adapter_path}: exists={exists}, is_dir={is_dir}")
     return exists and is_dir
+
+
+def find_available_port(start_port: int = 8000, max_attempts: int = 100) -> int:
+    """Find an available port starting from start_port."""
+    for port in range(start_port, start_port + max_attempts):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(('', port))
+                return port
+        except OSError:
+            continue
+    raise RuntimeError(f"Could not find available port in range {start_port}-{start_port + max_attempts}")
+
+
+def allocate_backend_port(backend_type: str) -> int:
+    """Allocate a port for a backend instance."""
+    if backend_type == "vllm":
+        return find_available_port(8000)
+    elif backend_type == "transformers":
+        return find_available_port(8100)
+    else:
+        return find_available_port(8200)

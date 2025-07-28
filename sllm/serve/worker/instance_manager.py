@@ -50,6 +50,9 @@ class InstanceManager:
             str, str
         ] = {}  # instance_id -> model_identifier for fast lookup
         
+        # Store node IP for endpoint creation
+        self.node_ip = node_ip
+        
         # SLLM Store Client - based on node IP
         self.client = SllmStoreClient(f"{node_ip}:8073")
         
@@ -64,19 +67,12 @@ class InstanceManager:
         storage_path = os.getenv("STORAGE_PATH", "/models")
         storage_path = os.path.abspath(storage_path)
         
-        logger.info(f"[DISK_SCAN] Starting disk model scan")
-        logger.info(f"[DISK_SCAN] STORAGE_PATH env var: {os.getenv('STORAGE_PATH', 'NOT_SET')}")
-        logger.info(f"[DISK_SCAN] Absolute storage path: {storage_path}")
-        logger.info(f"[DISK_SCAN] Storage path exists: {os.path.exists(storage_path)}")
-        
         if not os.path.exists(storage_path):
-            logger.warning(f"[DISK_SCAN] Storage path {storage_path} does not exist")
+            logger.warning(f"Storage path {storage_path} does not exist")
             return
         
         # Scan vLLM models
         vllm_path = os.path.join(storage_path, "vllm")
-        logger.info(f"[DISK_SCAN] vLLM path: {vllm_path}, exists: {os.path.exists(vllm_path)}")
-        
         if os.path.exists(vllm_path):
             for model_name in os.listdir(vllm_path):
                 model_dir = os.path.join(vllm_path, model_name)
@@ -95,12 +91,9 @@ class InstanceManager:
                     
                     if model_paths:
                         self.disk_models[f"{model_name}:vllm"] = (model_paths, total_size)
-                        logger.info(f"[DISK_SCAN] Found vLLM model {model_name} with {len(model_paths)} ranks, size: {total_size} bytes")
         
         # Scan transformers models  
         transformers_path = os.path.join(storage_path, "transformers")
-        logger.info(f"[DISK_SCAN] Transformers path: {transformers_path}, exists: {os.path.exists(transformers_path)}")
-        
         if os.path.exists(transformers_path):
             for model_name in os.listdir(transformers_path):
                 model_dir = os.path.join(transformers_path, model_name)
@@ -110,11 +103,9 @@ class InstanceManager:
                     total_size = 0
                     for root, dirs, files in os.walk(model_dir):
                         total_size += sum(os.path.getsize(os.path.join(root, file)) for file in files)
-                    
                     self.disk_models[f"{model_name}:transformers"] = ([model_path], total_size)
-                    logger.info(f"[DISK_SCAN] Found transformers model {model_name}, size: {total_size} bytes")
         
-        logger.info(f"[DISK_SCAN] Complete. Found {len(self.disk_models)} models on disk")
+        logger.info(f"Disk scan complete. Found {len(self.disk_models)} models on disk")
 
     async def _ensure_model_downloaded(
         self, model_config: Dict[str, Any]
@@ -355,6 +346,9 @@ class InstanceManager:
                     "backend": backend_instance,
                     "model_config": model_config,
                     "status": "running",
+                    "host": backend_instance.host,
+                    "port": backend_instance.port,
+                    "endpoint": f"{self.node_ip}:{backend_instance.port}",
                 }
 
                 # Update reverse lookup for performance
@@ -489,7 +483,14 @@ class InstanceManager:
             # Take a snapshot to avoid holding lock too long
             instances_snapshot = dict(self._running_instances)
             for model_identifier, instances in instances_snapshot.items():
-                info[model_identifier] = list(instances.keys())
+                info[model_identifier] = {}
+                for instance_id, instance_data in instances.items():
+                    info[model_identifier][instance_id] = {
+                        "status": instance_data.get("status", "unknown"),
+                        "host": instance_data.get("host", "0.0.0.0"),
+                        "port": instance_data.get("port", 0),
+                        "endpoint": instance_data.get("endpoint", f"{self.node_ip}:0"),
+                    }
         except Exception as e:
             logger.warning(f"Error getting instances info: {e}")
             info = {}
