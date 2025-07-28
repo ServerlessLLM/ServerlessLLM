@@ -51,6 +51,12 @@ message MemCopyHandle {
 message MemCopyHandleList {
   repeated MemCopyHandle handles = 1;
 }
+message SharedMemCopyHandle {
+  string shm_name = 1;
+}
+message SharedMemCopyHandleList {
+  repeated SharedMemCopyHandle handles = 1;
+}
 
 // If the handles has one item, all chunks share the same handle, other each chunk should have one handle
 message LoadModelRequest {
@@ -58,7 +64,8 @@ message LoadModelRequest {
   string replica_uuid = 2;
   map<string, MemCopyChunkList> chunks = 3;
   map<string, MemCopyHandleList> handles = 4;
-  DeviceType target_device_type = 5;
+  map<string, SharedMemCopyHandleList> shm_handles = 5;
+  DeviceType target_device_type = 6;
 }
 
 message LoadModelResponse {

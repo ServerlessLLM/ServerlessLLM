@@ -123,7 +123,11 @@ def load_dict_shm(
     device_memory = calculate_device_memory(
         expanded_device_map, tensor_data_index
     )
-    shared_memory_ptrs = allocate_shared_memory(device_memory)
+
+    config = SllmStoreClient.get_server_config()
+    chunk_size = config.get("chunk_size")
+
+    shared_memory_ptrs = allocate_shared_memory(device_memory, chunk_size)
     shared_memory_handles = get_shared_memory_handles(shared_memory_ptrs)
     tensor_device_offsets, tensor_copy_chunks = calculate_tensor_device_offsets(
         expanded_device_map, tensor_data_index

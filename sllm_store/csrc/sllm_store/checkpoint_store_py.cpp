@@ -43,6 +43,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
            "Register the model information and return its size.")
       .def("load_model_from_disk_async",
            &CheckpointStore::LoadModelFromDiskAsync, py::arg("model_path"),
+           py::arg("shared_memory_handles") /*= {}*/,
+           py::arg("mem_copy_chunks") /*= {}*/,
            "Load a model from disk asynchronously.")
       .def(
           "load_model_from_mem_async",

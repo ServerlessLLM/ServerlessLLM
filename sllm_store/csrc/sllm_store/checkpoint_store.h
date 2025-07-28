@@ -44,8 +44,13 @@ class CheckpointStore {
   ~CheckpointStore();
 
   int64_t RegisterModelInfo(const std::string& model_path);
-  int LoadModelFromDisk(const std::string& model_path);
-  int LoadModelFromDiskAsync(const std::string& model_path);
+  int LoadModelFromDisk(const std::string& model_path,
+                        const MemCopyHandleListMap& shared_memory_handles = {},
+                        const MemCopyChunkListMap& mem_copy_chunks = {});
+  int LoadModelFromDiskAsync(
+      const std::string& model_path,
+      const MemCopyHandleListMap& shared_memory_handles = {},
+      const MemCopyChunkListMap& mem_copy_chunks = {});
   int LoadModelFromMem(const std::string& model_path,
                        const std::string& replica_uuid,
                        const MemCopyHandleListMap& gpu_memory_handles,
