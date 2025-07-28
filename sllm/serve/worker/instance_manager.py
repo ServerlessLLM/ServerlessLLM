@@ -71,6 +71,7 @@ class InstanceManager:
             logger.warning(f"Storage path {storage_path} does not exist")
             return
         
+        # TODO: optimize this loop
         # Scan vLLM models
         vllm_path = os.path.join(storage_path, "vllm")
         if os.path.exists(vllm_path):
@@ -82,6 +83,7 @@ class InstanceManager:
                     total_size = 0
                     
                     for item in os.listdir(model_dir):
+                        logger.info(f"vllm item: {item}")
                         if item.startswith("rank_") and os.path.isdir(os.path.join(model_dir, item)):
                             rank_path = os.path.join(model_dir, item)
                             model_paths.append(f"vllm/{model_name}/{item}")
@@ -89,6 +91,7 @@ class InstanceManager:
                             for root, dirs, files in os.walk(rank_path):
                                 total_size += sum(os.path.getsize(os.path.join(root, file)) for file in files)
                     
+                    logger.info(f"vllm model paths: {model_paths}")
                     if model_paths:
                         self.disk_models[f"{model_name}:vllm"] = (model_paths, total_size)
         

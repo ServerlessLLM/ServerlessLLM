@@ -213,10 +213,10 @@ def create_app(
         store: RedisStore = request.app.state.redis_store
         result_queue = asyncio.Queue()
 
-        async def _result_listener(channel_name: str):
+        async def _result_listener(task_id: str):
             try:
                 async for message in store.subscribe_to_result(
-                    channel_name, timeout=INFERENCE_REQUEST_TIMEOUT + 5
+                    task_id, timeout=INFERENCE_REQUEST_TIMEOUT + 5
                 ):
                     await result_queue.put(message)
                     break
@@ -231,7 +231,7 @@ def create_app(
                 )
 
         listener_task = asyncio.create_task(
-            _result_listener(f"result-channel:{task_id}")
+            _result_listener(task_id)
         )
 
         await store.enqueue_task(model, backend, task_package)

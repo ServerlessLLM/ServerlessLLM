@@ -152,6 +152,7 @@ class TransformersBackend(SllmBackend):
 
         @self.app.post("/v1/chat/completions")
         async def chat_completions(request: ChatCompletionRequest):
+            logger.info(f"[TransformersBackend] /v1/chat/completions endpoint hit with task_id: {request.task_id}, model: {request.model}")
             request_dict = {
                 "model": request.model or self.model_name,
                 "messages": request.messages,
@@ -346,8 +347,12 @@ class TransformersBackend(SllmBackend):
         return response
 
     async def generate(self, request_data: Optional[Dict[str, Any]]):
+        task_id = request_data.get("task_id", "unknown") if request_data else "unknown"
+        logger.info(f"[TransformersBackend] Received generate request with task_id: {task_id}")
+        
         async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
+                logger.error(f"[TransformersBackend] Model not initialized for task_id: {task_id}")
                 return {"error": "Model not initialized"}
 
         assert self.model is not None
@@ -357,6 +362,8 @@ class TransformersBackend(SllmBackend):
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
         lora_adapter_name = request_data.get("lora_adapter_name", None)
+        
+        logger.info(f"[TransformersBackend] Processing task_id: {task_id}, model: {model_name}, max_tokens: {max_tokens}, messages: {len(messages)} messages")
 
         # Combine messages to form the prompt
         try:
@@ -390,6 +397,7 @@ class TransformersBackend(SllmBackend):
         prompt_tokens = inputs.input_ids.shape[1]
 
         # Generate response
+        logger.info(f"[TransformersBackend] Starting generation for task_id: {task_id}, prompt_tokens: {prompt_tokens}")
         try:
             with torch.no_grad():
                 outputs = self.model.generate(
@@ -397,7 +405,7 @@ class TransformersBackend(SllmBackend):
                     **generate_kwargs,
                 )
         except DeletingException:
-            logger.info("Backend is shutting down. Aborting request")
+            logger.info(f"[TransformersBackend] Backend is shutting down. Aborting request task_id: {task_id}")
             output_tokens = self.inf_status.get()
             self.inf_status.delete()
             return {
@@ -406,7 +414,7 @@ class TransformersBackend(SllmBackend):
                 "completed_tokens": len(output_tokens[0]) - prompt_tokens,
             }
         except Exception as e:
-            logger.error(f"Failed to generate response: {e}")
+            logger.error(f"[TransformersBackend] Failed to generate response for task_id: {task_id}: {e}")
             raise e
         else:
             output_text = self.tokenizer.decode(
@@ -443,6 +451,7 @@ class TransformersBackend(SllmBackend):
                 },
             }
 
+            logger.info(f"[TransformersBackend] Successfully generated response for task_id: {task_id}, completion_tokens: {completion_tokens}, finish_reason: {finish_reason}")
             self.inf_status.delete()
             return response
 

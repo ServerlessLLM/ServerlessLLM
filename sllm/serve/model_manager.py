@@ -322,7 +322,7 @@ class ModelManager:
         return await self.store.get_all_models()
 
     async def get_all_backends(self, model_name: str) -> List[str]:
-        all_models = self.get_all_models()
+        all_models = await self.get_all_models()
         backends = [
             model["backend"]
             for model in all_models

@@ -941,28 +941,29 @@ class RedisStore:
         self, task_id: str, timeout: int = TIMEOUT
     ) -> AsyncGenerator[Dict[str, Any], None]:
         channel_name = self._get_result_channel_key(task_id)
+        start_time = time.time()
         async with self.client.pubsub() as pubsub:
             await pubsub.subscribe(channel_name)
             while True:
+                # Use shorter timeout for get_message to check overall timeout more frequently
                 message = await pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=timeout
+                    ignore_subscribe_messages=True, timeout=min(timeout, 30)
                 )
                 if message:
                     yield json.loads(message["data"])
                     break
                 else:
-                    ttl_key = f"{channel_name}:ttl"
-                    ttl_exists = await self._execute_with_retry(
-                        self.client.exists, ttl_key
-                    )
-                    if not ttl_exists:
+                    # Check if overall timeout has been exceeded
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time >= timeout:
                         yield {
                             "error": {
                                 "code": "TaskTimeout",
-                                "message": f"Task {task_id} result channel expired",
+                                "message": f"Task {task_id} result channel expired after {elapsed_time:.1f}s",
                             }
                         }
                         break
+                    # Continue waiting if overall timeout not exceeded
 
     ### PERFORMANCE AND MONITORING METHODS ###
     async def get_performance_metrics(self) -> Dict[str, Any]:
