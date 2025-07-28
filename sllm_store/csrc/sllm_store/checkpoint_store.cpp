@@ -132,7 +132,10 @@ int64_t CheckpointStore::RegisterModelInfo(const std::string& model_path) {
   return model->GetModelSize();
 }
 
-int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
+int CheckpointStore::LoadModelFromDisk(
+    const std::string& model_path,
+    const MemCopyHandleListMap& shared_memory_handles,
+    const MemCopyChunkListMap& mem_copy_chunks) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
   auto model = GetModelPtr(model_path);
   if (model == nullptr) {
@@ -195,11 +198,17 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
   return ret;
 }
 
-int CheckpointStore::LoadModelFromDiskAsync(const std::string& model_path) {
+int CheckpointStore::LoadModelFromDiskAsync(
+    const std::string& model_path,
+    const MemCopyHandleListMap& shared_memory_handles,
+    const MemCopyChunkListMap& mem_copy_chunks) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  async_tasks_.emplace(std::async(std::launch::async, [this, model_path]() {
-    return LoadModelFromDisk(model_path);
-  }));
+  async_tasks_.emplace(
+      std::async(std::launch::async,
+                 [this, model_path, shared_memory_handles, mem_copy_chunks]() {
+                   return LoadModelFromDisk(model_path, shared_memory_handles,
+                                            mem_copy_chunks);
+                 }));
 
   return 0;
 }

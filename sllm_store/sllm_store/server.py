@@ -64,8 +64,31 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
                 return storage_pb2.LoadModelResponse()
 
         device_type = request.target_device_type
+
+        def create_mem_copy_chunk(chunk):
+            mem_copy_chunk = MemCopyChunk()
+            mem_copy_chunk.src_offset = chunk.src_offset
+            mem_copy_chunk.size = chunk.size
+            mem_copy_chunk.dst_offset = chunk.dst_offset
+            mem_copy_chunk.handle_idx = chunk.handle_idx
+            return mem_copy_chunk
+
         if device_type == storage_pb2.DEVICE_TYPE_CPU:
-            ret = self.storage.load_model_from_disk_async(model_path)
+            shared_memory_handles = {
+                device_uuid: [
+                    handle.cpu_ipc_handle for handle in handle_list.handles
+                ]
+                for device_uuid, handle_list in request.shm_handles.items()
+            }
+            mem_copy_chunks = {
+                device_uuid: [
+                    create_mem_copy_chunk(chunk) for chunk in chunk_list.chunks
+                ]
+                for device_uuid, chunk_list in request.chunks.items()
+            }
+            ret = self.storage.load_model_from_disk_async(
+                model_path, shared_memory_handles, mem_copy_chunks
+            )
         elif device_type == storage_pb2.DEVICE_TYPE_GPU:
             replica_uuid = request.replica_uuid
             if not replica_uuid:
@@ -79,14 +102,6 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
                 ]
                 for device_uuid, handle_list in request.handles.items()
             }
-
-            def create_mem_copy_chunk(chunk):
-                mem_copy_chunk = MemCopyChunk()
-                mem_copy_chunk.src_offset = chunk.src_offset
-                mem_copy_chunk.size = chunk.size
-                mem_copy_chunk.dst_offset = chunk.dst_offset
-                mem_copy_chunk.handle_idx = chunk.handle_idx
-                return mem_copy_chunk
 
             mem_copy_chunks = {
                 device_uuid: [
