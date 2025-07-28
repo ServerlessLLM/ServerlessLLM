@@ -208,9 +208,12 @@ class WorkerManager:
             if success:
                 successful_starts += 1
                 # Add specific instance to limbo_up tracking (atomically updates counter too)
+                logger.info(f"[LIMBO] Adding instance {instance_id} to limbo_up for {model_name}:{backend}")
                 added = await self.store.add_limbo_up_instance(model_name, backend, instance_id)
                 if not added:
-                    logger.warning(f"Instance {instance_id} was already in limbo_up")
+                    logger.warning(f"[LIMBO] Instance {instance_id} was already in limbo_up")
+                else:
+                    logger.info(f"[LIMBO] Successfully added {instance_id} to limbo_up")
                 # Mark worker as busy until heartbeat confirms instance is running
                 await self.store.set_worker_status(
                     model_name, backend, target_worker["node_id"], "busy"
@@ -276,9 +279,12 @@ class WorkerManager:
             if success:
                 successful_stops += 1
                 # Add specific instance to limbo_down tracking (atomically updates counter too)
+                logger.info(f"[LIMBO] Adding instance {instance_id} to limbo_down for {model_name}:{backend}")
                 added = await self.store.add_limbo_down_instance(model_name, backend, instance_id)
                 if not added:
-                    logger.warning(f"Instance {instance_id} was already in limbo_down")
+                    logger.warning(f"[LIMBO] Instance {instance_id} was already in limbo_down")
+                else:
+                    logger.info(f"[LIMBO] Successfully added {instance_id} to limbo_down")
                 # Worker status will be updated when heartbeat confirms instance is stopped
             else:
                 logger.error(
@@ -566,7 +572,12 @@ class WorkerManager:
                 limbo_up_instances = await self.store.get_limbo_up_instances(model_name, backend)
                 confirmed_starts = new_instances.intersection(limbo_up_instances)
                 for instance_id in confirmed_starts:
+                    logger.info(f"[LIMBO] Removing instance {instance_id} from limbo_up for {model_name}:{backend}")
                     removed = await self.store.remove_limbo_up_instance(model_name, backend, instance_id)
+                    if removed:
+                        logger.info(f"[LIMBO] Successfully removed {instance_id} from limbo_up")
+                    else:
+                        logger.warning(f"[LIMBO] Failed to remove {instance_id} from limbo_up")
                     if removed:
                         logger.debug(f"Confirmed start of instance {instance_id} for {model_identifier}")
                     else:
@@ -579,7 +590,12 @@ class WorkerManager:
                 limbo_down_instances = await self.store.get_limbo_down_instances(model_name, backend)
                 confirmed_stops = stopped_instances.intersection(limbo_down_instances)
                 for instance_id in confirmed_stops:
+                    logger.info(f"[LIMBO] Removing instance {instance_id} from limbo_down for {model_name}:{backend}")
                     removed = await self.store.remove_limbo_down_instance(model_name, backend, instance_id)
+                    if removed:
+                        logger.info(f"[LIMBO] Successfully removed {instance_id} from limbo_down")
+                    else:
+                        logger.warning(f"[LIMBO] Failed to remove {instance_id} from limbo_down")
                     if removed:
                         logger.debug(f"Confirmed stop of instance {instance_id} for {model_identifier}")
                     else:

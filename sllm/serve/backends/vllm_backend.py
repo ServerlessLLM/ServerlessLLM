@@ -85,6 +85,11 @@ class VllmBackend(SllmBackend):
     def _build_serve_command(self) -> list:
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = os.path.join(storage_path, "vllm", self.model)
+        
+        logger.info(f"[VLLM_BACKEND] STORAGE_PATH: {storage_path}")
+        logger.info(f"[VLLM_BACKEND] Model: {self.model}")
+        logger.info(f"[VLLM_BACKEND] Full model path: {model_path}")
+        logger.info(f"[VLLM_BACKEND] Model path exists: {os.path.exists(model_path)}")
 
         # Validate model exists
         if not os.path.exists(model_path):
@@ -101,6 +106,8 @@ class VllmBackend(SllmBackend):
             "--host",
             self.host,
         ]
+        
+        logger.info(f"[VLLM_BACKEND] Full serve command: {' '.join(cmd)}")
 
         if "max_model_len" in self.backend_config:
             cmd.extend(

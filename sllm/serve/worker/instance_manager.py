@@ -52,6 +52,69 @@ class InstanceManager:
         
         # SLLM Store Client - based on node IP
         self.client = SllmStoreClient(f"{node_ip}:8073")
+        
+        # Track models available on disk: {model_name: (model_paths, model_size)}
+        self.disk_models: Dict[str, tuple] = {}
+        
+        # Scan for existing models on disk
+        self.scan_disk_models()
+
+    def scan_disk_models(self) -> None:
+        """Scan storage directory and populate disk_models with available models."""
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.path.abspath(storage_path)
+        
+        logger.info(f"[DISK_SCAN] Starting disk model scan")
+        logger.info(f"[DISK_SCAN] STORAGE_PATH env var: {os.getenv('STORAGE_PATH', 'NOT_SET')}")
+        logger.info(f"[DISK_SCAN] Absolute storage path: {storage_path}")
+        logger.info(f"[DISK_SCAN] Storage path exists: {os.path.exists(storage_path)}")
+        
+        if not os.path.exists(storage_path):
+            logger.warning(f"[DISK_SCAN] Storage path {storage_path} does not exist")
+            return
+        
+        # Scan vLLM models
+        vllm_path = os.path.join(storage_path, "vllm")
+        logger.info(f"[DISK_SCAN] vLLM path: {vllm_path}, exists: {os.path.exists(vllm_path)}")
+        
+        if os.path.exists(vllm_path):
+            for model_name in os.listdir(vllm_path):
+                model_dir = os.path.join(vllm_path, model_name)
+                if os.path.isdir(model_dir) and validate_vllm_model_path(model_dir):
+                    # Find all rank files
+                    model_paths = []
+                    total_size = 0
+                    
+                    for item in os.listdir(model_dir):
+                        if item.startswith("rank_") and os.path.isdir(os.path.join(model_dir, item)):
+                            rank_path = os.path.join(model_dir, item)
+                            model_paths.append(f"vllm/{model_name}/{item}")
+                            # Estimate size by summing file sizes
+                            for root, dirs, files in os.walk(rank_path):
+                                total_size += sum(os.path.getsize(os.path.join(root, file)) for file in files)
+                    
+                    if model_paths:
+                        self.disk_models[f"{model_name}:vllm"] = (model_paths, total_size)
+                        logger.info(f"[DISK_SCAN] Found vLLM model {model_name} with {len(model_paths)} ranks, size: {total_size} bytes")
+        
+        # Scan transformers models  
+        transformers_path = os.path.join(storage_path, "transformers")
+        logger.info(f"[DISK_SCAN] Transformers path: {transformers_path}, exists: {os.path.exists(transformers_path)}")
+        
+        if os.path.exists(transformers_path):
+            for model_name in os.listdir(transformers_path):
+                model_dir = os.path.join(transformers_path, model_name)
+                if os.path.isdir(model_dir) and validate_transformers_model_path(model_dir):
+                    model_path = f"transformers/{model_name}"
+                    # Estimate size
+                    total_size = 0
+                    for root, dirs, files in os.walk(model_dir):
+                        total_size += sum(os.path.getsize(os.path.join(root, file)) for file in files)
+                    
+                    self.disk_models[f"{model_name}:transformers"] = ([model_path], total_size)
+                    logger.info(f"[DISK_SCAN] Found transformers model {model_name}, size: {total_size} bytes")
+        
+        logger.info(f"[DISK_SCAN] Complete. Found {len(self.disk_models)} models on disk")
 
     async def _ensure_model_downloaded(
         self, model_config: Dict[str, Any]
@@ -193,39 +256,48 @@ class InstanceManager:
     ) -> None:
         """Ensure model is registered with the checkpoint store."""
         try:
+            model_identifier = f"{model_name}:{backend}"
+            logger.info(f"[MODEL_REG] Starting registration for {model_identifier}")
+            
             if backend == "vllm":
                 # Register vLLM model with rank-based paths
                 backend_config = model_config.get("backend_config", {})
                 tensor_parallel_size = backend_config.get("tensor_parallel_size", 1)
                 
+                model_path = f"vllm/{model_name}"
+                total_model_size = 0
+                model_path_list = []
+                
+                logger.info(f"[MODEL_REG] vLLM model with {tensor_parallel_size} ranks")
+                
                 for rank in range(tensor_parallel_size):
-                    model_path = f"vllm/{model_name}/rank_{rank}"
-                    try:
-                        model_size = self.client.register_model(model_path)
-                        if model_size < 0:
-                            logger.warning(f"Model {model_path} may already be registered")
-                        else:
-                            logger.info(f"Registered {model_path}, size: {model_size} bytes")
-                    except Exception as e:
-                        logger.warning(f"Error registering {model_path}: {e}")
+                    model_rank_path = f"{model_path}/rank_{rank}"
+                    logger.info(f"[MODEL_REG] Registering rank path: {model_rank_path}")
+                    model_size = self.client.register_model(model_rank_path)
+                    logger.info(f"[MODEL_REG] Rank {rank} registration result: {model_size} bytes")
+                    if model_size > 0:
+                        total_model_size += model_size
+                        model_path_list.append(model_rank_path)
+                
+                # Update disk_models registry
+                if model_path_list:
+                    self.disk_models[model_identifier] = (model_path_list, total_model_size)
+                
+                logger.info(f"[MODEL_REG] vLLM registration complete: {model_name}, {len(model_path_list)} ranks, {total_model_size} bytes")
                         
             elif backend == "transformers":
                 # Register transformers model
                 model_path = f"transformers/{model_name}"
-                try:
-                    model_size = self.client.register_model(model_path)
-                    if model_size < 0:
-                        logger.warning(f"Model {model_path} may already be registered")
-                    else:
-                        logger.info(f"Registered {model_path}, size: {model_size} bytes")
-                except Exception as e:
-                    logger.warning(f"Error registering {model_path}: {e}")
+                logger.info(f"[MODEL_REG] Registering transformers path: {model_path}")
+                model_size = self.client.register_model(model_path)
+                logger.info(f"[MODEL_REG] Transformers registration result: {model_size} bytes")
+                if model_size > 0:
+                    # Update disk_models registry
+                    self.disk_models[model_identifier] = ([model_path], model_size)
+                    logger.info(f"[MODEL_REG] Transformers registration complete: {model_name}, {model_size} bytes")
                     
-            else:
-                logger.info(f"Backend {backend} does not require checkpoint store registration")
-                
         except Exception as e:
-            logger.error(f"Failed to register model {model_name} with checkpoint store: {e}")
+            logger.error(f"[MODEL_REG] Failed to register model {model_name}: {e}")
             # Don't raise - allow instance to continue, registration might not be critical
 
     async def start_instance(
