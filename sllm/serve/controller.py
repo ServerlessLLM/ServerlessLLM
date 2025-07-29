@@ -53,7 +53,7 @@ class SllmController:
 
         self.fine_tuning_jobs = {}
         self.ft_job_lock = asyncio.Lock()
-        self.job_store = FineTuningJobStore.remote()
+        self.ft_job_store = FineTuningJobStore.remote()
 
     async def start(self):
         async with self.running_lock:
@@ -185,12 +185,12 @@ class SllmController:
             "updated_time": datetime.datetime.now().isoformat(),
             "priority": job_config.get("priority", 0),  # Default priority = 0
         }
-        await self.job_store.add_job.remote(job_id, job_info)
+        await self.ft_job_store.add_job.remote(job_id, job_info)
         return job_id
 
     async def _process_ft_jobs(self):
         while True:
-            pending_jobs = await self.job_store.get_pending_jobs.remote()
+            pending_jobs = await self.ft_job_store.get_pending_jobs.remote()
             sorted_jobs = sorted(
                 pending_jobs.items(),
                 key=lambda x: (
@@ -387,7 +387,7 @@ class SllmController:
 
     async def _start_ft_job(self, job_id, job_info):
         try:
-            await self.job_store.update_status.remote(job_id, "running")
+            await self.ft_job_store.update_status.remote(job_id, "running")
             logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
 
             logger.info(
@@ -428,13 +428,15 @@ class SllmController:
                 logger.info(
                     f"[FT Job {job_id}] Fine-tuning completed successfully."
                 )
-                await self.job_store.update_status.remote(job_id, "completed")
+                await self.ft_job_store.update_status.remote(
+                    job_id, "completed"
+                )
                 logger.info(
                     f"[FT Job {job_id}] Job status updated to 'completed'."
                 )
             except asyncio.TimeoutError:
                 logger.error(f"[FT Job {job_id}] Fine-tuning job timed out.")
-                await self.job_store.update_status.remote(
+                await self.ft_job_store.update_status.remote(
                     job_id, "failed", error="Job timed out"
                 )
                 logger.info(
@@ -443,7 +445,7 @@ class SllmController:
 
         except Exception as e:
             logger.error(f"[FT Job {job_id}] Exception occurred: {str(e)}")
-            await self.job_store.update_status.remote(
+            await self.ft_job_store.update_status.remote(
                 job_id, "failed", error=str(e)
             )
             logger.info(
@@ -451,10 +453,10 @@ class SllmController:
             )
 
     async def get_ft_job_status(self, job_id):
-        return await self.job_store.get_job.remote(job_id)
+        return await self.ft_job_store.get_job.remote(job_id)
 
     async def cancel_ft_job(self, job_id):
-        job_info = await self.job_store.get_job.remote(job_id)
+        job_info = await self.ft_job_store.get_job.remote(job_id)
         if job_info is None:
             logger.error(f"Job {job_id} does not exist.")
             raise SllmControllerException(
@@ -465,4 +467,4 @@ class SllmController:
                 f"ft_{job_id}", namespace="fine_tuning"
             )
             await ft_request_router.cancel.remote()
-            await self.job_store.update_status.remote(job_id, "cancelled")
+            await self.ft_job_store.update_status.remote(job_id, "cancelled")
