@@ -1,11 +1,11 @@
 {
     "model": "facebook/opt-125m",
     "ft_backend": "peft_lora",
-    "output_dir": "ft_facebook/opt-125m_adapter_test",
     "num_gpus": 1,
     "num_cpus": 1,
     "timeout": 3600,
     "backend_config": {
+        "output_dir": "facebook/adapters/opt-125m_adapter_test",
         "dataset_config": {
             "dataset_source": "hf_hub",
             "hf_dataset_name": "fka/awesome-chatgpt-prompts",
