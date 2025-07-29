@@ -67,18 +67,18 @@ setup(
     extras_require=extras,
     entry_points={
         "console_scripts": [
-            "sllm-cli=sllm.cli.sllm_cli:main",
+            "sllm = sllm.clic:cli",
             "sllm-serve=sllm.serve.commands.serve.sllm_serve:main",
         ],
     },
     include_package_data=True,
     package_data={
         "sllm.serve": ["py.typed", "sllm.sllm_serve"],
-        "sllm.cli": ["default_config.json"],
+        "sllm": ["default_config.json"],
     },
     packages=[
+        "sllm",
         "sllm.serve",
-        "sllm.cli",
         "sllm.serve.commands.serve",
         "sllm.serve.backends",
         "sllm.serve.routers",

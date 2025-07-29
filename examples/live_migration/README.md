@@ -8,8 +8,8 @@ docker compose -f docker-compose.yml -f enable-migration.yml up -d
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343
 
-sllm-cli deploy --config config-qwen-3b.json
-sllm-cli deploy --config config-qwen-1.5b.json
+sllm deploy --config config-qwen-3b.json
+sllm deploy --config config-qwen-1.5b.json
 ```
 
 ```bash

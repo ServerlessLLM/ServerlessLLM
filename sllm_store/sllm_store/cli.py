@@ -434,15 +434,8 @@ def save(
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
 @click.option(
     "--precision",
-    type=str,
-    default="int8",
-    help=(
-        "Precision of quantized model. Supports int8, fp4, and nf4 "
-        "(transformers only)"
-    ),
-)
-@click.option(
-    "--tensor-parallel-size", type=int, default=1, help="Tensor parallel size"
+    type=click.Choice(["int8", "fp4", "nf4"]),
+    help="Precision of quantized model.",
 )
 @click.option(
     "--storage-path",
@@ -479,12 +472,6 @@ def load(
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4"
             )
-        else:
-            logger.error(
-                f"Unsupported precision: {precision}. "
-                f"Supports int8, fp4, and nf4."
-            )
-            sys.exit(1)
 
     try:
         start_load_time = time.time()
@@ -563,9 +550,7 @@ def load(
                     torch_dtype=torch.float16,
                     storage_path=storage_path,
                     fully_parallel=True,
-                    quantization_config=quantization_config
-                    if precision
-                    else None,
+                    quantization_config=quantization_config,
                 )
             logger.info(
                 f"Model loading time: {time.time() - start_load_time:.2f}s"

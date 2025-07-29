@@ -158,18 +158,18 @@ I20241231 17:13:25.557906 2165054 checkpoint_store.cpp:83] Memory pool created w
 INFO 12-31 17:13:25 server.py:243] Starting gRPC server on 0.0.0.0:8073
 ```
 
-### 3. Start ServerlessLLM Serve
+### 3. Start ServerlessLLM
 
-Now, start the ServerlessLLM Serve process ( `sllm-serve`).
+Now, start the ServerlessLLM service process using `sllm start`.
+
 
 Open a new terminal and run:
 
 ```bash
-conda activate sllm
-sllm-serve start
+sllm start
 ```
 
-At this point, you should have four terminals open: one for the Ray head node, one for the Ray worker node, one for the ServerlessLLM Store server, and one for ServerlessLLM Serve.
+At this point, you should have four terminals open: one for the Ray head node, one for the Ray worker node, one for the ServerlessLLM Store server, and one for the ServerlessLLM service (started via `sllm start`).
 
 ### 4. Deploy a Model
 
@@ -179,7 +179,7 @@ Open a new terminal and run:
 
 ```bash
 conda activate sllm
-sllm-cli deploy --model facebook/opt-1.3b
+sllm deploy --model facebook/opt-1.3b
 ```
 
 This command downloads the specified model from Hugging Face Hub. To load a model from a local path, you can use a `config.json` file. Refer to the [CLI API documentation](../../api/cli.md#example-configuration-file-configjson) for details.
@@ -211,7 +211,7 @@ Expected output:
 To delete a deployed model, use the following command:
 
 ```bash
-sllm-cli delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b
 ```
 
 This command removes the specified model from the ServerlessLLM server.
