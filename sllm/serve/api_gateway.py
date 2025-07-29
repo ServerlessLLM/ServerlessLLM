@@ -202,11 +202,18 @@ def create_app(
                 detail=f"Model '{model_identifier}' not found or not registered.",
             )
 
-        task_id = (
-            str(uuid.uuid4())
-            if body.get("task_id") == None
-            else body["task_id"]
-        )
+        # Generate OpenAI-compatible task_id based on action type
+        if body.get("task_id") is None:
+            if action == "generate":
+                task_id = f"chatcmpl-{uuid.uuid4()}"
+            elif action == "encode":
+                task_id = f"embedding-{uuid.uuid4()}"
+            elif action == "fine-tuning":
+                task_id = f"ftjob-{uuid.uuid4()}"
+            else:
+                task_id = f"task-{uuid.uuid4()}"
+        else:
+            task_id = body["task_id"]
 
         task_package = {"task_id": task_id, "action": action, "payload": body}
 
