@@ -277,18 +277,16 @@ class RoundRobinRouter(SllmRouter):
     async def shutdown(self):
         async with self.running_lock:
             self.running = False
-        # stop all instances
+        # stop all inference instances
         # return all unfinished requests
         while not self.request_queue.empty():
             request_data, done_event = await self.request_queue.get()
             done_event.set_result({"error": "Instance cancelled"})
 
         async with self.instance_management_lock:
-            deleted_instance_id = list(
-                self.ready_inference_instances.keys()
-            ) + list(self.ready_ft_instances.keys())
+            deleted_instance_id = list(self.ready_inference_instances.keys())
         delete_tasks = [
-            self._shutdown_instance(instance_id, is_ft=False)
+            self._shutdown_instance(instance_id)
             for instance_id in deleted_instance_id
         ]
         await asyncio.gather(*delete_tasks)
