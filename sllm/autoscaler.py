@@ -47,7 +47,7 @@ class AutoScaler:
         self._shutdown.set()
 
     async def _check_and_scale_all_models(self) -> None:
-        all_models = await self.store.get_all_models()
+        all_models = await self.store.get_all_raw_models()
         if not all_models:
             logger.debug("No models registered. Skipping scaling check.")
             return

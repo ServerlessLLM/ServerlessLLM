@@ -319,7 +319,7 @@ class ModelManager:
         return model
 
     async def get_all_models(self) -> List[ModelConfig]:
-        return await self.store.get_all_models()
+        return await self.store.get_all_raw_models()
 
     async def get_all_backends(self, model_name: str) -> List[str]:
         all_models = await self.get_all_models()
@@ -330,66 +330,6 @@ class ModelManager:
         ]
         return backends
 
-    async def get_status(self) -> Dict[str, Any]:
-        models = await self.get_all_models()
-        model_list = []
-
-        for model_config in models:
-            model_name = model_config.get("model")
-            backend = model_config.get("backend")
-
-            if not model_name or not backend:
-                continue
-
-            if model_config.get("status") == "excommunicado":
-                continue
-
-            created_time = model_config.get("created")
-            if not created_time:
-                import time
-
-                created_time = int(time.time())
-
-            model_id = f"{model_name}:{backend}"
-            backend_config = model_config.get("backend_config", {})
-            model_permission_id = f"modelperm-{model_id.replace(':', '-')}"
-            permission = [
-                {
-                    "id": model_permission_id,
-                    "object": "model_permission",
-                    "created": created_time,
-                    "allow_create_engine": True,
-                    "allow_sampling": True,
-                    "allow_logprobs": backend_config.get(
-                        "allow_logprobs", True
-                    ),
-                    "allow_search_indices": False,
-                    "allow_view": True,
-                    "allow_fine_tuning": backend_config.get(
-                        "allow_fine_tuning", False
-                    ),
-                    "organization": "*",
-                    "group": None,
-                    "is_blocking": False,
-                }
-            ]
-
-            max_model_len = backend_config.get(
-                "max_model_len"
-            ) or backend_config.get("max_position_embeddings")
-            model_metadata = {
-                "id": model_id,
-                "object": "model",
-                "created": created_time,
-                "owned_by": "sllm",
-                "root": model_name,
-                "parent": None,
-                "max_model_len": max_model_len,
-                "permission": permission,
-            }
-            model_list.append(model_metadata)
-
-        return {"object": "list", "data": model_list}
 
     ### HELPER FUNCTIONS ###
     def _get_model_key(self, model_name: str, backend: str) -> str:

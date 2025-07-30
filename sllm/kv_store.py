@@ -426,7 +426,86 @@ class RedisStore:
         decoded_hash = {k.decode(): v.decode() for k, v in redis_hash.items()}
         return self._reconstruct_model(decoded_hash)
 
-    async def get_all_models(self) -> List[dict]:
+    async def get_all_models(self) -> Dict[str, Any]:
+        """Returns OpenAI-compliant model list with permissions and metadata."""
+        model_keys = await self._execute_with_retry(
+            self.client.smembers, self._get_models_index_key()
+        )
+
+        if not model_keys:
+            return {"object": "list", "data": []}
+
+        decoded_keys = [
+            key.decode() if isinstance(key, bytes) else key
+            for key in model_keys
+        ]
+
+        async with self.client.pipeline() as pipe:
+            for key in decoded_keys:
+                pipe.hgetall(key)
+            all_hashes = await pipe.execute()
+
+        model_list = []
+        for h in all_hashes:
+            if h:
+                decoded_hash = {k.decode(): v.decode() for k, v in h.items()}
+                try:
+                    model_config = self._reconstruct_model(decoded_hash)
+                    
+                    model_name = model_config.get("model")
+                    backend = model_config.get("backend")
+
+                    if not model_name or not backend:
+                        continue
+
+                    if model_config.get("status") == "excommunicado":
+                        continue
+
+                    created_time = model_config.get("created")
+                    if not created_time:
+                        import time
+                        created_time = int(time.time())
+
+                    model_id = f"{model_name}:{backend}"
+                    backend_config = model_config.get("backend_config", {})
+                    model_permission_id = f"modelperm-{model_id.replace(':', '-')}"
+                    permission = [
+                        {
+                            "id": model_permission_id,
+                            "object": "model_permission",
+                            "created": created_time,
+                            "allow_create_engine": True,
+                            "allow_sampling": True,
+                            "allow_logprobs": backend_config.get("allow_logprobs", True),
+                            "allow_search_indices": False,
+                            "allow_view": True,
+                            "allow_fine_tuning": backend_config.get("allow_fine_tuning", False),
+                            "organization": "*",
+                            "group": None,
+                            "is_blocking": False,
+                        }
+                    ]
+
+                    max_model_len = backend_config.get("max_model_len") or backend_config.get("max_position_embeddings")
+                    model_metadata = {
+                        "id": model_id,
+                        "object": "model",
+                        "created": created_time,
+                        "owned_by": "sllm",
+                        "root": model_name,
+                        "parent": None,
+                        "max_model_len": max_model_len,
+                        "permission": permission,
+                    }
+                    model_list.append(model_metadata)
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to reconstruct model: {e}")
+
+        return {"object": "list", "data": model_list}
+
+    async def get_all_raw_models(self) -> List[dict]:
+        """Returns raw model data without OpenAI formatting."""
         model_keys = await self._execute_with_retry(
             self.client.smembers, self._get_models_index_key()
         )

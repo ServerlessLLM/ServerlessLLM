@@ -87,7 +87,7 @@ class Dispatcher:
         logger.info("Starting dispatcher consumer loop...")
         while not self.is_shutting_down:
             try:
-                all_models = await self.store.get_all_models()
+                all_models = await self.store.get_all_raw_models()
                 if not all_models:
                     logger.debug("No models registered yet. Waiting...")
                     await asyncio.sleep(5)
@@ -164,6 +164,10 @@ class Dispatcher:
             )
 
             try:
+                # Handle LoRA adapter loading if present in payload
+                if "lora_adapter_name" in payload:
+                    await self._handle_lora_loading(target, payload)
+                
                 worker_response = await self._forward_to_worker(
                     target, payload
                 )
@@ -200,6 +204,54 @@ class Dispatcher:
             logger.error(
                 f"Failed to publish error result for task {task_id}: {e}"
             )
+
+    async def _handle_lora_loading(
+        self, target: Dict[str, Any], payload: Dict[str, Any]
+    ) -> None:
+        """Handle LoRA adapter loading before processing the main request."""
+        lora_adapter_name = payload.get("lora_adapter_name")
+        if not lora_adapter_name:
+            return
+
+        # Get LoRA adapter path from KV store
+        model_identifier = f"{payload.get('model_name', '')}:{payload.get('backend', 'transformers')}"
+        lora_adapters = await self.store.get_lora_adapters(model_identifier)
+        
+        if lora_adapter_name not in lora_adapters:
+            raise ValueError(f"LoRA adapter '{lora_adapter_name}' not found for model '{model_identifier}'")
+        
+        lora_path = lora_adapters[lora_adapter_name]
+        worker = target["worker"]
+        instance_id = target["instance_id"]
+        instance_port = target.get("port")
+        
+        node_ip = worker.get("node_ip")
+        if not node_ip or not instance_port:
+            raise ValueError(f"Invalid worker configuration for LoRA loading")
+
+        # Load LoRA adapter on the target instance
+        lora_payload = {
+            "instance_id": instance_id,
+            "payload": {
+                "lora_name": lora_adapter_name,
+                "lora_path": lora_path
+            }
+        }
+        
+        url = f"http://{node_ip}:{instance_port}/load_lora_adapter"
+        
+        try:
+            await post_json_with_retry(
+                session=self.http_session,
+                url=url,
+                payload=lora_payload,
+                max_retries=3,
+                timeout=self.forward_timeout,
+            )
+            logger.info(f"Successfully loaded LoRA adapter '{lora_adapter_name}' on instance {instance_id}")
+        except Exception as e:
+            logger.error(f"Failed to load LoRA adapter '{lora_adapter_name}': {e}")
+            raise
 
     async def _select_instance_round_robin(
         self, model_identifier: str, instances: List[Dict]
@@ -264,7 +316,7 @@ class Dispatcher:
     async def _forward_to_worker(
         self, target: Dict[str, Any], payload: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Sends the inference payload to the specified worker instance via HTTP POST."""
+        """Sends the request payload to the specified worker instance via HTTP POST."""
         worker = target["worker"]
         instance_id = target["instance_id"]
         instance_port = target.get("port")
@@ -280,8 +332,21 @@ class Dispatcher:
                 f"Instance {instance_id} has no port information."
             )
 
-        url = f"http://{node_ip}:{instance_port}{self.invoke_endpoint}"
+        # Determine request type and endpoint
+        request_type = payload.get("action", "generate")  # Default to generate
+        if request_type == "fine_tuning":
+            endpoint = "/fine_tuning"
+        elif request_type == "encode":
+            endpoint = "/encode"
+        else:
+            endpoint = self.invoke_endpoint  # Default inference endpoint
+            
+        url = f"http://{node_ip}:{instance_port}{endpoint}"
         forward_payload = {"instance_id": instance_id, "payload": payload}
+
+        # For fine-tuning requests, add concurrency limit
+        if request_type == "fine_tuning":
+            forward_payload["concurrency"] = 1
 
         try:
             response = await post_json_with_retry(
@@ -295,8 +360,4 @@ class Dispatcher:
         except Exception as e:
             raise aiohttp.ClientConnectionError(
                 f"Failed to forward to worker {worker['node_id']} after retries: {e}"
-            )
-        except Exception as e:
-            raise aiohttp.ClientConnectionError(
-                f"Unexpected error forwarding to worker {worker['node_id']}: {e}"
             )
