@@ -25,7 +25,7 @@ model_name = args.model_name
 storage_path = args.storage_path
 model_path = os.path.join(storage_path, model_name)
 
-llm = LLM(model=model_path, load_format="serverless_llm", dtype="float16")
+llm = LLM(model=model_path, load_format="serverless_llm")
 
 prompts = [
     "Hello, my name is",
