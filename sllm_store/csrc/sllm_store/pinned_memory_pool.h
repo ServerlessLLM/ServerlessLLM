@@ -78,11 +78,6 @@ PinnedMemoryPool<Allocator>::PinnedMemoryPool(size_t total_size,
       LOG(FATAL) << "Memory allocation failed";
     }
 
-    cudaError_t err =
-        cudaHostRegister(buffer, chunk_size_, cudaHostRegisterDefault);
-    if (err != cudaSuccess) {
-      LOG(FATAL) << "cudaHostRegister failed: " << cudaGetErrorString(err);
-    }
     pool_.insert(buffer);
     free_list_.insert(buffer);
   }
