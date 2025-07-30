@@ -250,9 +250,6 @@ class RoundRobinRouter(SllmRouter):
             async with self.fine_tuning_count_lock:
                 self.fine_tuning_count -= 1
 
-            logger.info(
-                f"Fine-tuning completed successfully for model {self.model_name}"
-            )
             return result
         except Exception as e:
             logger.error(f"Fine-tuning failed: {str(e)}")

@@ -386,45 +386,54 @@ class SllmController:
             await asyncio.gather(*delete_tasks)
 
     async def _start_ft_job(self, job_id, job_info):
+        await self.ft_job_store.update_status.remote(job_id, "running")
+        logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
+
+        logger.info(
+            f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
+        )
+        resource_requirements = {
+            "num_cpus": job_info["config"].get("num_cpus", 1),
+            "num_gpus": job_info["config"].get("num_gpus", 0),
+        }
+        ft_request_router = self.router_cls.options(
+            name=f"ft_{job_id}",
+            namespace="fine_tuning",
+            num_cpus=job_info["config"].get("num_cpus", 1),
+            num_gpus=job_info["config"].get("num_gpus", 0),
+            resources={"control_node": 0.1},
+        ).remote(
+            job_info["config"]["model"],
+            resource_requirements,
+            job_info["config"]["ft_backend"],
+            job_info["config"].get("backend_config", {}),
+            job_info["config"].get("router_config", {}),
+        )
+
+        await ft_request_router.start.remote({}, mode="fine_tuning")
+
+        logger.info(
+            f"[FT Job {job_id}] Starting fine-tuning with timeout {job_info['config'].get('timeout', 3600)} seconds."
+        )
+        job_backend_config = job_info["config"].get("backend_config", {})
+        job_backend_config["job_id"] = job_id
         try:
-            await self.ft_job_store.update_status.remote(job_id, "running")
-            logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
-
-            logger.info(
-                f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
-            )
-            resource_requirements = {
-                "num_cpus": job_info["config"].get("num_cpus", 1),
-                "num_gpus": job_info["config"].get("num_gpus", 0),
-            }
-            ft_request_router = self.router_cls.options(
-                name=f"ft_{job_id}",
-                namespace="fine_tuning",
-                num_cpus=job_info["config"].get("num_cpus", 1),
-                num_gpus=job_info["config"].get("num_gpus", 0),
-                resources={"control_node": 0.1},
-            ).remote(
-                job_info["config"]["model"],
-                resource_requirements,
-                job_info["config"]["ft_backend"],
-                job_info["config"].get("backend_config", {}),
-                job_info["config"].get("router_config", {}),
+            result = await asyncio.wait_for(
+                ft_request_router.fine_tuning.remote(job_backend_config),
+                timeout=job_info["config"].get("timeout", 3600),
             )
 
-            await ft_request_router.start.remote({}, mode="fine_tuning")
-
-            try:
+            if isinstance(result, dict) and "error" in result:
+                logger.error(
+                    f"[FT Job {job_id}] Fine-tuning failed: {result['error']}"
+                )
+                await self.ft_job_store.update_status.remote(
+                    job_id, "failed", error=result["error"]
+                )
                 logger.info(
-                    f"[FT Job {job_id}] Starting fine-tuning with timeout {job_info['config'].get('timeout', 3600)} seconds."
+                    f"[FT Job {job_id}] Job status updated to 'failed'."
                 )
-                job_backend_config = job_info["config"].get(
-                    "backend_config", {}
-                )
-                job_backend_config["job_id"] = job_id
-                await asyncio.wait_for(
-                    ft_request_router.fine_tuning.remote(job_backend_config),
-                    timeout=job_info["config"].get("timeout", 3600),
-                )
+            else:
                 logger.info(
                     f"[FT Job {job_id}] Fine-tuning completed successfully."
                 )
@@ -434,22 +443,13 @@ class SllmController:
                 logger.info(
                     f"[FT Job {job_id}] Job status updated to 'completed'."
                 )
-            except asyncio.TimeoutError:
-                logger.error(f"[FT Job {job_id}] Fine-tuning job timed out.")
-                await self.ft_job_store.update_status.remote(
-                    job_id, "failed", error="Job timed out"
-                )
-                logger.info(
-                    f"[FT Job {job_id}] Job status updated to 'failed' due to timeout."
-                )
-
-        except Exception as e:
-            logger.error(f"[FT Job {job_id}] Exception occurred: {str(e)}")
+        except asyncio.TimeoutError:
+            logger.error(f"[FT Job {job_id}] Fine-tuning job timed out.")
             await self.ft_job_store.update_status.remote(
-                job_id, "failed", error=str(e)
+                job_id, "failed", error="Job timed out"
             )
             logger.info(
-                f"[FT Job {job_id}] Job status updated to 'failed' due to exception."
+                f"[FT Job {job_id}] Job status updated to 'failed' due to timeout."
             )
 
     async def get_ft_job_status(self, job_id):
