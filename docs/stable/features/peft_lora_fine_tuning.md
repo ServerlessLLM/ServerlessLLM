@@ -5,16 +5,6 @@ sidebar_position: 3
 
 This feature introduces a dedicated fine-tuning backend (`ft_backend`) for handling LoRA (Low-Rank Adaptation) fine-tuning jobs in ServerlessLLM. This implementation provides isolated fine-tuning instances with specialized resource management and lifecycle control.
 
-## Architecture
-
-### Workflow
-
-1. **Job Submission**: Fine-tuning jobs are submitted via REST API
-2. **Resource Allocation**: Dedicated fine-tuning instances are created with isolated resources
-3. **Training Execution**: LoRA fine-tuning is performed using PEFT library
-4. **Status Tracking**: Job status is continuously updated and can be queried
-5. **Cleanup**: Instances are automatically cleaned up after completion
-
 ## Prerequisites
 
 Before using the fine-tuning feature, ensure you have:
@@ -90,13 +80,6 @@ Create a configuration file (`default_ft_config.json`) with the following struct
 - `num_cpus`: Number of CPU cores required
 - `num_gpus`: Number of GPUs required
 - `timeout`: Maximum execution time in seconds
-- `priority`: Job priority (higher values = higher priority)
-
-**Backend Configuration:**
-- `pretrained_model_name_or_path`: HuggingFace model identifier
-- `device_map`: Device mapping strategy ("auto", "cpu", "cuda")
-- `torch_dtype`: PyTorch data type ("float16", "float32", "bfloat16")
-- `hf_model_class`: HuggingFace model class
 
 **Dataset Configuration:**
 - `dataset_source`: Source type ("hf_hub" or "local")
@@ -105,6 +88,7 @@ Create a configuration file (`default_ft_config.json`) with the following struct
 - `extension_type`: File extension type (for local)
 - `tokenization_field`: Field name for tokenization
 - `split`: Dataset split to use
+- More dataset config parameters could be found in [huggingface datasets documentation](https://huggingface.co/docs/datasets/en/loading#load)
 
 **LoRA Configuration:**
 - `r`: LoRA rank
@@ -113,6 +97,7 @@ Create a configuration file (`default_ft_config.json`) with the following struct
 - `lora_dropout`: Dropout rate
 - `bias`: Bias handling strategy
 - `task_type`: Task type for PEFT
+- More LoraConfig parameters could be found in [huggingface documentation](https://huggingface.co/docs/peft/main/en/package_reference/lora#peft.LoraConfig)
 
 **Training Configuration:**
 - `num_train_epochs`: Number of training epochs
@@ -123,6 +108,7 @@ Create a configuration file (`default_ft_config.json`) with the following struct
 - `logging_steps`: Logging frequency
 - `save_steps`: Model saving frequency
 - `eval_steps`: Evaluation frequency
+- More training arguments could be found in [huggingface documentation](https://huggingface.co/docs/transformers/v4.53.3/en/main_classes/trainer#transformers.TrainingArguments)
 
 ### Step 3: Expected Response
 
