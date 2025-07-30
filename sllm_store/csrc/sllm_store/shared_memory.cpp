@@ -147,8 +147,14 @@ std::filesystem::path GetShmPath(std::string_view name) {
     tmpdir = "/dev/shm";
   }
 
+  // Remove leading slash if present to avoid creating subdirectories
+  std::string clean_name(name);
+  if (!clean_name.empty() && clean_name[0] == '/') {
+    clean_name = clean_name.substr(1);
+  }
+
   return std::filesystem::path(tmpdir) /
-         (".shared_mem_" + std::string(name) + "_" + std::to_string(getuid()));
+         (".shared_mem_" + clean_name + "_" + std::to_string(getuid()));
 }
 
 std::unique_ptr<SharedMemoryInstance> Create(std::string_view name, size_t size,
@@ -267,6 +273,11 @@ std::unique_ptr<SharedMemoryInstance> Open(std::string_view name) {
   pm->prefault_pages();
   CUDA_CHECK(
       cudaHostRegister(pm->data_, pm->mapped_size_, cudaHostRegisterDefault));
+
+  /*  LOG(INFO) << "Registered shared memory '" << name
+             << "' at address " << pm->data_;
+
+    std::cerr << "Size = " << pm->mapped_size_ << std::endl;*/
 
   MemoryRegistry::Instance().Register(pm.get());
   return pm;
