@@ -123,12 +123,14 @@ TIMEOUT = 60
 
 class RedisStore:
     def __init__(
-        self, host: str = "localhost", port: int = 6379, max_retries: int = 3
+        self, host: Optional[str] = None, port: int = 6379, max_retries: int = 3
     ):
         redis_host = os.environ.get("REDIS_HOST", "localhost")
+        redis_port = int(os.environ.get("REDIS_PORT", "6379"))
         final_host = host if host is not None else redis_host
+        final_port = port if port != 6379 else redis_port
         self.host = final_host
-        self.port = port
+        self.port = final_port
         self.max_retries = max_retries
         self._connection_lock = threading.Lock()
         with self._connection_lock:
@@ -142,7 +144,7 @@ class RedisStore:
 
         self.pool = redis.ConnectionPool(
             host=final_host,
-            port=port,
+            port=final_port,
             retry_on_timeout=True,
             health_check_interval=30,
         )
