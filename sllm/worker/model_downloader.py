@@ -38,7 +38,7 @@ async def download_transformers_model(
 ) -> bool:
     # Get event loop for thread pool operations
     loop = asyncio.get_event_loop()
-    
+
     storage_path = os.getenv("STORAGE_PATH", "/models")
     model_path = os.path.join(storage_path, "transformers", model_name)
     tokenizer_path = os.path.join(
@@ -60,7 +60,7 @@ async def download_transformers_model(
     logger.info(f"Downloading {model_path}")
 
     # Run blocking operations in thread pool to avoid blocking heartbeats
-    
+
     def _load_model():
         module = importlib.import_module("transformers")
         hf_model_cls = getattr(module, hf_model_class)
@@ -69,22 +69,22 @@ async def download_transformers_model(
             torch_dtype=torch_dtype,
             trust_remote_code=True,
         )
-    
+
     model = await loop.run_in_executor(None, _load_model)
 
     def _load_tokenizer():
         return AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
-    
+
     tokenizer = await loop.run_in_executor(None, _load_tokenizer)
 
     from sllm_store.transformers import save_model
 
     logger.info(f"Saving {model_path}")
-    
+
     def _save_model_and_tokenizer():
         save_model(model, model_path)
         tokenizer.save_pretrained(tokenizer_path)
-    
+
     try:
         await loop.run_in_executor(None, _save_model_and_tokenizer)
     except Exception as e:
@@ -194,7 +194,7 @@ class VllmModelDownloader:
                 input_dir = pretrained_model_name_or_path
             else:
                 # download from huggingface (run in thread pool to avoid blocking)
-                
+
                 def _download():
                     return snapshot_download(
                         model_name,
@@ -206,7 +206,7 @@ class VllmModelDownloader:
                             "*.txt",
                         ],
                     )
-                
+
                 input_dir = await loop.run_in_executor(None, _download)
             logger.info(f"Loading model from {input_dir}")
 
@@ -222,7 +222,7 @@ class VllmModelDownloader:
                     max_model_len=1,
                 )
                 # Check vLLM version and use appropriate attribute
-                if hasattr(llm_writer.llm_engine, 'engine_core'):
+                if hasattr(llm_writer.llm_engine, "engine_core"):
                     # vLLM v1+
                     model_executer = llm_writer.llm_engine.engine_core
                 else:
@@ -233,8 +233,10 @@ class VllmModelDownloader:
                     path=model_path, pattern=pattern, max_size=max_size
                 )
                 return llm_writer, model_executer
-            
-            llm_writer, model_executer = await loop.run_in_executor(None, _create_and_save_llm)
+
+            llm_writer, model_executer = await loop.run_in_executor(
+                None, _create_and_save_llm
+            )
             for file in os.listdir(input_dir):
                 # Copy the metadata files into the output directory
                 if os.path.splitext(file)[1] not in (

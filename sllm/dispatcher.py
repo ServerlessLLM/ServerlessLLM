@@ -167,10 +167,8 @@ class Dispatcher:
                 # Handle LoRA adapter loading if present in payload
                 if "lora_adapter_name" in payload:
                     await self._handle_lora_loading(target, payload)
-                
-                worker_response = await self._forward_to_worker(
-                    target, payload
-                )
+
+                worker_response = await self._forward_to_worker(target, payload)
                 await self.store.publish_result(task_id, worker_response)
                 logger.info(
                     f"Successfully processed and published result for task {task_id}"
@@ -216,15 +214,17 @@ class Dispatcher:
         # Get LoRA adapter path from KV store
         model_identifier = f"{payload.get('model_name', '')}:{payload.get('backend', 'transformers')}"
         lora_adapters = await self.store.get_lora_adapters(model_identifier)
-        
+
         if lora_adapter_name not in lora_adapters:
-            raise ValueError(f"LoRA adapter '{lora_adapter_name}' not found for model '{model_identifier}'")
-        
+            raise ValueError(
+                f"LoRA adapter '{lora_adapter_name}' not found for model '{model_identifier}'"
+            )
+
         lora_path = lora_adapters[lora_adapter_name]
         worker = target["worker"]
         instance_id = target["instance_id"]
         instance_port = target.get("port")
-        
+
         node_ip = worker.get("node_ip")
         if not node_ip or not instance_port:
             raise ValueError(f"Invalid worker configuration for LoRA loading")
@@ -232,14 +232,11 @@ class Dispatcher:
         # Load LoRA adapter on the target instance
         lora_payload = {
             "instance_id": instance_id,
-            "payload": {
-                "lora_name": lora_adapter_name,
-                "lora_path": lora_path
-            }
+            "payload": {"lora_name": lora_adapter_name, "lora_path": lora_path},
         }
-        
+
         url = f"http://{node_ip}:{instance_port}/load_lora_adapter"
-        
+
         try:
             await post_json_with_retry(
                 session=self.http_session,
@@ -248,9 +245,13 @@ class Dispatcher:
                 max_retries=3,
                 timeout=self.forward_timeout,
             )
-            logger.info(f"Successfully loaded LoRA adapter '{lora_adapter_name}' on instance {instance_id}")
+            logger.info(
+                f"Successfully loaded LoRA adapter '{lora_adapter_name}' on instance {instance_id}"
+            )
         except Exception as e:
-            logger.error(f"Failed to load LoRA adapter '{lora_adapter_name}': {e}")
+            logger.error(
+                f"Failed to load LoRA adapter '{lora_adapter_name}': {e}"
+            )
             raise
 
     async def _select_instance_round_robin(
@@ -301,12 +302,14 @@ class Dispatcher:
                 if isinstance(instance_dict, dict):
                     for instance_id, instance_info in instance_dict.items():
                         if instance_info.get("status") == "running":
-                            active_instances.append({
-                                "worker": worker,
-                                "instance_id": instance_id,
-                                "port": instance_info.get("port"),
-                                "endpoint": instance_info.get("endpoint")
-                            })
+                            active_instances.append(
+                                {
+                                    "worker": worker,
+                                    "instance_id": instance_id,
+                                    "port": instance_info.get("port"),
+                                    "endpoint": instance_info.get("endpoint"),
+                                }
+                            )
 
         logger.debug(
             f"Found {len(active_instances)} available instances for {model_identifier}"
@@ -320,13 +323,13 @@ class Dispatcher:
         worker = target["worker"]
         instance_id = target["instance_id"]
         instance_port = target.get("port")
-        
+
         node_ip = worker.get("node_ip")
         if not node_ip:
             raise aiohttp.ClientConnectionError(
                 f"Worker {worker['node_id']} has no IP address in its heartbeat."
             )
-        
+
         if not instance_port:
             raise aiohttp.ClientConnectionError(
                 f"Instance {instance_id} has no port information."
@@ -340,7 +343,7 @@ class Dispatcher:
             endpoint = "/encode"
         else:
             endpoint = self.invoke_endpoint  # Default inference endpoint
-            
+
         url = f"http://{node_ip}:{instance_port}{endpoint}"
         forward_payload = {"instance_id": instance_id, "payload": payload}
 

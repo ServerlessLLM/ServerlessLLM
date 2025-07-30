@@ -83,21 +83,27 @@ class AutoScaler:
         auto_scaling_config = model_data.get("auto_scaling_config", {})
         min_instances = auto_scaling_config.get("min_instances", 0)
         max_instances = auto_scaling_config.get("max_instances", 1)
-        target_ongoing_requests = auto_scaling_config.get("target", self.queue_threshold)
+        target_ongoing_requests = auto_scaling_config.get(
+            "target", self.queue_threshold
+        )
         keep_alive = auto_scaling_config.get("keep_alive", 0)
 
         current_instances = await self._count_running_instances(
             model_identifier
         )
         queue_length = await self.store.get_queue_length(model_name, backend)
-        limbo_up, limbo_down = await self.store.get_limbo_counters(model_name, backend)
+        limbo_up, limbo_down = await self.store.get_limbo_counters(
+            model_name, backend
+        )
 
         # Start with min_instances as baseline (fixes zero-instance startup)
         needed = min_instances
-        
+
         # Scale up based on queue demand
         if queue_length > 0:
-            queue_based_instances = math.ceil(queue_length / target_ongoing_requests)
+            queue_based_instances = math.ceil(
+                queue_length / target_ongoing_requests
+            )
             needed = max(needed, queue_based_instances)
 
         # Ensure we respect min/max constraints
@@ -109,7 +115,9 @@ class AutoScaler:
             idle_time = self.model_idle_times.get(model_identifier, 0)
             if idle_time < keep_alive:
                 # Not idle long enough, don't scale down yet
-                self.model_idle_times[model_identifier] = idle_time + self.interval
+                self.model_idle_times[model_identifier] = (
+                    idle_time + self.interval
+                )
                 logger.info(
                     f"Model '{model_identifier}': keeping instances alive "
                     f"(idle_time: {idle_time + self.interval}s, keep_alive: {keep_alive}s)"

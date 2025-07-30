@@ -55,9 +55,9 @@ def start_head(
     if redis_port is None:
         redis_port = int(os.environ.get("REDIS_PORT", "6379"))
 
-    logger.info(f"Using redis host {redis_host}")
-    logger.info(f"Using redis port {redis_port}")
-    
+    logger.info(f"Using Redis host {redis_host}")
+    logger.info(f"Using Redis port {redis_port}")
+
     try:
         asyncio.run(_run_head_node(host, port, redis_host, redis_port))
     except KeyboardInterrupt:
@@ -70,7 +70,7 @@ def start_head(
 async def _run_head_node(host, port, redis_host, redis_port):
     """Async implementation of head node startup."""
     logger.info("Starting head node...")
-    
+
     store = RedisStore(host=redis_host, port=redis_port)
     await store.initialize_store(reset_on_start=True, full_reset=True)
     model_manager = ModelManager(store)
@@ -115,7 +115,7 @@ def start_worker(host, port, head_node_url):
     if not head_node_url:
         click.echo("Error: --head-node-url is required for worker mode")
         sys.exit(1)
-        
+
     try:
         asyncio.run(_run_worker_node(host, port, head_node_url))
     except KeyboardInterrupt:
@@ -128,7 +128,7 @@ def start_worker(host, port, head_node_url):
 async def _run_worker_node(host, port, head_node_url):
     """Async implementation of worker node startup."""
     logger.info("Starting worker node...")
-    
+
     static_hardware_info = benchmark_static_hardware()
     instance_manager = InstanceManager(node_ip=host)
     worker_app = create_worker_app(instance_manager)
@@ -156,7 +156,9 @@ async def _run_worker_node(host, port, head_node_url):
         logger.info("Shutting down worker node...")
         server_task.cancel()
         heartbeat_task.cancel()
-        await asyncio.gather(server_task, heartbeat_task, return_exceptions=True)
+        await asyncio.gather(
+            server_task, heartbeat_task, return_exceptions=True
+        )
         logger.info("Worker node shutdown complete.")
 
 

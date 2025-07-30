@@ -330,7 +330,6 @@ class ModelManager:
         ]
         return backends
 
-
     ### HELPER FUNCTIONS ###
     def _get_model_key(self, model_name: str, backend: str) -> str:
         return f"model:{model_name}:{backend}"

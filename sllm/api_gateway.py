@@ -254,9 +254,7 @@ def create_app(
                     {"status": "error", "message": "Result listener failed."}
                 )
 
-        listener_task = asyncio.create_task(
-            _result_listener(task_id)
-        )
+        listener_task = asyncio.create_task(_result_listener(task_id))
 
         await store.enqueue_task(model, backend, task_package)
 

@@ -16,6 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import os
+from typing import Optional
 
 import click
 
@@ -26,7 +27,6 @@ from sllm.cli._cli_utils import (
     start_head,
     start_worker,
 )
-from typing import Optional 
 
 
 @click.group()

@@ -33,34 +33,38 @@ from sllm.worker.model_downloader import (
 )
 from sllm.worker.utils import (
     allocate_backend_port,
-    validate_storage_path,
-    validate_vllm_model_path,
-    validate_transformers_model_path,
     validate_lora_adapter_path,
+    validate_storage_path,
+    validate_transformers_model_path,
+    validate_vllm_model_path,
 )
 from sllm_store.client import SllmStoreClient
 
 logger = init_logger(__name__)
 
 
-
 class InstanceManager:
-    def __init__(self, node_ip: str = "127.0.0.1", mem_pool_size: int = 1024 * 1024 * 1024 * 8, chunk_size: int = 1024 * 1024):
+    def __init__(
+        self,
+        node_ip: str = "127.0.0.1",
+        mem_pool_size: int = 1024 * 1024 * 1024 * 8,
+        chunk_size: int = 1024 * 1024,
+    ):
         self._running_instances: Dict[str, Dict[str, Any]] = {}
         self._instances_lock = asyncio.Lock()  # Protect concurrent access
         self._instance_lookup: Dict[
             str, str
         ] = {}  # instance_id -> model_identifier for fast lookup
-        
+
         # Store node IP for endpoint creation
         self.node_ip = node_ip
-        
+
         # SLLM Store Client - based on node IP
         self.client = SllmStoreClient(f"{node_ip}:8073")
-        
+
         # Track models available on disk: {model_name: (model_paths, model_size)}
         self.disk_models: Dict[str, tuple] = {}
-        
+
         # Memory management fields (moved from SllmLocalStore)
         self.pinned_memory_pool = {}
         self.chunk_size = chunk_size
@@ -69,10 +73,10 @@ class InstanceManager:
         self.queued_models = {}
         self.loading_queue = []  # Simplified queue without timing estimates
         self.memory_lock = asyncio.Lock()  # Separate lock for memory operations
-        
+
         # Scan for existing models on disk
         self.scan_disk_models()
-        
+
         # Start loading loop
         self.loader = asyncio.create_task(self.loading_loop())
 
@@ -80,49 +84,69 @@ class InstanceManager:
         """Scan storage directory and populate disk_models with available models."""
         storage_path = os.getenv("STORAGE_PATH", "/models")
         storage_path = os.path.abspath(storage_path)
-        
+
         if not os.path.exists(storage_path):
             logger.warning(f"Storage path {storage_path} does not exist")
             return
-        
+
         # TODO: optimize this loop
         # Scan vLLM models
         vllm_path = os.path.join(storage_path, "vllm")
         if os.path.exists(vllm_path):
             for model_name in os.listdir(vllm_path):
                 model_dir = os.path.join(vllm_path, model_name)
-                if os.path.isdir(model_dir) and validate_vllm_model_path(model_dir):
+                if os.path.isdir(model_dir) and validate_vllm_model_path(
+                    model_dir
+                ):
                     # Find all rank files
                     model_paths = []
                     total_size = 0
-                    
+
                     for item in os.listdir(model_dir):
                         logger.info(f"vllm item: {item}")
-                        if item.startswith("rank_") and os.path.isdir(os.path.join(model_dir, item)):
+                        if item.startswith("rank_") and os.path.isdir(
+                            os.path.join(model_dir, item)
+                        ):
                             rank_path = os.path.join(model_dir, item)
                             model_paths.append(f"vllm/{model_name}/{item}")
                             # Estimate size by summing file sizes
                             for root, dirs, files in os.walk(rank_path):
-                                total_size += sum(os.path.getsize(os.path.join(root, file)) for file in files)
-                    
+                                total_size += sum(
+                                    os.path.getsize(os.path.join(root, file))
+                                    for file in files
+                                )
+
                     logger.info(f"vllm model paths: {model_paths}")
                     if model_paths:
-                        self.disk_models[f"{model_name}:vllm"] = (model_paths, total_size)
-        
-        # Scan transformers models  
+                        self.disk_models[f"{model_name}:vllm"] = (
+                            model_paths,
+                            total_size,
+                        )
+
+        # Scan transformers models
         transformers_path = os.path.join(storage_path, "transformers")
         if os.path.exists(transformers_path):
             for model_name in os.listdir(transformers_path):
                 model_dir = os.path.join(transformers_path, model_name)
-                if os.path.isdir(model_dir) and validate_transformers_model_path(model_dir):
+                if os.path.isdir(
+                    model_dir
+                ) and validate_transformers_model_path(model_dir):
                     model_path = f"transformers/{model_name}"
                     # Estimate size
                     total_size = 0
                     for root, dirs, files in os.walk(model_dir):
-                        total_size += sum(os.path.getsize(os.path.join(root, file)) for file in files)
-                    self.disk_models[f"{model_name}:transformers"] = ([model_path], total_size)
-        
-        logger.info(f"Disk scan complete. Found {len(self.disk_models)} models on disk")
+                        total_size += sum(
+                            os.path.getsize(os.path.join(root, file))
+                            for file in files
+                        )
+                    self.disk_models[f"{model_name}:transformers"] = (
+                        [model_path],
+                        total_size,
+                    )
+
+        logger.info(
+            f"Disk scan complete. Found {len(self.disk_models)} models on disk"
+        )
 
     async def _ensure_model_downloaded(
         self, model_config: Dict[str, Any]
@@ -148,9 +172,11 @@ class InstanceManager:
             model_path = os.path.join(storage_path, "vllm", model)
             if not validate_vllm_model_path(model_path):
                 if os.path.exists(model_path):
-                    logger.warning(f"Incomplete vLLM model found at {model_path}, re-downloading")
+                    logger.warning(
+                        f"Incomplete vLLM model found at {model_path}, re-downloading"
+                    )
                     shutil.rmtree(model_path)
-                
+
                 logger.info(f"Downloading VLLM model {model} to {model_path}")
                 try:
                     downloader = VllmModelDownloader()
@@ -192,10 +218,14 @@ class InstanceManager:
             model_path = os.path.join(storage_path, "transformers", model)
             if not validate_transformers_model_path(model_path):
                 if os.path.exists(model_path):
-                    logger.warning(f"Incomplete transformers model found at {model_path}, re-downloading")
+                    logger.warning(
+                        f"Incomplete transformers model found at {model_path}, re-downloading"
+                    )
                     shutil.rmtree(model_path)
-                
-                logger.info(f"Downloading Transformers model {model} to {model_path}")
+
+                logger.info(
+                    f"Downloading Transformers model {model} to {model_path}"
+                )
                 try:
                     pretrained_model_name_or_path = backend_config.get(
                         "pretrained_model_name_or_path", model
@@ -217,25 +247,37 @@ class InstanceManager:
                             f"Model download incomplete: {model_path} validation failed"
                         )
 
-                    logger.info(f"Successfully downloaded Transformers model {model}")
+                    logger.info(
+                        f"Successfully downloaded Transformers model {model}"
+                    )
                 except Exception as e:
-                    logger.error(f"Failed to download Transformers model {model}: {e}")
+                    logger.error(
+                        f"Failed to download Transformers model {model}: {e}"
+                    )
                     if os.path.exists(model_path):
                         shutil.rmtree(model_path)
                     raise
             else:
-                logger.info(f"Transformers model {model} already exists and is valid")
+                logger.info(
+                    f"Transformers model {model} already exists and is valid"
+                )
 
             # Handle LoRA adapter if specified
             adapter_name_or_path = backend_config.get("adapter_name_or_path")
             if adapter_name_or_path:
-                adapter_path = os.path.join(storage_path, "transformers", adapter_name_or_path)
+                adapter_path = os.path.join(
+                    storage_path, "transformers", adapter_name_or_path
+                )
                 if not validate_lora_adapter_path(adapter_path):
                     if os.path.exists(adapter_path):
-                        logger.warning(f"Incomplete LoRA adapter found at {adapter_path}, re-downloading")
+                        logger.warning(
+                            f"Incomplete LoRA adapter found at {adapter_path}, re-downloading"
+                        )
                         shutil.rmtree(adapter_path)
-                    
-                    adapter_name = backend_config.get("adapter_name", adapter_name_or_path)
+
+                    adapter_name = backend_config.get(
+                        "adapter_name", adapter_name_or_path
+                    )
                     await download_lora_adapter(
                         base_model_name=model,
                         adapter_name=adapter_name,
@@ -243,13 +285,15 @@ class InstanceManager:
                         hf_model_class=hf_model_class,
                         torch_dtype=torch_dtype,
                     )
-                    
+
                     if not validate_lora_adapter_path(adapter_path):
                         raise RuntimeError(
                             f"LoRA adapter download incomplete: {adapter_path} validation failed"
                         )
                 else:
-                    logger.info(f"LoRA adapter {adapter_name_or_path} already exists and is valid")
+                    logger.info(
+                        f"LoRA adapter {adapter_name_or_path} already exists and is valid"
+                    )
 
         elif backend == "dummy":
             # Dummy backend doesn't need model downloading
@@ -265,47 +309,73 @@ class InstanceManager:
         """Ensure model is registered with the checkpoint store."""
         try:
             model_identifier = f"{model_name}:{backend}"
-            logger.info(f"[MODEL_REG] Starting registration for {model_identifier}")
-            
+            logger.info(
+                f"[MODEL_REG] Starting registration for {model_identifier}"
+            )
+
             if backend == "vllm":
                 # Register vLLM model with rank-based paths
                 backend_config = model_config.get("backend_config", {})
-                tensor_parallel_size = backend_config.get("tensor_parallel_size", 1)
-                
+                tensor_parallel_size = backend_config.get(
+                    "tensor_parallel_size", 1
+                )
+
                 model_path = f"vllm/{model_name}"
                 total_model_size = 0
                 model_path_list = []
-                
-                logger.info(f"[MODEL_REG] vLLM model with {tensor_parallel_size} ranks")
-                
+
+                logger.info(
+                    f"[MODEL_REG] vLLM model with {tensor_parallel_size} ranks"
+                )
+
                 for rank in range(tensor_parallel_size):
                     model_rank_path = f"{model_path}/rank_{rank}"
-                    logger.info(f"[MODEL_REG] Registering rank path: {model_rank_path}")
+                    logger.info(
+                        f"[MODEL_REG] Registering rank path: {model_rank_path}"
+                    )
                     model_size = self.client.register_model(model_rank_path)
-                    logger.info(f"[MODEL_REG] Rank {rank} registration result: {model_size} bytes")
+                    logger.info(
+                        f"[MODEL_REG] Rank {rank} registration result: {model_size} bytes"
+                    )
                     if model_size > 0:
                         total_model_size += model_size
                         model_path_list.append(model_rank_path)
-                
+
                 # Update disk_models registry
                 if model_path_list:
-                    self.disk_models[model_identifier] = (model_path_list, total_model_size)
-                
-                logger.info(f"[MODEL_REG] vLLM registration complete: {model_name}, {len(model_path_list)} ranks, {total_model_size} bytes")
-                        
+                    self.disk_models[model_identifier] = (
+                        model_path_list,
+                        total_model_size,
+                    )
+
+                logger.info(
+                    f"[MODEL_REG] vLLM registration complete: {model_name}, {len(model_path_list)} ranks, {total_model_size} bytes"
+                )
+
             elif backend == "transformers":
                 # Register transformers model
                 model_path = f"transformers/{model_name}"
-                logger.info(f"[MODEL_REG] Registering transformers path: {model_path}")
+                logger.info(
+                    f"[MODEL_REG] Registering transformers path: {model_path}"
+                )
                 model_size = self.client.register_model(model_path)
-                logger.info(f"[MODEL_REG] Transformers registration result: {model_size} bytes")
+                logger.info(
+                    f"[MODEL_REG] Transformers registration result: {model_size} bytes"
+                )
                 if model_size > 0:
                     # Update disk_models registry
-                    self.disk_models[model_identifier] = ([model_path], model_size)
-                    logger.info(f"[MODEL_REG] Transformers registration complete: {model_name}, {model_size} bytes")
-                    
+                    self.disk_models[model_identifier] = (
+                        [model_path],
+                        model_size,
+                    )
+                    logger.info(
+                        f"[MODEL_REG] Transformers registration complete: {model_name}, {model_size} bytes"
+                    )
+
         except Exception as e:
-            logger.error(f"[MODEL_REG] Failed to register model {model_name}: {e}")
+            logger.error(
+                f"[MODEL_REG] Failed to register model {model_name}: {e}"
+            )
             # Don't raise - allow instance to continue, registration might not be critical
 
     async def start_instance(
@@ -321,21 +391,23 @@ class InstanceManager:
         logger.info(f"Starting instance {instance_id} with backend {backend}")
 
         await self._ensure_model_downloaded(model_config)
-        
+
         # Register model with checkpoint store
         await self._ensure_model_registered(model, backend, model_config)
-        
+
         # Load model to pinned memory pool (hot potato mechanism)
         model_identifier = f"{model}:{backend}"
         await self.load_to_host(model_identifier)
-        
+
         backend_config = model_config.get("backend_config", {})
         startup_config = model_config.get("startup_config", {})
-        
+
         # Allocate port for this instance
         allocated_port = allocate_backend_port(backend)
         backend_config["port"] = allocated_port
-        logger.info(f"Allocated port {allocated_port} for instance {instance_id}")
+        logger.info(
+            f"Allocated port {allocated_port} for instance {instance_id}"
+        )
 
         if backend == "vllm":
             from sllm.backends.vllm_backend import VllmBackend
@@ -517,7 +589,9 @@ class InstanceManager:
                         "status": instance_data.get("status", "unknown"),
                         "host": instance_data.get("host", "0.0.0.0"),
                         "port": instance_data.get("port", 0),
-                        "endpoint": instance_data.get("endpoint", f"{self.node_ip}:0"),
+                        "endpoint": instance_data.get(
+                            "endpoint", f"{self.node_ip}:0"
+                        ),
                     }
         except Exception as e:
             logger.warning(f"Error getting instances info: {e}")
@@ -536,16 +610,22 @@ class InstanceManager:
                 logger.error(f"{model_name} not found on node {self.node_ip}")
                 return False
             if model_name in self.pinned_memory_pool:
-                logger.info(f"{model_name} already loaded to node {self.node_ip}")
+                logger.info(
+                    f"{model_name} already loaded to node {self.node_ip}"
+                )
                 return True
             elif model_name in self.queued_models:
-                logger.info(f"{model_name} is being loaded to node {self.node_ip}")
+                logger.info(
+                    f"{model_name} is being loaded to node {self.node_ip}"
+                )
                 return True
 
             # Add to loading queue
             self.loading_queue.append(model_name)
             self.queued_models[model_name] = True
-            logger.info(f"{model_name} queued for loading to node {self.node_ip}")
+            logger.info(
+                f"{model_name} queued for loading to node {self.node_ip}"
+            )
             return True
 
     async def loading_loop(self):
@@ -568,7 +648,9 @@ class InstanceManager:
             model_path_list, model_size = self.disk_models[model_name]
             can_load = await self._lru_eviction(model_size)
             if not can_load:
-                logger.warning(f"{model_name} cannot be loaded to node {self.node_ip}")
+                logger.warning(
+                    f"{model_name} cannot be loaded to node {self.node_ip}"
+                )
                 await asyncio.sleep(1)
                 continue
 
@@ -586,7 +668,9 @@ class InstanceManager:
 
                 if success:
                     self.pinned_memory_pool[model_name] = time.time()
-                    self.pinned_memory_pool_usage += (model_size + self.chunk_size - 1) // self.chunk_size
+                    self.pinned_memory_pool_usage += (
+                        model_size + self.chunk_size - 1
+                    ) // self.chunk_size
                     logger.info(f"{model_name} loaded to host memory")
                 else:
                     logger.error(f"Failed to load {model_name}")
@@ -594,42 +678,62 @@ class InstanceManager:
     async def _lru_eviction(self, model_size):
         """Evict least recently used models to make space"""
         async with self.memory_lock:
-            sorted_models = sorted(self.pinned_memory_pool.items(), key=lambda x: x[1])
-            required_chunks = (model_size + self.chunk_size - 1) // self.chunk_size
-            
-            logger.info(f"Memory pool usage: {self.pinned_memory_pool_usage}/{self.pinned_memory_pool_chunks} chunks, need {required_chunks}")
-            
-            while (self.pinned_memory_pool_usage + required_chunks > self.pinned_memory_pool_chunks 
-                   and len(sorted_models) > 0):
+            sorted_models = sorted(
+                self.pinned_memory_pool.items(), key=lambda x: x[1]
+            )
+            required_chunks = (
+                model_size + self.chunk_size - 1
+            ) // self.chunk_size
+
+            logger.info(
+                f"Memory pool usage: {self.pinned_memory_pool_usage}/{self.pinned_memory_pool_chunks} chunks, need {required_chunks}"
+            )
+
+            while (
+                self.pinned_memory_pool_usage + required_chunks
+                > self.pinned_memory_pool_chunks
+                and len(sorted_models) > 0
+            ):
                 model_name, _ = sorted_models.pop(0)
                 if model_name not in self.queued_models:
                     model_path_list, _ = self.disk_models[model_name]
                     for model_path in model_path_list:
                         self.client.unload_from_cpu(model_path)
                     self.pinned_memory_pool.pop(model_name)
-                    unloaded_chunks = (self.disk_models[model_name][1] + self.chunk_size - 1) // self.chunk_size
+                    unloaded_chunks = (
+                        self.disk_models[model_name][1] + self.chunk_size - 1
+                    ) // self.chunk_size
                     self.pinned_memory_pool_usage -= unloaded_chunks
-                    logger.info(f"{model_name} evicted {unloaded_chunks} chunks")
-            
-            return (self.pinned_memory_pool_usage + required_chunks <= self.pinned_memory_pool_chunks)
+                    logger.info(
+                        f"{model_name} evicted {unloaded_chunks} chunks"
+                    )
+
+            return (
+                self.pinned_memory_pool_usage + required_chunks
+                <= self.pinned_memory_pool_chunks
+            )
 
     async def _unload_from_host(self, model_name: str):
         """Unload model from pinned memory pool"""
         async with self.memory_lock:
             if model_name not in self.pinned_memory_pool:
                 return
-            
+
             if model_name not in self.disk_models:
                 return
-                
+
             model_path_list, model_size = self.disk_models[model_name]
             for model_path in model_path_list:
                 self.client.unload_from_cpu(model_path)
-            
+
             self.pinned_memory_pool.pop(model_name)
-            unloaded_chunks = (model_size + self.chunk_size - 1) // self.chunk_size
+            unloaded_chunks = (
+                model_size + self.chunk_size - 1
+            ) // self.chunk_size
             self.pinned_memory_pool_usage -= unloaded_chunks
-            logger.info(f"{model_name} unloaded from host memory ({unloaded_chunks} chunks freed)")
+            logger.info(
+                f"{model_name} unloaded from host memory ({unloaded_chunks} chunks freed)"
+            )
 
     async def register_lora_adapter(
         self,
@@ -647,17 +751,31 @@ class InstanceManager:
         # Check if LoRA adapter already exists
         storage_path = os.getenv("STORAGE_PATH", "/models")
         storage_path = os.path.abspath(storage_path)
-        local_adapter_path = os.path.join(storage_path, "transformers", base_model_name, "adapters", adapter_name)
-        
-        if os.path.exists(local_adapter_path) and validate_lora_adapter_path(local_adapter_path):
-            logger.info(f"LoRA adapter {adapter_name} already exists at {local_adapter_path}")
+        local_adapter_path = os.path.join(
+            storage_path,
+            "transformers",
+            base_model_name,
+            "adapters",
+            adapter_name,
+        )
+
+        if os.path.exists(local_adapter_path) and validate_lora_adapter_path(
+            local_adapter_path
+        ):
+            logger.info(
+                f"LoRA adapter {adapter_name} already exists at {local_adapter_path}"
+            )
             return 0  # Success, already exists
 
-        hf_model_class = backend_config.get("hf_model_class", "AutoModelForCausalLM")
+        hf_model_class = backend_config.get(
+            "hf_model_class", "AutoModelForCausalLM"
+        )
         torch_dtype = backend_config.get("torch_dtype", "float16")
-        
-        logger.info(f"Downloading LoRA adapter {adapter_path} for base model {base_model_name}")
-        
+
+        logger.info(
+            f"Downloading LoRA adapter {adapter_path} for base model {base_model_name}"
+        )
+
         try:
             return await download_lora_adapter(
                 base_model_name,

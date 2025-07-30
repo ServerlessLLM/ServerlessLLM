@@ -19,13 +19,11 @@
 # ---------------------------------------------------------------------------- #
 
 set -e
-
-# Default values for HTTP-based architecture
 DEFAULT_HEAD_HOST="0.0.0.0"
-DEFAULT_HEAD_PORT="8343"  # Updated to match Python default
+DEFAULT_HEAD_PORT="8343"  #
 DEFAULT_REDIS_HOST="redis"
 DEFAULT_REDIS_PORT="6379"
-DEFAULT_WORKER_PORT="8001"  # Updated to match Python default
+DEFAULT_WORKER_PORT="8001"
 DEFAULT_STORAGE_PATH="/models"
 DEFAULT_LOG_LEVEL="INFO"
 
@@ -41,6 +39,9 @@ initialize_head_node() {
   export REDIS_HOST="${REDIS_HOST:-$DEFAULT_REDIS_HOST}"
   export REDIS_PORT="${REDIS_PORT:-$DEFAULT_REDIS_PORT}"
   export LOG_LEVEL="${LOG_LEVEL:-$DEFAULT_LOG_LEVEL}"
+  echo "REDIS_HOST: $REDIS_HOST"
+  echo "REDIS_PORT: $REDIS_PORT"
+
   HEAD_HOST="${HEAD_HOST:-$DEFAULT_HEAD_HOST}"
   HEAD_PORT="${HEAD_PORT:-$DEFAULT_HEAD_PORT}"
 
@@ -88,6 +89,8 @@ initialize_worker_node() {
   WORKER_HOST="${WORKER_HOST:-0.0.0.0}"
   WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
   HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
+  echo "HEAD NODE URL ${HEAD_NODE_URL}"
+  echo "WORKER ARGS ${WORKER_ARGS}"
 
   # Validate required environment variables
   if [ -z "$HEAD_NODE_URL" ]; then
@@ -108,7 +111,7 @@ initialize_worker_node() {
   }
 
   # Start worker with HTTP heartbeat to head node in background
-  sllm start worker "${WORKER_ARGS[@]}" &
+  sllm start worker --head-node-url "${HEAD_NODE_URL}" "${WORKER_ARGS[@]}" &
 
   # Start sllm-store with sllm-store specific arguments
   exec sllm-store start --storage-path="$STORAGE_PATH" "${STORE_ARGS[@]}"

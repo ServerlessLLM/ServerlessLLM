@@ -52,7 +52,7 @@ class VllmBackend(SllmBackend):
         self.host = backend_config.get("host", "0.0.0.0")
         self.base_url = f"http://{self.host}:{self.port}"
         self.session = None
-        
+
         # Update backend_config with allocated port for reference
         self.backend_config["port"] = self.port
         self.backend_config["host"] = self.host
@@ -91,11 +91,13 @@ class VllmBackend(SllmBackend):
         storage_path = os.getenv("STORAGE_PATH", "/models")
         storage_path = os.path.abspath(storage_path)
         model_path = os.path.join(storage_path, "vllm", self.model)
-        
+
         logger.info(f"[VLLM_BACKEND] STORAGE_PATH: {storage_path}")
         logger.info(f"[VLLM_BACKEND] Model: {self.model}")
         logger.info(f"[VLLM_BACKEND] Full model path: {model_path}")
-        logger.info(f"[VLLM_BACKEND] Model path exists: {os.path.exists(model_path)}")
+        logger.info(
+            f"[VLLM_BACKEND] Model path exists: {os.path.exists(model_path)}"
+        )
 
         # Validate model exists
         if not os.path.exists(model_path):
@@ -112,7 +114,7 @@ class VllmBackend(SllmBackend):
             "--host",
             self.host,
         ]
-        
+
         logger.info(f"[VLLM_BACKEND] Full serve command: {' '.join(cmd)}")
 
         if "max_model_len" in self.backend_config:
