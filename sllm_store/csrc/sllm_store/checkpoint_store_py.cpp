@@ -32,6 +32,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def_readwrite("size", &MemCopyChunk::size_)
       .def_readwrite("dst_offset", &MemCopyChunk::dst_offset_)
       .def_readwrite("handle_idx", &MemCopyChunk::handle_idx_);
+  py::class_<MemCopyHandle>(m, "MemCopyHandle")
+      .def(py::init<const std::string&>())
+      .def_readwrite("cuda_ipc_handle", &MemCopyHandle::cuda_ipc_handle_);
 
   py::class_<CheckpointStore>(m, "CheckpointStore")
       .def(py::init<const std::string&, size_t, int, size_t, bool>(),

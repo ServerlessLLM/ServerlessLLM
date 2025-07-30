@@ -89,14 +89,25 @@ def load_dict(
     device_map: Dict[str, int],
     storage_path: Optional[str] = None,
 ):
-    replica_uuid, state_dict = load_dict_non_blocking(
-        model_path, device_map, storage_path
-    )
+    # Get server configuration to determine if we should use shared memory
+    config = SllmStoreClient.get_server_config_static()
 
-    client = SllmStoreClient("127.0.0.1:8073")
-    client.confirm_model_loaded(model_path, replica_uuid)
+    if config and config.get("use_shm", False):
+        # Server is configured to use shared memory
+        logger.info("Server configured for shared memory, using load_dict_shm")
+        return load_dict_shm(model_path, device_map, storage_path)
+    else:
+        # Server is using regular memory allocation
+        logger.info(
+            "Server configured for regular memory, using load_dict_non_blocking"
+        )
+        replica_uuid, state_dict = load_dict_non_blocking(
+            model_path, device_map, storage_path
+        )
 
-    return state_dict
+        client = SllmStoreClient("127.0.0.1:8073")
+        client.confirm_model_loaded(model_path, replica_uuid)
+        return state_dict
 
 
 def load_dict_shm(
@@ -124,7 +135,7 @@ def load_dict_shm(
         expanded_device_map, tensor_data_index
     )
 
-    config = SllmStoreClient.get_server_config()
+    config = SllmStoreClient.get_server_config_static()
     chunk_size = config.get("chunk_size")
 
     shared_memory_ptrs = allocate_shared_memory(device_memory, chunk_size)
