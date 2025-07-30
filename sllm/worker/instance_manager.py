@@ -20,6 +20,7 @@ import asyncio
 import os
 import re
 import shutil
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -31,6 +32,7 @@ from sllm.worker.model_downloader import (
     download_transformers_model,
 )
 from sllm.worker.utils import (
+    allocate_backend_port,
     validate_storage_path,
     validate_vllm_model_path,
     validate_transformers_model_path,
@@ -43,7 +45,7 @@ logger = init_logger(__name__)
 
 
 class InstanceManager:
-    def __init__(self, node_ip: str = "127.0.0.1"):
+    def __init__(self, node_ip: str = "127.0.0.1", mem_pool_size: int = 1024 * 1024 * 1024 * 8, chunk_size: int = 1024 * 1024):
         self._running_instances: Dict[str, Dict[str, Any]] = {}
         self._instances_lock = asyncio.Lock()  # Protect concurrent access
         self._instance_lookup: Dict[
@@ -59,8 +61,20 @@ class InstanceManager:
         # Track models available on disk: {model_name: (model_paths, model_size)}
         self.disk_models: Dict[str, tuple] = {}
         
+        # Memory management fields (moved from SllmLocalStore)
+        self.pinned_memory_pool = {}
+        self.chunk_size = chunk_size
+        self.pinned_memory_pool_chunks = mem_pool_size // chunk_size
+        self.pinned_memory_pool_usage = 0
+        self.queued_models = {}
+        self.loading_queue = []  # Simplified queue without timing estimates
+        self.memory_lock = asyncio.Lock()  # Separate lock for memory operations
+        
         # Scan for existing models on disk
         self.scan_disk_models()
+        
+        # Start loading loop
+        self.loader = asyncio.create_task(self.loading_loop())
 
     def scan_disk_models(self) -> None:
         """Scan storage directory and populate disk_models with available models."""
@@ -311,8 +325,17 @@ class InstanceManager:
         # Register model with checkpoint store
         await self._ensure_model_registered(model, backend, model_config)
         
+        # Load model to pinned memory pool (hot potato mechanism)
+        model_identifier = f"{model}:{backend}"
+        await self.load_to_host(model_identifier)
+        
         backend_config = model_config.get("backend_config", {})
         startup_config = model_config.get("startup_config", {})
+        
+        # Allocate port for this instance
+        allocated_port = allocate_backend_port(backend)
+        backend_config["port"] = allocated_port
+        logger.info(f"Allocated port {allocated_port} for instance {instance_id}")
 
         if backend == "vllm":
             from sllm.backends.vllm_backend import VllmBackend
@@ -350,8 +373,8 @@ class InstanceManager:
                     "model_config": model_config,
                     "status": "running",
                     "host": backend_instance.host,
-                    "port": backend_instance.port,
-                    "endpoint": f"{self.node_ip}:{backend_instance.port}",
+                    "port": allocated_port,
+                    "endpoint": f"{self.node_ip}:{allocated_port}",
                 }
 
                 # Update reverse lookup for performance
@@ -424,6 +447,8 @@ class InstanceManager:
                 # Clean up empty model identifier entries
                 if not instances:
                     del self._running_instances[model_identifier]
+                    # Unload from pinned memory if no instances are using this model
+                    await self._unload_from_host(model_identifier)
 
                 logger.info(f"Successfully stopped instance {instance_id}")
                 return True
@@ -502,3 +527,145 @@ class InstanceManager:
     def _generate_instance_id(self, model: str, backend: str) -> str:
         unique_part = uuid.uuid4().hex[:8]
         return f"{model}-{backend}-{unique_part}"
+
+    # Memory management functions (moved and simplified from SllmLocalStore)
+    async def load_to_host(self, model_name: str) -> bool:
+        """Load model to pinned memory pool (hot potato mechanism)"""
+        async with self.memory_lock:
+            if model_name not in self.disk_models:
+                logger.error(f"{model_name} not found on node {self.node_ip}")
+                return False
+            if model_name in self.pinned_memory_pool:
+                logger.info(f"{model_name} already loaded to node {self.node_ip}")
+                return True
+            elif model_name in self.queued_models:
+                logger.info(f"{model_name} is being loaded to node {self.node_ip}")
+                return True
+
+            # Add to loading queue
+            self.loading_queue.append(model_name)
+            self.queued_models[model_name] = True
+            logger.info(f"{model_name} queued for loading to node {self.node_ip}")
+            return True
+
+    async def loading_loop(self):
+        """Simplified loading loop without timing estimates"""
+        while True:
+            async with self.memory_lock:
+                if len(self.loading_queue) == 0:
+                    await asyncio.sleep(1)
+                    continue
+                model_name = self.loading_queue[0]
+                logger.info(f"Loading {model_name} to node {self.node_ip}")
+
+            if model_name not in self.disk_models:
+                logger.error(f"Model {model_name} not found in disk_models")
+                async with self.memory_lock:
+                    self.loading_queue.pop(0)
+                    self.queued_models.pop(model_name, None)
+                continue
+
+            model_path_list, model_size = self.disk_models[model_name]
+            can_load = await self._lru_eviction(model_size)
+            if not can_load:
+                logger.warning(f"{model_name} cannot be loaded to node {self.node_ip}")
+                await asyncio.sleep(1)
+                continue
+
+            # Attempt to load all model paths
+            logger.info(f"Loading {model_name} to host memory")
+            success = True
+            for model_path in model_path_list:
+                if not self.client.load_into_cpu(model_path):
+                    success = False
+                    break
+
+            async with self.memory_lock:
+                self.loading_queue.pop(0)
+                self.queued_models.pop(model_name, None)
+
+                if success:
+                    self.pinned_memory_pool[model_name] = time.time()
+                    self.pinned_memory_pool_usage += (model_size + self.chunk_size - 1) // self.chunk_size
+                    logger.info(f"{model_name} loaded to host memory")
+                else:
+                    logger.error(f"Failed to load {model_name}")
+
+    async def _lru_eviction(self, model_size):
+        """Evict least recently used models to make space"""
+        async with self.memory_lock:
+            sorted_models = sorted(self.pinned_memory_pool.items(), key=lambda x: x[1])
+            required_chunks = (model_size + self.chunk_size - 1) // self.chunk_size
+            
+            logger.info(f"Memory pool usage: {self.pinned_memory_pool_usage}/{self.pinned_memory_pool_chunks} chunks, need {required_chunks}")
+            
+            while (self.pinned_memory_pool_usage + required_chunks > self.pinned_memory_pool_chunks 
+                   and len(sorted_models) > 0):
+                model_name, _ = sorted_models.pop(0)
+                if model_name not in self.queued_models:
+                    model_path_list, _ = self.disk_models[model_name]
+                    for model_path in model_path_list:
+                        self.client.unload_from_cpu(model_path)
+                    self.pinned_memory_pool.pop(model_name)
+                    unloaded_chunks = (self.disk_models[model_name][1] + self.chunk_size - 1) // self.chunk_size
+                    self.pinned_memory_pool_usage -= unloaded_chunks
+                    logger.info(f"{model_name} evicted {unloaded_chunks} chunks")
+            
+            return (self.pinned_memory_pool_usage + required_chunks <= self.pinned_memory_pool_chunks)
+
+    async def _unload_from_host(self, model_name: str):
+        """Unload model from pinned memory pool"""
+        async with self.memory_lock:
+            if model_name not in self.pinned_memory_pool:
+                return
+            
+            if model_name not in self.disk_models:
+                return
+                
+            model_path_list, model_size = self.disk_models[model_name]
+            for model_path in model_path_list:
+                self.client.unload_from_cpu(model_path)
+            
+            self.pinned_memory_pool.pop(model_name)
+            unloaded_chunks = (model_size + self.chunk_size - 1) // self.chunk_size
+            self.pinned_memory_pool_usage -= unloaded_chunks
+            logger.info(f"{model_name} unloaded from host memory ({unloaded_chunks} chunks freed)")
+
+    async def register_lora_adapter(
+        self,
+        base_model_name: str,
+        adapter_name: str,
+        adapter_path: str,
+        backend_config: Dict[str, Any],
+    ) -> int:
+        """Register and download LoRA adapter for a base model"""
+        base_model_identifier = f"{base_model_name}:transformers"
+        if base_model_identifier not in self.disk_models:
+            logger.error(f"Base model {base_model_name} not found on this node")
+            return -1
+
+        # Check if LoRA adapter already exists
+        storage_path = os.getenv("STORAGE_PATH", "/models")
+        storage_path = os.path.abspath(storage_path)
+        local_adapter_path = os.path.join(storage_path, "transformers", base_model_name, "adapters", adapter_name)
+        
+        if os.path.exists(local_adapter_path) and validate_lora_adapter_path(local_adapter_path):
+            logger.info(f"LoRA adapter {adapter_name} already exists at {local_adapter_path}")
+            return 0  # Success, already exists
+
+        hf_model_class = backend_config.get("hf_model_class", "AutoModelForCausalLM")
+        torch_dtype = backend_config.get("torch_dtype", "float16")
+        
+        logger.info(f"Downloading LoRA adapter {adapter_path} for base model {base_model_name}")
+        
+        try:
+            return await download_lora_adapter(
+                base_model_name,
+                adapter_name,
+                adapter_path,
+                hf_model_class,
+                torch_dtype,
+            )
+        except Exception as e:
+            logger.error(f"Failed to download LoRA adapter {adapter_name}: {e}")
+            return -1

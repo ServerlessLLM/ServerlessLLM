@@ -57,7 +57,7 @@ initialize_head_node() {
 
   # Start sllm with any additional arguments passed to the script
   echo "Starting sllm with arguments: $@"
-  exec sllm start "$@"
+  exec sllm start head "$@"
 }
 
 # Function to initialize the worker node
@@ -90,9 +90,6 @@ initialize_worker_node() {
   WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
   HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
 
-  # Worker starts without node ID - head node will assign one during registration
-  NODE_ID=""
-
   # Validate required environment variables
   if [ -z "$HEAD_NODE_URL" ]; then
     echo "ERROR: HEAD_NODE_URL must be set to the head node's URL (e.g., http://sllm_head:8343)"
@@ -112,12 +109,7 @@ initialize_worker_node() {
   }
 
   # Start worker with HTTP heartbeat to head node in background
-  sllm-serve worker \
-    --host="$WORKER_HOST" \
-    --port="$WORKER_PORT" \
-    --node-id="$NODE_ID" \
-    --head-node-url="$HEAD_NODE_URL" \
-    "${WORKER_ARGS[@]}" &
+  sllm start worker "${WORKER_ARGS[@]}" &
 
   # Start sllm-store with sllm-store specific arguments
   exec sllm-store start --storage-path="$STORAGE_PATH" "${STORE_ARGS[@]}"
