@@ -124,23 +124,51 @@ std::unordered_map<std::string, torch::Tensor> RestoreTensors(
       if (memory_base_address.find(device) != memory_base_address.end()) {
         void* base_address = memory_base_address.at(device);
         uint64_t offset = reinterpret_cast<uint64_t>(base_address) + p.second;
-
-        torch::Device tensor_device(torch::kCUDA, device);
+        torch::Device tensor_device = (device == -1)
+                                          ? torch::Device(torch::kCPU)
+                                          : torch::Device(torch::kCUDA, device);
         auto [sizes, strides, type_str] = meta_state_dict.at(name);
         at::ScalarType dtype = stringToScalarType(type_str);
         // std::cerr << name << " " << sizes << " " << strides << " " << dtype
         // << std::endl;
         if (p.second == 0 &&
             handled_memory.find(base_address) == handled_memory.end()) {
+          // Use appropriate deallocator based on device type
+          auto deallocator =
+              (device == -1)
+                  ? [](void* ptr) { /* Do nothing for shared memory */ }
+                  : [](void* ptr) { cudaFree(ptr); };
           torch::Tensor real_tensor = torch::from_blob(
               reinterpret_cast<void*>(offset), c10::makeArrayRef(sizes),
-              c10::makeArrayRef(strides), [](void* ptr) { cudaFree(ptr); },
+              c10::makeArrayRef(strides), deallocator,
               torch::TensorOptions().device(tensor_device).dtype(dtype));
           state_dict[name] = real_tensor;
           handled_memory.insert(base_address);
           // std::cerr << "Tensor " << name << " is restored to device " <<
           // device << std::endl;
         } else {
+          /*std::cerr << "RestoreTensors checkpoint 3b" << std::endl;
+          std::cerr << "-------- RESTORE DEBUG INFO --------\n";
+          std::cerr << "Tensor name: " << name << "\n";
+          std::cerr << "Device: " << device << "\n";
+          std::cerr << "Shared memory base: " << base_address << "\n";
+          std::cerr << "Offset: " << p.second << "\n";
+          std::cerr << "Final tensor address: " <<
+          reinterpret_cast<void*>(offset) << "\n"; std::cerr << "Expected
+          address range: [" << base_address << ", "
+          << static_cast<void*>((char*)base_address + 268435456) << ")\n";
+          std::cerr << "cudaPointerGetAttributes:\n";
+
+          cudaPointerAttributes attr;
+          cudaError_t err = cudaPointerGetAttributes(&attr,
+          reinterpret_cast<void*>(offset)); if (err == cudaSuccess) { std::cerr
+          << "  devicePointer: " << attr.devicePointer << "\n"; std::cerr << "
+          hostPointer:   " << attr.hostPointer << "\n"; std::cerr << "
+          memoryType:    " << attr.type << "\n"; } else { std::cerr << "  ERROR:
+          " << cudaGetErrorString(err) << "\n";
+          }
+          std::cerr << "------------------------------------\n";*/
+
           torch::Tensor real_tensor = torch::from_blob(
               reinterpret_cast<void*>(offset), sizes, strides, [](void* ptr) {},
               torch::TensorOptions().device(tensor_device).dtype(dtype));

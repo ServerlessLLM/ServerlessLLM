@@ -72,6 +72,25 @@ def _get_uuid():
     return str(uuid.uuid4())
 
 
+def _choose_load_dict_format(model_path, device_map, storage_path):
+    config = SllmStoreClient.get_server_config_static()
+
+    if config and config.get("use_shm", False):
+        # Server is configured to use shared memory
+        logger.info("Server configured for shared memory, using load_dict_shm")
+        from sllm_store.torch import load_dict_shm
+
+        state_dict = load_dict_shm(model_path, device_map, storage_path)
+        # For shared memory, we don't have a replica_uuid, so we return None
+        return None, state_dict
+    else:
+        # Server is using regular memory allocation
+        logger.info(
+            "Server configured for regular memory, using load_dict_non_blocking"
+        )
+        return load_dict_non_blocking(model_path, device_map, storage_path)
+
+
 def save_model(model: nn.Module, model_path: str):
     """
     Args:
@@ -202,10 +221,10 @@ def fully_parallel_load(
     # TODO: offload `load_dict_non_blocking` to c++ for real parallelism
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(
-            load_dict_non_blocking, model_path, device_map, storage_path
+            _choose_load_dict_format, model_path, device_map, storage_path
         )
         logger.debug(
-            f"load_dict_non_blocking takes {time.time() - start} seconds"
+            f"choose_load_dict_format takes {time.time() - start} seconds"
         )
 
         start = time.time()
@@ -255,7 +274,9 @@ def fully_parallel_load(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )
     client = SllmStoreClient("127.0.0.1:8073")
-    client.confirm_model_loaded(model_path, replica_uuid)
+    if replica_uuid is not None:
+        # Only confirm for regular CUDA memory loading
+        client.confirm_model_loaded(model_path, replica_uuid)
     model.hf_device_map = device_map
     model.eval()
     return model

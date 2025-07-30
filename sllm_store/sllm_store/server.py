@@ -15,6 +15,7 @@ ctypes.CDLL(os.path.join(sllm_store.__path__[0], "libglog.so"))
 from sllm_store._checkpoint_store import (  # noqa: E402
     CheckpointStore,
     MemCopyChunk,
+    MemCopyHandle,
 )
 
 logger = init_logger(__name__)
@@ -28,6 +29,7 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
         num_thread,
         chunk_size,
         registration_required,
+        use_shm=False,
     ):
         if not storage_path:
             logger.error("storage_path is empty")
@@ -41,13 +43,15 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             f"StorageServicer: storage_path={storage_path}, "
             f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
             f"chunk_size={chunk_size}, "
-            f"registration_required={registration_required}"
+            f"registration_required={registration_required}, "
+            f"use_shm={use_shm}"
         )
 
         self.storage = CheckpointStore(
-            storage_path, mem_pool_size, num_thread, chunk_size
+            storage_path, mem_pool_size, num_thread, chunk_size, use_shm
         )
         self.registration_required = registration_required
+        self.use_shm = use_shm
 
     async def LoadModelAsync(self, request, context):
         model_path = request.model_path
@@ -76,7 +80,8 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
         if device_type == storage_pb2.DEVICE_TYPE_CPU:
             shared_memory_handles = {
                 device_uuid: [
-                    handle.cpu_ipc_handle for handle in handle_list.handles
+                    MemCopyHandle(handle.shm_name)
+                    for handle in handle_list.handles
                 ]
                 for device_uuid, handle_list in request.shm_handles.items()
             }
@@ -221,6 +226,7 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
         return storage_pb2.GetServerConfigResponse(
             mem_pool_size=self.storage.get_mem_pool_size(),
             chunk_size=self.storage.get_chunk_size(),
+            use_shm=self.use_shm,
         )
 
 
@@ -232,6 +238,7 @@ async def serve(
     chunk_size,
     mem_pool_size,
     registration_required,
+    use_shm=False,
 ):
     server = grpc.aio.server()
     storage_pb2_grpc.add_StorageServicer_to_server(
@@ -241,6 +248,7 @@ async def serve(
             num_thread,
             chunk_size,
             registration_required,
+            use_shm,
         ),
         server,
     )
