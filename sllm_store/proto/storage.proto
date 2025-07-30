@@ -19,6 +19,7 @@ message GetServerConfigRequest {
 message GetServerConfigResponse {
   int64 mem_pool_size = 1;
   int64 chunk_size = 2;
+  bool use_shm = 3;
 }
 
 message RegisterModelRequest {
