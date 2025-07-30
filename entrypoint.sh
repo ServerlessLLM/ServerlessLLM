@@ -51,13 +51,13 @@ initialize_head_node() {
     exit 1
   }
 
-  # Start sllm-serve head node with HTTP API gateway
-  exec sllm-serve head \
-    --host="$HEAD_HOST" \
-    --port="$HEAD_PORT" \
-    --redis-host="$REDIS_HOST" \
-    --redis-port="$REDIS_PORT" \
-    "$@"
+  # Display and execute the command
+  echo "Executing: $CMD"
+  eval "$CMD"
+
+  # Start sllm with any additional arguments passed to the script
+  echo "Starting sllm with arguments: $@"
+  exec sllm start "$@"
 }
 
 # Function to initialize the worker node

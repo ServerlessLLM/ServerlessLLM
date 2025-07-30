@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from sllm.serve.backends.backend_utils import (
+from sllm.backends.backend_utils import (
     BackendStatus,
     SllmBackend,
     cleanup_subprocess,
