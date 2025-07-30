@@ -1,3 +1,20 @@
+# ---------------------------------------------------------------------------- #
+#  serverlessllm                                                               #
+#  copyright (c) serverlessllm team 2024                                       #
+#                                                                              #
+#  licensed under the apache license, version 2.0 (the "license");             #
+#  you may not use this file except in compliance with the license.            #
+#                                                                              #
+#  you may obtain a copy of the license at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/license-2.0                  #
+#                                                                              #
+#  unless required by applicable law or agreed to in writing, software         #
+#  distributed under the license is distributed on an "as is" basis,           #
+#  without warranties or conditions of any kind, either express or implied.    #
+#  see the license for the specific language governing permissions and         #
+#  limitations under the license.                                              #
+# ---------------------------------------------------------------------------- #
 import asyncio
 import json
 import uuid
@@ -7,11 +24,11 @@ from typing import Any, Dict
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
-from sllm.serve.dispatcher import Dispatcher
-from sllm.serve.kv_store import RedisStore
-from sllm.serve.logger import init_logger
-from sllm.serve.model_manager import ModelManager
-from sllm.serve.worker_manager import WorkerManager
+from sllm.dispatcher import Dispatcher
+from sllm.kv_store import RedisStore
+from sllm.logger import init_logger
+from sllm.model_manager import ModelManager
+from sllm.worker_manager import WorkerManager
 
 INFERENCE_REQUEST_TIMEOUT = 120
 

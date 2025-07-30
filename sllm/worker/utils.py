@@ -24,7 +24,7 @@ from pathlib import Path
 import GPUtil
 import psutil
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 

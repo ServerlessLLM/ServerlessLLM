@@ -24,13 +24,13 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from sllm.serve.logger import init_logger
-from sllm.serve.worker.model_downloader import (
+from sllm.logger import init_logger
+from sllm.worker.model_downloader import (
     VllmModelDownloader,
     download_lora_adapter,
     download_transformers_model,
 )
-from sllm.serve.worker.utils import (
+from sllm.worker.utils import (
     validate_storage_path,
     validate_vllm_model_path,
     validate_transformers_model_path,
@@ -315,15 +315,15 @@ class InstanceManager:
         startup_config = model_config.get("startup_config", {})
 
         if backend == "vllm":
-            from sllm.serve.backends.vllm_backend import VllmBackend
+            from sllm.backends.vllm_backend import VllmBackend
 
             model_backend_cls = VllmBackend
         elif backend == "dummy":
-            from sllm.serve.backends.dummy_backend import DummyBackend
+            from sllm.backends.dummy_backend import DummyBackend
 
             model_backend_cls = DummyBackend
         elif backend == "transformers":
-            from sllm.serve.backends.transformers_backend import (
+            from sllm.backends.transformers_backend import (
                 TransformersBackend,
             )
 

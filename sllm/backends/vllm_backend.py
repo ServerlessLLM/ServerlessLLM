@@ -30,8 +30,8 @@ from sllm.backends.backend_utils import (
     SllmBackend,
     cleanup_subprocess,
 )
-from sllm.serve.logger import init_logger
-from sllm.serve.worker.utils import allocate_backend_port
+from sllm.logger import init_logger
+from sllm.worker.utils import allocate_backend_port
 
 logger = init_logger(__name__)
 

@@ -15,14 +15,18 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import os
+
 import click
 
 from sllm.cli._cli_utils import (
     delete_model,
     deploy_model,
     show_status,
-    start_server,
+    start_head,
+    start_worker,
 )
+from typing import Optional 
 
 
 @click.group()
@@ -126,33 +130,66 @@ def delete(models, lora_adapters):
     delete_model(models, lora_adapters=lora_adapters if lora_adapters else None)
 
 
-@cli.command()
+@cli.group()
+def start():
+    """Start SLLM head or worker node."""
+    pass
+
+
+@start.command()
 @click.option(
     "--host",
     default="0.0.0.0",
     type=str,
-    help="Host IP to run the server on.",
+    help="Host IP for the API Gateway.",
 )
 @click.option(
-    "--port", default=8343, type=int, help="Port to run the server on."
+    "--port", default=8343, type=int, help="Port for the API Gateway."
 )
 @click.option(
-    "--enable-storage-aware",
-    is_flag=True,
-    help="Enable storage-aware scheduling.",
+    "--redis-host",
+    default="localhost",
+    type=str,
+    help="Hostname of the Redis server.",
 )
 @click.option(
-    "--enable-migration",
-    is_flag=True,
-    help="Enable live migration of model instances.",
+    "--redis-port", default=6379, type=int, help="Port of the Redis server."
 )
-def start(host, port, enable_storage_aware, enable_migration):
-    """Start the head node of the SLLM cluster."""
-    start_server(
+def head(host, port, redis_host, redis_port):
+    """Start the head node (control plane)."""
+    start_head(
         host=host,
         port=port,
-        enable_storage_aware=enable_storage_aware,
-        enable_migration=enable_migration,
+        redis_host=redis_host,
+        redis_port=redis_port,
+    )
+
+
+@start.command()
+@click.option(
+    "--host",
+    default="0.0.0.0",
+    type=str,
+    help="Host for the worker's API server.",
+)
+@click.option(
+    "--port",
+    default=8001,
+    type=int,
+    help="Port for the worker's API server.",
+)
+@click.option(
+    "--head-node-url",
+    type=str,
+    default=lambda: os.getenv("LLM_SERVER_URL", "http://0.0.0.0:8343"),
+    help="Full URL of the head node API Gateway (e.g., http://192.168.1.100:8343).",
+)
+def worker(host, port, head_node_url):
+    """Start a worker node."""
+    start_worker(
+        host=host,
+        port=port,
+        head_node_url=head_node_url,
     )
 
 

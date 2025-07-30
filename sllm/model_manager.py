@@ -20,8 +20,8 @@ import json
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from sllm.serve.kv_store import RedisStore
-from sllm.serve.logger import init_logger
+from sllm.kv_store import RedisStore
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 ModelConfig = Dict[str, Any]

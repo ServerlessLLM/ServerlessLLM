@@ -15,74 +15,140 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import asyncio
 import json
 import os
 import subprocess
 import sys
 
 import click
-import ray
 import requests
 import uvicorn
+from uvicorn import Config, Server
 
-from sllm.app_lib import create_app
-from sllm.controller import SllmController
+from sllm.api_gateway import create_app as create_head_app
+from sllm.autoscaler import AutoScaler
+from sllm.dispatcher import Dispatcher
+from sllm.kv_store import RedisStore
 from sllm.logger import init_logger
+from sllm.model_manager import ModelManager
+from sllm.worker.api import create_worker_app
+from sllm.worker.heartbeat import run_heartbeat_loop
+from sllm.worker.instance_manager import InstanceManager
+from sllm.worker.utils import benchmark_static_hardware
+from sllm.worker_manager import WorkerManager
 
 logger = init_logger(__name__)
 
 
 # ----------------------------- START COMMAND ----------------------------- #
-def start_server(
+def start_head(
     host="0.0.0.0",
     port=8343,
-    enable_storage_aware=False,
-    enable_migration=False,
+    redis_host="localhost",
+    redis_port=6379,
 ):
-    """Start the SLLM server using Ray and uvicorn."""
+    """Start the SLLM head node (control plane)."""
     try:
-        # Initialize Ray if not already initialized
-        if not ray.is_initialized():
-            click.echo("[ℹ] Initializing Ray...")
-            ray.init()
-        else:
-            click.echo("[ℹ] Ray already initialized")
-
-        # Create the FastAPI app
-        click.echo("[ℹ] Creating FastAPI application...")
-        app = create_app()
-
-        # Create and start the controller
-        click.echo("[ℹ] Starting SLLM controller...")
-        controller_cls = ray.remote(SllmController)
-        controller = controller_cls.options(
-            name="controller", num_cpus=1, resources={"control_node": 0.1}
-        ).remote(
-            {
-                "enable_storage_aware": enable_storage_aware,
-                "enable_migration": enable_migration,
-            }
-        )
-
-        # Start the controller
-        ray.get(controller.start.remote())
-        click.echo("[✅] SLLM controller started successfully")
-
-        # Start the uvicorn server
-        click.echo(f"[🚀] Starting SLLM server on {host}:{port}...")
-        uvicorn.run(app, host=host, port=port)
-
+        asyncio.run(_run_head_node(host, port, redis_host, redis_port))
     except KeyboardInterrupt:
-        click.echo("[ℹ] Shutting down SLLM server...")
-        try:
-            if "controller" in locals():
-                ray.get(controller.shutdown.remote())
-            click.echo("[✅] SLLM server shut down successfully")
-        except Exception as e:
-            click.echo(f"[⚠️] Warning during shutdown: {e}")
+        pass
     except Exception as e:
-        click.echo(f"[❌] Failed to start SLLM server: {e}")
+        click.echo(f"Failed to start head node: {e}")
         sys.exit(1)
+
+
+async def _run_head_node(host, port, redis_host, redis_port):
+    """Async implementation of head node startup."""
+    logger.info("Starting head node...")
+    
+    store = RedisStore(host=redis_host, port=redis_port)
+    await store.initialize_store(reset_on_start=True, full_reset=True)
+    model_manager = ModelManager(store)
+    worker_manager = WorkerManager(store, config={"prune_interval": 15})
+    autoscaler = AutoScaler(store=store)
+    dispatcher = Dispatcher(store)
+
+    app = create_head_app(
+        worker_manager=worker_manager,
+        model_manager=model_manager,
+        dispatcher=dispatcher,
+    )
+
+    uvicorn_config = Config(app, host=host, port=port, log_level="info")
+    uvicorn_server = Server(uvicorn_config)
+
+    worker_manager.start()
+    dispatcher.start()
+    autoscaler_task = asyncio.create_task(autoscaler.run_scaling_loop())
+    dispatcher_task = asyncio.create_task(dispatcher.run_consumer_loop())
+    server_task = asyncio.create_task(uvicorn_server.serve())
+
+    try:
+        logger.info("Head node services started.")
+        await asyncio.gather(autoscaler_task, dispatcher_task, server_task)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Shutdown signal received.")
+    finally:
+        logger.info("Shutting down head node...")
+        autoscaler.shutdown()
+        await dispatcher.shutdown()
+        await worker_manager.shutdown()
+        uvicorn_server.should_exit = True
+        await asyncio.sleep(2)
+        await store.close()
+        logger.info("Head node shutdown complete.")
+
+
+# ----------------------------- START WORKER ----------------------------- #
+def start_worker(host, port, head_node_url):
+    """Start the SLLM worker node."""
+    if not head_node_url:
+        click.echo("Error: --head-node-url is required for worker mode")
+        sys.exit(1)
+        
+    try:
+        asyncio.run(_run_worker_node(host, port, head_node_url))
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        click.echo(f"Failed to start worker node: {e}")
+        sys.exit(1)
+
+
+async def _run_worker_node(host, port, head_node_url):
+    """Async implementation of worker node startup."""
+    logger.info("Starting worker node...")
+    
+    static_hardware_info = benchmark_static_hardware()
+    instance_manager = InstanceManager(node_ip=host)
+    worker_app = create_worker_app(instance_manager)
+    uvicorn_config = Config(worker_app, host=host, port=port, log_level="info")
+    uvicorn_server = Server(uvicorn_config)
+
+    server_task = asyncio.create_task(uvicorn_server.serve())
+    heartbeat_task = asyncio.create_task(
+        run_heartbeat_loop(
+            instance_manager=instance_manager,
+            head_node_url=head_node_url,
+            node_ip=host,
+            static_hardware_info=static_hardware_info,
+            app_state=worker_app.state,
+            worker_port=port,
+        )
+    )
+
+    try:
+        logger.info(f"Worker node started on {host}:{port}.")
+        await asyncio.gather(server_task, heartbeat_task)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Shutdown signal received.")
+    finally:
+        logger.info("Shutting down worker node...")
+        server_task.cancel()
+        heartbeat_task.cancel()
+        await asyncio.gather(server_task, heartbeat_task, return_exceptions=True)
+        logger.info("Worker node shutdown complete.")
 
 
 # ----------------------------- DEPLOY COMMAND ----------------------------- #

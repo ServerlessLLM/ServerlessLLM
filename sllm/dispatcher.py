@@ -22,9 +22,9 @@ from typing import Any, Dict, List, Mapping, Optional
 
 import aiohttp
 
-from sllm.serve.kv_store import RedisStore
-from sllm.serve.logger import init_logger
-from sllm.serve.utils import post_json_with_retry
+from sllm.kv_store import RedisStore
+from sllm.logger import init_logger
+from sllm.utils import post_json_with_retry
 
 logger = init_logger(__name__)
 

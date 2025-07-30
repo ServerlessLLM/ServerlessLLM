@@ -28,7 +28,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 import redis.asyncio as redis
 from redis.exceptions import ConnectionError, TimeoutError
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 

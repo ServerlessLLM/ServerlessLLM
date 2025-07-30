@@ -19,8 +19,8 @@
 import asyncio
 from fastapi import FastAPI, HTTPException, Request
 
-from sllm.serve.worker.instance_manager import InstanceManager
-from sllm.serve.logger import init_logger
+from sllm.worker.instance_manager import InstanceManager
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 

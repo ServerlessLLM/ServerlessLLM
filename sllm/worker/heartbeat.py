@@ -23,9 +23,9 @@ from pathlib import Path
 
 import aiohttp
 
-from sllm.serve.logger import init_logger
-from sllm.serve.worker.instance_manager import InstanceManager
-from sllm.serve.worker.utils import get_dynamic_metrics
+from sllm.logger import init_logger
+from sllm.worker.instance_manager import InstanceManager
+from sllm.worker.utils import get_dynamic_metrics
 
 logger = init_logger(__name__)
 
@@ -33,24 +33,17 @@ logger = init_logger(__name__)
 async def run_heartbeat_loop(
     instance_manager: InstanceManager,
     head_node_url: str,
-    node_id: str,
     node_ip: str,
     static_hardware_info: dict,
     app_state,
     interval_seconds: int = 15,
     worker_port: int = 8001,
 ):
-    # Start with provided node_id (may be None for new workers)
-    current_node_id = node_id if node_id else None
-
-    if current_node_id:
-        logger.info(
-            f"Starting heartbeat loop for reconnecting node {current_node_id}. Reporting to {head_node_url}."
-        )
-    else:
-        logger.info(
-            f"Starting heartbeat loop for new worker. Will receive node_id via /confirmation endpoint."
-        )
+    # Start as new worker - node_id will be assigned by head node
+    current_node_id = None
+    logger.info(
+        f"Starting heartbeat loop for new worker. Will receive node_id via /confirmation endpoint."
+    )
 
     async with aiohttp.ClientSession() as session:
         while True:

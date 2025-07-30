@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 
 import aiohttp
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 
