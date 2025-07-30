@@ -21,20 +21,12 @@ services:
     image: redis:7-alpine
     container_name: sllm-redis
     ports:
-      - "6380:6379"  # Non-standard port to avoid Ray conflict
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
+      - "6380:6379"
+    command: redis-server --appendonly yes
     networks:
-      - sllm-network
+      - sllm_network
 
-  # Head Node (API Gateway + Management)
+  # Head Node
   sllm_head:
     build:
       context: ../../
@@ -42,68 +34,46 @@ services:
     image: serverlessllm/sllm:latest
     container_name: sllm_head
     environment:
-      - MODE=HEAD
-      - HEAD_HOST=0.0.0.0
-      - HEAD_PORT=8343
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379  # Internal Redis port (container-to-container)
       - MODEL_FOLDER=${MODEL_FOLDER}
-      - LOG_LEVEL=INFO
+      - MODE=HEAD
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     ports:
-      - "8343:8343"  # Match HEAD_PORT
+      - "8343:8343"
     depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8343/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      - redis
     networks:
-      - sllm-network
+      - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
 
-  # Worker Node 0 (GPU-based inference)
+  # Worker Node 0
   sllm_worker_0:
     build:
       context: ../../
       dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
     container_name: sllm_worker_0
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              capabilities: [gpu]
+              capabilities: ["gpu"]
               device_ids: ["0"]
     environment:
-      - MODE=WORKER
-      - WORKER_HOST=0.0.0.0
-      - WORKER_PORT=8001  
+      - WORKER_ID=0
       - STORAGE_PATH=/models
-      - HEAD_NODE_URL=http://sllm_head:8343
-    ports:
-      - "8001:8001"  
+      - MODE=WORKER
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
-      sllm_head:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      - redis
     networks:
-      - sllm-network
+      - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
     command: ["--mem-pool-size", "4GB", "--registration-required", "true"]
-
-volumes:
-  redis_data:
-    driver: local
 
 networks:
   sllm_network:
