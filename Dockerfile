@@ -15,8 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-
-
 ARG CUDA_VERSION=12.1.1
 #################### BASE BUILD IMAGE ####################
 # prepare basic build environment

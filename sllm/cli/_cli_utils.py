@@ -54,6 +54,9 @@ def start_head(
         redis_host = os.environ.get("REDIS_HOST", "localhost")
     if redis_port is None:
         redis_port = int(os.environ.get("REDIS_PORT", "6379"))
+
+    logger.info(f"Using redis host {redis_host}")
+    logger.info(f"Using redis port {redis_port}")
     
     try:
         asyncio.run(_run_head_node(host, port, redis_host, redis_port))
