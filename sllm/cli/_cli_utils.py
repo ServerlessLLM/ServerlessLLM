@@ -45,10 +45,16 @@ logger = init_logger(__name__)
 def start_head(
     host="0.0.0.0",
     port=8343,
-    redis_host="localhost",
-    redis_port=6379,
+    redis_host=None,
+    redis_port=None,
 ):
     """Start the SLLM head node (control plane)."""
+    # Use environment variables if not explicitly provided
+    if redis_host is None:
+        redis_host = os.environ.get("REDIS_HOST", "localhost")
+    if redis_port is None:
+        redis_port = int(os.environ.get("REDIS_PORT", "6379"))
+    
     try:
         asyncio.run(_run_head_node(host, port, redis_host, redis_port))
     except KeyboardInterrupt:
