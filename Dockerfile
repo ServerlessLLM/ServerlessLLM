@@ -68,8 +68,6 @@ COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/backends /app/sllm/backends
 COPY sllm/cli /app/sllm/cli
-COPY sllm/routers /app/sllm/routers
-COPY sllm/schedulers /app/sllm/schedulers
 COPY sllm/*.py /app/sllm/
 COPY README.md /app/
 RUN python3 setup.py bdist_wheel
