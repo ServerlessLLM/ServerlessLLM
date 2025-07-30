@@ -17,7 +17,7 @@
 # ---------------------------------------------------------------------------- #
 import click
 
-from sllm._cli_utils import (
+from sllm.cli._cli_utils import (
     delete_model,
     deploy_model,
     show_status,
@@ -127,9 +127,33 @@ def delete(models, lora_adapters):
 
 
 @cli.command()
-def start():
+@click.option(
+    "--host",
+    default="0.0.0.0",
+    type=str,
+    help="Host IP to run the server on.",
+)
+@click.option(
+    "--port", default=8343, type=int, help="Port to run the server on."
+)
+@click.option(
+    "--enable-storage-aware",
+    is_flag=True,
+    help="Enable storage-aware scheduling.",
+)
+@click.option(
+    "--enable-migration",
+    is_flag=True,
+    help="Enable live migration of model instances.",
+)
+def start(host, port, enable_storage_aware, enable_migration):
     """Start the head node of the SLLM cluster."""
-    start_server()
+    start_server(
+        host=host,
+        port=port,
+        enable_storage_aware=enable_storage_aware,
+        enable_migration=enable_migration,
+    )
 
 
 @cli.command()

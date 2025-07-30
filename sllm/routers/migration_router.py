@@ -19,10 +19,10 @@ from typing import Dict
 
 import ray
 
-from sllm.serve.inference_instance import start_instance
-from sllm.serve.logger import init_logger
-from sllm.serve.routers.roundrobin_router import RoundRobinRouter
-from sllm.serve.utils import InstanceHandle, InstanceStatus
+from sllm.inference_instance import start_instance
+from sllm.logger import init_logger
+from sllm.routers.roundrobin_router import RoundRobinRouter
+from sllm.utils import InstanceHandle, InstanceStatus
 
 logger = init_logger(__name__)
 

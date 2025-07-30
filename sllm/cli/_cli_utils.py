@@ -21,29 +21,68 @@ import subprocess
 import sys
 
 import click
+import ray
 import requests
+import uvicorn
+
+from sllm.app_lib import create_app
+from sllm.controller import SllmController
+from sllm.logger import init_logger
+
+logger = init_logger(__name__)
 
 
 # ----------------------------- START COMMAND ----------------------------- #
-def start_server():
-    """Start the SLLM server using docker-compose."""
-    compose_file = os.getenv(
-        "SLLM_COMPOSE_FILE", "examples/docker/docker-compose.yml"
-    )
-    compose_file = os.path.abspath(compose_file)
-
-    if not os.path.exists(compose_file):
-        click.echo(f"[❌] Cannot find docker-compose.yml at {compose_file}")
-        return
-
+def start_server(
+    host="0.0.0.0",
+    port=8343,
+    enable_storage_aware=False,
+    enable_migration=False,
+):
+    """Start the SLLM server using Ray and uvicorn."""
     try:
-        click.echo(f"[ℹ] Starting services using {compose_file}...")
-        subprocess.run(
-            ["docker", "compose", "-f", compose_file, "up", "-d"], check=True
+        # Initialize Ray if not already initialized
+        if not ray.is_initialized():
+            click.echo("[ℹ] Initializing Ray...")
+            ray.init()
+        else:
+            click.echo("[ℹ] Ray already initialized")
+
+        # Create the FastAPI app
+        click.echo("[ℹ] Creating FastAPI application...")
+        app = create_app()
+
+        # Create and start the controller
+        click.echo("[ℹ] Starting SLLM controller...")
+        controller_cls = ray.remote(SllmController)
+        controller = controller_cls.options(
+            name="controller", num_cpus=1, resources={"control_node": 0.1}
+        ).remote(
+            {
+                "enable_storage_aware": enable_storage_aware,
+                "enable_migration": enable_migration,
+            }
         )
-        click.echo(f"[🚀] SLLM server started successfully.")
+
+        # Start the controller
+        ray.get(controller.start.remote())
+        click.echo("[✅] SLLM controller started successfully")
+
+        # Start the uvicorn server
+        click.echo(f"[🚀] Starting SLLM server on {host}:{port}...")
+        uvicorn.run(app, host=host, port=port)
+
+    except KeyboardInterrupt:
+        click.echo("[ℹ] Shutting down SLLM server...")
+        try:
+            if "controller" in locals():
+                ray.get(controller.shutdown.remote())
+            click.echo("[✅] SLLM server shut down successfully")
+        except Exception as e:
+            click.echo(f"[⚠️] Warning during shutdown: {e}")
     except Exception as e:
-        click.echo(f"[❌] Failed to start services: {e}")
+        click.echo(f"[❌] Failed to start SLLM server: {e}")
+        sys.exit(1)
 
 
 # ----------------------------- DEPLOY COMMAND ----------------------------- #

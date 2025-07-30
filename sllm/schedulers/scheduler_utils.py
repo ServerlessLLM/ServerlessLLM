@@ -18,7 +18,7 @@
 from abc import ABC, abstractmethod
 from typing import Mapping, Optional
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 
