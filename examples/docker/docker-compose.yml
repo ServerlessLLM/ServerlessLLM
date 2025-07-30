@@ -65,10 +65,6 @@ services:
       - WORKER_ID=0
       - STORAGE_PATH=/models
       - MODE=WORKER
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      - redis
     networks:
       - sllm_network
     volumes:

@@ -148,7 +148,7 @@ def start():
 )
 @click.option(
     "--redis-host",
-    default="localhost",
+    default="redis",
     type=str,
     help="Hostname of the Redis server.",
 )
