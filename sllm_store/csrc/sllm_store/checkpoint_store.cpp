@@ -82,23 +82,7 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
   }
 
   // Create a memory pool
-  if (use_shm_) {
-    // Generate a shared memory name that can be opened by other processes
-    // Use storage path hash to make it deterministic across processes
-    std::string path_str = storage_path_.string();
-    std::hash<std::string> hasher;
-    size_t path_hash = hasher(path_str);
-
-    std::string shm_name = "/checkpoint_pool_" + std::to_string(path_hash);
-
-    LOG(INFO) << "Using shared memory pool with name prefix: " << shm_name;
-
-    shared_memory_pool_ = std::make_shared<SharedPinnedMemoryPool>(
-        memory_pool_size_, chunk_size_, shm_name);
-
-    LOG(INFO) << "Shared memory pool created/opened with "
-              << memory_pool_size_ / GB << "GB using deterministic name";
-  } else {
+  if (!use_shm_) {
     // Use original aligned memory allocation
     memory_pool_ = std::make_shared<AlignedPinnedMemoryPool>(memory_pool_size_,
                                                              chunk_size_);
@@ -142,7 +126,90 @@ int CheckpointStore::LoadModelFromDisk(
     LOG(ERROR) << "Model " << model_path << " is not registered";
     return -1;
   }
+  model_last_access_time_[model_path] = std::chrono::system_clock::now();
   lock_info.unlock();
+
+  int ret = 0;
+
+  bool use_shared_memory =
+      !shared_memory_handles.empty() && !mem_copy_chunks.empty();
+  if (use_shared_memory) {
+    LOG(INFO) << "Loading model " << model_path
+              << " using shared pinned memory";
+
+    // Convert device uuid to device id
+    std::unordered_map<int, MemCopyChunkList> converted_mem_copy_chunks;
+    for (auto& [device_id, gpu_info] : gpu_info_map_) {
+      if (mem_copy_chunks.find(gpu_info.uuid_) == mem_copy_chunks.end()) {
+        continue;
+      }
+      converted_mem_copy_chunks[device_id] = mem_copy_chunks.at(gpu_info.uuid_);
+    }
+
+    std::unordered_map<int, MemCopyHandleList> converted_mem_copy_handles;
+    for (auto& [device_id, gpu_info] : gpu_info_map_) {
+      if (shared_memory_handles.find(gpu_info.uuid_) ==
+          shared_memory_handles.end()) {
+        continue;
+      }
+      converted_mem_copy_handles[device_id] =
+          shared_memory_handles.at(gpu_info.uuid_);
+    }
+
+    MemPtrListMap shm_ptrs;
+    for (const auto& [device_id, gpu_info] : gpu_info_map_) {
+      const std::string& uuid = gpu_info.uuid_;
+      if (shared_memory_handles.find(uuid) == shared_memory_handles.end()) {
+        continue;
+      }
+      auto& handle_list = shared_memory_handles.at(uuid);
+      for (const auto& handle : handle_list) {
+        // Open shared memory handle
+        std::unique_ptr<SharedMemoryInstance> shm =
+            Open(handle.cuda_ipc_handle_);  // TODO: actually shm_name, check
+                                            // types_and_defs.h
+        if (!shm || !shm->is_valid()) {
+          LOG(ERROR) << "Failed to open shared memory handle "
+                     << handle.cuda_ipc_handle_ << " for device " << device_id;
+          return -1;
+        }
+        shm_ptrs[device_id].push_back(shm->data());
+      }
+    }
+
+    std::string path_str = storage_path_.string();
+    std::hash<std::string> hasher;
+    size_t path_hash = hasher(path_str);
+
+    std::string shm_name = "/checkpoint_pool_" + std::to_string(path_hash);
+
+    LOG(INFO) << "Using shared memory pool with name prefix: " << shm_name;
+
+    std::shared_ptr<SharedPinnedMemoryPool> shm_pool =
+        std::make_shared<SharedPinnedMemoryPool>(memory_pool_size_, chunk_size_,
+                                                 shm_name);
+
+    shared_memory_pools_[model_path] = shm_pool;
+
+    LOG(INFO) << "Shared memory pool created/opened with "
+              << memory_pool_size_ / GB << "GB using deterministic name";
+
+    int alloc_ret = AllocateModelMemory(model);
+    if (alloc_ret < 0) return alloc_ret;
+
+    ret = model->ToHost(num_thread_);
+    if (ret != 0) {
+      LOG(ERROR) << "Failed to load model " << model_path << " to host";
+      if (model->FreeHost() != 0) {
+        LOG(ERROR) << "Failed to free memory for model " << model_path;
+      }
+    }
+    return ret;
+  }
+
+  // Original disk loading path with memory allocation
+  LOG(INFO) << "Loading model " << model_path
+            << " from disk with memory allocation";
 
   // Allocate memory
   lock_info.lock();
@@ -185,7 +252,7 @@ int CheckpointStore::LoadModelFromDisk(
   model_last_access_time_[model_path] = std::chrono::system_clock::now();
   lock_info.unlock();
 
-  int ret = model->ToHost(num_thread_);
+  ret = model->ToHost(num_thread_);
 
   if (ret != 0) {
     LOG(ERROR) << "Failed to load model " << model_path << " to host";
@@ -388,11 +455,12 @@ MemPtrListMap CheckpointStore::GetDevicePtrsFromMemHandles(
 
 int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
   if (use_shm_) {
-    if (shared_memory_pool_ == nullptr) {
+    if (shared_memory_pools_[model->GetModelPath()] == nullptr) {
       LOG(ERROR) << "Shared memory pool is not initialized";
       return -1;
     }
-    return model->AllocatePinnedMemory(shared_memory_pool_);
+    return model->AllocatePinnedMemory(
+        shared_memory_pools_[model->GetModelPath()]);
   } else {
     if (memory_pool_ == nullptr) {
       LOG(ERROR) << "Memory pool is not initialized";
@@ -436,6 +504,8 @@ std::unordered_map<int, void*> AllocateSharedMemory(
     }
 
     shared_memory_ptrs[device_id] = ptr;
+    LOG(INFO) << "Allocated shared memory for device " << device_id << " at "
+              << ptr;
   }
 
   return shared_memory_ptrs;
