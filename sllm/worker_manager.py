@@ -89,7 +89,6 @@ class WorkerManager:
                 for key in decision_keys:
                     instances_required_str = await self.store.client.get(key)
                     if not instances_required_str:
-                        logger.debug(f"Scaling decision key {key} has no value, skipping")
                         continue
 
                     instances_required = int(instances_required_str)
@@ -127,8 +126,7 @@ class WorkerManager:
                             model_name, backend, abs(instances_needed)
                         )
 
-                    deleted = await self.store.client.delete(key)
-                    logger.info(f"Deleted scaling decision key {key}: {deleted} keys deleted")
+                    await self.store.client.delete(key)
 
                 await asyncio.sleep(self.scaling_loop_interval)
 

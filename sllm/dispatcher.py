@@ -149,13 +149,12 @@ class Dispatcher:
                 # Atomically increment scaling request to avoid race conditions
                 decision_key = f"scaling_decision:{model_name}:{backend}"
                 current_decision = await self.store.client.get(decision_key)
-                logger.debug(f"Checking scaling decision for {model_identifier}: key={decision_key}, value={current_decision}")
                 if current_decision is None:
                     # Only set if no scaling decision exists (first request)
                     await self.store.client.set(decision_key, 1, ex=60)
                     logger.info(f"Set scaling decision for {model_identifier}: +1 instance")
                 else:
-                    logger.debug(f"Scaling already requested for {model_identifier}, current decision: {current_decision}")
+                    logger.debug(f"Scaling already requested for {model_identifier}")
                 
                 await self.store.enqueue_task(model_name, backend, task_data)
                 return
@@ -355,7 +354,7 @@ class Dispatcher:
             endpoint = "/v1/chat/completions"  # Default inference endpoint
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
-        logger.info(f"dispatching to URL: {url}")
+        logger.info(f"dispatching to URL: {url} with model: {payload.get('model', 'NOT_SET')}")
 
         # For fine-tuning requests, add concurrency limit
         if request_type == "fine_tuning":
