@@ -483,6 +483,7 @@ class TransformersBackend(SllmBackend):
             logger.info(
                 f"[TransformersBackend] Successfully generated response for task_id: {task_id}, completion_tokens: {completion_tokens}, finish_reason: {finish_reason}"
             )
+            logger.info(f"[TransformersBackend] Complete response for task_id {task_id}: {response}")
             self.inf_status.delete()
             return response
 
