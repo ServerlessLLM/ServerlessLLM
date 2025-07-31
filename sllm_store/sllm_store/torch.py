@@ -96,7 +96,10 @@ def load_dict(
     if config and config.get("use_shm", False):
         # Server is configured to use shared memory
         logger.info("Server configured for shared memory, using load_dict_shm")
-        return load_dict_shm(model_path, device_map, storage_path)
+        _, state_dict = load_dict_shm(model_path, device_map, storage_path)
+        client = SllmStoreClient("127.0.0.1:8073")
+        client.confirm_model_loaded(model_path, None)
+        return state_dict
     else:
         # Server is using regular memory allocation
         logger.info(
@@ -105,7 +108,6 @@ def load_dict(
         replica_uuid, state_dict = load_dict_non_blocking(
             model_path, device_map, storage_path
         )
-
         client = SllmStoreClient("127.0.0.1:8073")
         client.confirm_model_loaded(model_path, replica_uuid)
         return state_dict
@@ -168,6 +170,9 @@ def load_dict_shm(
     #        print("  First 4 floats:", list(arr))
 
     # load model state_dict
+    time.sleep(
+        20
+    )  # TODO remove this sleep, it's a workaround for async loading issues
     start = time.time()
     state_dict = restore_tensors_shm(
         tensor_meta_index, shared_memory_ptrs, tensor_device_offsets, chunk_size

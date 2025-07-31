@@ -274,12 +274,6 @@ std::unique_ptr<SharedMemoryInstance> Open(std::string_view name) {
   CUDA_CHECK(
       cudaHostRegister(pm->data_, pm->mapped_size_, cudaHostRegisterDefault));
 
-  /*  LOG(INFO) << "Registered shared memory '" << name
-             << "' at address " << pm->data_;
-
-    std::cerr << "Size = " << pm->mapped_size_ << std::endl;*/
-
-  MemoryRegistry::Instance().Register(pm.get());
   return pm;
 }
 

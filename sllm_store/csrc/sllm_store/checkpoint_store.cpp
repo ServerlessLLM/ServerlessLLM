@@ -156,6 +156,7 @@ int CheckpointStore::LoadModelFromDisk(
         first_handle.substr(0, first_handle.find_last_of('_'));
 
     MemPtrListMap shm_ptrs;
+    std::vector<std::unique_ptr<SharedMemoryInstance>> shm_handles;
 
     for (const auto& [device_id, handle_list] : converted_mem_copy_handles) {
       size_t num_chunks = handle_list.size();
@@ -167,13 +168,19 @@ int CheckpointStore::LoadModelFromDisk(
           return -1;
         }
         shm_ptrs[device_id].push_back(shm->data());
+        shm_handles.push_back(std::move(shm));  // keep ownership alive
       }
     }
 
     // Build memory pool from allocator
+    size_t num_chunks = shm_ptrs.begin()->second.size();
+    if (num_chunks == 0) {
+      LOG(ERROR) << "No shared memory chunks found for model " << model_path;
+      return -1;
+    }
     std::shared_ptr<SharedPinnedMemoryPool> shm_pool =
-        std::make_shared<SharedPinnedMemoryPool>(memory_pool_size_, chunk_size_,
-                                                 shm_name_prefix);
+        std::make_shared<SharedPinnedMemoryPool>(num_chunks * chunk_size_,
+                                                 chunk_size_, shm_name_prefix);
 
     shared_memory_pools_[model_path] = shm_pool;
 
@@ -188,6 +195,26 @@ int CheckpointStore::LoadModelFromDisk(
       LOG(ERROR) << "Failed to load model " << model_path << " to host";
       if (model->FreeHost() != 0) {
         LOG(ERROR) << "Failed to free memory for model " << model_path;
+      }
+    }
+    for (const auto& [device_id, ptrs] : shm_ptrs) {
+      LOG(INFO) << "Verifying shared memory contents for device " << device_id;
+      for (size_t i = 0; i < ptrs.size(); ++i) {
+        void* ptr = ptrs[i];
+        if (ptr != nullptr) {
+          LOG(INFO) << "  Chunk " << i << " Pointer: " << ptr;
+
+          auto* bytes = reinterpret_cast<uint8_t*>(ptr);
+          std::ostringstream hex_bytes;
+          for (int j = 0; j < 16; ++j) {
+            hex_bytes << std::hex << std::setw(2) << std::setfill('0')
+                      << static_cast<int>(bytes[j]) << " ";
+          }
+
+          LOG(INFO) << "    First 16 bytes: " << hex_bytes.str();
+        } else {
+          LOG(INFO) << "  Chunk " << i << " Pointer is null";
+        }
       }
     }
     return ret;
