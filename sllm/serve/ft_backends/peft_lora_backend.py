@@ -162,18 +162,15 @@ class PeftLoraBackend(SllmFineTuningBackend):
                 storage_path, "transformers", self.model_name, "tokenizer"
             )
             logger.info(f"Looking for tokenizer at: {tokenizer_path}")
-            if os.path.exists(tokenizer_path):
-                logger.info(
-                    f"Loading tokenizer from local path: {tokenizer_path}"
-                )
-                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+            if self.tokenizer.pad_token is None:
+                if self.tokenizer.eos_token:
+                    self.tokenizer.add_special_tokens(
+                        {"pad_token": self.tokenizer.eos_token}
+                    )
             else:
-                # Fall back to load from system's cache
-                logger.info(
-                    f"Loading tokenizer from pretrained model: {self.pretrained_model_name_or_path}"
-                )
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    self.pretrained_model_name_or_path
+                logger.warning(
+                    "pad_token is not set and eos_token is not available; training may fail."
                 )
             logger.info(f"Tokenizer loaded successfully")
             self.status = FineTuningBackendStatus.RUNNING
