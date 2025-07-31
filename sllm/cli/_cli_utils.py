@@ -370,7 +370,7 @@ def deploy_model(
 
 
 # ----------------------------- DELETE COMMAND ----------------------------- #
-def delete_model(models, lora_adapters=None):
+def delete_model(models, backend=None, lora_adapters=None):
     if not models:
         print("[⚠️ WARNING] No model names provided for deletion.")
         return
@@ -387,6 +387,11 @@ def delete_model(models, lora_adapters=None):
     for model in models:
         url = f"{base_url.rstrip('/')}/delete"
         data = {"model": model}
+        
+        # Add backend to request if specified
+        if backend is not None:
+            data["backend"] = backend
+            
         # Robust lora_adapters parsing (same as deploy)
         if lora_adapters is not None:
             # Accept: demo-lora1 demo-lora2 OR demo-lora1=path ...

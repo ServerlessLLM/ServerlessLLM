@@ -107,6 +107,8 @@ class VllmBackend(SllmBackend):
             "--host",
             self.host,
         ]
+        
+        logger.info(f"VLLM serve command: {' '.join(cmd)}")
 
         if "max_model_len" in self.backend_config:
             cmd.extend(
@@ -165,65 +167,6 @@ class VllmBackend(SllmBackend):
 
         raise TimeoutError(f"VLLM serve did not start within {timeout} seconds")
 
-    async def generate(self, request_data: Dict[str, Any]):
-        task_id = request_data.get("task_id", "unknown")
-        logger.info(f"Starting generate for task_id: {task_id}")
-        
-        async with self.status_lock:
-            if self.status != BackendStatus.RUNNING:
-                logger.warning(f"Engine not running for task_id: {task_id}")
-                return {"error": "Engine is not running"}
-
-        if not self.session:
-            logger.warning(f"No HTTP session for task_id: {task_id}")
-            return {"error": "HTTP session not initialized"}
-
-        try:
-            openai_request = {
-                "model": request_data.get("model", self.model),
-                "messages": request_data.get("messages", []),
-                "max_tokens": request_data.get("max_tokens", 100),
-                "temperature": request_data.get("temperature", 0.7),
-                "top_p": request_data.get("top_p", 1.0),
-                "stream": False,
-            }
-
-            # Add task_id if present
-            if "task_id" in request_data:
-                openai_request["request_id"] = request_data["task_id"]
-
-            for param in [
-                "frequency_penalty",
-                "presence_penalty",
-                "stop",
-                "logprobs",
-            ]:
-                if param in request_data:
-                    openai_request[param] = request_data[param]
-
-            logger.info(f"Sending request to VLLM for task_id: {task_id}, model: {openai_request['model']}")
-            
-            async with self.session.post(
-                f"{self.base_url}/v1/chat/completions",
-                json=openai_request,
-                headers={"Content-Type": "application/json"},
-            ) as response:
-                logger.info(f"VLLM response status: {response.status} for task_id: {task_id}")
-                
-                if response.status == 200:
-                    result = await response.json()
-                    logger.info(f"Successfully generated response for task_id: {task_id}")
-                    return result
-                else:
-                    error_text = await response.text()
-                    logger.error(
-                        f"VLLM serve API error: {response.status} - {error_text}"
-                    )
-                    return {"error": f"API request failed: {response.status}"}
-
-        except Exception as e:
-            logger.error(f"Error in generate for task_id: {task_id}: {e}")
-            return {"error": f"Generation failed: {str(e)}"}
 
     def _cleanup_process(self):
         cleanup_subprocess(self.process)

@@ -139,7 +139,7 @@ class ModelManager:
                 backends_to_update = ["transformers"]
             elif isinstance(backend, str):
                 if backend == "all":
-                    backends_to_update = get_all_backends(model_name)
+                    backends_to_update = await self.get_all_backends(model_name)
                 else:
                     backends_to_update = [backend]
             else:
