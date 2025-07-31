@@ -138,7 +138,7 @@ class Dispatcher:
                     )
                 return
 
-            logger.info(
+            logger.debug(
                 f"Processing task {task_id} for model '{model_identifier}'"
             )
 
@@ -169,7 +169,7 @@ class Dispatcher:
             target_worker = target["worker"]
             target_instance_id = target["instance_id"]
 
-            logger.info(
+            logger.debug(
                 f"Dispatching task {task_id} to instance {target_instance_id} on worker {target_worker['node_id']} port {target.get('port')}"
             )
 
@@ -179,8 +179,9 @@ class Dispatcher:
                     await self._handle_lora_loading(target, payload)
 
                 worker_response = await self._forward_to_worker(target, payload)
+                logger.info(f"Worker response for task {task_id}: {worker_response}")
                 await self.store.publish_result(task_id, worker_response)
-                logger.info(
+                logger.debug(
                     f"Successfully processed and published result for task {task_id}"
                 )
             except Exception as e:
@@ -255,7 +256,7 @@ class Dispatcher:
                 max_retries=3,
                 timeout=self.forward_timeout,
             )
-            logger.info(
+            logger.debug(
                 f"Successfully loaded LoRA adapter '{lora_adapter_name}' on instance {instance_id}"
             )
         except Exception as e:
@@ -321,9 +322,12 @@ class Dispatcher:
                                 }
                             )
 
-        logger.debug(
-            f"Found {len(active_instances)} available instances for {model_identifier}"
-        )
+        if len(active_instances) == 0:
+            logger.warning(f"No available instances found for {model_identifier}")
+        else:
+            logger.debug(
+                f"Found {len(active_instances)} available instances for {model_identifier}"
+            )
         return active_instances
 
     async def _forward_to_worker(
