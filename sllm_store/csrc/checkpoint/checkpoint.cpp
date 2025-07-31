@@ -155,6 +155,67 @@ std::unordered_map<std::string, torch::Tensor> RestoreTensors(
   return state_dict;
 }
 
+std::unordered_map<std::string, torch::Tensor> RestoreTensorsShm(
+    const std::unordered_map<
+        std::string, std::tuple<std::vector<int64_t>, std::vector<int64_t>,
+                                std::string>>& meta_state_dict,
+    const std::unordered_map<int, std::vector<void*>>& memory_base_addresses,
+    const std::unordered_map<int, std::unordered_map<std::string, uint64_t>>&
+        tensor_device_offsets,
+    size_t chunk_size) {
+  /*for (const auto& [device, tensor_offsets] : tensor_device_offsets) {
+    const auto& base_ptrs = memory_base_addresses.at(device);
+    for (const auto& [tensor_name, flat_offset] : tensor_offsets) {
+      size_t base_index = flat_offset / chunk_size;
+      void* base_address = base_ptrs[base_index];
+      uint8_t* byte_ptr = reinterpret_cast<uint8_t*>(base_address);
+      std::cerr << "  Raw bytes at " << base_address << ": ";
+      for (int i = 0; i < 16; ++i) {
+        std::cerr << std::hex << static_cast<int>(byte_ptr[i]) << " ";
+      }
+      std::cerr << std::dec << std::endl;
+    }
+  }*/
+  std::unordered_map<std::string, torch::Tensor> state_dict;
+
+  for (const auto& [device, tensor_offsets] : tensor_device_offsets) {
+    if (memory_base_addresses.find(device) == memory_base_addresses.end()) {
+      std::cerr << "Cannot find base addresses for device " << device
+                << std::endl;
+      exit(1);
+    }
+    const auto& base_ptrs = memory_base_addresses.at(device);
+
+    for (const auto& [tensor_name, flat_offset] : tensor_offsets) {
+      size_t base_index = flat_offset / chunk_size;
+      size_t offset_within_chunk = flat_offset % chunk_size;
+
+      if (base_index >= base_ptrs.size()) {
+        std::cerr << "Invalid base_index " << base_index << " for tensor '"
+                  << tensor_name << "' on device " << device << std::endl;
+        exit(1);
+      }
+
+      void* base_address = base_ptrs[base_index];
+      void* final_address = reinterpret_cast<void*>(
+          reinterpret_cast<uintptr_t>(base_address) + offset_within_chunk);
+      auto [sizes, strides, type_str] = meta_state_dict.at(tensor_name);
+      at::ScalarType dtype = stringToScalarType(type_str);
+
+      torch::Tensor real_tensor = torch::from_blob(
+          final_address, sizes, strides, [](void* ptr) {},
+          torch::TensorOptions()
+              .device(torch::Device(torch::kCPU))
+              .dtype(dtype));
+
+      state_dict[tensor_name] = real_tensor;
+    }
+  }
+  std::cerr << "Restored " << state_dict.size()
+            << " tensors from shared memory." << std::endl;
+  return state_dict;
+}
+
 std::unordered_map<std::string, int> GetGpuUUID() {
   int deviceCount = 0;
   cudaGetDeviceCount(&deviceCount);  // Get the number of CUDA devices
