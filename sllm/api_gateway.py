@@ -286,9 +286,9 @@ def create_app(
     @app.get("/v1/models")
     async def get_models(request: Request):
         try:
-            model_statuses = (
-                await request.app.state.model_manager.get_all_models_status()
-            )
+            # Use KV store's OpenAI-compliant get_all_models method  
+            store: RedisStore = request.app.state.redis_store
+            model_statuses = await store.get_all_models()
             return model_statuses
         except Exception as e:
             logger.error(f"Error retrieving models: {e}", exc_info=True)
