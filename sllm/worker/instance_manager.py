@@ -446,6 +446,9 @@ class InstanceManager:
                 if model_identifier not in self._running_instances:
                     self._running_instances[model_identifier] = {}
 
+                instance_url = f"http://{self.node_ip}:{allocated_port}"
+                logger.debug(f"Instance {instance_id} started at URL: {instance_url}")
+                
                 self._running_instances[model_identifier][instance_id] = {
                     "backend": backend_instance,
                     "model_config": model_config,
