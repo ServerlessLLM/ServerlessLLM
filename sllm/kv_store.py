@@ -978,9 +978,6 @@ class RedisStore:
     ### TASK QUEUE METHODS ###
     def _get_task_queue_key(self, model_name: str, backend: str) -> str:
         return f"queue:{model_name}:{backend}"
-    
-    def _get_result_channel_key(self, task_id: str) -> str:
-        return f"result:{task_id}"
 
     async def enqueue_task(
         self, model_name: str, backend: str, task_data: Dict[str, Any]
