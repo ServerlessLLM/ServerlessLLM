@@ -270,6 +270,9 @@ def fully_parallel_load(
                 set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
 
+    logger.debug(f"state dict {len(state_dict)} tensors loaded")
+    logger.debug(state_dict.keys())
+
     dispatch_model(
         model, device_map, skip_keys=model._skip_keys_device_placement
     )

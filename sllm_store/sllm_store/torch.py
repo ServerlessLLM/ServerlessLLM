@@ -29,6 +29,7 @@ from sllm_store._C import (
     get_cuda_memory_handles,
     get_device_uuid_map,
     restore_tensors,
+    restore_tensors_shm,
     save_tensors,
 )
 from sllm_store._checkpoint_store import (
@@ -154,17 +155,22 @@ def load_dict_shm(
             for device_id, v in tensor_copy_chunks.items()
         },
         {
-            device_uuid_map[device_id]: [v]
+            device_uuid_map[device_id]: v
             for device_id, v in shared_memory_handles.items()
         },
     )
     if not ret:
         raise ValueError(f"Failed to load model {model_path} into GPU")
 
+    #    print("After server write:")
+    #    for ptr in shared_memory_ptrs.values():
+    #        arr = (ctypes.c_float * 4).from_address(ptr)
+    #        print("  First 4 floats:", list(arr))
+
     # load model state_dict
     start = time.time()
-    state_dict = restore_tensors(
-        tensor_meta_index, shared_memory_ptrs, tensor_device_offsets
+    state_dict = restore_tensors_shm(
+        tensor_meta_index, shared_memory_ptrs, tensor_device_offsets, chunk_size
     )
 
     logger.info(f"restore state_dict takes {time.time() - start} seconds")

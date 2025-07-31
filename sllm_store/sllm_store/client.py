@@ -71,6 +71,11 @@ class SllmStoreClient:
             )
         shared_handle_map = {}
         for device_uuid, handles in shared_memory_handles.items():
+            print(f"Device {device_uuid} handles count: {len(handles)}")
+            print("TYPE OF handles:", type(handles))
+            print("VALUE OF handles:", handles)
+            print("TYPE OF handles[0]:", type(handles[0]))
+            print("VALUE OF handles[0]:", handles[0])
             shared_handle_map[device_uuid] = (
                 storage_pb2.SharedMemCopyHandleList(
                     handles=[
