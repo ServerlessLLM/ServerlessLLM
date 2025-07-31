@@ -659,7 +659,7 @@ class TransformersBackend(SllmBackend):
 
         # Wait for ongoing requests to finish
         while self.inf_status and len(self.inf_status.get()) > 0:
-            logger.info("Waiting for all requests to finish")
+            logger.debug("Waiting for all requests to finish")
             await asyncio.sleep(1)
 
         await self._cleanup()
@@ -673,10 +673,10 @@ class TransformersBackend(SllmBackend):
             self.status = BackendStatus.STOPPING
 
         while self.inf_status and len(self.inf_status.get()) > 0:
-            logger.info("Waiting for all requests to finish")
+            logger.debug("Waiting for all requests to finish")
             await asyncio.sleep(1)
 
-        logger.info("All requests finished. Shutting down the backend.")
+        logger.debug("All requests finished. Shutting down the backend.")
         await self.shutdown()
 
     async def get_current_tokens(self) -> List[List[int]]:
@@ -696,7 +696,7 @@ class TransformersBackend(SllmBackend):
         if self.status != BackendStatus.RUNNING:
             return
 
-        logger.info(f"Resuming cache for {request_datas}")
+        logger.debug(f"Resuming cache for {request_datas}")
         with torch.no_grad():
             device = self.model.device
             input_ids = torch.tensor(request_datas).to(device)
@@ -710,4 +710,4 @@ class TransformersBackend(SllmBackend):
             )
             self.past_key_values = output.past_key_values
             self.current_tokens = output.sequences
-        logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
+        logger.debug(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")

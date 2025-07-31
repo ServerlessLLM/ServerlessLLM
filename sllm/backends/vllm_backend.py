@@ -62,7 +62,7 @@ class VllmBackend(SllmBackend):
             if self.status != BackendStatus.UNINITIALIZED:
                 return
 
-            logger.info(f"Starting vllm serve for model {self.model}")
+            logger.debug(f"Starting vllm serve for model {self.model}")
 
             cmd = self._build_serve_command()
 
@@ -92,10 +92,10 @@ class VllmBackend(SllmBackend):
         storage_path = os.path.abspath(storage_path)
         model_path = os.path.join(storage_path, "vllm", self.model)
 
-        logger.info(f"[VLLM_BACKEND] STORAGE_PATH: {storage_path}")
-        logger.info(f"[VLLM_BACKEND] Model: {self.model}")
-        logger.info(f"[VLLM_BACKEND] Full model path: {model_path}")
-        logger.info(
+        logger.debug(f"[VLLM_BACKEND] STORAGE_PATH: {storage_path}")
+        logger.debug(f"[VLLM_BACKEND] Model: {self.model}")
+        logger.debug(f"[VLLM_BACKEND] Full model path: {model_path}")
+        logger.debug(
             f"[VLLM_BACKEND] Model path exists: {os.path.exists(model_path)}"
         )
 
@@ -115,7 +115,7 @@ class VllmBackend(SllmBackend):
             self.host,
         ]
 
-        logger.info(f"[VLLM_BACKEND] Full serve command: {' '.join(cmd)}")
+        logger.debug(f"[VLLM_BACKEND] Full serve command: {' '.join(cmd)}")
 
         if "max_model_len" in self.backend_config:
             cmd.extend(

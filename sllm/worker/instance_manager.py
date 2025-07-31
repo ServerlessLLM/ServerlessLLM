@@ -205,7 +205,7 @@ class InstanceManager:
                             f"Model download incomplete: {model_path} validation failed"
                         )
 
-                    logger.info(f"Successfully downloaded VLLM model {model}")
+                    logger.debug(f"Successfully downloaded VLLM model {model}")
                 except Exception as e:
                     logger.error(f"Failed to download VLLM model {model}: {e}")
                     if os.path.exists(model_path):
@@ -388,7 +388,7 @@ class InstanceManager:
         if instance_id is None:
             instance_id = self._generate_instance_id(model, backend)
 
-        logger.info(f"Starting instance {instance_id} with backend {backend}")
+        logger.debug(f"Starting instance {instance_id} with backend {backend}")
 
         await self._ensure_model_downloaded(model_config)
 
@@ -452,7 +452,7 @@ class InstanceManager:
                 # Update reverse lookup for performance
                 self._instance_lookup[instance_id] = model_identifier
 
-            logger.info(f"Successfully started instance {instance_id}")
+            logger.debug(f"Successfully started instance {instance_id}")
 
         except Exception as e:
             logger.error(f"Failed to start instance {instance_id}: {e}")
@@ -522,7 +522,7 @@ class InstanceManager:
                     # Unload from pinned memory if no instances are using this model
                     await self._unload_from_host(model_identifier)
 
-                logger.info(f"Successfully stopped instance {instance_id}")
+                logger.debug(f"Successfully stopped instance {instance_id}")
                 return True
             except KeyError:
                 logger.warning(
