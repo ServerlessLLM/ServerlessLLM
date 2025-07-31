@@ -29,7 +29,6 @@ from sllm.utils import post_json_with_retry
 logger = init_logger(__name__)
 
 DEFAULT_WORKER_API_PORT = 8001
-DEFAULT_WORKER_INVOKE_ENDPOINT = "/invoke"
 DEFAULT_FORWARD_TIMEOUT = 120  # Timeout for waiting on a response from a worker
 DEFAULT_QUEUE_WAIT_TIMEOUT = (
     10  # Timeout for BRPOP to allow for graceful shutdown checks
@@ -46,9 +45,6 @@ class Dispatcher:
 
         self.worker_port = self.config.get(
             "worker_api_port", DEFAULT_WORKER_API_PORT
-        )
-        self.invoke_endpoint = self.config.get(
-            "worker_invoke_endpoint", DEFAULT_WORKER_INVOKE_ENDPOINT
         )
         self.forward_timeout = self.config.get(
             "forward_timeout", DEFAULT_FORWARD_TIMEOUT
@@ -147,7 +143,7 @@ class Dispatcher:
             )
 
             if not available_instances:
-                logger.warning(
+                logger.debug(
                     f"No available workers for '{model_identifier}'. Requesting scaling and requeuing task {task_id}."
                 )
                 # Atomically increment scaling request to avoid race conditions
@@ -352,11 +348,11 @@ class Dispatcher:
         # Determine request type and endpoint
         request_type = payload.get("action", "generate")  # Default to generate
         if request_type == "fine_tuning":
-            endpoint = "/fine_tuning"
+            endpoint = "/fine-tuning"
         elif request_type == "encode":
-            endpoint = "/encode"
+            endpoint = "/v1/embeddings"
         else:
-            endpoint = self.invoke_endpoint  # Default inference endpoint
+            endpoint = "/v1/chat/completions"  # Default inference endpoint
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
         forward_payload = {"instance_id": instance_id, "payload": payload}
