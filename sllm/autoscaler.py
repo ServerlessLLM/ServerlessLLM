@@ -52,7 +52,7 @@ class AutoScaler:
             logger.debug("No models registered. Skipping scaling check.")
             return
 
-        logger.info(f"Running scaling check for {len(all_models)} models.")
+        logger.debug(f"Running scaling check for {len(all_models)} models.")
         tasks = [
             self._calculate_and_set_decision(model) for model in all_models
         ]
@@ -130,14 +130,13 @@ class AutoScaler:
             # Reset idle time when scaling up or no change needed
             self.model_idle_times[model_identifier] = 0
 
-        logger.info(
-            f"Model '{model_identifier}': "
-            f"current={current_instances}, queue={queue_length}, limbo_up={limbo_up}, limbo_down={limbo_down} -> "
-            f"needed={final_needed} (min:{min_instances}, max:{max_instances}). "
-            f"Decision: change by {instance_delta}."
-        )
-
         if instance_delta != 0:
+            logger.info(
+                f"Model '{model_identifier}': "
+                f"current={current_instances}, queue={queue_length}, limbo_up={limbo_up}, limbo_down={limbo_down} -> "
+                f"needed={final_needed} (min:{min_instances}, max:{max_instances}). "
+                f"Decision: change by {instance_delta}."
+            )
             await self.store.client.set(decision_key, instance_delta, ex=60)
 
     async def _count_running_instances(self, model_identifier: str) -> int:
