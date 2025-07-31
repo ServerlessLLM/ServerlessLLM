@@ -1073,6 +1073,7 @@ class RedisStore:
         self, task_id: str, result_data: Dict[str, Any]
     ) -> None:
         channel = self._get_result_channel_key(task_id)
+        logger.info(f"publishing to results channel {channel}")
 
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.publish(channel, json.dumps(result_data))
@@ -1084,6 +1085,7 @@ class RedisStore:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         channel_name = self._get_result_channel_key(task_id)
         start_time = time.time()
+        logger.info(f"listening from results channel {channel_name}")
         async with self.client.pubsub() as pubsub:
             await pubsub.subscribe(channel_name)
             while True:
