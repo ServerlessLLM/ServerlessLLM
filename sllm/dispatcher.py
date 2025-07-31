@@ -149,12 +149,13 @@ class Dispatcher:
                 # Atomically increment scaling request to avoid race conditions
                 decision_key = f"scaling_decision:{model_name}:{backend}"
                 current_decision = await self.store.client.get(decision_key)
+                logger.debug(f"Checking scaling decision for {model_identifier}: key={decision_key}, value={current_decision}")
                 if current_decision is None:
                     # Only set if no scaling decision exists (first request)
                     await self.store.client.set(decision_key, 1, ex=60)
                     logger.info(f"Set scaling decision for {model_identifier}: +1 instance")
                 else:
-                    logger.debug(f"Scaling already requested for {model_identifier}")
+                    logger.debug(f"Scaling already requested for {model_identifier}, current decision: {current_decision}")
                 
                 await self.store.enqueue_task(model_name, backend, task_data)
                 return

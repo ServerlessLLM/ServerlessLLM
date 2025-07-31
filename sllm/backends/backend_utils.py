@@ -54,10 +54,6 @@ class SllmBackend(ABC):
         pass
 
     @abstractmethod
-    async def generate(self, request_data: Dict[str, Any]):
-        pass
-
-    @abstractmethod
     async def shutdown(self):
         pass
 

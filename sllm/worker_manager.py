@@ -89,10 +89,12 @@ class WorkerManager:
                 for key in decision_keys:
                     instances_required_str = await self.store.client.get(key)
                     if not instances_required_str:
+                        logger.debug(f"Scaling decision key {key} has no value, skipping")
                         continue
 
                     instances_required = int(instances_required_str)
                     _, model_name, backend = key.split(":", 2)
+                    logger.info(f"Processing scaling decision: {key} = {instances_required}")
 
                     # Get current limbo instances to adjust instances_needed
                     limbo_up_instances = (
@@ -125,7 +127,8 @@ class WorkerManager:
                             model_name, backend, abs(instances_needed)
                         )
 
-                    await self.store.client.delete(key)
+                    deleted = await self.store.client.delete(key)
+                    logger.info(f"Deleted scaling decision key {key}: {deleted} keys deleted")
 
                 await asyncio.sleep(self.scaling_loop_interval)
 
