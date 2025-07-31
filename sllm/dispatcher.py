@@ -97,6 +97,7 @@ class Dispatcher:
                 task = await self.store.dequeue_from_any(
                     queue_keys, timeout=self.queue_wait_timeout
                 )
+                logger.info(f"task {task}")
 
                 if task is None:
                     continue
