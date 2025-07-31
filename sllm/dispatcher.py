@@ -150,9 +150,15 @@ class Dispatcher:
                 logger.warning(
                     f"No available workers for '{model_identifier}'. Requesting scaling and requeuing task {task_id}."
                 )
-                # Request at least 1 instance using same format as autoscaler
+                # Atomically increment scaling request to avoid race conditions
                 decision_key = f"scaling_decision:{model_name}:{backend}"
-                await self.store.client.set(decision_key, 1, ex=60)
+                current_decision = await self.store.client.get(decision_key)
+                if current_decision is None:
+                    # Only set if no scaling decision exists (first request)
+                    await self.store.client.set(decision_key, 1, ex=60)
+                    logger.info(f"Set scaling decision for {model_identifier}: +1 instance")
+                else:
+                    logger.debug(f"Scaling already requested for {model_identifier}")
                 
                 await self.store.enqueue_task(model_name, backend, task_data)
                 return
