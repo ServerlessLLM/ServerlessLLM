@@ -97,12 +97,12 @@ class Dispatcher:
                 task = await self.store.dequeue_from_any(
                     queue_keys, timeout=self.queue_wait_timeout
                 )
-                logger.info(f"task {task}")
 
                 if task is None:
                     continue
 
                 queue_name, task_data = task
+                logger.info(f"task data {task_data}")
                 asyncio.create_task(self.process_task(queue_name, task_data))
 
             except Exception as e:

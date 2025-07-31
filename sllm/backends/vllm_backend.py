@@ -92,13 +92,6 @@ class VllmBackend(SllmBackend):
         storage_path = os.path.abspath(storage_path)
         model_path = os.path.join(storage_path, "vllm", self.model)
 
-        logger.debug(f"[VLLM_BACKEND] STORAGE_PATH: {storage_path}")
-        logger.debug(f"[VLLM_BACKEND] Model: {self.model}")
-        logger.debug(f"[VLLM_BACKEND] Full model path: {model_path}")
-        logger.debug(
-            f"[VLLM_BACKEND] Model path exists: {os.path.exists(model_path)}"
-        )
-
         # Validate model exists
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"VLLM model not found at {model_path}")
@@ -114,8 +107,6 @@ class VllmBackend(SllmBackend):
             "--host",
             self.host,
         ]
-
-        logger.debug(f"[VLLM_BACKEND] Full serve command: {' '.join(cmd)}")
 
         if "max_model_len" in self.backend_config:
             cmd.extend(
@@ -176,15 +167,15 @@ class VllmBackend(SllmBackend):
 
     async def generate(self, request_data: Dict[str, Any]):
         task_id = request_data.get("task_id", "unknown")
-        logger.info(f"[DEBUG] Starting generate for task_id: {task_id}")
+        logger.info(f"Starting generate for task_id: {task_id}")
         
         async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
-                logger.warning(f"[DEBUG] Engine not running for task_id: {task_id}")
+                logger.warning(f"Engine not running for task_id: {task_id}")
                 return {"error": "Engine is not running"}
 
         if not self.session:
-            logger.warning(f"[DEBUG] No HTTP session for task_id: {task_id}")
+            logger.warning(f"No HTTP session for task_id: {task_id}")
             return {"error": "HTTP session not initialized"}
 
         try:
@@ -210,18 +201,18 @@ class VllmBackend(SllmBackend):
                 if param in request_data:
                     openai_request[param] = request_data[param]
 
-            logger.info(f"[DEBUG] Sending request to VLLM for task_id: {task_id}, model: {openai_request['model']}")
+            logger.info(f"Sending request to VLLM for task_id: {task_id}, model: {openai_request['model']}")
             
             async with self.session.post(
                 f"{self.base_url}/v1/chat/completions",
                 json=openai_request,
                 headers={"Content-Type": "application/json"},
             ) as response:
-                logger.info(f"[DEBUG] VLLM response status: {response.status} for task_id: {task_id}")
+                logger.info(f"VLLM response status: {response.status} for task_id: {task_id}")
                 
                 if response.status == 200:
                     result = await response.json()
-                    logger.info(f"[DEBUG] Successfully generated response for task_id: {task_id}")
+                    logger.info(f"Successfully generated response for task_id: {task_id}")
                     return result
                 else:
                     error_text = await response.text()
