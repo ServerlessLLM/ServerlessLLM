@@ -126,6 +126,77 @@ class VllmModelDownloader:
             ) from e
 
 
+class SglangModelDownloader:
+    def __init__(self):
+        pass
+
+    def download_sglang_model(
+        self,
+        model_name: str,
+        tensor_parallel_size: int = 1,
+        storage_path: str = "./models",
+        local_model_path: Optional[str] = None,
+        skip_save: bool = False,
+    ):
+        from huggingface_hub import snapshot_download
+        from sglang.srt.entrypoints.engine import Engine
+
+        # set the model storage path
+        storage_path = os.getenv("STORAGE_PATH", storage_path)
+
+        try:
+            if local_model_path is None:
+                logger.info(
+                    f"🔄 Downloading model {model_name} from HuggingFace..."
+                )
+                input_dir = snapshot_download(model_name)
+            else:
+                input_dir = local_model_path
+
+            model_path = os.path.join(storage_path, model_name)
+            os.makedirs(model_path, exist_ok=True)
+
+            logger.info(
+                f"🚀 Initializing SGLang Engine with model path: {input_dir}"
+            )
+            engine = Engine(
+                model_path=input_dir,
+                tp_size=tensor_parallel_size,
+                trust_remote_code=True,
+            )
+
+            if not skip_save:
+                logger.info(f" Saving SLLM state to {model_path} ...")
+                engine.save_serverless_llm_state(path=model_path)
+            else:
+                logger.info(" Skip saving SLLM state (debug mode)")
+
+            logger.info(" Copying tokenizer/config files ...")
+            for file in os.listdir(input_dir):
+                if os.path.splitext(file)[1] not in (
+                    ".bin",
+                    ".pt",
+                    ".safetensors",
+                ):
+                    src_path = os.path.join(input_dir, file)
+                    dest_path = os.path.join(model_path, file)
+                    if os.path.isdir(src_path):
+                        shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
+                    else:
+                        shutil.copy(src_path, dest_path)
+
+            logger.info("✅ Done!")
+
+        except Exception as e:
+            logger.error(f"An error occurred while saving the model: {e}")
+            # remove the output dir
+            if os.path.exists(os.path.join(storage_path, model_name)):
+                shutil.rmtree(os.path.join(storage_path, model_name))
+            raise RuntimeError(
+                f"Failed to save {model_name} for sglang backend: {e}"
+            ) from e
+
+
 logger = init_logger(__name__)
 
 
@@ -142,6 +213,15 @@ def check_vllm():
         from vllm.executor.executor_base import ExecutorBase
 
         return hasattr(ExecutorBase, "save_serverless_llm_state")
+    except ImportError:
+        return False
+
+
+def check_sglang():
+    try:
+        from sglang.srt.entrypoints.engine import Engine
+
+        return hasattr(Engine, "save_serverless_llm_state")
     except ImportError:
         return False
 
@@ -218,7 +298,12 @@ def start(
     required=True,
     help="Model name from HuggingFace model hub",
 )
-@click.option("--backend", type=str, required=True, help="Backend")
+@click.option(
+    "--backend",
+    type=str,
+    required=True,
+    help="Backend (vllm, transformers, sglang)",
+)
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
 @click.option(
     "--tensor-parallel-size", type=int, default=1, help="Tensor parallel size"
@@ -231,6 +316,11 @@ def start(
     default="./models",
     help="Local path to save the model",
 )
+@click.option(
+    "--skip-save",
+    is_flag=True,
+    help="Skip saving serverless LLM state (for debugging, sglang only)",
+)
 def save(
     model_name,
     backend,
@@ -238,6 +328,7 @@ def save(
     tensor_parallel_size,
     local_model_path,
     storage_path,
+    skip_save,
 ):
     """
     Saves a model to the sllm-store's storage.
@@ -247,7 +338,7 @@ def save(
 
     logger.info(
         f"Saving model {adapter_name if adapter_name else model_name} "
-        f"to {storage_path}"
+        f"to {storage_path} using {backend} backend"
     )
 
     try:
@@ -265,6 +356,21 @@ def save(
                 tensor_parallel_size=tensor_parallel_size,
                 storage_path=storage_path,
                 local_model_path=local_model_path,
+            )
+        elif backend == "sglang":
+            if not check_sglang():
+                logger.error(
+                    "SGLang is not patched. "
+                    "Please apply ServerlessLLM patch to SGLang first."
+                )
+                sys.exit(1)
+            downloader = SglangModelDownloader()
+            downloader.download_sglang_model(
+                model_name,
+                tensor_parallel_size=tensor_parallel_size,
+                storage_path=storage_path,
+                local_model_path=local_model_path,
+                skip_save=skip_save,
             )
         elif backend == "transformers":
             if adapter_name:
@@ -296,7 +402,10 @@ def save(
                 model_path = os.path.join(storage_path, model_name)
                 save_model(model, model_path)
         else:
-            logger.error(f"Unsupported backend '{backend}'")
+            logger.error(
+                f"Unsupported backend '{backend}'. "
+                "Supported backends: vllm, sglang, transformers"
+            )
             sys.exit(1)
     except Exception as e:
         logger.error(f"Failed to save model {model_name}: {e}", exc_info=True)
@@ -316,7 +425,12 @@ def save(
     required=True,
     help="Model name from HuggingFace model hub",
 )
-@click.option("--backend", type=str, required=True, help="Backend")
+@click.option(
+    "--backend",
+    type=str,
+    required=True,
+    help="Backend (vllm, transformers, sglang)",
+)
 @click.option("--adapter-name", type=str, help="Name of the LoRA adapter")
 @click.option(
     "--precision",
@@ -334,6 +448,7 @@ def load(
     backend,
     adapter_name,
     precision,
+    tensor_parallel_size,
     storage_path,
 ):
     """
@@ -344,11 +459,11 @@ def load(
 
     logger.info(
         f"Loading model {adapter_name if adapter_name else model_name} "
-        f"from {storage_path}"
+        f"from {storage_path} using {backend} backend"
     )
 
     quantization_config = None
-    if precision:
+    if precision and backend == "transformers":
         if precision == "int8":
             quantization_config = BitsAndBytesConfig(load_in_8bit=True)
         elif precision == "fp4":
@@ -381,6 +496,29 @@ def load(
             )
 
             example_inferences("vllm", model=llm)
+
+        elif backend == "sglang":
+            from sglang.srt.entrypoints.engine import Engine
+
+            if not check_sglang():
+                logger.error(
+                    "SGLang is not patched. "
+                    "Please apply ServerlessLLM patch to SGLang first."
+                )
+                sys.exit(1)
+
+            model_full_path = os.path.join(storage_path, model_name)
+            engine = Engine(
+                model_path=model_full_path,
+                tp_size=tensor_parallel_size,
+                load_format="serverless_llm",
+                trust_remote_code=True,
+            )
+            logger.info(
+                f"Model loading time: {time.time() - start_load_time:.2f}s"
+            )
+
+            example_inferences("sglang", model=engine)
 
         elif backend == "transformers":
             # warm up the GPU
@@ -426,7 +564,10 @@ def load(
             )
 
         else:
-            logger.error(f"Unsupported backend '{backend}'")
+            logger.error(
+                f"Unsupported backend '{backend}'. "
+                "Supported backends: vllm, sglang, transformers"
+            )
             sys.exit(1)
 
     except Exception as e:
@@ -442,23 +583,28 @@ def load(
 
 
 def example_inferences(backend, model=None, model_name=None, adapter_name=None):
+    prompts = [
+        "Hello, my name is",
+        "The president of the United States is",
+        "The capital of France is",
+        "The future of AI is",
+    ]
+
     if backend == "vllm":
-        prompts = [
-            "Hello, my name is",
-            "The president of the United States is",
-            "The capital of France is",
-            "The future of AI is",
-        ]
         from vllm import SamplingParams
 
         sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
         outputs = model.generate(prompts, sampling_params)
 
-        # Print the outputs.
+        # Print the outputs
         for output in outputs:
             prompt = output.prompt
             generated_text = output.outputs[0].text
             print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
+    elif backend == "sglang":
+        for prompt in prompts:
+            result = model.generate(prompt=prompt)
+            print(f"Prompt: {prompt!r}, Generated text: {result['text']!r}")
     elif backend == "transformers":
         from pathlib import Path
 
@@ -482,3 +628,7 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
 # Entry point for the 'sllm-store' CLI
 def main():
     cli()
+
+
+if __name__ == "__main__":
+    main()
