@@ -82,23 +82,7 @@ CheckpointStore::CheckpointStore(const std::string& storage_path,
   }
 
   // Create a memory pool
-  if (use_shm_) {
-    // Generate a shared memory name that can be opened by other processes
-    // Use storage path hash to make it deterministic across processes
-    std::string path_str = storage_path_.string();
-    std::hash<std::string> hasher;
-    size_t path_hash = hasher(path_str);
-
-    std::string shm_name = "/checkpoint_pool_" + std::to_string(path_hash);
-
-    LOG(INFO) << "Using shared memory pool with name prefix: " << shm_name;
-
-    shared_memory_pool_ = std::make_shared<SharedPinnedMemoryPool>(
-        memory_pool_size_, chunk_size_, shm_name);
-
-    LOG(INFO) << "Shared memory pool created/opened with "
-              << memory_pool_size_ / GB << "GB using deterministic name";
-  } else {
+  if (!use_shm_) {
     // Use original aligned memory allocation
     memory_pool_ = std::make_shared<AlignedPinnedMemoryPool>(memory_pool_size_,
                                                              chunk_size_);
@@ -132,14 +116,86 @@ int64_t CheckpointStore::RegisterModelInfo(const std::string& model_path) {
   return model->GetModelSize();
 }
 
-int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
+int CheckpointStore::LoadModelFromDisk(
+    const std::string& model_path,
+    const MemCopyHandleListMap& shared_memory_handles,
+    const MemCopyChunkListMap& mem_copy_chunks) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
   auto model = GetModelPtr(model_path);
   if (model == nullptr) {
     LOG(ERROR) << "Model " << model_path << " is not registered";
     return -1;
   }
+  model_last_access_time_[model_path] = std::chrono::system_clock::now();
   lock_info.unlock();
+
+  int ret = 0;
+
+  bool use_shared_memory =
+      !shared_memory_handles.empty() && !mem_copy_chunks.empty();
+  if (use_shared_memory) {
+    LOG(INFO) << "Loading model " << model_path
+              << " using shared pinned memory";
+
+    // Convert UUID-based maps to device ID maps
+    std::unordered_map<int, MemCopyChunkList> converted_mem_copy_chunks;
+    std::unordered_map<int, MemCopyHandleList> converted_mem_copy_handles;
+    for (auto& [device_id, gpu_info] : gpu_info_map_) {
+      const auto& uuid = gpu_info.uuid_;
+      if (mem_copy_chunks.count(uuid))
+        converted_mem_copy_chunks[device_id] = mem_copy_chunks.at(uuid);
+      if (shared_memory_handles.count(uuid))
+        converted_mem_copy_handles[device_id] = shared_memory_handles.at(uuid);
+    }
+
+    // Extract shared memory name prefix from the first handle
+    const std::string& first_uuid = gpu_info_map_.begin()->second.uuid_;
+    const std::string& first_handle =
+        shared_memory_handles.at(first_uuid)[0].cuda_ipc_handle_;
+    std::string shm_name_prefix =
+        first_handle.substr(0, first_handle.find_last_of('_'));
+
+    MemPtrListMap shm_ptrs;
+
+    for (const auto& [device_id, handle_list] : converted_mem_copy_handles) {
+      size_t num_chunks = handle_list.size();
+      for (size_t i = 0; i < num_chunks; ++i) {
+        std::string shm_name = shm_name_prefix + "_" + std::to_string(i);
+        auto shm = Open(shm_name);  // Open shared memory chunk
+        if (!shm || !shm->is_valid()) {
+          LOG(ERROR) << "Failed to open shared memory chunk " << shm_name;
+          return -1;
+        }
+        shm_ptrs[device_id].push_back(shm->data());
+      }
+    }
+
+    // Build memory pool from allocator
+    std::shared_ptr<SharedPinnedMemoryPool> shm_pool =
+        std::make_shared<SharedPinnedMemoryPool>(memory_pool_size_, chunk_size_,
+                                                 shm_name_prefix);
+
+    shared_memory_pools_[model_path] = shm_pool;
+
+    LOG(INFO) << "Shared memory pool initialized from allocator with prefix: "
+              << shm_name_prefix;
+
+    int alloc_ret = AllocateModelMemory(model);
+    if (alloc_ret < 0) return alloc_ret;
+
+    ret = model->ToHost(num_thread_);
+    if (ret != 0) {
+      LOG(ERROR) << "Failed to load model " << model_path << " to host";
+      if (model->FreeHost() != 0) {
+        LOG(ERROR) << "Failed to free memory for model " << model_path;
+      }
+    }
+    return ret;
+  }
+
+  // Original disk loading path with memory allocation
+  LOG(INFO) << "Loading model " << model_path
+            << " from disk with memory allocation";
 
   // Allocate memory
   lock_info.lock();
@@ -182,7 +238,7 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
   model_last_access_time_[model_path] = std::chrono::system_clock::now();
   lock_info.unlock();
 
-  int ret = model->ToHost(num_thread_);
+  ret = model->ToHost(num_thread_);
 
   if (ret != 0) {
     LOG(ERROR) << "Failed to load model " << model_path << " to host";
@@ -195,11 +251,17 @@ int CheckpointStore::LoadModelFromDisk(const std::string& model_path) {
   return ret;
 }
 
-int CheckpointStore::LoadModelFromDiskAsync(const std::string& model_path) {
+int CheckpointStore::LoadModelFromDiskAsync(
+    const std::string& model_path,
+    const MemCopyHandleListMap& shared_memory_handles,
+    const MemCopyChunkListMap& mem_copy_chunks) {
   std::unique_lock<std::mutex> lock_info(model_info_mutex_);
-  async_tasks_.emplace(std::async(std::launch::async, [this, model_path]() {
-    return LoadModelFromDisk(model_path);
-  }));
+  async_tasks_.emplace(
+      std::async(std::launch::async,
+                 [this, model_path, shared_memory_handles, mem_copy_chunks]() {
+                   return LoadModelFromDisk(model_path, shared_memory_handles,
+                                            mem_copy_chunks);
+                 }));
 
   return 0;
 }
@@ -379,11 +441,12 @@ MemPtrListMap CheckpointStore::GetDevicePtrsFromMemHandles(
 
 int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
   if (use_shm_) {
-    if (shared_memory_pool_ == nullptr) {
+    if (shared_memory_pools_[model->GetModelPath()] == nullptr) {
       LOG(ERROR) << "Shared memory pool is not initialized";
       return -1;
     }
-    return model->AllocatePinnedMemory(shared_memory_pool_);
+    return model->AllocatePinnedMemory(
+        shared_memory_pools_[model->GetModelPath()]);
   } else {
     if (memory_pool_ == nullptr) {
       LOG(ERROR) << "Memory pool is not initialized";
@@ -393,7 +456,7 @@ int CheckpointStore::AllocateModelMemory(const std::shared_ptr<Model>& model) {
   }
 }
 
-std::unordered_map<int, void*> AllocateSharedMemory(
+std::unordered_map<int, std::vector<void*>> AllocateSharedMemory(
     const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size) {
   // Generate a unique prefix for this allocation session
   static std::atomic<size_t> session_counter{0};
@@ -402,51 +465,81 @@ std::unordered_map<int, void*> AllocateSharedMemory(
 
   // Create SharedMemoryAllocator on the fly - lifetime until client exit
   SharedMemoryAllocator allocator(name_prefix);
-  std::unordered_map<int, void*> shared_memory_ptrs;
+  std::unordered_map<int, std::vector<void*>> shared_memory_ptrs;
 
   for (const auto& [device_id, memory_size] : tensor_sizes) {
-    // Calculate total memory size needed, rounded up by chunk size
+    // Calculate number of chunks
     size_t chunks_needed = (memory_size + chunk_size - 1) / chunk_size;
-    size_t total_memory_size = chunks_needed * chunk_size;
 
     LOG(INFO) << "Device " << device_id << " needs " << chunks_needed
               << " chunks of " << chunk_size
-              << " bytes each, total: " << total_memory_size << " bytes";
+              << " bytes each (total: " << (chunks_needed * chunk_size)
+              << " bytes)";
 
-    // Allocate the total memory size using the allocator
-    void* ptr = allocator.allocate(total_memory_size);
-    if (!ptr) {
-      LOG(ERROR) << "Failed to allocate shared memory for device " << device_id;
-      // Cleanup previously allocated memory
-      for (auto& [id, mem_ptr] : shared_memory_ptrs) {
-        if (mem_ptr) {
-          allocator.deallocate(mem_ptr);
+    std::vector<void*> chunk_ptrs;
+    chunk_ptrs.reserve(chunks_needed);
+
+    for (size_t i = 0; i < chunks_needed; ++i) {
+      void* ptr = allocator.allocate(chunk_size);
+      if (!ptr) {
+        LOG(ERROR) << "Failed to allocate chunk " << i << " for device "
+                   << device_id;
+
+        // Clean up already allocated chunks for this device
+        for (void* p : chunk_ptrs) {
+          allocator.deallocate(p);
         }
+
+        // Also clean up other devices
+        for (auto& [other_device_id, other_chunk_ptrs] : shared_memory_ptrs) {
+          for (void* p : other_chunk_ptrs) {
+            allocator.deallocate(p);
+          }
+        }
+
+        return {};  // Allocation failed
       }
-      return {};  // Return empty map on failure
+
+      LOG(INFO) << "Allocated chunk " << i << " for device " << device_id
+                << " at " << ptr;
+
+      chunk_ptrs.push_back(ptr);
     }
 
-    shared_memory_ptrs[device_id] = ptr;
+    shared_memory_ptrs[device_id] = std::move(chunk_ptrs);
   }
 
   return shared_memory_ptrs;
 }
 
-std::unordered_map<int, std::string> GetSharedMemoryHandles(
-    const std::unordered_map<int, void*>& memory_ptrs) {
-  std::unordered_map<int, std::string> shm_handles;
-  for (const auto& [device_id, ptr] : memory_ptrs) {
-    auto shm = MemoryRegistry::Instance().FindSharedMemory(ptr);
-    if (shm) {
-      std::string shm_name = shm->name();
-      shm_handles[device_id] = shm_name;
-    } else {
-      for (const auto& [id, mem_ptr] : memory_ptrs) {
-        MemoryRegistry::Instance().UnregisterSharedMemory(mem_ptr);
+std::unordered_map<int, std::vector<std::string>> GetSharedMemoryHandles(
+    const std::unordered_map<int, std::vector<void*>>& memory_ptrs) {
+  std::unordered_map<int, std::vector<std::string>> shm_handles;
+
+  for (const auto& [device_id, ptr_list] : memory_ptrs) {
+    std::vector<std::string> device_handles;
+
+    for (size_t chunk_idx = 0; chunk_idx < ptr_list.size(); ++chunk_idx) {
+      void* ptr = ptr_list[chunk_idx];
+
+      // Lookup shared memory name
+      auto shm = MemoryRegistry::Instance().FindSharedMemory(ptr);
+      if (shm) {
+        device_handles.push_back(shm->name());
+      } else {
+        // Cleanup on failure
+        for (const auto& [id, mem_ptrs] : memory_ptrs) {
+          for (void* p : mem_ptrs) {
+            MemoryRegistry::Instance().UnregisterSharedMemory(p);
+          }
+        }
+        LOG(ERROR) << "Shared memory handle not found for device " << device_id
+                   << ", chunk " << chunk_idx;
+        return {};
       }
-      LOG(ERROR) << "Shared memory handle not found for device " << device_id;
-      return {};  // Return empty map on failure
     }
+
+    shm_handles[device_id] = std::move(device_handles);
   }
 
   return shm_handles;

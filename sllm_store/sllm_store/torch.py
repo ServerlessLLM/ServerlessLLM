@@ -29,6 +29,7 @@ from sllm_store._C import (
     get_cuda_memory_handles,
     get_device_uuid_map,
     restore_tensors,
+    restore_tensors_shm,
     save_tensors,
 )
 from sllm_store._checkpoint_store import (
@@ -89,14 +90,25 @@ def load_dict(
     device_map: Dict[str, int],
     storage_path: Optional[str] = None,
 ):
-    replica_uuid, state_dict = load_dict_non_blocking(
-        model_path, device_map, storage_path
-    )
+    # Get server configuration to determine if we should use shared memory
+    config = SllmStoreClient.get_server_config_static()
 
-    client = SllmStoreClient("127.0.0.1:8073")
-    client.confirm_model_loaded(model_path, replica_uuid)
+    if config and config.get("use_shm", False):
+        # Server is configured to use shared memory
+        logger.info("Server configured for shared memory, using load_dict_shm")
+        return load_dict_shm(model_path, device_map, storage_path)
+    else:
+        # Server is using regular memory allocation
+        logger.info(
+            "Server configured for regular memory, using load_dict_non_blocking"
+        )
+        replica_uuid, state_dict = load_dict_non_blocking(
+            model_path, device_map, storage_path
+        )
 
-    return state_dict
+        client = SllmStoreClient("127.0.0.1:8073")
+        client.confirm_model_loaded(model_path, replica_uuid)
+        return state_dict
 
 
 def load_dict_shm(
@@ -123,7 +135,11 @@ def load_dict_shm(
     device_memory = calculate_device_memory(
         expanded_device_map, tensor_data_index
     )
-    shared_memory_ptrs = allocate_shared_memory(device_memory)
+
+    config = SllmStoreClient.get_server_config_static()
+    chunk_size = config.get("chunk_size")
+
+    shared_memory_ptrs = allocate_shared_memory(device_memory, chunk_size)
     shared_memory_handles = get_shared_memory_handles(shared_memory_ptrs)
     tensor_device_offsets, tensor_copy_chunks = calculate_tensor_device_offsets(
         expanded_device_map, tensor_data_index
@@ -139,17 +155,22 @@ def load_dict_shm(
             for device_id, v in tensor_copy_chunks.items()
         },
         {
-            device_uuid_map[device_id]: [v]
+            device_uuid_map[device_id]: v
             for device_id, v in shared_memory_handles.items()
         },
     )
     if not ret:
         raise ValueError(f"Failed to load model {model_path} into GPU")
 
+    #    print("After server write:")
+    #    for ptr in shared_memory_ptrs.values():
+    #        arr = (ctypes.c_float * 4).from_address(ptr)
+    #        print("  First 4 floats:", list(arr))
+
     # load model state_dict
     start = time.time()
-    state_dict = restore_tensors(
-        tensor_meta_index, shared_memory_ptrs, tensor_device_offsets
+    state_dict = restore_tensors_shm(
+        tensor_meta_index, shared_memory_ptrs, tensor_device_offsets, chunk_size
     )
 
     logger.info(f"restore state_dict takes {time.time() - start} seconds")

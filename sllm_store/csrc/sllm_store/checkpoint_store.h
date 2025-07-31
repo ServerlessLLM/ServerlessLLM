@@ -44,8 +44,13 @@ class CheckpointStore {
   ~CheckpointStore();
 
   int64_t RegisterModelInfo(const std::string& model_path);
-  int LoadModelFromDisk(const std::string& model_path);
-  int LoadModelFromDiskAsync(const std::string& model_path);
+  int LoadModelFromDisk(const std::string& model_path,
+                        const MemCopyHandleListMap& shared_memory_handles = {},
+                        const MemCopyChunkListMap& mem_copy_chunks = {});
+  int LoadModelFromDiskAsync(
+      const std::string& model_path,
+      const MemCopyHandleListMap& shared_memory_handles = {},
+      const MemCopyChunkListMap& mem_copy_chunks = {});
   int LoadModelFromMem(const std::string& model_path,
                        const std::string& replica_uuid,
                        const MemCopyHandleListMap& gpu_memory_handles,
@@ -65,6 +70,17 @@ class CheckpointStore {
   // Get methods
   size_t GetMemPoolSize() const { return memory_pool_size_; }
   size_t GetChunkSize() const { return chunk_size_; }
+  std::shared_ptr<AlignedPinnedMemoryPool> GetAlignedMemoryPool() const {
+    return memory_pool_;
+  }
+  std::shared_ptr<SharedPinnedMemoryPool> GetSharedMemoryPool(
+      ModelPtr model) const {
+    auto it = shared_memory_pools_.find(model->GetModelPath());
+    if (it != shared_memory_pools_.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
   bool IsUsingSharedMemory() const { return use_shm_; }
 
   // Get the appropriate memory pool based on use_shm flag
@@ -92,7 +108,8 @@ class CheckpointStore {
   std::mutex model_info_mutex_;
   const size_t memory_pool_size_;
   std::shared_ptr<AlignedPinnedMemoryPool> memory_pool_;
-  std::shared_ptr<SharedPinnedMemoryPool> shared_memory_pool_;
+  std::unordered_map<std::string, std::shared_ptr<SharedPinnedMemoryPool>>
+      shared_memory_pools_;
   bool use_shm_;
   int num_thread_;
   size_t chunk_size_;
@@ -118,20 +135,7 @@ class CheckpointStore {
       const MemCopyHandleListMap& memory_handles);
 };
 
-// Template specializations for GetMemoryPool
-template <>
-inline std::shared_ptr<AlignedPinnedMemoryPool>
-CheckpointStore::GetMemoryPool<AlignedPinnedMemoryPool>() const {
-  return memory_pool_;
-}
-
-template <>
-inline std::shared_ptr<SharedPinnedMemoryPool>
-CheckpointStore::GetMemoryPool<SharedPinnedMemoryPool>() const {
-  return shared_memory_pool_;
-}
-
-std::unordered_map<int, void*> AllocateSharedMemory(
+std::unordered_map<int, std::vector<void*>> AllocateSharedMemory(
     const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size);
-std::unordered_map<int, std::string> GetSharedMemoryHandles(
-    const std::unordered_map<int, void*>& memory_ptrs);
+std::unordered_map<int, std::vector<std::string>> GetSharedMemoryHandles(
+    const std::unordered_map<int, std::vector<void*>>& memory_ptrs);

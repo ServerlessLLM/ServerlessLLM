@@ -32,6 +32,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
       .def_readwrite("size", &MemCopyChunk::size_)
       .def_readwrite("dst_offset", &MemCopyChunk::dst_offset_)
       .def_readwrite("handle_idx", &MemCopyChunk::handle_idx_);
+  py::class_<MemCopyHandle>(m, "MemCopyHandle")
+      .def(py::init<const std::string&>())
+      .def_readwrite("cuda_ipc_handle", &MemCopyHandle::cuda_ipc_handle_);
 
   py::class_<CheckpointStore>(m, "CheckpointStore")
       .def(py::init<const std::string&, size_t, int, size_t, bool>(),
@@ -43,6 +46,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
            "Register the model information and return its size.")
       .def("load_model_from_disk_async",
            &CheckpointStore::LoadModelFromDiskAsync, py::arg("model_path"),
+           py::arg("shared_memory_handles") /*= {}*/,
+           py::arg("mem_copy_chunks") /*= {}*/,
            "Load a model from disk asynchronously.")
       .def(
           "load_model_from_mem_async",
@@ -88,17 +93,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("allocate_shared_memory", &AllocateSharedMemory,
         py::arg("tensor_sizes"), py::arg("chunk_size"),
         "Allocate shared memory for tensor storage");
-  m.def(
-      "get_shared_memory_handles",
-      [](const std::unordered_map<int, void*>& memory_ptrs) {
-        std::unordered_map<int, std::string> handles =
-            GetSharedMemoryHandles(memory_ptrs);
-
-        std::unordered_map<int, py::bytes> py_handles;
-        for (const auto& kv : handles) {
-          py_handles[kv.first] = py::bytes(kv.second);
-        }
-        return py_handles;
-      },
-      py::arg("memory_ptrs"), "Get shared memory handles");
+  m.def("get_shared_memory_handles", &GetSharedMemoryHandles,
+        py::arg("memory_ptrs"), "Get shared memory handles");
 }
