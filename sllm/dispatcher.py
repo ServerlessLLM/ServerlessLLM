@@ -148,9 +148,11 @@ class Dispatcher:
 
             if not available_instances:
                 logger.warning(
-                    f"No available workers for '{model_identifier}'. Requeuing task {task_id} to the front."
+                    f"No available workers for '{model_identifier}'. Requeuing task {task_id} and waiting for scaling."
                 )
                 await self.store.enqueue_task(model_name, backend, task_data)
+                # Add delay to allow autoscaler to detect queue and scale up
+                await asyncio.sleep(2)
                 return
 
             target = await self._select_instance_round_robin(

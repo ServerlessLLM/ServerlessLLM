@@ -52,6 +52,15 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
     # Store node_id once assigned
     app.state.node_id = None
 
+    @app.get("/health")
+    async def health_check():
+        """Health check endpoint for container orchestration."""
+        return {
+            "status": "healthy",
+            "node_id": getattr(app.state, "node_id", None),
+            "running_instances": len(instance_manager.get_running_instances_info())
+        }
+
     @app.post("/confirmation")
     async def confirmation_handler(request: Request):
         """Handle confirmation from WorkerManager with node_id assignment."""

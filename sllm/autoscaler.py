@@ -8,7 +8,7 @@ from sllm.kv_store import RedisStore
 from sllm.logger import init_logger
 
 QUEUE_PER_INSTANCE_THRESHOLD = 5
-AUTOSCALER_INTERVAL_SECONDS = 10
+AUTOSCALER_INTERVAL_SECONDS = 3  # More responsive scaling
 
 logger = init_logger(__name__)
 
