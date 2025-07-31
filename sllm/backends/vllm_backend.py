@@ -175,11 +175,16 @@ class VllmBackend(SllmBackend):
         raise TimeoutError(f"VLLM serve did not start within {timeout} seconds")
 
     async def generate(self, request_data: Dict[str, Any]):
+        task_id = request_data.get("task_id", "unknown")
+        logger.info(f"[DEBUG] Starting generate for task_id: {task_id}")
+        
         async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
+                logger.warning(f"[DEBUG] Engine not running for task_id: {task_id}")
                 return {"error": "Engine is not running"}
 
         if not self.session:
+            logger.warning(f"[DEBUG] No HTTP session for task_id: {task_id}")
             return {"error": "HTTP session not initialized"}
 
         try:
@@ -205,13 +210,19 @@ class VllmBackend(SllmBackend):
                 if param in request_data:
                     openai_request[param] = request_data[param]
 
+            logger.info(f"[DEBUG] Sending request to VLLM for task_id: {task_id}, model: {openai_request['model']}")
+            
             async with self.session.post(
                 f"{self.base_url}/v1/chat/completions",
                 json=openai_request,
                 headers={"Content-Type": "application/json"},
             ) as response:
+                logger.info(f"[DEBUG] VLLM response status: {response.status} for task_id: {task_id}")
+                
                 if response.status == 200:
-                    return await response.json()
+                    result = await response.json()
+                    logger.info(f"[DEBUG] Successfully generated response for task_id: {task_id}")
+                    return result
                 else:
                     error_text = await response.text()
                     logger.error(
@@ -220,7 +231,7 @@ class VllmBackend(SllmBackend):
                     return {"error": f"API request failed: {response.status}"}
 
         except Exception as e:
-            logger.error(f"Error in generate: {e}")
+            logger.error(f"Error in generate for task_id: {task_id}: {e}")
             return {"error": f"Generation failed: {str(e)}"}
 
     def _cleanup_process(self):
