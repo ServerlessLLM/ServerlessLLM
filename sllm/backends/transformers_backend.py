@@ -68,7 +68,6 @@ class InferenceStatus(BaseStreamer):
             # or dynamic batch size
             for i, v in enumerate(value):
                 self.intermediate[i].append(v)
-        logger.warning(f"Intermediate output: {self.intermediate}")
         if self.status == BackendStatus.DELETING:
             raise DeletingException("Backend is deleting")
 
@@ -384,7 +383,7 @@ class TransformersBackend(SllmBackend):
         max_tokens = request_data.get("max_tokens", 10)
         lora_adapter_name = request_data.get("lora_adapter_name", None)
 
-        logger.info(
+        logger.debug(
             f"[TransformersBackend] Processing task_id: {task_id}, model: {model_name}, max_tokens: {max_tokens}, messages: {len(messages)} messages"
         )
 
@@ -480,10 +479,9 @@ class TransformersBackend(SllmBackend):
                 },
             }
 
-            logger.info(
+            logger.debug(
                 f"[TransformersBackend] Successfully generated response for task_id: {task_id}, completion_tokens: {completion_tokens}, finish_reason: {finish_reason}"
             )
-            logger.info(f"[TransformersBackend] Complete response for task_id {task_id}: {response}")
             self.inf_status.delete()
             return response
 

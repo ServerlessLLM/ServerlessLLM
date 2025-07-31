@@ -215,18 +215,18 @@ class WorkerManager:
                 successful_starts += 1
 
                 logger.info(
-                    f"[LIMBO] Adding instance {instance_id} to limbo_up for {model_name}:{backend}"
+                    f"Adding instance {instance_id} to limbo_up for {model_name}:{backend}"
                 )
                 added = await self.store.add_limbo_up_instance(
                     model_name, backend, instance_id
                 )
                 if not added:
                     logger.warning(
-                        f"[LIMBO] Instance {instance_id} was already in limbo_up"
+                        f"Instance {instance_id} was already in limbo_up"
                     )
                 else:
                     logger.info(
-                        f"[LIMBO] Successfully added {instance_id} to limbo_up"
+                        f"Successfully added {instance_id} to limbo_up"
                     )
 
                 # NOTE: is this necessary?
@@ -614,27 +614,16 @@ class WorkerManager:
                     limbo_up_instances
                 )
                 for instance_id in confirmed_starts:
-                    logger.info(
-                        f"[LIMBO] Removing instance {instance_id} from limbo_up for {model_name}:{backend}"
-                    )
                     removed = await self.store.remove_limbo_up_instance(
                         model_name, backend, instance_id
                     )
                     if removed:
                         logger.info(
-                            f"[LIMBO] Successfully removed {instance_id} from limbo_up"
+                            f"Instance {instance_id} started successfully - removed from limbo_up for {model_name}:{backend}"
                         )
                     else:
                         logger.warning(
-                            f"[LIMBO] Failed to remove {instance_id} from limbo_up"
-                        )
-                    if removed:
-                        logger.debug(
-                            f"Confirmed start of instance {instance_id} for {model_identifier}"
-                        )
-                    else:
-                        logger.warning(
-                            f"Instance {instance_id} was not found in limbo_up for removal"
+                            f"Instance {instance_id} started but was not found in limbo_up for {model_name}:{backend}"
                         )
 
             stopped_instances = previous_instances_set - current_instances

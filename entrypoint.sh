@@ -88,13 +88,13 @@ initialize_worker_node() {
 
   WORKER_HOST="${WORKER_HOST:-0.0.0.0}"
   WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
-  HEAD_NODE_URL="${HEAD_NODE_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
-  echo "HEAD NODE URL ${HEAD_NODE_URL}"
+  LLM_SERVER_URL="${LLM_SERVER_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
+  echo "LLM SERVER URL ${LLM_SERVER_URL}"
   echo "WORKER ARGS ${WORKER_ARGS}"
 
   # Validate required environment variables
-  if [ -z "$HEAD_NODE_URL" ]; then
-    echo "ERROR: HEAD_NODE_URL must be set to the head node's URL (e.g., http://sllm_head:8343)"
+  if [ -z "$LLM_SERVER_URL" ]; then
+    echo "ERROR: LLM_SERVER_URL must be set to the head node's URL (e.g., http://sllm_head:8343)"
     exit 1
   fi
 
@@ -103,15 +103,15 @@ initialize_worker_node() {
 
   # Validate head node connection
   timeout 30 bash -c "
-    while ! curl -s -o /dev/null -w '%{http_code}' ${HEAD_NODE_URL}/health | grep -q '200'; do
+    while ! curl -s -o /dev/null -w '%{http_code}' ${LLM_SERVER_URL}/health | grep -q '200'; do
       sleep 2
     done
   " || {
-    echo "WARNING: Cannot connect to head node at ${HEAD_NODE_URL}"
+    echo "WARNING: Cannot connect to head node at ${LLM_SERVER_URL}"
   }
 
   # Start worker with HTTP heartbeat to head node in background
-  sllm start worker --head-node-url "${HEAD_NODE_URL}" "${WORKER_ARGS[@]}" &
+  sllm start worker --head-node-url "${LLM_SERVER_URL}" "${WORKER_ARGS[@]}" &
 
   # Start sllm-store with sllm-store specific arguments
   exec sllm-store start --storage-path="$STORAGE_PATH" "${STORE_ARGS[@]}"
@@ -147,7 +147,7 @@ usage() {
   echo "Worker Node Variables:"
   echo "  WORKER_HOST         - Host to bind to (default: 0.0.0.0)"
   echo "  WORKER_PORT         - Port to bind to (default: 8001)"
-  echo "  HEAD_NODE_URL       - Head node URL (required, e.g., http://sllm_head:8343)"
+  echo "  LLM_SERVER_URL      - Head node URL (required, e.g., http://sllm_head:8343)"
   echo "  NODE_ID             - Unique worker node ID (default: hostname or generated)"
   echo ""
   echo "Common Variables:"

@@ -181,7 +181,7 @@ def head(host, port, redis_host, redis_port):
 @click.option(
     "--head-node-url",
     type=str,
-    default=lambda: os.getenv("LLM_SERVER_URL", "http://0.0.0.0:8343"),
+    default=lambda: os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343"),
     help="Full URL of the head node API Gateway (e.g., http://192.168.1.100:8343).",
 )
 def worker(host, port, head_node_url):

@@ -175,7 +175,6 @@ class Dispatcher:
                     await self._handle_lora_loading(target, payload)
 
                 worker_response = await self._forward_to_worker(target, payload)
-                logger.info(f"Worker response for task {task_id}: {worker_response}")
                 await self.store.publish_result(task_id, worker_response)
                 logger.debug(
                     f"Successfully processed and published result for task {task_id}"
@@ -355,11 +354,10 @@ class Dispatcher:
             endpoint = "/v1/chat/completions"  # Default inference endpoint
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
-        logger.info(f"posting {payload} to {url}")
 
         # For fine-tuning requests, add concurrency limit
         if request_type == "fine_tuning":
-            forward_payload["concurrency"] = 1
+            payload["concurrency"] = 1
 
         try:
             response = await post_json_with_retry(

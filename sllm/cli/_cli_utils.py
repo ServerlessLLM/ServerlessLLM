@@ -78,7 +78,7 @@ def start_head(
     """Start the SLLM head node (control plane)."""
     # Use environment variables if not explicitly provided
     if redis_host is None:
-        redis_host = os.environ.get("REDIS_HOST", "localhost")
+        redis_host = os.environ.get("REDIS_HOST", "redis")
     if redis_port is None:
         redis_port = int(os.environ.get("REDIS_PORT", "6379"))
 
