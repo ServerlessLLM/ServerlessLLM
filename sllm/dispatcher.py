@@ -102,7 +102,6 @@ class Dispatcher:
                     continue
 
                 queue_name, task_data = task
-                logger.info(f"task data {task_data}")
                 asyncio.create_task(self.process_task(queue_name, task_data))
 
             except Exception as e:
