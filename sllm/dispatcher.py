@@ -354,7 +354,7 @@ class Dispatcher:
             endpoint = "/v1/chat/completions"  # Default inference endpoint
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
-        logger.debug(f"dispatching to URL: {url}")
+        logger.info(f"dispatching to URL: {url}")
 
         # For fine-tuning requests, add concurrency limit
         if request_type == "fine_tuning":
