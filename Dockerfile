@@ -83,12 +83,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     REDIS_HOST=redis \
     REDIS_PORT=6379\
     WORKER_HOST=0.0.0.0 \
-    WORKER_PORT=8001 \
-    MAX_JOBS=4
+    WORKER_PORT=8001
 
-# Install additional runtime dependencies including build tools for vLLM CUDA compilation
+# Install additional runtime dependencies
 RUN apt-get update -y && \
-    apt-get install -y curl netcat-openbsd build-essential cmake ninja-build && \
+    apt-get install -y curl netcat-openbsd gcc g++ && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
