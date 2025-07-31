@@ -135,7 +135,7 @@ class CheckpointStore {
       const MemCopyHandleListMap& memory_handles);
 };
 
-std::unordered_map<int, void*> AllocateSharedMemory(
+std::unordered_map<int, std::vector<void*>> AllocateSharedMemory(
     const std::unordered_map<int, size_t>& tensor_sizes, size_t chunk_size);
-std::unordered_map<int, std::string> GetSharedMemoryHandles(
-    const std::unordered_map<int, void*>& memory_ptrs);
+std::unordered_map<int, std::vector<std::string>> GetSharedMemoryHandles(
+    const std::unordered_map<int, std::vector<void*>>& memory_ptrs);

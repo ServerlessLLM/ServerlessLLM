@@ -93,17 +93,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("allocate_shared_memory", &AllocateSharedMemory,
         py::arg("tensor_sizes"), py::arg("chunk_size"),
         "Allocate shared memory for tensor storage");
-  m.def(
-      "get_shared_memory_handles",
-      [](const std::unordered_map<int, void*>& memory_ptrs) {
-        std::unordered_map<int, std::string> handles =
-            GetSharedMemoryHandles(memory_ptrs);
-
-        std::unordered_map<int, py::bytes> py_handles;
-        for (const auto& kv : handles) {
-          py_handles[kv.first] = py::bytes(kv.second);
-        }
-        return py_handles;
-      },
-      py::arg("memory_ptrs"), "Get shared memory handles");
+  m.def("get_shared_memory_handles", &GetSharedMemoryHandles,
+        py::arg("memory_ptrs"), "Get shared memory handles");
 }
