@@ -18,6 +18,7 @@
 import asyncio
 import json
 import os
+import socket
 import subprocess
 import sys
 
@@ -39,6 +40,32 @@ from sllm.worker.utils import benchmark_static_hardware
 from sllm.worker_manager import WorkerManager
 
 logger = init_logger(__name__)
+
+
+def get_advertise_ip() -> str:
+    """Get the IP address to advertise to other services.
+    
+    Uses NODE_IP environment variable if set, otherwise auto-detects
+    the container/host IP address.
+    """
+    # Allow explicit override for multi-machine setups
+    node_ip = os.environ.get("NODE_IP")
+    if node_ip:
+        return node_ip
+    
+    try:
+        # Auto-detect container IP by connecting to a remote address
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        try:
+            # Fallback: use hostname resolution
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            # Last resort: localhost (not ideal for multi-container)
+            logger.warning("Could not auto-detect IP address, using localhost")
+            return "127.0.0.1"
 
 
 # ----------------------------- START COMMAND ----------------------------- #
@@ -129,8 +156,12 @@ async def _run_worker_node(host, port, head_node_url):
     """Async implementation of worker node startup."""
     logger.info("Starting worker node...")
 
+    # Separate bind address from advertise address
+    advertise_ip = get_advertise_ip()
+    logger.info(f"Worker binding to {host}:{port}, advertising as {advertise_ip}:{port}")
+
     static_hardware_info = benchmark_static_hardware()
-    instance_manager = InstanceManager(node_ip=host)
+    instance_manager = InstanceManager(node_ip=advertise_ip)
     worker_app = create_worker_app(instance_manager)
     uvicorn_config = Config(worker_app, host=host, port=port, log_level="info")
     uvicorn_server = Server(uvicorn_config)
@@ -140,7 +171,7 @@ async def _run_worker_node(host, port, head_node_url):
         run_heartbeat_loop(
             instance_manager=instance_manager,
             head_node_url=head_node_url,
-            node_ip=host,
+            node_ip=advertise_ip,
             static_hardware_info=static_hardware_info,
             app_state=worker_app.state,
             worker_port=port,
