@@ -1088,12 +1088,14 @@ class RedisStore:
         logger.info(f"listening from results channel {channel_name}")
         async with self.client.pubsub() as pubsub:
             await pubsub.subscribe(channel_name)
+            logger.info(f"subscribed to results channel {channel_name}")
             while True:
                 # Use shorter timeout for get_message to check overall timeout more frequently
                 message = await pubsub.get_message(
                     ignore_subscribe_messages=True, timeout=min(timeout, 30)
                 )
                 if message:
+                    logger.info(f"received message on channel {channel_name}: {message}")
                     yield json.loads(message["data"])
                     break
                 else:
