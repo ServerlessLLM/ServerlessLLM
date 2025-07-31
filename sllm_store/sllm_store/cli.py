@@ -596,7 +596,7 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
         sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
         outputs = model.generate(prompts, sampling_params)
 
-        # Print the outputs.
+        # Print the outputs
         for output in outputs:
             prompt = output.prompt
             generated_text = output.outputs[0].text
