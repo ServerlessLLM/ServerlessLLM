@@ -319,7 +319,7 @@ class Dispatcher:
                             )
 
         if len(active_instances) == 0:
-            logger.warning(f"No available instances found for {model_identifier}")
+            logger.debug(f"No available instances found for {model_identifier}")
         else:
             logger.debug(
                 f"Found {len(active_instances)} available instances for {model_identifier}"
@@ -355,7 +355,7 @@ class Dispatcher:
             endpoint = "/v1/chat/completions"  # Default inference endpoint
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
-        forward_payload = {"instance_id": instance_id, "payload": payload}
+        logger.info(f"posting {payload} to {url}")
 
         # For fine-tuning requests, add concurrency limit
         if request_type == "fine_tuning":
@@ -365,7 +365,7 @@ class Dispatcher:
             response = await post_json_with_retry(
                 session=self.http_session,
                 url=url,
-                payload=forward_payload,
+                payload=payload,
                 max_retries=3,
                 timeout=self.forward_timeout,
             )
