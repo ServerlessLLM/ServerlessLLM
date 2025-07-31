@@ -41,7 +41,7 @@ async def run_heartbeat_loop(
 ):
     # Start as new worker - node_id will be assigned by head node
     current_node_id = None
-    logger.info(
+    logger.debug(
         f"Starting heartbeat loop for new worker. Will receive node_id via /confirmation endpoint."
     )
 

@@ -98,25 +98,31 @@ class InstanceManager:
                 if os.path.isdir(model_dir) and validate_vllm_model_path(
                     model_dir
                 ):
-                    # Find all rank files
+                    # Find all rank files - check inside each item directory
                     model_paths = []
                     total_size = 0
+                    rank_count = 0
 
                     for item in os.listdir(model_dir):
-                        logger.info(f"vllm item: {item}")
-                        if item.startswith("rank_") and os.path.isdir(
-                            os.path.join(model_dir, item)
-                        ):
-                            rank_path = os.path.join(model_dir, item)
-                            model_paths.append(f"vllm/{model_name}/{item}")
-                            # Estimate size by summing file sizes
-                            for root, dirs, files in os.walk(rank_path):
-                                total_size += sum(
-                                    os.path.getsize(os.path.join(root, file))
-                                    for file in files
-                                )
+                        item_path = os.path.join(model_dir, item)
+                        if os.path.isdir(item_path):
+                            # Look for rank directories inside this item
+                            for rank_item in os.listdir(item_path):
+                                if rank_item.startswith("rank_") and os.path.isdir(
+                                    os.path.join(item_path, rank_item)
+                                ):
+                                    rank_path = os.path.join(item_path, rank_item)
+                                    model_paths.append(f"vllm/{model_name}/{item}/{rank_item}")
+                                    rank_count += 1
+                                    # Estimate size by summing file sizes
+                                    for root, dirs, files in os.walk(rank_path):
+                                        total_size += sum(
+                                            os.path.getsize(os.path.join(root, file))
+                                            for file in files
+                                        )
 
-                    logger.info(f"vllm model paths: {model_paths}")
+                    if model_paths:
+                        logger.debug(f"Found vLLM model {model_name} with {rank_count} rank files")
                     if model_paths:
                         self.disk_models[f"{model_name}:vllm"] = (
                             model_paths,
@@ -144,9 +150,9 @@ class InstanceManager:
                         total_size,
                     )
 
-        logger.info(
-            f"Disk scan complete. Found {len(self.disk_models)} models on disk"
-        )
+        vllm_count = len([k for k in self.disk_models.keys() if k.endswith(':vllm')])
+        transformers_count = len([k for k in self.disk_models.keys() if k.endswith(':transformers')])
+        logger.info(f"Disk scan complete. Found {vllm_count} vLLM, {transformers_count} Transformers models")
 
     async def _ensure_model_downloaded(
         self, model_config: Dict[str, Any]

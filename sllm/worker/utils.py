@@ -187,8 +187,8 @@ def validate_storage_path(storage_path: str) -> bool:
 def validate_vllm_model_path(model_path: str) -> bool:
     exists = os.path.exists(model_path)
     is_dir = os.path.isdir(model_path) if exists else False
-    logger.info(
-        f"[VALIDATE] vLLM path {model_path}: exists={exists}, is_dir={is_dir}"
+    logger.debug(
+        f"vLLM path {model_path}: exists={exists}, is_dir={is_dir}"
     )
     return exists and is_dir
 
@@ -196,8 +196,8 @@ def validate_vllm_model_path(model_path: str) -> bool:
 def validate_transformers_model_path(model_path: str) -> bool:
     exists = os.path.exists(model_path)
     is_dir = os.path.isdir(model_path) if exists else False
-    logger.info(
-        f"[VALIDATE] Transformers path {model_path}: exists={exists}, is_dir={is_dir}"
+    logger.debug(
+        f"Transformers path {model_path}: exists={exists}, is_dir={is_dir}"
     )
     return exists and is_dir
 
@@ -206,7 +206,7 @@ def validate_lora_adapter_path(adapter_path: str) -> bool:
     exists = os.path.exists(adapter_path)
     is_dir = os.path.isdir(adapter_path) if exists else False
     logger.info(
-        f"[VALIDATE] LoRA path {adapter_path}: exists={exists}, is_dir={is_dir}"
+        f"LoRA path {adapter_path}: exists={exists}, is_dir={is_dir}"
     )
     return exists and is_dir
 
