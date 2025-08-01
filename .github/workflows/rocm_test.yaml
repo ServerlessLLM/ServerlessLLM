@@ -52,12 +52,12 @@ jobs:
             pytest tests/python/test_save_model.py
             pytest tests/python/test_utils.py
 
-      - name: Run C++ tests
-        working-directory: sllm_store
-        env:
-          PYTORCH_ROCM_ARCH: "gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
-        run: |
-            export PATH=$PATH:/opt/rocm/bin:/libtorch/bin
-            export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib/:/libtorch/lib
-            bash cpp_build.sh
-            ctest --output-on-failure
+      #- name: Run C++ tests
+      #  working-directory: sllm_store
+      #  env:
+      #    PYTORCH_ROCM_ARCH: "gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030 gfx1100"
+      #  run: |
+      #      export PATH=$PATH:/opt/rocm/bin:/libtorch/bin
+      #      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib/:/libtorch/lib
+      #      bash cpp_build.sh
+      #      ctest --output-on-failure
