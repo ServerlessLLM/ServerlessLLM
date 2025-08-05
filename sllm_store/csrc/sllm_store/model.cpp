@@ -161,6 +161,15 @@ int Model::ToHost(int num_threads) {
         int fd = file_descriptors[partition_id];
         ssize_t ret =
             pread(fd, (void*)host_buffers[chunk_idx], size, file_offset);
+        uint8_t* data = reinterpret_cast<uint8_t*>(host_buffers[chunk_idx]);
+        LOG(INFO) << "Thread " << thread_idx << ", chunk " << chunk_idx
+                  << ", address " << static_cast<void*>(host_buffers[chunk_idx])
+                  << ", first bytes read: " << std::hex
+                  << static_cast<int>(data[0]) << " "
+                  << static_cast<int>(data[1]) << " "
+                  << static_cast<int>(data[2]) << " "
+                  << static_cast<int>(data[3]);
+
         if (ret < 0) {
           auto tensor_path = partition_paths_[partition_id];
           LOG(ERROR) << "pread() failed for file: " << tensor_path

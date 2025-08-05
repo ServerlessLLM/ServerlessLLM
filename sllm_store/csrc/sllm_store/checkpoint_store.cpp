@@ -19,6 +19,7 @@
 
 #include <fcntl.h>
 #include <glog/logging.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -28,6 +29,7 @@
 #include <chrono>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <thread>
 
 #include "error_handling.h"
@@ -503,11 +505,17 @@ std::unordered_map<int, std::vector<void*>> AllocateSharedMemory(
               << " bytes each (total: " << (chunks_needed * chunk_size)
               << " bytes)";
 
+    void* addr =
+        mmap(nullptr, chunks_needed * chunk_size, PROT_READ | PROT_WRITE,
+             MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
     std::vector<void*> chunk_ptrs;
     chunk_ptrs.reserve(chunks_needed);
 
     for (size_t i = 0; i < chunks_needed; ++i) {
-      void* ptr = allocator.allocate(chunk_size);
+      void* ptr = allocator.allocate(
+          chunk_size, 4096, addr + chunk_size * i);  // Use default alignment
+
       if (!ptr) {
         LOG(ERROR) << "Failed to allocate chunk " << i << " for device "
                    << device_id;

@@ -277,9 +277,10 @@ def fully_parallel_load(
 
     logger.debug(f"state_dict {len(state_dict)} tensors loaded")
 
-    dispatch_model(
-        model, device_map, skip_keys=model._skip_keys_device_placement
-    )
+    # NOTE: commented out since we don't need to worry about this
+    # dispatch_model(
+    #    model, device_map, skip_keys=model._skip_keys_device_placement
+    # )
     client = SllmStoreClient("127.0.0.1:8073")
     if replica_uuid is not None:
         # Only confirm for regular CUDA memory loading
