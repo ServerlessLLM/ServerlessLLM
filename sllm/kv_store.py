@@ -593,7 +593,6 @@ class RedisStore:
             # TODO: delete lora adapters associated with the model too
             await pipe.execute()
 
-    # TODO: make consistent with lora adapter storage in sllm
     async def delete_lora_adapters(
         self,
         model_name: str,
@@ -602,7 +601,34 @@ class RedisStore:
     ):
         if lora_adapters is None:
             lora_adapters = []
-        pass
+        
+        if not lora_adapters:
+            logger.warning(f"No LoRA adapters specified for deletion from {model_name}:{backend}")
+            return
+        
+        model_key = self._get_model_key(model_name, backend)
+        model_data = await self.get_model(model_name, backend)
+        if not model_data:
+            raise ValueError(f"Model {model_name}:{backend} not found")
+        
+        backend_config = model_data.get("backend_config", {})
+        current_lora_adapters = backend_config.get("lora_adapters", {})
+        
+        for adapter_name in lora_adapters:
+            if adapter_name in current_lora_adapters:
+                del current_lora_adapters[adapter_name]
+                logger.info(f"Removed LoRA adapter '{adapter_name}' from {model_name}:{backend}")
+            else:
+                logger.warning(f"LoRA adapter '{adapter_name}' not found in {model_name}:{backend}")
+        
+        backend_config["lora_adapters"] = current_lora_adapters
+        
+        await self._execute_with_retry(
+            self.client.hset,
+            model_key,
+            "backend_config",
+            json.dumps(backend_config)
+        )
 
     async def increment_limbo_up(
         self, model_name: str, backend: str, count: int = 1

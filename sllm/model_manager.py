@@ -182,7 +182,7 @@ class ModelManager:
 
             for b_name in acquired_locks:
                 model_key = self._get_model_key(model_name, b_name)
-                await self.store.delete_model(model_key)
+                await self.store.delete_model(model_name, b_name)
                 logger.info(
                     f"Initiated deletion for '{model_key}'. Status set to 'excommunicado'."
                 )
