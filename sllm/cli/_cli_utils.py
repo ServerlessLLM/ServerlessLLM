@@ -115,6 +115,7 @@ async def _run_head_node(host, port, redis_host, redis_port):
     uvicorn_server = Server(uvicorn_config)
 
     worker_manager.start()
+    model_manager.start()
     dispatcher.start()
     autoscaler_task = asyncio.create_task(autoscaler.run_scaling_loop())
     dispatcher_task = asyncio.create_task(dispatcher.run_consumer_loop())
@@ -130,6 +131,7 @@ async def _run_head_node(host, port, redis_host, redis_port):
         autoscaler.shutdown()
         await dispatcher.shutdown()
         await worker_manager.shutdown()
+        await model_manager.shutdown()
         uvicorn_server.should_exit = True
         await asyncio.sleep(2)
         await store.close()

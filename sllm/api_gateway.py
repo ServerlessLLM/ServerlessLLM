@@ -127,15 +127,21 @@ def create_app(
             model_manager = request.app.state.model_manager
 
             if lora_adapters:
+                logger.info(f"API Gateway: Processing LoRA adapter deletion request for '{model}' with adapters: {lora_adapters}")
                 await model_manager.delete(model, "transformers", lora_adapters)
+                logger.info(f"API Gateway: Completed LoRA adapter deletion for '{model}'")
                 return {"status": f"deleted LoRA adapters from {model}"}
 
             elif backend:
+                logger.info(f"API Gateway: Processing model deletion request for '{model}:{backend}'")
                 await model_manager.delete(model, backend)
+                logger.info(f"API Gateway: Completed model deletion for '{model}:{backend}'")
                 return {"status": f"deleted model {model}:{backend}"}
 
             else:
+                logger.info(f"API Gateway: Processing full model deletion request for '{model}' (all backends)")
                 await model_manager.delete(model, "all")
+                logger.info(f"API Gateway: Completed full model deletion for '{model}'")
                 return {"status": f"deleted all backends for model {model}"}
 
         except ValueError as e:

@@ -130,6 +130,8 @@ class ModelManager:
         backend: Optional[Union[str, List[str]]] = None,
         lora_adapters: Optional[List[str]] = None,
     ) -> bool:
+        logger.info(f"ModelManager: Starting deletion process for '{model_name}' with backend='{backend}', lora_adapters={lora_adapters}")
+        
         if lora_adapters is not None:
             backends_to_update: List[str]
             if backend is None:
@@ -145,31 +147,46 @@ class ModelManager:
             else:
                 backends_to_update = backend
 
+            logger.info(f"ModelManager: Processing LoRA adapter deletion for backends: {backends_to_update}")
             for b_name in backends_to_update:
+                logger.info(f"ModelManager: Deleting LoRA adapters {lora_adapters} from '{model_name}:{b_name}'")
                 await self.store.delete_lora_adapters(
                     model_name, b_name, lora_adapters
                 )
                 logger.info(
-                    f"Successfully deleted lora adapters for '{model_name}:{b_name}'"
+                    f"ModelManager: Successfully deleted LoRA adapters for '{model_name}:{b_name}'"
                 )
 
         backends_to_delete: List[str]
         if backend is None or backend == "all":
             backends_to_delete = await self.get_all_backends(model_name)
+            logger.info(f"ModelManager: Resolved 'all' backends for '{model_name}': {backends_to_delete}")
         elif isinstance(backend, str):
             backends_to_delete = [backend]
+            logger.info(f"ModelManager: Single backend specified for deletion: '{backend}'")
         else:
             backends_to_delete = backend
+            logger.info(f"ModelManager: Multiple backends specified for deletion: {backend}")
 
         if not backends_to_delete:
             logger.warning(
-                f"No backends found for model '{model_name}'. Nothing to delete."
+                f"ModelManager: No backends found for model '{model_name}'. Nothing to delete."
             )
             return True
+            
+        logger.info(f"ModelManager: Proceeding with deletion for backends: {backends_to_delete}")
 
         acquired_locks = []
         try:
             for b_name in backends_to_delete:
+                # Check if model is already marked for deletion
+                model_data = await self.store.get_model(model_name, b_name)
+                if model_data and model_data.get("status") == "excommunicado":
+                    logger.info(
+                        f"Delete request for '{model_name}:{b_name}' ignored - model already marked as 'excommunicado'"
+                    )
+                    continue
+                
                 if await self.store.acquire_deletion_lock(model_name, b_name):
                     acquired_locks.append(b_name)
                     logger.info(
@@ -180,20 +197,27 @@ class ModelManager:
                         f"Could not acquire deletion lock for '{model_name}:{b_name}' - deletion already in progress"
                     )
 
+            logger.info(f"ModelManager: Successfully acquired {len(acquired_locks)} deletion locks out of {len(backends_to_delete)} requested")
             for b_name in acquired_locks:
                 model_key = self._get_model_key(model_name, b_name)
+                logger.info(f"ModelManager: Initiating deletion for '{model_key}'")
                 await self.store.delete_model(model_name, b_name)
                 logger.info(
-                    f"Initiated deletion for '{model_key}'. Status set to 'excommunicado'."
+                    f"ModelManager: Initiated deletion for '{model_key}'. Status set to 'excommunicado'."
                 )
 
         finally:
+            released_count = 0
             for b_name in backends_to_delete:
                 if b_name not in acquired_locks:
                     continue
                 await self.store.release_deletion_lock(model_name, b_name)
+                released_count += 1
+            logger.info(f"ModelManager: Released {released_count} deletion locks")
 
-        return len(acquired_locks) > 0
+        success = len(acquired_locks) > 0
+        logger.info(f"ModelManager: Deletion process completed for '{model_name}'. Success: {success}")
+        return success
 
     async def _orchestrate_cleanup(self, model_key: str):
         model_name, backend = self._parse_model_key(model_key)
@@ -213,14 +237,14 @@ class ModelManager:
             queue_drain_timeout = 300
             start_time = time.time()
 
-            while await self.get_queue_depth(model_name, backend) > 0:
+            while await self.store.get_queue_length(model_name, backend) > 0:
                 if time.time() - start_time > queue_drain_timeout:
                     logger.error(
                         f"Queue drain timeout for {model_key}. Force proceeding with cleanup."
                     )
                     break
                 logger.debug(
-                    f"Queue depth: {await self.get_queue_depth(model_name, backend)}"
+                    f"Queue depth: {await self.store.get_queue_length(model_name, backend)}"
                 )
                 await asyncio.sleep(5)
             logger.info(f"Queue for {model_key} is empty.")
@@ -231,14 +255,14 @@ class ModelManager:
             instance_drain_timeout = 180
             start_time = time.time()
 
-            while await self._count_running_instances(model_identifier) > 0:
+            while await self.count_running_instances(model_identifier) > 0:
                 if time.time() - start_time > instance_drain_timeout:
                     logger.error(
                         f"Instance termination timeout for {model_key}. Force proceeding with cleanup."
                     )
                     break
                 logger.debug(
-                    f"Running instances: {await self._count_running_instances(model_identifier)}"
+                    f"Running instances: {await self.count_running_instances(model_identifier)}"
                 )
                 await asyncio.sleep(5)
 
@@ -267,7 +291,7 @@ class ModelManager:
                     await pipe.execute()
 
                     logger.info(
-                        f"[{model_key}] Cleanup complete. Model atomically deleted."
+                        f"[{model_key}] ✅ DELETION COMPLETED - Model fully unregistered and cleaned up."
                     )
                 else:
                     logger.error(
@@ -288,7 +312,7 @@ class ModelManager:
                 await pipe.execute()
 
                 logger.info(
-                    f"[{model_key}] Cleanup complete (fallback method used)."
+                    f"[{model_key}] ✅ DELETION COMPLETED - Model fully unregistered (fallback method used)."
                 )
 
         except Exception as e:

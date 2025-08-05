@@ -393,7 +393,23 @@ class RedisStore:
         model_name = model.get("model")
         if not model_name:
             raise ValueError("Model configuration must include 'model' key")
-        key = self._get_model_key(model_name, model["backend"])
+        
+        backend = model.get("backend")
+        if not backend:
+            raise ValueError("Model configuration must include 'backend' key")
+            
+        # Check if model exists and is marked as excommunicado
+        existing_model = await self.get_model(model_name, backend)
+        if existing_model and existing_model.get("status") == "excommunicado":
+            logger.warning(
+                f"Registration blocked for '{model_name}:{backend}' - model is marked as 'excommunicado'. "
+                f"Please wait for cleanup to complete before re-registering."
+            )
+            raise ValueError(
+                f"Model {model_name}:{backend} is currently being deleted. Please wait for cleanup to complete."
+            )
+        
+        key = self._get_model_key(model_name, backend)
         model_dict = model.copy()
         model_dict["model"] = model_name
 
@@ -582,6 +598,8 @@ class RedisStore:
 
     async def delete_model(self, model_name: str, backend: str) -> None:
         model_key = self._get_model_key(model_name, backend)
+        logger.info(f"Marking model '{model_key}' as 'excommunicado' in kv_store")
+        
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(model_key, "status", "excommunicado")
             pipe.srem(self._get_model_status_index_key("alive"), model_key)
@@ -592,6 +610,8 @@ class RedisStore:
             pipe.publish("model:delete:notifications", json.dumps(message))
             # TODO: delete lora adapters associated with the model too
             await pipe.execute()
+            
+        logger.info(f"Successfully marked '{model_key}' as 'excommunicado' and published deletion notification")
 
     async def delete_lora_adapters(
         self,
