@@ -169,7 +169,6 @@ class VllmBackend(SllmBackend):
 
         raise TimeoutError(f"VLLM serve did not start within {timeout} seconds")
 
-
     def _cleanup_process(self):
         cleanup_subprocess(self.process)
         self.process = None
