@@ -137,9 +137,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD /app/entrypoint.sh health
 
 # Expose ports
-# Head node: 8080 (API Gateway)
+# Head node: 8343 (API Gateway)
 # Worker node: 8001 (Worker API)
-EXPOSE 8343 8001
+# Backend instances: 8000-8299 (vLLM: 8000-8099, Transformers: 8100-8199, Other: 8200-8299)
+EXPOSE 8343 8001 8000-8299
 
 # Labels for container identification
 LABEL org.opencontainers.image.title="ServerlessLLM HTTP" \

@@ -65,6 +65,8 @@ services:
       - WORKER_ID=0
       - STORAGE_PATH=/models
       - MODE=WORKER
+    ports:
+      - "8000-8299:8000-8299"  # Backend instance ports
     networks:
       - sllm_network
     volumes:
