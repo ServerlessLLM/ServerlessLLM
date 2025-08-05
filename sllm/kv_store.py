@@ -598,7 +598,6 @@ class RedisStore:
 
     async def delete_model(self, model_name: str, backend: str) -> None:
         model_key = self._get_model_key(model_name, backend)
-        logger.info(f"Marking model '{model_key}' as 'excommunicado' in kv_store")
         
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(model_key, "status", "excommunicado")
@@ -610,8 +609,6 @@ class RedisStore:
             pipe.publish("model:delete:notifications", json.dumps(message))
             # TODO: delete lora adapters associated with the model too
             await pipe.execute()
-            
-        logger.info(f"Successfully marked '{model_key}' as 'excommunicado' and published deletion notification")
 
     async def delete_lora_adapters(
         self,

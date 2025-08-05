@@ -130,8 +130,6 @@ class ModelManager:
         backend: Optional[Union[str, List[str]]] = None,
         lora_adapters: Optional[List[str]] = None,
     ) -> bool:
-        logger.info(f"ModelManager: Starting deletion process for '{model_name}' with backend='{backend}', lora_adapters={lora_adapters}")
-        
         if lora_adapters is not None:
             backends_to_update: List[str]
             if backend is None:
@@ -147,34 +145,27 @@ class ModelManager:
             else:
                 backends_to_update = backend
 
-            logger.info(f"ModelManager: Processing LoRA adapter deletion for backends: {backends_to_update}")
             for b_name in backends_to_update:
-                logger.info(f"ModelManager: Deleting LoRA adapters {lora_adapters} from '{model_name}:{b_name}'")
                 await self.store.delete_lora_adapters(
                     model_name, b_name, lora_adapters
                 )
                 logger.info(
-                    f"ModelManager: Successfully deleted LoRA adapters for '{model_name}:{b_name}'"
+                    f"Successfully deleted LoRA adapters for '{model_name}:{b_name}'"
                 )
 
         backends_to_delete: List[str]
         if backend is None or backend == "all":
             backends_to_delete = await self.get_all_backends(model_name)
-            logger.info(f"ModelManager: Resolved 'all' backends for '{model_name}': {backends_to_delete}")
         elif isinstance(backend, str):
             backends_to_delete = [backend]
-            logger.info(f"ModelManager: Single backend specified for deletion: '{backend}'")
         else:
             backends_to_delete = backend
-            logger.info(f"ModelManager: Multiple backends specified for deletion: {backend}")
 
         if not backends_to_delete:
             logger.warning(
-                f"ModelManager: No backends found for model '{model_name}'. Nothing to delete."
+                f"No backends found for model '{model_name}'. Nothing to delete."
             )
             return True
-            
-        logger.info(f"ModelManager: Proceeding with deletion for backends: {backends_to_delete}")
 
         acquired_locks = []
         try:
@@ -189,35 +180,24 @@ class ModelManager:
                 
                 if await self.store.acquire_deletion_lock(model_name, b_name):
                     acquired_locks.append(b_name)
-                    logger.info(
-                        f"Acquired deletion lock for '{model_name}:{b_name}'"
-                    )
                 else:
                     logger.warning(
                         f"Could not acquire deletion lock for '{model_name}:{b_name}' - deletion already in progress"
                     )
 
-            logger.info(f"ModelManager: Successfully acquired {len(acquired_locks)} deletion locks out of {len(backends_to_delete)} requested")
             for b_name in acquired_locks:
                 model_key = self._get_model_key(model_name, b_name)
-                logger.info(f"ModelManager: Initiating deletion for '{model_key}'")
                 await self.store.delete_model(model_name, b_name)
-                logger.info(
-                    f"ModelManager: Initiated deletion for '{model_key}'. Status set to 'excommunicado'."
-                )
+                logger.info(f"Initiated deletion for '{model_key}'")
+
 
         finally:
-            released_count = 0
             for b_name in backends_to_delete:
                 if b_name not in acquired_locks:
                     continue
                 await self.store.release_deletion_lock(model_name, b_name)
-                released_count += 1
-            logger.info(f"ModelManager: Released {released_count} deletion locks")
 
-        success = len(acquired_locks) > 0
-        logger.info(f"ModelManager: Deletion process completed for '{model_name}'. Success: {success}")
-        return success
+        return len(acquired_locks) > 0
 
     async def _orchestrate_cleanup(self, model_key: str):
         model_name, backend = self._parse_model_key(model_key)
