@@ -169,7 +169,7 @@ class VllmBackend(SllmBackend):
 
         return cmd
 
-    async def _wait_for_server(self, timeout: int = 120):
+    async def _wait_for_server(self, timeout: int = 600):
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
