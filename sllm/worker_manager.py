@@ -95,27 +95,8 @@ class WorkerManager:
                     _, model_name, backend = key.split(":", 2)
                     logger.info(f"Processing scaling decision: {key} = {instances_required}")
 
-                    # Get current limbo instances to adjust instances_needed
-                    limbo_up_instances = (
-                        await self.store.get_limbo_up_instances(
-                            model_name, backend
-                        )
-                    )
-                    limbo_down_instances = (
-                        await self.store.get_limbo_down_instances(
-                            model_name, backend
-                        )
-                    )
-                    limbo_up_count = len(limbo_up_instances)
-                    limbo_down_count = len(limbo_down_instances)
-
-                    # Calculate actual instances needed accounting for limbo
-                    if instances_required > 0:
-                        # Scale up: subtract limbo_up (already requested but not confirmed)
-                        instances_needed = instances_required - limbo_up_count
-                    else:
-                        # Scale down: add limbo_down (already requested to stop but not confirmed)
-                        instances_needed = instances_required + limbo_down_count
+                    # Autoscaler now handles limbo adjustments, so use instances_required directly
+                    instances_needed = instances_required
 
                     if instances_needed > 0:
                         await self._execute_scale_up(

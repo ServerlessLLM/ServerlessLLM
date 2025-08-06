@@ -70,16 +70,25 @@ class VllmBackend(SllmBackend):
                 self.process = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,  # Merge stderr into stdout
                     preexec_fn=os.setsid,
+                    text=True,
+                    bufsize=1,  # Line buffered
                 )
 
                 await self._wait_for_server()
                 self.session = aiohttp.ClientSession()
                 self.status = BackendStatus.RUNNING
+                
+                # Start monitoring VLLM process logs
+                asyncio.create_task(self._monitor_process_logs())
+                
                 logger.info(
                     f"VLLM serve started successfully on {self.base_url}"
                 )
+                
+                # Test the endpoint to ensure it's actually working
+                await self._test_vllm_endpoint()
 
             except Exception as e:
                 logger.error(f"Failed to start VLLM serve: {e}")
@@ -168,6 +177,71 @@ class VllmBackend(SllmBackend):
             await asyncio.sleep(2)
 
         raise TimeoutError(f"VLLM serve did not start within {timeout} seconds")
+
+    async def _monitor_process_logs(self):
+        """Monitor VLLM process logs and detect crashes."""
+        if not self.process or not self.process.stdout:
+            return
+            
+        try:
+            while self.process.poll() is None and self.status == BackendStatus.RUNNING:
+                line = await asyncio.get_event_loop().run_in_executor(
+                    None, self.process.stdout.readline
+                )
+                if line:
+                    line = line.strip()
+                    if line:
+                        # Log VLLM output with prefix for identification
+                        logger.info(f"[VLLM-{self.port}] {line}")
+                        
+                        # Check for common error patterns
+                        if any(error in line.lower() for error in [
+                            'error', 'exception', 'traceback', 'failed', 'cuda error'
+                        ]):
+                            logger.error(f"[VLLM-{self.port}] ERROR: {line}")
+                else:
+                    # No output, small delay to prevent busy waiting
+                    await asyncio.sleep(0.1)
+                    
+            # Process has ended
+            if self.process.poll() is not None:
+                exit_code = self.process.returncode
+                logger.error(f"[VLLM-{self.port}] Process exited with code {exit_code}")
+                
+        except Exception as e:
+            logger.error(f"Error monitoring VLLM process logs: {e}")
+
+    async def _test_vllm_endpoint(self):
+        """Test VLLM endpoint with a simple completion request."""
+        if not self.session:
+            logger.warning("No session available for endpoint testing")
+            return
+            
+        test_payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": "Hello"}],
+            "max_tokens": 5,
+            "temperature": 0.0
+        }
+        
+        try:
+            logger.info(f"[VLLM-{self.port}] Testing endpoint with simple request...")
+            async with self.session.post(
+                f"{self.base_url}/v1/chat/completions",
+                json=test_payload,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    logger.info(f"[VLLM-{self.port}] Endpoint test SUCCESS: {result.get('choices', [{}])[0].get('message', {}).get('content', 'No content')}")
+                else:
+                    error_text = await response.text()
+                    logger.error(f"[VLLM-{self.port}] Endpoint test FAILED: {response.status} - {error_text}")
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"[VLLM-{self.port}] Endpoint test TIMEOUT - VLLM may be hanging")
+        except Exception as e:
+            logger.error(f"[VLLM-{self.port}] Endpoint test ERROR: {e}")
 
     def _cleanup_process(self):
         cleanup_subprocess(self.process)
