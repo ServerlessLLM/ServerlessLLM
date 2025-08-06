@@ -41,9 +41,7 @@ async def run_heartbeat_loop(
 ):
     # Start as new worker - node_id will be assigned by head node
     current_node_id = None
-    logger.debug(
-        f"Starting heartbeat loop for new worker. Will receive node_id via /confirmation endpoint."
-    )
+    logger.debug("Starting heartbeat loop")
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -53,9 +51,7 @@ async def run_heartbeat_loop(
                     stored_node_id = getattr(app_state, "node_id", None)
                     if stored_node_id:
                         current_node_id = stored_node_id
-                        logger.info(
-                            f"Using node_id received from confirmation: {current_node_id}"
-                        )
+                        logger.info(f"Using node_id: {current_node_id}")
 
                 dynamic_info = get_dynamic_metrics()
 
@@ -77,7 +73,7 @@ async def run_heartbeat_loop(
                 ) as response:
                     response.raise_for_status()
                     logger.debug(
-                        f"Heartbeat sent successfully for node {current_node_id or 'unregistered'}."
+                        f"Heartbeat sent: {current_node_id or 'unregistered'}"
                     )
 
             except Exception as e:

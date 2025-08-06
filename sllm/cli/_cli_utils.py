@@ -44,7 +44,7 @@ logger = init_logger(__name__)
 
 def get_advertise_ip() -> str:
     """Get the IP address to advertise to other services.
-    
+
     Uses NODE_IP environment variable if set, otherwise auto-detects
     the container/host IP address.
     """
@@ -52,7 +52,7 @@ def get_advertise_ip() -> str:
     node_ip = os.environ.get("NODE_IP")
     if node_ip:
         return node_ip
-    
+
     try:
         # Auto-detect container IP by connecting to a remote address
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -160,7 +160,9 @@ async def _run_worker_node(host, port, head_node_url):
 
     # Separate bind address from advertise address
     advertise_ip = get_advertise_ip()
-    logger.info(f"Worker binding to {host}:{port}, advertising as {advertise_ip}:{port}")
+    logger.info(
+        f"Worker binding to {host}:{port}, advertising as {advertise_ip}:{port}"
+    )
 
     static_hardware_info = benchmark_static_hardware()
     instance_manager = InstanceManager(node_ip=advertise_ip)
@@ -389,11 +391,11 @@ def delete_model(models, backend=None, lora_adapters=None):
     for model in models:
         url = f"{base_url.rstrip('/')}/delete"
         data = {"model": model}
-        
+
         # Add backend to request if specified
         if backend is not None:
             data["backend"] = backend
-            
+
         # Robust lora_adapters parsing (same as deploy)
         if lora_adapters is not None:
             # Accept: demo-lora1 demo-lora2 OR demo-lora1=path ...

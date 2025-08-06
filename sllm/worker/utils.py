@@ -59,9 +59,7 @@ def _get_live_gpu_info() -> dict:
                 "memory_used": gpu.memoryUsed,
             }
     except Exception as e:
-        logger.error(
-            f"Failed to retrieve live GPU information: {e}", exc_info=True
-        )
+        logger.error(f"GPU info failed: {e}", exc_info=True)
         gpus_info = {"status": "error", "message": str(e)}
     return gpus_info
 
@@ -71,7 +69,7 @@ def benchmark_static_hardware(test_network: bool = False) -> dict:
     Performs all slow, one-time hardware benchmarks.
     This should only be run once when the worker process starts.
     """
-    logger.info("Running one-time static hardware benchmarks...")
+    logger.debug("Running hardware benchmarks")
 
     write_bw, read_bw = _benchmark_disk_bandwidth()
 
@@ -85,10 +83,8 @@ def benchmark_static_hardware(test_network: bool = False) -> dict:
     }
 
     if test_network:
-        logger.warning(
-            "Running network bandwidth test. This can take a minute..."
-        )
-    logger.info("Static hardware benchmarks complete.")
+        logger.warning("Running network test (takes ~1min)")
+    logger.debug("Benchmarks complete")
     return static_info
 
 
@@ -106,9 +102,7 @@ def _get_static_gpu_info() -> dict:
                 "total_memory": gpu.memoryTotal,
             }
     except Exception as e:
-        logger.error(
-            f"Failed to retrieve static GPU information: {e}", exc_info=True
-        )
+        logger.error(f"Static GPU info failed: {e}", exc_info=True)
         gpus_info = {"status": "error", "message": str(e)}
     return gpus_info
 
@@ -134,7 +128,7 @@ def _benchmark_disk_bandwidth(
         temp_file = os.path.join(temp_dir, "sllm_disk_benchmark.tmp")
         size_bytes = file_size_mb * 1024 * 1024
 
-        logger.info(f"Benchmarking disk R/W with a {file_size_mb}MB file...")
+        logger.debug(f"Disk benchmark: {file_size_mb}MB")
 
         for _ in range(num_iterations):
             start_time = time.time()
@@ -154,11 +148,11 @@ def _benchmark_disk_bandwidth(
         avg_write = sum(write_results) / len(write_results)
         avg_read = sum(read_results) / len(read_results)
         logger.info(
-            f"Disk benchmark results: Write={avg_write/1e6:.2f} MB/s, Read={avg_read/1e6:.2f} MB/s"
+            f"Disk: W={avg_write/1e6:.1f} MB/s, R={avg_read/1e6:.1f} MB/s"
         )
         return avg_write, avg_read
     except Exception as e:
-        logger.error(f"Disk bandwidth benchmark failed: {e}", exc_info=True)
+        logger.error(f"Disk benchmark failed: {e}")
         return 0.0, 0.0
 
 
@@ -171,7 +165,7 @@ def _get_network_bandwidth(speedtest_module) -> tuple:
         upload_bps = st.upload()
         return upload_bps, download_bps
     except Exception as e:
-        logger.error(f"Network bandwidth test failed: {e}", exc_info=True)
+        logger.error(f"Network test failed: {e}")
         return 0.0, 0.0
 
 
@@ -187,27 +181,21 @@ def validate_storage_path(storage_path: str) -> bool:
 def validate_vllm_model_path(model_path: str) -> bool:
     exists = os.path.exists(model_path)
     is_dir = os.path.isdir(model_path) if exists else False
-    logger.debug(
-        f"vLLM path {model_path}: exists={exists}, is_dir={is_dir}"
-    )
+    logger.debug(f"vLLM {model_path}: {exists}/{is_dir}")
     return exists and is_dir
 
 
 def validate_transformers_model_path(model_path: str) -> bool:
     exists = os.path.exists(model_path)
     is_dir = os.path.isdir(model_path) if exists else False
-    logger.debug(
-        f"Transformers path {model_path}: exists={exists}, is_dir={is_dir}"
-    )
+    logger.debug(f"Transformers {model_path}: {exists}/{is_dir}")
     return exists and is_dir
 
 
 def validate_lora_adapter_path(adapter_path: str) -> bool:
     exists = os.path.exists(adapter_path)
     is_dir = os.path.isdir(adapter_path) if exists else False
-    logger.info(
-        f"LoRA path {adapter_path}: exists={exists}, is_dir={is_dir}"
-    )
+    logger.debug(f"LoRA {adapter_path}: {exists}/{is_dir}")
     return exists and is_dir
 
 

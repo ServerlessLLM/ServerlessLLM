@@ -238,9 +238,15 @@ def create_app(
 
         # Fix model field in payload to contain only model name, not model:backend
         payload = body.copy()
-        payload["model"] = model  # Use parsed model name instead of full identifier
-        
-        task_package = {"task_id": task_id, "action": action, "payload": payload}
+        payload["model"] = (
+            model  # Use parsed model name instead of full identifier
+        )
+
+        task_package = {
+            "task_id": task_id,
+            "action": action,
+            "payload": payload,
+        }
 
         store: RedisStore = request.app.state.redis_store
         result_queue = asyncio.Queue()
@@ -298,7 +304,7 @@ def create_app(
     @app.get("/v1/models")
     async def get_models(request: Request):
         try:
-            # Use KV store's OpenAI-compliant get_all_models method  
+            # Use KV store's OpenAI-compliant get_all_models method
             store: RedisStore = request.app.state.redis_store
             model_statuses = await store.get_all_models()
             return model_statuses

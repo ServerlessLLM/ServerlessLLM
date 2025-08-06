@@ -177,7 +177,7 @@ class ModelManager:
                         f"Delete request for '{model_name}:{b_name}' ignored - model already marked as 'excommunicado'"
                     )
                     continue
-                
+
                 if await self.store.acquire_deletion_lock(model_name, b_name):
                     acquired_locks.append(b_name)
                 else:
@@ -189,7 +189,6 @@ class ModelManager:
                 model_key = self._get_model_key(model_name, b_name)
                 await self.store.delete_model(model_name, b_name)
                 logger.info(f"Initiated deletion for '{model_key}'")
-
 
         finally:
             for b_name in backends_to_delete:

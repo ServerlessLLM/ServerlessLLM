@@ -152,10 +152,14 @@ class Dispatcher:
                 if current_decision is None:
                     # Only set if no scaling decision exists (first request)
                     await self.store.client.set(decision_key, 1, ex=60)
-                    logger.info(f"Set scaling decision for {model_identifier}: +1 instance")
+                    logger.info(
+                        f"Set scaling decision for {model_identifier}: +1 instance"
+                    )
                 else:
-                    logger.debug(f"Scaling already requested for {model_identifier}")
-                
+                    logger.debug(
+                        f"Scaling already requested for {model_identifier}"
+                    )
+
                 await self.store.enqueue_task(model_name, backend, task_data)
                 return
 
@@ -344,8 +348,10 @@ class Dispatcher:
                 f"Instance {instance_id} has no port information."
             )
 
-        # Determine request type and endpoint  
-        request_type = payload.get("action", "generate")  # Get action from task_data, not payload
+        # Determine request type and endpoint
+        request_type = payload.get(
+            "action", "generate"
+        )  # Get action from task_data, not payload
         if request_type == "fine_tuning":
             endpoint = "/fine-tuning"
         elif request_type == "encode":
@@ -356,7 +362,9 @@ class Dispatcher:
             endpoint = "/v1/chat/completions"  # Default inference endpoint
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
-        logger.info(f"Dispatching {request_type} request to: {url} with model: {payload.get('model', 'NOT_SET')}")
+        logger.info(
+            f"Dispatching {request_type} request to: {url} with model: {payload.get('model', 'NOT_SET')}"
+        )
 
         # For fine-tuning requests, add concurrency limit
         if request_type == "fine_tuning":

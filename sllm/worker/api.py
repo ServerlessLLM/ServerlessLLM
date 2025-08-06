@@ -31,15 +31,11 @@ async def _start_instance_background(
 ):
     """Background task to actually start the instance."""
     try:
-        logger.debug(
-            f"Starting background instance creation for {instance_id}"
-        )
+        logger.debug(f"Starting instance {instance_id}")
         started_instance_id = await instance_manager.start_instance(
             model_config, instance_id
         )
-        logger.debug(
-            f"Successfully started instance {started_instance_id}"
-        )
+        logger.debug(f"Started {started_instance_id}")
     except Exception as e:
         logger.error(
             f"Failed to start instance {instance_id} in background: {e}"
@@ -58,7 +54,9 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
         return {
             "status": "healthy",
             "node_id": getattr(app.state, "node_id", None),
-            "running_instances": len(instance_manager.get_running_instances_info())
+            "running_instances": len(
+                instance_manager.get_running_instances_info()
+            ),
         }
 
     @app.post("/confirmation")
@@ -90,9 +88,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
         if not model_config:
             raise HTTPException(status_code=400, detail="Missing model_config")
 
-        logger.debug(
-            f"[WORKER_API] Received start instance request for {instance_id}"
-        )
+        logger.debug(f"Start request: {instance_id}")
 
         # Send immediate confirmation that request was received
         response = {

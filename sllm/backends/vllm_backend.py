@@ -62,8 +62,6 @@ class VllmBackend(SllmBackend):
             if self.status != BackendStatus.UNINITIALIZED:
                 return
 
-            logger.debug(f"Starting vllm serve for model {self.model}")
-
             cmd = self._build_serve_command()
 
             try:
@@ -75,30 +73,27 @@ class VllmBackend(SllmBackend):
                     text=True,
                     bufsize=1,  # Line buffered
                 )
-                
+
                 # Check if process started successfully
                 await asyncio.sleep(1)  # Give it a moment to start
                 if self.process.poll() is not None:
                     stdout, _ = self.process.communicate()
-                    logger.error(f"VLLM process failed to start. Exit code: {self.process.returncode}")
+                    logger.error(
+                        f"VLLM process failed to start. Exit code: {self.process.returncode}"
+                    )
                     logger.error(f"VLLM output: {stdout}")
-                    raise RuntimeError(f"VLLM process failed to start with exit code {self.process.returncode}")
-                
-                logger.debug(f"VLLM process started with PID {self.process.pid}")
+                    raise RuntimeError(
+                        f"VLLM process failed to start with exit code {self.process.returncode}"
+                    )
 
                 await self._wait_for_server()
                 self.session = aiohttp.ClientSession()
                 self.status = BackendStatus.RUNNING
-                
+
                 # Start monitoring VLLM process logs
                 asyncio.create_task(self._monitor_process_logs())
-                
-                logger.info(
-                    f"VLLM serve started successfully on {self.base_url}"
-                )
-                
-                # Optionally test the endpoint
-                # await self._test_vllm_endpoint()
+
+                logger.info(f"VLLM started on {self.base_url}")
 
             except Exception as e:
                 logger.error(f"Failed to start VLLM serve: {e}")
@@ -128,20 +123,22 @@ class VllmBackend(SllmBackend):
             "--host",
             self.host,
         ]
-        
-        logger.info(f"VLLM serve command: {' '.join(cmd)}")
-        
+
         # Validate VLLM command exists (optional check)
         try:
             subprocess.run(
-                ["vllm", "--version"], 
-                capture_output=True, 
-                text=True, 
+                ["vllm", "--version"],
+                capture_output=True,
+                text=True,
                 timeout=5,
-                check=True
+                check=True,
             )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-            logger.warning("VLLM command validation failed, but proceeding anyway")
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ):
+            logger.warning("VLLM command validation failed, proceeding anyway")
 
         if "max_model_len" in self.backend_config:
             cmd.extend(
@@ -173,12 +170,12 @@ class VllmBackend(SllmBackend):
                 cmd.append("--disable-prefix-caching")
         if "dtype" in self.backend_config:
             cmd.extend(["--dtype", self.backend_config["dtype"]])
-        
+
         # Add a simple chat template for base models that don't have one
         # This allows /v1/chat/completions to work with base models like OPT
-        logger.debug(f"Adding default chat template for model {self.model} (fallback if no built-in template)")
-        # Use a simpler template that's less likely to cause parsing issues
-        simple_template = "{% for message in messages %}{{ message.content }}{% endfor %}"
+        simple_template = (
+            "{% for message in messages %}{{ message.content }}{% endfor %}"
+        )
         cmd.extend(["--chat-template", simple_template])
 
         return cmd
@@ -200,14 +197,20 @@ class VllmBackend(SllmBackend):
                 exit_code = self.process.returncode
                 # Read any available output without blocking
                 try:
-                    stdout = self.process.stdout.read() if self.process.stdout else ""
+                    stdout = (
+                        self.process.stdout.read()
+                        if self.process.stdout
+                        else ""
+                    )
                 except:
                     stdout = "Could not read output"
                 logger.error(
-                    f"VLLM serve process died during startup with exit code {exit_code}"
+                    f"VLLM process died during startup with exit code {exit_code}"
                 )
                 logger.error(f"VLLM output: {stdout}")
-                raise RuntimeError(f"VLLM serve process died during startup with exit code {exit_code}")
+                raise RuntimeError(
+                    f"VLLM process died during startup with exit code {exit_code}"
+                )
 
             await asyncio.sleep(2)
 
@@ -217,9 +220,12 @@ class VllmBackend(SllmBackend):
         """Monitor VLLM process logs and detect crashes."""
         if not self.process or not self.process.stdout:
             return
-            
+
         try:
-            while self.process.poll() is None and self.status == BackendStatus.RUNNING:
+            while (
+                self.process.poll() is None
+                and self.status == BackendStatus.RUNNING
+            ):
                 line = await asyncio.get_event_loop().run_in_executor(
                     None, self.process.stdout.readline
                 )
@@ -227,85 +233,31 @@ class VllmBackend(SllmBackend):
                     line = line.strip()
                     if line:
                         # Only log errors and important messages
-                        if any(error in line.lower() for error in [
-                            'error', 'exception', 'traceback', 'failed', 'cuda error', 'out of memory'
-                        ]):
-                            logger.error(f"[VLLM-{self.port}] {line}")
-                        else:
-                            logger.debug(f"[VLLM-{self.port}] {line}")
+                        if any(
+                            error in line.lower()
+                            for error in [
+                                "error",
+                                "exception",
+                                "traceback",
+                                "failed",
+                                "cuda error",
+                                "out of memory",
+                            ]
+                        ):
+                            logger.error(f"VLLM-{self.port}: {line}")
                 else:
                     # No output, small delay to prevent busy waiting
                     await asyncio.sleep(0.1)
-                    
+
             # Process has ended
             if self.process.poll() is not None:
                 exit_code = self.process.returncode
-                logger.error(f"[VLLM-{self.port}] Process exited with code {exit_code}")
-                
-        except Exception as e:
-            logger.error(f"[VLLM-{self.port}] Error monitoring process logs: {e}")
+                logger.error(
+                    f"VLLM-{self.port} process exited with code {exit_code}"
+                )
 
-    async def _test_vllm_endpoint(self):
-        """Test VLLM endpoints to ensure they're working."""
-        if not self.session:
-            logger.warning("No session available for endpoint testing")
-            return
-            
-        # Test completions endpoint
-        completion_payload = {
-            "model": self.model,
-            "prompt": "Hello",
-            "max_tokens": 5,
-            "temperature": 0.0
-        }
-        
-        # Test chat completions endpoint  
-        chat_payload = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": "Hello"}],
-            "max_tokens": 5,
-            "temperature": 0.0
-        }
-        
-        # Test completions endpoint
-        try:
-            logger.info(f"[VLLM-{self.port}] Testing /v1/completions endpoint...")
-            async with self.session.post(
-                f"{self.base_url}/v1/completions",
-                json=completion_payload,
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    logger.info(f"[VLLM-{self.port}] Completions test SUCCESS: {result.get('choices', [{}])[0].get('text', 'No text')}")
-                else:
-                    error_text = await response.text()
-                    logger.error(f"[VLLM-{self.port}] Completions test FAILED: {response.status} - {error_text}")
-                    
-        except asyncio.TimeoutError:
-            logger.error(f"[VLLM-{self.port}] Completions test TIMEOUT - VLLM may be hanging")
         except Exception as e:
-            logger.error(f"[VLLM-{self.port}] Completions test ERROR: {e}")
-            
-        # Test chat completions endpoint
-        try:
-            logger.info(f"[VLLM-{self.port}] Testing /v1/chat/completions endpoint...")
-            async with self.session.post(
-                f"{self.base_url}/v1/chat/completions",
-                json=chat_payload,
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    logger.info(f"[VLLM-{self.port}] Chat completions test SUCCESS: {result.get('choices', [{}])[0].get('message', {}).get('content', 'No content')}")
-                else:
-                    error_text = await response.text()
-                    logger.error(f"[VLLM-{self.port}] Chat completions test FAILED: {response.status} - {error_text}")
-                    
-        except asyncio.TimeoutError:
-            logger.error(f"[VLLM-{self.port}] Chat completions test TIMEOUT - VLLM may be hanging")
-        except Exception as e:
-            logger.error(f"[VLLM-{self.port}] Chat completions test ERROR: {e}")
+            logger.error(f"VLLM-{self.port} error monitoring logs: {e}")
 
     def _cleanup_process(self):
         cleanup_subprocess(self.process)
@@ -317,14 +269,11 @@ class VllmBackend(SllmBackend):
                 return
             self.status = BackendStatus.DELETING
 
-        logger.info("Shutting down VLLM serve backend")
-
         if self.session:
             await self.session.close()
             self.session = None
 
         self._cleanup_process()
-        logger.info("VLLM serve backend shutdown complete")
 
     async def stop(self) -> None:
         async with self.status_lock:
@@ -332,7 +281,6 @@ class VllmBackend(SllmBackend):
                 return
             self.status = BackendStatus.STOPPING
 
-        logger.info("Stopping VLLM serve backend")
         await self.shutdown()
 
     async def encode(self, request_data: Dict[str, Any]):
@@ -359,7 +307,7 @@ class VllmBackend(SllmBackend):
                 else:
                     error_text = await response.text()
                     logger.error(
-                        f"VLLM serve embedding API error: {response.status} - {error_text}"
+                        f"VLLM embedding API error: {response.status} - {error_text}"
                     )
                     return {
                         "error": f"Embedding request failed: {response.status}"

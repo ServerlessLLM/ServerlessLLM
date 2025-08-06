@@ -393,11 +393,11 @@ class RedisStore:
         model_name = model.get("model")
         if not model_name:
             raise ValueError("Model configuration must include 'model' key")
-        
+
         backend = model.get("backend")
         if not backend:
             raise ValueError("Model configuration must include 'backend' key")
-            
+
         # Check if model exists and is marked as excommunicado
         existing_model = await self.get_model(model_name, backend)
         if existing_model and existing_model.get("status") == "excommunicado":
@@ -408,7 +408,7 @@ class RedisStore:
             raise ValueError(
                 f"Model {model_name}:{backend} is currently being deleted. Please wait for cleanup to complete."
             )
-        
+
         key = self._get_model_key(model_name, backend)
         model_dict = model.copy()
         model_dict["model"] = model_name
@@ -598,7 +598,7 @@ class RedisStore:
 
     async def delete_model(self, model_name: str, backend: str) -> None:
         model_key = self._get_model_key(model_name, backend)
-        
+
         async with self.client.pipeline(transaction=True) as pipe:
             pipe.hset(model_key, "status", "excommunicado")
             pipe.srem(self._get_model_status_index_key("alive"), model_key)
@@ -618,33 +618,39 @@ class RedisStore:
     ):
         if lora_adapters is None:
             lora_adapters = []
-        
+
         if not lora_adapters:
-            logger.warning(f"No LoRA adapters specified for deletion from {model_name}:{backend}")
+            logger.warning(
+                f"No LoRA adapters specified for deletion from {model_name}:{backend}"
+            )
             return
-        
+
         model_key = self._get_model_key(model_name, backend)
         model_data = await self.get_model(model_name, backend)
         if not model_data:
             raise ValueError(f"Model {model_name}:{backend} not found")
-        
+
         backend_config = model_data.get("backend_config", {})
         current_lora_adapters = backend_config.get("lora_adapters", {})
-        
+
         for adapter_name in lora_adapters:
             if adapter_name in current_lora_adapters:
                 del current_lora_adapters[adapter_name]
-                logger.info(f"Removed LoRA adapter '{adapter_name}' from {model_name}:{backend}")
+                logger.info(
+                    f"Removed LoRA adapter '{adapter_name}' from {model_name}:{backend}"
+                )
             else:
-                logger.warning(f"LoRA adapter '{adapter_name}' not found in {model_name}:{backend}")
-        
+                logger.warning(
+                    f"LoRA adapter '{adapter_name}' not found in {model_name}:{backend}"
+                )
+
         backend_config["lora_adapters"] = current_lora_adapters
-        
+
         await self._execute_with_retry(
             self.client.hset,
             model_key,
             "backend_config",
-            json.dumps(backend_config)
+            json.dumps(backend_config),
         )
 
     async def increment_limbo_up(

@@ -46,18 +46,16 @@ async def download_transformers_model(
     )
 
     if os.path.exists(model_path):
-        logger.info(f"{model_path} already exists")
+        logger.info(f"{model_name} exists")
         return True
 
     try:
         torch_dtype = getattr(torch, torch_dtype)
     except AttributeError:
-        logger.error(
-            f"Invalid torch dtype: {torch_dtype}, defaulting to float16"
-        )
+        logger.error(f"Invalid torch dtype: {torch_dtype}, using float16")
         torch_dtype = torch.float16
 
-    logger.info(f"Downloading {model_path}")
+    logger.info(f"Downloading {model_name}")
 
     # Run blocking operations in thread pool to avoid blocking heartbeats
 
@@ -79,7 +77,7 @@ async def download_transformers_model(
 
     from sllm_store.transformers import save_model
 
-    logger.info(f"Saving {model_path}")
+    logger.info(f"Saving {model_name}")
 
     def _save_model_and_tokenizer():
         save_model(model, model_path)
@@ -88,7 +86,7 @@ async def download_transformers_model(
     try:
         await loop.run_in_executor(None, _save_model_and_tokenizer)
     except Exception as e:
-        logger.error(f"Failed to save {model_path}: {e}")
+        logger.error(f"Save failed {model_name}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
         raise RuntimeError(
             f"Failed to save {model_name} for transformer backend: {e}"
@@ -110,15 +108,13 @@ async def download_lora_adapter(
     )
 
     if os.path.exists(adapter_path):
-        logger.info(f"{adapter_path} already exists")
+        logger.info(f"{adapter_name} exists")
         return True
 
     try:
         torch_dtype = getattr(torch, torch_dtype)
     except AttributeError:
-        logger.error(
-            f"Invalid torch dtype: {torch_dtype}, defaulting to float16"
-        )
+        logger.error(f"Invalid torch dtype: {torch_dtype}, using float16")
         torch_dtype = torch.float16
 
     from transformers import AutoConfig
@@ -135,7 +131,7 @@ async def download_lora_adapter(
         trust_remote_code=True,
     ).to(config.torch_dtype)
 
-    logger.info(f"Downloading {adapter_path}")
+    logger.info(f"Downloading {adapter_name}")
     from peft import PeftModel
 
     try:
@@ -146,11 +142,11 @@ async def download_lora_adapter(
 
     from sllm_store.transformers import save_lora
 
-    logger.info(f"Saving {adapter_path}")
+    logger.info(f"Saving {adapter_name}")
     try:
         save_lora(model, adapter_path)
     except Exception as e:
-        logger.error(f"Failed to save {adapter_path}: {e}")
+        logger.error(f"Save failed {adapter_name}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
         raise RuntimeError(
             f"Failed to save {adapter_name} for transformer backend: {e}"
@@ -185,7 +181,7 @@ class VllmModelDownloader:
         storage_path = os.getenv("STORAGE_PATH", "/models")
         model_path = os.path.join(storage_path, "vllm", model_name)
         if os.path.exists(model_path):
-            logger.info(f"{model_path} already exists")
+            logger.info(f"{model_name} exists")
             return
 
         cache_dir = TemporaryDirectory()
@@ -208,7 +204,7 @@ class VllmModelDownloader:
                     )
 
                 input_dir = await loop.run_in_executor(None, _download)
-            logger.info(f"Loading model from {input_dir}")
+            logger.info(f"Loading {model_name}")
 
             # load models from the input directory (run in thread pool)
             def _create_and_save_llm():
@@ -246,8 +242,8 @@ class VllmModelDownloader:
                 ):
                     src_path = os.path.join(input_dir, file)
                     dest_path = os.path.join(model_path, file)
-                    logger.info(src_path)
-                    logger.info(dest_path)
+                    logger.debug(src_path)
+                    logger.debug(dest_path)
                     if os.path.isdir(src_path):
                         shutil.copytree(src_path, dest_path)
                     else:
@@ -259,7 +255,7 @@ class VllmModelDownloader:
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
         except Exception as e:
-            logger.info(f"An error occurred while saving the model: {e}")
+            logger.error(f"Save error {model_name}: {e}")
             # remove the output dir
             shutil.rmtree(model_path)
             raise RuntimeError(

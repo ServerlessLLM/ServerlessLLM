@@ -124,11 +124,18 @@ def deploy(
 
 @cli.command()
 @click.argument("models", nargs=-1)
-@click.option("--backend", help="Backend framework (e.g., vllm, transformers). Use 'all' to delete all backends. If not specified, deletes all backends for the model.")
+@click.option(
+    "--backend",
+    help="Backend framework (e.g., vllm, transformers). Use 'all' to delete all backends. If not specified, deletes all backends for the model.",
+)
 @click.option("--lora-adapters", help="LoRA adapters to delete.")
 def delete(models, backend, lora_adapters):
     """Delete deployed models, or remove only the LoRA adapters."""
-    delete_model(models, backend=backend, lora_adapters=lora_adapters if lora_adapters else None)
+    delete_model(
+        models,
+        backend=backend,
+        lora_adapters=lora_adapters if lora_adapters else None,
+    )
 
 
 @cli.group()

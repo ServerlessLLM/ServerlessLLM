@@ -108,7 +108,7 @@ class AutoScaler:
 
         # Ensure we respect min/max constraints
         final_needed = max(min_instances, min(needed, max_instances))
-        
+
         # Account for limbo states when calculating instance delta
         # This prevents oscillation where autoscaler keeps making decisions
         # that worker_manager will filter out due to limbo states
@@ -119,7 +119,7 @@ class AutoScaler:
         elif final_needed < current_instances:
             # Scale down: account for instances already being stopped (limbo_down)
             effective_current -= limbo_down
-            
+
         instance_delta = final_needed - effective_current
 
         # Handle keep-alive logic for scale-down

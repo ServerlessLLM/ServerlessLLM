@@ -93,7 +93,9 @@ class WorkerManager:
 
                     instances_required = int(instances_required_str)
                     _, model_name, backend = key.split(":", 2)
-                    logger.info(f"Processing scaling decision: {key} = {instances_required}")
+                    logger.info(
+                        f"Processing scaling decision: {key} = {instances_required}"
+                    )
 
                     # Autoscaler now handles limbo adjustments, so use instances_required directly
                     instances_needed = instances_required
@@ -207,9 +209,7 @@ class WorkerManager:
                         f"Instance {instance_id} was already in limbo_up"
                     )
                 else:
-                    logger.info(
-                        f"Successfully added {instance_id} to limbo_up"
-                    )
+                    logger.info(f"Successfully added {instance_id} to limbo_up")
 
                 # NOTE: is this necessary?
                 await self.store.set_worker_status(

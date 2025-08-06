@@ -120,9 +120,7 @@ class TransformersBackend(SllmBackend):
             raise ValueError("Backend config is missing")
 
         self.backend_config = backend_config
-        logger.info(
-            f"Initializing TransformersBackend for {model_name} with config: {backend_config}"
-        )
+        logger.info(f"Initializing TransformersBackend for {model_name}")
         self.model_name = model_name
         self.pretrained_model_name_or_path = backend_config.get(
             "pretrained_model_name_or_path"
@@ -163,9 +161,7 @@ class TransformersBackend(SllmBackend):
 
         @self.app.post("/v1/chat/completions")
         async def chat_completions(request: ChatCompletionRequest):
-            logger.info(
-                f"[TransformersBackend] /v1/chat/completions endpoint hit with task_id: {request.task_id}, model: {request.model}"
-            )
+            logger.info(f"Chat completions request: task_id={request.task_id}")
             request_dict = {
                 "model": request.model or self.model_name,
                 "messages": request.messages,
@@ -179,9 +175,7 @@ class TransformersBackend(SllmBackend):
 
         @self.app.post("/v1/completions")
         async def completions(request: CompletionRequest):
-            logger.info(
-                f"[TransformersBackend] /v1/completions endpoint hit with task_id: {request.task_id}, model: {request.model}"
-            )
+            logger.info(f"Completions request: task_id={request.task_id}")
             request_dict = {
                 "model": request.model or self.model_name,
                 "prompt": request.prompt,
@@ -219,9 +213,7 @@ class TransformersBackend(SllmBackend):
             if self.status != BackendStatus.UNINITIALIZED:
                 return
 
-            logger.info(
-                f"Starting transformers backend for model {self.model_name}"
-            )
+            logger.info(f"Starting backend for {self.model_name}")
 
             try:
                 # Initialize the model
@@ -231,9 +223,7 @@ class TransformersBackend(SllmBackend):
                 await self._start_server()
 
                 self.status = BackendStatus.RUNNING
-                logger.info(
-                    f"Transformers backend started successfully on {self.base_url}"
-                )
+                logger.info(f"Backend started on {self.base_url}")
 
             except Exception as e:
                 logger.error(f"Failed to start Transformers backend: {e}")
@@ -290,9 +280,7 @@ class TransformersBackend(SllmBackend):
         # Initialize inference status
         self.inf_status = InferenceStatus(self.status)
 
-        logger.info(
-            f"Model and tokenizer loaded successfully for {self.model_name}"
-        )
+        logger.info(f"Model loaded: {self.model_name}")
 
     async def _start_server(self):
         """Start the FastAPI server in a separate task"""
@@ -391,15 +379,11 @@ class TransformersBackend(SllmBackend):
             if request_data
             else "unknown"
         )
-        logger.info(
-            f"[TransformersBackend] Received generate request with task_id: {task_id}"
-        )
+        logger.info(f"Generate request: task_id={task_id}")
 
         async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
-                logger.error(
-                    f"[TransformersBackend] Model not initialized for task_id: {task_id}"
-                )
+                logger.error(f"Model not initialized: task_id={task_id}")
                 return {"error": "Model not initialized"}
 
         assert self.model is not None
@@ -419,7 +403,7 @@ class TransformersBackend(SllmBackend):
         if "messages" in request_data:
             # Chat completions format
             logger.debug(
-                f"[TransformersBackend] Processing chat completion task_id: {task_id}, model: {model_name}, max_tokens: {max_tokens}, messages: {len(messages)} messages"
+                f"Chat completion: task_id={task_id}, messages={len(messages)}"
             )
             # Combine messages to form the prompt
             try:
@@ -435,7 +419,7 @@ class TransformersBackend(SllmBackend):
             # Completions format - direct prompt
             prompt = request_data.get("prompt", "")
             logger.debug(
-                f"[TransformersBackend] Processing completion task_id: {task_id}, model: {model_name}, max_tokens: {max_tokens}, prompt length: {len(prompt)}"
+                f"Completion: task_id={task_id}, prompt_len={len(prompt)}"
             )
 
         if not prompt:
@@ -460,7 +444,7 @@ class TransformersBackend(SllmBackend):
 
         # Generate response
         logger.info(
-            f"[TransformersBackend] Starting generation for task_id: {task_id}, prompt_tokens: {prompt_tokens}"
+            f"Generation start: task_id={task_id}, tokens={prompt_tokens}"
         )
         try:
             with torch.no_grad():
@@ -469,9 +453,7 @@ class TransformersBackend(SllmBackend):
                     **generate_kwargs,
                 )
         except DeletingException:
-            logger.info(
-                f"[TransformersBackend] Backend is shutting down. Aborting request task_id: {task_id}"
-            )
+            logger.info(f"Aborting request due to shutdown: task_id={task_id}")
             output_tokens = self.inf_status.get()
             self.inf_status.delete()
             return {
@@ -480,9 +462,7 @@ class TransformersBackend(SllmBackend):
                 "completed_tokens": len(output_tokens[0]) - prompt_tokens,
             }
         except Exception as e:
-            logger.error(
-                f"[TransformersBackend] Failed to generate response for task_id: {task_id}: {e}"
-            )
+            logger.error(f"Generation failed: task_id={task_id}, error={e}")
             raise e
         else:
             output_text = self.tokenizer.decode(
@@ -543,7 +523,7 @@ class TransformersBackend(SllmBackend):
                 }
 
             logger.debug(
-                f"[TransformersBackend] Successfully generated response for task_id: {task_id}, completion_tokens: {completion_tokens}, finish_reason: {finish_reason}"
+                f"Generation complete: task_id={task_id}, tokens={completion_tokens}"
             )
             self.inf_status.delete()
             return response
@@ -597,9 +577,7 @@ class TransformersBackend(SllmBackend):
         trainer.train()
 
         save_lora(peft_model, lora_save_path)
-        logger.info(
-            f"Fine-tuning completed. LoRA adapter and config saved to {lora_save_path}"
-        )
+        logger.info(f"Fine-tuning completed: {lora_save_path}")
 
         response = {
             "model": self.model_name,
@@ -722,11 +700,9 @@ class TransformersBackend(SllmBackend):
 
         # Wait for ongoing requests to finish
         while self.inf_status and len(self.inf_status.get()) > 0:
-            logger.debug("Waiting for all requests to finish")
             await asyncio.sleep(1)
 
         await self._cleanup()
-        logger.info("Transformers backend shutdown complete")
 
     async def stop(self) -> None:
         """Wait for all requests to finish and shutdown the backend."""
@@ -736,10 +712,7 @@ class TransformersBackend(SllmBackend):
             self.status = BackendStatus.STOPPING
 
         while self.inf_status and len(self.inf_status.get()) > 0:
-            logger.debug("Waiting for all requests to finish")
             await asyncio.sleep(1)
-
-        logger.debug("All requests finished. Shutting down the backend.")
         await self.shutdown()
 
     async def get_current_tokens(self) -> List[List[int]]:
@@ -750,7 +723,7 @@ class TransformersBackend(SllmBackend):
 
         if self.inf_status:
             status = self.inf_status.get()
-            logger.info(f"Current tokens: {status}")
+            logger.debug(f"Current tokens: {status}")
             return status
         return []
 
@@ -759,11 +732,9 @@ class TransformersBackend(SllmBackend):
         if self.status != BackendStatus.RUNNING:
             return
 
-        logger.debug(f"Resuming cache for {request_datas}")
         with torch.no_grad():
             device = self.model.device
             input_ids = torch.tensor(request_datas).to(device)
-            logger.info(input_ids)
             output = self.model.generate(
                 input_ids,
                 past_key_values=self.past_key_values,
@@ -773,4 +744,3 @@ class TransformersBackend(SllmBackend):
             )
             self.past_key_values = output.past_key_values
             self.current_tokens = output.sequences
-        logger.debug(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
