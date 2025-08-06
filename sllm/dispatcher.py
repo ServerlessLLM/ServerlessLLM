@@ -350,6 +350,8 @@ class Dispatcher:
             endpoint = "/fine-tuning"
         elif request_type == "encode":
             endpoint = "/v1/embeddings"
+        elif request_type == "completions":
+            endpoint = "/v1/completions"
         else:
             endpoint = "/v1/chat/completions"  # Default inference endpoint
 

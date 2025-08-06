@@ -151,6 +151,21 @@ class VllmBackend(SllmBackend):
                 cmd.append("--disable-prefix-caching")
         if "dtype" in self.backend_config:
             cmd.extend(["--dtype", self.backend_config["dtype"]])
+        
+        # Always add a default chat template for base models that don't have one
+        # This allows /v1/chat/completions to work with base models like OPT
+        # VLLM will check if the model has a built-in template and use ours as fallback
+        logger.info(f"Adding default chat template for model {self.model} (fallback if no built-in template)")
+        default_template = (
+            "{% for message in messages %}"
+            "{% if message['role'] == 'system' %}{{ message['content'] + '\\n\\n' }}"
+            "{% elif message['role'] == 'user' %}User: {{ message['content'] + '\\n' }}"
+            "{% elif message['role'] == 'assistant' %}Assistant: {{ message['content'] + '\\n' }}"
+            "{% endif %}"
+            "{% endfor %}"
+            "Assistant:"
+        )
+        cmd.extend(["--chat-template", default_template])
 
         return cmd
 
@@ -212,36 +227,66 @@ class VllmBackend(SllmBackend):
             logger.error(f"Error monitoring VLLM process logs: {e}")
 
     async def _test_vllm_endpoint(self):
-        """Test VLLM endpoint with a simple completion request."""
+        """Test VLLM endpoints to ensure they're working."""
         if not self.session:
             logger.warning("No session available for endpoint testing")
             return
             
-        test_payload = {
+        # Test completions endpoint
+        completion_payload = {
+            "model": self.model,
+            "prompt": "Hello",
+            "max_tokens": 5,
+            "temperature": 0.0
+        }
+        
+        # Test chat completions endpoint  
+        chat_payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": "Hello"}],
             "max_tokens": 5,
             "temperature": 0.0
         }
         
+        # Test completions endpoint
         try:
-            logger.info(f"[VLLM-{self.port}] Testing endpoint with simple request...")
+            logger.info(f"[VLLM-{self.port}] Testing /v1/completions endpoint...")
             async with self.session.post(
-                f"{self.base_url}/v1/chat/completions",
-                json=test_payload,
+                f"{self.base_url}/v1/completions",
+                json=completion_payload,
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
                 if response.status == 200:
                     result = await response.json()
-                    logger.info(f"[VLLM-{self.port}] Endpoint test SUCCESS: {result.get('choices', [{}])[0].get('message', {}).get('content', 'No content')}")
+                    logger.info(f"[VLLM-{self.port}] Completions test SUCCESS: {result.get('choices', [{}])[0].get('text', 'No text')}")
                 else:
                     error_text = await response.text()
-                    logger.error(f"[VLLM-{self.port}] Endpoint test FAILED: {response.status} - {error_text}")
+                    logger.error(f"[VLLM-{self.port}] Completions test FAILED: {response.status} - {error_text}")
                     
         except asyncio.TimeoutError:
-            logger.error(f"[VLLM-{self.port}] Endpoint test TIMEOUT - VLLM may be hanging")
+            logger.error(f"[VLLM-{self.port}] Completions test TIMEOUT - VLLM may be hanging")
         except Exception as e:
-            logger.error(f"[VLLM-{self.port}] Endpoint test ERROR: {e}")
+            logger.error(f"[VLLM-{self.port}] Completions test ERROR: {e}")
+            
+        # Test chat completions endpoint
+        try:
+            logger.info(f"[VLLM-{self.port}] Testing /v1/chat/completions endpoint...")
+            async with self.session.post(
+                f"{self.base_url}/v1/chat/completions",
+                json=chat_payload,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    logger.info(f"[VLLM-{self.port}] Chat completions test SUCCESS: {result.get('choices', [{}])[0].get('message', {}).get('content', 'No content')}")
+                else:
+                    error_text = await response.text()
+                    logger.error(f"[VLLM-{self.port}] Chat completions test FAILED: {response.status} - {error_text}")
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"[VLLM-{self.port}] Chat completions test TIMEOUT - VLLM may be hanging")
+        except Exception as e:
+            logger.error(f"[VLLM-{self.port}] Chat completions test ERROR: {e}")
 
     def _cleanup_process(self):
         cleanup_subprocess(self.process)

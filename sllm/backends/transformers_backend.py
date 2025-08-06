@@ -94,6 +94,17 @@ class ChatCompletionRequest(BaseModel):
     lora_adapter_name: Optional[str] = None
 
 
+class CompletionRequest(BaseModel):
+    model: Optional[str] = None
+    prompt: str
+    max_tokens: Optional[int] = 100
+    temperature: Optional[float] = 0.7
+    top_p: Optional[float] = 1.0
+    task_id: Optional[str] = None
+    request_id: Optional[str] = None
+    lora_adapter_name: Optional[str] = None
+
+
 class EmbeddingRequest(BaseModel):
     model: Optional[str] = None
     input: List[str]
@@ -158,6 +169,22 @@ class TransformersBackend(SllmBackend):
             request_dict = {
                 "model": request.model or self.model_name,
                 "messages": request.messages,
+                "max_tokens": request.max_tokens,
+                "temperature": request.temperature,
+                "top_p": request.top_p,
+                "task_id": request.task_id,
+                "lora_adapter_name": request.lora_adapter_name,
+            }
+            return await self.generate(request_dict)
+
+        @self.app.post("/v1/completions")
+        async def completions(request: CompletionRequest):
+            logger.info(
+                f"[TransformersBackend] /v1/completions endpoint hit with task_id: {request.task_id}, model: {request.model}"
+            )
+            request_dict = {
+                "model": request.model or self.model_name,
+                "prompt": request.prompt,
                 "max_tokens": request.max_tokens,
                 "temperature": request.temperature,
                 "top_p": request.top_p,
@@ -378,24 +405,37 @@ class TransformersBackend(SllmBackend):
         assert self.model is not None
 
         model_name = request_data.get("model", self.model_name)
-        messages = request_data.get("messages", [])
+        # Handle both chat completions (messages) and completions (prompt)
+        if "messages" in request_data:
+            messages = request_data.get("messages", [])
+        else:
+            messages = []
+            # For completions, we'll handle the prompt directly later
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
         lora_adapter_name = request_data.get("lora_adapter_name", None)
 
-        logger.debug(
-            f"[TransformersBackend] Processing task_id: {task_id}, model: {model_name}, max_tokens: {max_tokens}, messages: {len(messages)} messages"
-        )
-
-        # Combine messages to form the prompt
-        try:
-            prompt = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=False
+        # Generate prompt based on request type
+        if "messages" in request_data:
+            # Chat completions format
+            logger.debug(
+                f"[TransformersBackend] Processing chat completion task_id: {task_id}, model: {model_name}, max_tokens: {max_tokens}, messages: {len(messages)} messages"
             )
-        except Exception as e:
-            prompt = "\n".join(
-                f"{message['role'].capitalize()}: {message['content']}"
-                for message in messages
+            # Combine messages to form the prompt
+            try:
+                prompt = self.tokenizer.apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=False
+                )
+            except Exception as e:
+                prompt = "\n".join(
+                    f"{message['role'].capitalize()}: {message['content']}"
+                    for message in messages
+                )
+        else:
+            # Completions format - direct prompt
+            prompt = request_data.get("prompt", "")
+            logger.debug(
+                f"[TransformersBackend] Processing completion task_id: {task_id}, model: {model_name}, max_tokens: {max_tokens}, prompt length: {len(prompt)}"
             )
 
         if not prompt:
@@ -456,28 +496,51 @@ class TransformersBackend(SllmBackend):
             )
 
             # Generate response compatible with OpenAI's API
-            response = {
-                "id": f"chatcmpl-{uuid.uuid4()}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": model_name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": output_text,
-                        },
-                        "logprobs": None,
-                        "finish_reason": finish_reason,
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                },
-            }
+            if "messages" in request_data:
+                # Chat completions format
+                response = {
+                    "id": f"chatcmpl-{uuid.uuid4()}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": output_text,
+                            },
+                            "logprobs": None,
+                            "finish_reason": finish_reason,
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens,
+                    },
+                }
+            else:
+                # Completions format
+                response = {
+                    "id": f"cmpl-{uuid.uuid4()}",
+                    "object": "text_completion",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "text": output_text,
+                            "logprobs": None,
+                            "finish_reason": finish_reason,
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens,
+                    },
+                }
 
             logger.debug(
                 f"[TransformersBackend] Successfully generated response for task_id: {task_id}, completion_tokens: {completion_tokens}, finish_reason: {finish_reason}"

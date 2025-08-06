@@ -225,6 +225,8 @@ def create_app(
         if body.get("task_id") is None:
             if action == "generate":
                 task_id = f"chatcmpl-{uuid.uuid4()}"
+            elif action == "completions":
+                task_id = f"cmpl-{uuid.uuid4()}"
             elif action == "encode":
                 task_id = f"embedding-{uuid.uuid4()}"
             elif action == "fine-tuning":
@@ -278,8 +280,12 @@ def create_app(
             listener_task.cancel()
 
     @app.post("/v1/chat/completions")
-    async def generate_handler(request: Request):
+    async def chat_completions_handler(request: Request):
         return await inference_handler(request, "generate")
+
+    @app.post("/v1/completions")
+    async def completions_handler(request: Request):
+        return await inference_handler(request, "completions")
 
     @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
