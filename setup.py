@@ -72,7 +72,7 @@ setup(
     },
     include_package_data=True,
     package_data={
-        "sllm.cli": ["cli/default_config.json"],
+        "sllm.cli": ["default_config.json"],
     },
     packages=find_packages(),
 )
