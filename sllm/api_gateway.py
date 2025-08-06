@@ -30,7 +30,7 @@ from sllm.logger import init_logger
 from sllm.model_manager import ModelManager
 from sllm.worker_manager import WorkerManager
 
-INFERENCE_REQUEST_TIMEOUT = 120
+INFERENCE_REQUEST_TIMEOUT = 300  # 5 minutes for VLLM cold starts
 
 logger = init_logger(__name__)
 

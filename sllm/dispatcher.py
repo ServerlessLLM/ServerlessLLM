@@ -29,7 +29,7 @@ from sllm.utils import post_json_with_retry
 logger = init_logger(__name__)
 
 DEFAULT_WORKER_API_PORT = 8001
-DEFAULT_FORWARD_TIMEOUT = 120  # Timeout for waiting on a response from a worker
+DEFAULT_FORWARD_TIMEOUT = 300  # Timeout for waiting on a response from a worker (5 minutes for cold starts)
 DEFAULT_QUEUE_WAIT_TIMEOUT = (
     10  # Timeout for BRPOP to allow for graceful shutdown checks
 )
@@ -344,8 +344,8 @@ class Dispatcher:
                 f"Instance {instance_id} has no port information."
             )
 
-        # Determine request type and endpoint
-        request_type = payload.get("action", "generate")  # Default to generate
+        # Determine request type and endpoint  
+        request_type = task_data.get("action", "generate")  # Get action from task_data, not payload
         if request_type == "fine_tuning":
             endpoint = "/fine-tuning"
         elif request_type == "encode":
@@ -356,7 +356,7 @@ class Dispatcher:
             endpoint = "/v1/chat/completions"  # Default inference endpoint
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
-        logger.info(f"Dispatching to URL: {url} with model: {payload.get('model', 'NOT_SET')}")
+        logger.info(f"Dispatching {request_type} request to: {url} with model: {payload.get('model', 'NOT_SET')}")
 
         # For fine-tuning requests, add concurrency limit
         if request_type == "fine_tuning":

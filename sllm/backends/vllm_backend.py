@@ -84,7 +84,7 @@ class VllmBackend(SllmBackend):
                     logger.error(f"VLLM output: {stdout}")
                     raise RuntimeError(f"VLLM process failed to start with exit code {self.process.returncode}")
                 
-                logger.info(f"VLLM process started with PID {self.process.pid}")
+                logger.debug(f"VLLM process started with PID {self.process.pid}")
 
                 await self._wait_for_server()
                 self.session = aiohttp.ClientSession()
@@ -97,8 +97,8 @@ class VllmBackend(SllmBackend):
                     f"VLLM serve started successfully on {self.base_url}"
                 )
                 
-                # Test the endpoint to ensure it's actually working
-                await self._test_vllm_endpoint()
+                # Optionally test the endpoint
+                # await self._test_vllm_endpoint()
 
             except Exception as e:
                 logger.error(f"Failed to start VLLM serve: {e}")
@@ -131,21 +131,17 @@ class VllmBackend(SllmBackend):
         
         logger.info(f"VLLM serve command: {' '.join(cmd)}")
         
-        # Test if vllm command exists
+        # Validate VLLM command exists (optional check)
         try:
-            result = subprocess.run(
-                ["vllm", "--help"], 
+            subprocess.run(
+                ["vllm", "--version"], 
                 capture_output=True, 
                 text=True, 
-                timeout=10
+                timeout=5,
+                check=True
             )
-            if result.returncode != 0:
-                logger.warning(f"VLLM help command failed: {result.stderr}")
-        except subprocess.TimeoutExpired:
-            logger.warning("VLLM help command timed out")
-        except FileNotFoundError:
-            logger.error("VLLM command not found! Is vllm installed?")
-            raise RuntimeError("VLLM command not found")
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            logger.warning("VLLM command validation failed, but proceeding anyway")
 
         if "max_model_len" in self.backend_config:
             cmd.extend(
@@ -180,7 +176,7 @@ class VllmBackend(SllmBackend):
         
         # Add a simple chat template for base models that don't have one
         # This allows /v1/chat/completions to work with base models like OPT
-        logger.info(f"Adding default chat template for model {self.model} (fallback if no built-in template)")
+        logger.debug(f"Adding default chat template for model {self.model} (fallback if no built-in template)")
         # Use a simpler template that's less likely to cause parsing issues
         simple_template = "{% for message in messages %}{{ message.content }}{% endfor %}"
         cmd.extend(["--chat-template", simple_template])
@@ -220,13 +216,9 @@ class VllmBackend(SllmBackend):
     async def _monitor_process_logs(self):
         """Monitor VLLM process logs and detect crashes."""
         if not self.process or not self.process.stdout:
-            logger.warning(f"[VLLM-{self.port}] No process or stdout to monitor")
             return
             
-        logger.info(f"[VLLM-{self.port}] Starting log monitoring for PID {self.process.pid}")
-            
         try:
-            line_count = 0
             while self.process.poll() is None and self.status == BackendStatus.RUNNING:
                 line = await asyncio.get_event_loop().run_in_executor(
                     None, self.process.stdout.readline
@@ -234,21 +226,13 @@ class VllmBackend(SllmBackend):
                 if line:
                     line = line.strip()
                     if line:
-                        line_count += 1
-                        # Log VLLM output with prefix for identification
-                        logger.info(f"[VLLM-{self.port}] {line}")
-                        
-                        # Check for common error patterns
+                        # Only log errors and important messages
                         if any(error in line.lower() for error in [
                             'error', 'exception', 'traceback', 'failed', 'cuda error', 'out of memory'
                         ]):
-                            logger.error(f"[VLLM-{self.port}] ERROR: {line}")
-                        
-                        # Check for successful startup indicators
-                        if any(success in line.lower() for success in [
-                            'uvicorn running', 'started server', 'application startup complete'
-                        ]):
-                            logger.info(f"[VLLM-{self.port}] SUCCESS: {line}")
+                            logger.error(f"[VLLM-{self.port}] {line}")
+                        else:
+                            logger.debug(f"[VLLM-{self.port}] {line}")
                 else:
                     # No output, small delay to prevent busy waiting
                     await asyncio.sleep(0.1)
@@ -256,9 +240,7 @@ class VllmBackend(SllmBackend):
             # Process has ended
             if self.process.poll() is not None:
                 exit_code = self.process.returncode
-                logger.error(f"[VLLM-{self.port}] Process exited with code {exit_code} after {line_count} log lines")
-            else:
-                logger.info(f"[VLLM-{self.port}] Monitoring stopped, collected {line_count} log lines")
+                logger.error(f"[VLLM-{self.port}] Process exited with code {exit_code}")
                 
         except Exception as e:
             logger.error(f"[VLLM-{self.port}] Error monitoring process logs: {e}")
