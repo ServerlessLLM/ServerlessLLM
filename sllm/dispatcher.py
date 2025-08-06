@@ -345,7 +345,7 @@ class Dispatcher:
             )
 
         # Determine request type and endpoint  
-        request_type = task_data.get("action", "generate")  # Get action from task_data, not payload
+        request_type = payload.get("action", "generate")  # Get action from task_data, not payload
         if request_type == "fine_tuning":
             endpoint = "/fine-tuning"
         elif request_type == "encode":
