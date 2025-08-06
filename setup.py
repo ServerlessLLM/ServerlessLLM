@@ -72,8 +72,7 @@ setup(
     },
     include_package_data=True,
     package_data={
-        "sllm.cli": ["default_config.json"],
-        "": ["py.typed"],
+        "sllm.cli": ["cli/default_config.json"],
     },
     packages=find_packages(),
 )

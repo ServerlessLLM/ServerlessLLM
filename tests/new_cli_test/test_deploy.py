@@ -136,7 +136,7 @@ class TestDeployCommand(unittest.TestCase):
 
     # NEW TESTS TO CATCH REAL CLI BUGS:
 
-    @mock.patch("sllm.cli._cli_utils.deploy_model")
+    @mock.patch("sllm.cli.clic.deploy_model")
     def test_lora_adapters_parsing_space_separated(self, mock_deploy):
         """Test that LoRA adapter parsing in CLI works correctly with space separation."""
         result = self.runner.invoke(
@@ -156,7 +156,7 @@ class TestDeployCommand(unittest.TestCase):
         expected_adapters = {"adapter1": "/path1", "adapter2": "/path2"}
         self.assertEqual(call_args["lora_adapters"], expected_adapters)
 
-    @mock.patch("sllm.cli._cli_utils.deploy_model")
+    @mock.patch("sllm.cli.clic.deploy_model")
     def test_lora_adapters_parsing_comma_separated(self, mock_deploy):
         """Test that LoRA adapter parsing in CLI works correctly with comma separation."""
         result = self.runner.invoke(
@@ -194,7 +194,7 @@ class TestDeployCommand(unittest.TestCase):
             result.output,
         )
 
-    @mock.patch("sllm.cli._cli_utils.deploy_model")
+    @mock.patch("sllm.cli.clic.deploy_model")
     def test_boolean_flags_passed_correctly(self, mock_deploy):
         """Test that boolean flags are passed correctly to deploy_model."""
         result = self.runner.invoke(
@@ -205,7 +205,7 @@ class TestDeployCommand(unittest.TestCase):
         call_args = mock_deploy.call_args[1]
         self.assertTrue(call_args["enable_lora"])
 
-    @mock.patch("sllm.cli._cli_utils.deploy_model")
+    @mock.patch("sllm.cli.clic.deploy_model")
     def test_integer_type_conversion(self, mock_deploy):
         """Test that string arguments are converted to integers where expected."""
         result = self.runner.invoke(
@@ -250,7 +250,7 @@ class TestDeployCommand(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Invalid value", result.output)
 
-    @mock.patch("sllm.cli._cli_utils.deploy_model")
+    @mock.patch("sllm.cli.clic.deploy_model")
     def test_all_parameters_passed_through(self, mock_deploy):
         """Test that all CLI parameters are correctly passed to deploy_model function."""
         result = self.runner.invoke(

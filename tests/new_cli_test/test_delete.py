@@ -71,7 +71,7 @@ class TestDeleteCommand(unittest.TestCase):
 
     # NEW TESTS TO CATCH REAL CLI BUGS:
 
-    @mock.patch("sllm.cli._cli_utils.delete_model")
+    @mock.patch("sllm.cli.clic.delete_model")
     def test_multiple_models_passed_correctly(self, mock_delete):
         """Test that multiple model arguments are passed correctly."""
         result = self.runner.invoke(
@@ -87,7 +87,7 @@ class TestDeleteCommand(unittest.TestCase):
         # lora_adapters should be None when not provided
         self.assertIsNone(call_kwargs["lora_adapters"])
 
-    @mock.patch("sllm.cli._cli_utils.delete_model")
+    @mock.patch("sllm.cli.clic.delete_model")
     def test_lora_adapters_option_passed_correctly(self, mock_delete):
         """Test that --lora-adapters option is passed correctly."""
         result = self.runner.invoke(
@@ -101,7 +101,7 @@ class TestDeleteCommand(unittest.TestCase):
         self.assertEqual(call_args[0], ("model1",))
         self.assertEqual(call_kwargs["lora_adapters"], "adapter1,adapter2")
 
-    @mock.patch("sllm.cli._cli_utils.delete_model")
+    @mock.patch("sllm.cli.clic.delete_model")
     def test_empty_lora_adapters_converted_to_none(self, mock_delete):
         """Test that empty lora-adapters string is converted to None."""
         result = self.runner.invoke(
@@ -121,14 +121,14 @@ class TestDeleteCommand(unittest.TestCase):
         self.assertEqual(result1.exit_code, 0)
 
         # Test with one model
-        with mock.patch("sllm.cli._cli_utils.delete_model") as mock_delete:
+        with mock.patch("sllm.cli.clic.delete_model") as mock_delete:
             result2 = self.runner.invoke(cli, ["delete", "single-model"])
             self.assertEqual(result2.exit_code, 0)
             mock_delete.assert_called_once()
             self.assertEqual(mock_delete.call_args[0][0], ("single-model",))
 
         # Test with many models
-        with mock.patch("sllm.cli._cli_utils.delete_model") as mock_delete:
+        with mock.patch("sllm.cli.clic.delete_model") as mock_delete:
             result3 = self.runner.invoke(
                 cli, ["delete", "m1", "m2", "m3", "m4", "m5"]
             )

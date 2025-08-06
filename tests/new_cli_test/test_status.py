@@ -60,7 +60,7 @@ class TestStatusCommand(unittest.TestCase):
 
     # NEW TESTS TO CATCH REAL CLI BUGS:
 
-    @mock.patch("sllm.cli._cli_utils.show_status")
+    @mock.patch("sllm.cli.clic.show_status")
     def test_status_command_calls_show_status(self, mock_show_status):
         """Test that the status command actually calls show_status function."""
         result = self.runner.invoke(cli, ["status"])
