@@ -115,17 +115,44 @@ std::unordered_map<std::string, torch::Tensor> RestoreTensors(
                                 std::string>>& meta_state_dict,
     const std::unordered_map<int, void*>& memory_base_address,
     const std::unordered_map<int, std::unordered_map<std::string, uint64_t>>&
-        tensor_device_offsets) {
+        tensor_device_offsets,
+    const bool use_shm) {
   std::unordered_map<std::string, torch::Tensor> state_dict;
   std::unordered_set<void*> handled_memory;
   for (const auto& [device, tensor_offset] : tensor_device_offsets) {
+    void* base_address = memory_base_address.at(device);
+    if (use_shm) {
+      // NOTE: only works for debugging shared memory
+      LOG(INFO) << "Printing memory dump";
+      std::ofstream dump_file("restore_tensors.txt");
+      if (!dump_file.is_open()) {
+        LOG(ERROR) << "Failed to open dump file.";
+      } else {
+        uint8_t* data = reinterpret_cast<uint8_t*>(
+            base_address);  // pointer to continuous memory start
+        size_t total_size =
+            32 * 1024 * 1024 * 8;  // total size in bytes of the entire
+                                   // memory block (*8 as i use 8 chunks)
+
+        dump_file << "Full memory dump (" << total_size << " bytes):\n";
+
+        for (size_t i = 0; i < total_size; ++i) {
+          if (i % 16 == 0 && i != 0) dump_file << "\n";
+          dump_file << std::hex << std::setw(2) << std::setfill('0')
+                    << static_cast<int>(data[i]) << " ";
+        }
+        dump_file << std::dec << "\n\n";
+
+        dump_file.close();
+      }
+    }
     for (const auto& p : tensor_offset) {
       std::string name = p.first;
       if (memory_base_address.find(device) != memory_base_address.end()) {
-        void* base_address = memory_base_address.at(device);
         uint64_t offset = reinterpret_cast<uint64_t>(base_address) + p.second;
-
-        torch::Device tensor_device(torch::kCUDA, device);
+        torch::Device tensor_device = use_shm
+                                          ? torch::Device(torch::kCPU)
+                                          : torch::Device(torch::kCUDA, device);
         auto [sizes, strides, type_str] = meta_state_dict.at(name);
         at::ScalarType dtype = stringToScalarType(type_str);
         // std::cerr << name << " " << sizes << " " << strides << " " << dtype

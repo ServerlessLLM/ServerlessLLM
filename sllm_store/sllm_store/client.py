@@ -71,18 +71,21 @@ class SllmStoreClient:
             )
         shared_handle_map = {}
         for device_uuid, handles in shared_memory_handles.items():
-            shared_handle_map[device_uuid] = storage_pb2.MemCopyHandleList(
-                handles=[
-                    storage_pb2.MemCopyHandle(
-                        shared_memory_handle=handle_str,
-                    )
-                    for handle_str in handles
-                ]
+            print(f"Device {device_uuid} handles count: {len(handles)}")
+            shared_handle_map[device_uuid] = (
+                storage_pb2.SharedMemCopyHandleList(
+                    handles=[
+                        storage_pb2.SharedMemCopyHandle(
+                            shm_name=handle_str,
+                        )
+                        for handle_str in handles
+                    ]
+                )
             )
         request = storage_pb2.LoadModelRequest(
             model_path=model_path,
             chunks=cpu_chunk_map,
-            handles=shared_handle_map,
+            shm_handles=shared_handle_map,
             target_device_type=storage_pb2.DeviceType.DEVICE_TYPE_CPU,
         )
         try:
@@ -205,4 +208,10 @@ class SllmStoreClient:
             return {
                 "chunk_size": response.chunk_size,
                 "mem_pool_size": response.mem_pool_size,
+                "use_shm": response.use_shm,
             }
+
+    @staticmethod
+    def get_server_config_static(server_address="127.0.0.1:8073"):
+        client = SllmStoreClient(server_address)
+        return client.get_server_config()

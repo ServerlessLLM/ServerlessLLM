@@ -7,7 +7,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 # Specify the test source file
-set(TEST_SOURCES test_load_to_host.cpp test_pinned_memory.cpp)
+set(TEST_SOURCES test_load_to_host.cpp test_pinned_memory.cpp test_shared_mem.cpp)
 
 # Create an executable for the tests
 add_executable(runTests ${TEST_SOURCES})
@@ -26,7 +26,7 @@ else()
 endif()
 
 # Link the test executable with GTest and the main project
-target_link_libraries(runTests GTest::gtest_main sllm_store)
+target_link_libraries(runTests GTest::gtest_main sllm_store_static)
 
 # Register the test
 add_test(NAME runTests COMMAND runTests)

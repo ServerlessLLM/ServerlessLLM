@@ -26,12 +26,14 @@ import torch
 # from accelerate.hooks import add_hook_to_module
 from sllm_store._C import (
     allocate_cuda_memory,
-    allocate_shared_memory,
     get_cuda_memory_handles,
-    get_shared_memory_handles,
     get_device_uuid_map,
     restore_tensors,
     save_tensors,
+)
+from sllm_store._checkpoint_store import (
+    allocate_shared_memory,
+    get_shared_memory_handles,
 )
 from sllm_store.client import SllmStoreClient
 from sllm_store.device_map_utils import _expand_tensor_name
@@ -87,14 +89,27 @@ def load_dict(
     device_map: Dict[str, int],
     storage_path: Optional[str] = None,
 ):
-    replica_uuid, state_dict = load_dict_non_blocking(
-        model_path, device_map, storage_path
-    )
+    # Get server configuration to determine if we should use shared memory
+    config = SllmStoreClient.get_server_config_static()
 
-    client = SllmStoreClient("127.0.0.1:8073")
-    client.confirm_model_loaded(model_path, replica_uuid)
-
-    return state_dict
+    if config and config.get("use_shm", False):
+        # Server is configured to use shared memory
+        logger.info("Server configured for shared memory, using load_dict_shm")
+        _, state_dict = load_dict_shm(model_path, device_map, storage_path)
+        client = SllmStoreClient("127.0.0.1:8073")
+        client.confirm_model_loaded(model_path, None)
+        return state_dict
+    else:
+        # Server is using regular memory allocation
+        logger.info(
+            "Server configured for regular memory, using load_dict_non_blocking"
+        )
+        replica_uuid, state_dict = load_dict_non_blocking(
+            model_path, device_map, storage_path
+        )
+        client = SllmStoreClient("127.0.0.1:8073")
+        client.confirm_model_loaded(model_path, replica_uuid)
+        return state_dict
 
 
 def load_dict_shm(
@@ -121,12 +136,15 @@ def load_dict_shm(
     device_memory = calculate_device_memory(
         expanded_device_map, tensor_data_index
     )
-    shared_memory_ptrs = allocate_shared_memory(device_memory)
+
+    config = SllmStoreClient.get_server_config_static()
+    chunk_size = config.get("chunk_size")
+
+    shared_memory_ptrs = allocate_shared_memory(device_memory, chunk_size)
     shared_memory_handles = get_shared_memory_handles(shared_memory_ptrs)
     tensor_device_offsets, tensor_copy_chunks = calculate_tensor_device_offsets(
         expanded_device_map, tensor_data_index
     )
-
     client = SllmStoreClient("127.0.0.1:8073")
     device_uuid_map = get_device_uuid_map()
     device_uuid_map[-1] = "cpu"  # Ensure CPU is always in the map
@@ -137,17 +155,48 @@ def load_dict_shm(
             for device_id, v in tensor_copy_chunks.items()
         },
         {
-            device_uuid_map[device_id]: [v]
+            device_uuid_map[device_id]: v
             for device_id, v in shared_memory_handles.items()
         },
     )
     if not ret:
         raise ValueError(f"Failed to load model {model_path} into GPU")
 
+    #    print("After server write:")
+    #    for ptr in shared_memory_ptrs.values():
+    #        arr = (ctypes.c_float * 4).from_address(ptr)
+    #        print("  First 4 floats:", list(arr))
+
     # load model state_dict
+    time.sleep(
+        10
+    )  # TODO remove this sleep, it's a workaround for async loading issues
     start = time.time()
+    # shared memory pointer is a dict with just the first value
+
+    """
+    When using shared memory, I need to have multiple pointers, as each one
+    corresponds to a shared memory file. However, since they are unified
+    and restore_tensors only takes one pointer, I need to find the minimum
+    pointer address across all shared memory pointers for each device, which
+    is what this function does.
+    """
+    import ctypes
+
+    def get_capsule_address(capsule):
+        PyCapsule_GetPointer = ctypes.pythonapi.PyCapsule_GetPointer
+        PyCapsule_GetPointer.restype = ctypes.c_void_p
+        PyCapsule_GetPointer.argtypes = [ctypes.py_object, ctypes.c_char_p]
+
+        return PyCapsule_GetPointer(capsule, None)
+
+    shared_memory_ptr = {
+        k: min(v, key=get_capsule_address)
+        for k, v in shared_memory_ptrs.items()
+    }
+
     state_dict = restore_tensors(
-        tensor_meta_index, shared_memory_ptrs, tensor_device_offsets
+        tensor_meta_index, shared_memory_ptr, tensor_device_offsets, True
     )
 
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
