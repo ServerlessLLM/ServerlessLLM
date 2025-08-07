@@ -127,9 +127,10 @@ std::unordered_map<std::string, torch::Tensor> RestoreTensors(
       LOG(ERROR) << "Failed to open dump file.";
     } else {
       uint8_t* data = reinterpret_cast<uint8_t*>(
-          base_address);                 // pointer to continuous memory start
-      size_t total_size = 33554432 * 8;  // total size in bytes of the entire
-                                         // memory block (*8 for shared memory)
+          base_address);  // pointer to continuous memory start
+      size_t total_size =
+          32 * 1024 * 1024 * 8;  // total size in bytes of the entire
+                                 // memory block (*8 as i use 8 chunks)
 
       dump_file << "Full memory dump (" << total_size << " bytes):\n";
 

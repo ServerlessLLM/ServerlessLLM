@@ -133,9 +133,7 @@ int CheckpointStore::LoadModelFromDisk(
 
   int ret = 0;
 
-  bool use_shared_memory =
-      !shared_memory_handles.empty() && !mem_copy_chunks.empty();
-  if (use_shared_memory) {
+  if (use_shm_) {
     LOG(INFO) << "Loading model " << model_path
               << " using shared pinned memory";
 
@@ -157,9 +155,10 @@ int CheckpointStore::LoadModelFromDisk(
     std::string shm_name_prefix =
         first_handle.substr(0, first_handle.find_last_of('_'));
 
+    // DEBUG: This opens the memory which will then be written
+    // by ToHost for later
     MemPtrListMap shm_ptrs;
     std::vector<std::unique_ptr<SharedMemoryInstance>> shm_handles;
-
     for (const auto& [device_id, handle_list] : converted_mem_copy_handles) {
       size_t num_chunks = handle_list.size();
       for (size_t i = 0; i < num_chunks; ++i) {
@@ -174,8 +173,12 @@ int CheckpointStore::LoadModelFromDisk(
       }
     }
 
-    // Build memory pool from allocator
-    size_t num_chunks = shm_ptrs.begin()->second.size();
+    // Build memory pool
+    const auto& first_entry = *shared_memory_handles.begin();
+    const MemCopyHandleList& chunk_list = first_entry.second;
+    size_t num_chunks = chunk_list.size();
+    std::cout << "Length of MemCopyHandleList in first map entry: "
+              << num_chunks << std::endl;
     if (num_chunks == 0) {
       LOG(ERROR) << "No shared memory chunks found for model " << model_path;
       return -1;
@@ -199,6 +202,8 @@ int CheckpointStore::LoadModelFromDisk(
         LOG(ERROR) << "Failed to free memory for model " << model_path;
       }
     }
+
+    // DEBUG: this should match the first bytes of ToHost
     for (const auto& [device_id, ptrs] : shm_ptrs) {
       LOG(INFO) << "Verifying shared memory contents for device " << device_id;
       for (size_t i = 0; i < ptrs.size(); ++i) {
@@ -505,6 +510,7 @@ std::unordered_map<int, std::vector<void*>> AllocateSharedMemory(
               << " bytes each (total: " << (chunks_needed * chunk_size)
               << " bytes)";
 
+    // maps the unified section where each chunk will point
     void* addr =
         mmap(nullptr, chunks_needed * chunk_size, PROT_READ | PROT_WRITE,
              MAP_SHARED | MAP_ANONYMOUS, -1, 0);

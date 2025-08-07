@@ -473,12 +473,12 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
         parts = Path(model_name).parts
         if len(parts) >= 2:
             model_name = f"{parts[-2]}/{parts[-1]}"
-        logger.info(f"Running example inference for model {model_name} ")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         device = next(model.parameters()).device
         logger.info(f"Using device: {device}")
-        inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
+            device
+        )
         generate_kwargs = {}
         if adapter_name:
             generate_kwargs["adapter_names"] = [adapter_name]

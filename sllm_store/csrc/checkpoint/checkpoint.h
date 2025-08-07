@@ -36,15 +36,6 @@ std::unordered_map<std::string, torch::Tensor> RestoreTensors(
     const std::unordered_map<int, std::unordered_map<std::string, uint64_t>>&
         tensor_device_offsets);
 
-std::unordered_map<std::string, torch::Tensor> RestoreTensorsShm(
-    const std::unordered_map<
-        std::string, std::tuple<std::vector<int64_t>, std::vector<int64_t>,
-                                std::string>>& meta_state_dict,
-    const std::unordered_map<int, std::vector<void*>>& memory_base_addresses,
-    const std::unordered_map<int, std::unordered_map<std::string, uint64_t>>&
-        tensor_device_offsets,
-    size_t chunk_size);
-
 // {dev_id: ptr}
 std::unordered_map<int, void*> AllocateCudaMemory(
     const std::unordered_map<int, size_t>& tensor_sizes);

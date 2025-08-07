@@ -161,6 +161,8 @@ int Model::ToHost(int num_threads) {
         int fd = file_descriptors[partition_id];
         ssize_t ret =
             pread(fd, (void*)host_buffers[chunk_idx], size, file_offset);
+        // DEBUG: Prints the first bytes of what each chunk reads from
+        // tensor.data
         uint8_t* data = reinterpret_cast<uint8_t*>(host_buffers[chunk_idx]);
         LOG(INFO) << "Thread " << thread_idx << ", chunk " << chunk_idx
                   << ", address " << static_cast<void*>(host_buffers[chunk_idx])

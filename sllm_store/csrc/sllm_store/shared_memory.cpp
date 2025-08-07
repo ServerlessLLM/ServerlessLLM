@@ -147,14 +147,8 @@ std::filesystem::path GetShmPath(std::string_view name) {
     tmpdir = "/dev/shm";
   }
 
-  // Remove leading slash if present to avoid creating subdirectories
-  std::string clean_name(name);
-  if (!clean_name.empty() && clean_name[0] == '/') {
-    clean_name = clean_name.substr(1);
-  }
-
   return std::filesystem::path(tmpdir) /
-         (".shared_mem_" + clean_name + "_" + std::to_string(getuid()));
+         (".shared_mem_" + std::string(name) + "_" + std::to_string(getuid()));
 }
 
 std::unique_ptr<SharedMemoryInstance> Create(std::string_view name, size_t size,
@@ -225,8 +219,7 @@ std::unique_ptr<SharedMemoryInstance> Create(std::string_view name, size_t size,
   return pm;
 }
 
-std::unique_ptr<SharedMemoryInstance> Open(std::string_view name,
-                                           void* base_addr) {
+std::unique_ptr<SharedMemoryInstance> Open(std::string_view name) {
   auto pm = std::unique_ptr<SharedMemoryInstance>(new SharedMemoryInstance());
 
   pm->name_ = name;
@@ -262,13 +255,9 @@ std::unique_ptr<SharedMemoryInstance> Open(std::string_view name,
     pm->mapped_size_ = st.st_size;
   }
 
-  int flags = MAP_SHARED;
-  if (base_addr) {
-    flags |= MAP_FIXED;
-  }
   // Map the memory
-  pm->data_ = mmap(base_addr, pm->mapped_size_, PROT_READ | PROT_WRITE, flags,
-                   pm->fd_, 0);
+  pm->data_ = mmap(nullptr, pm->mapped_size_, PROT_READ | PROT_WRITE,
+                   MAP_SHARED, pm->fd_, 0);
   if (pm->data_ == MAP_FAILED) {
     close(pm->fd_);
     return nullptr;

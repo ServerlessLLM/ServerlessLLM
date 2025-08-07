@@ -270,11 +270,6 @@ def fully_parallel_load(
                 set_module_tensor_to_device(model, name, param.device, param)
         send_module_buffers_to_device(model, device_map)
 
-    for key, val in state_dict.items():
-        logger.debug(
-            f"{key}: shape={val.shape}, dtype={val.dtype}, device={val.device}"
-        )
-
     logger.debug(f"state_dict {len(state_dict)} tensors loaded")
 
     # NOTE: commented out since we don't need to worry about this
