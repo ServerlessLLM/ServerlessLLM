@@ -34,7 +34,8 @@ std::unordered_map<std::string, torch::Tensor> RestoreTensors(
                                 std::string>>& meta_state_dict,
     const std::unordered_map<int, void*>& memory_base_address,
     const std::unordered_map<int, std::unordered_map<std::string, uint64_t>>&
-        tensor_device_offsets);
+        tensor_device_offsets,
+    const bool use_shm = false);
 
 // {dev_id: ptr}
 std::unordered_map<int, void*> AllocateCudaMemory(

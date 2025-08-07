@@ -196,7 +196,7 @@ def load_dict_shm(
     }
 
     state_dict = restore_tensors(
-        tensor_meta_index, shared_memory_ptr, tensor_device_offsets
+        tensor_meta_index, shared_memory_ptr, tensor_device_offsets, True
     )
 
     logger.info(f"restore state_dict takes {time.time() - start} seconds")
