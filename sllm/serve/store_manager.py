@@ -19,7 +19,7 @@
 import asyncio
 import os
 import time
-from typing import List, Mapping, Optional
+from typing import Dict, List, Mapping, Optional
 
 import ray
 
@@ -75,7 +75,8 @@ class SllmLocalStore:
             if model_name in self.disk_models:
                 logger.error(f"{model_name} already registered")
                 return
-            model_path = self._get_model_path(model_name, backend)
+            # Use pretrained path on disk instead of alias for storage layout
+            model_path = self._get_model_path(backend, backend_config)
             if backend == "transformers":
                 model_size = self.client.register_model(model_path)
                 self.disk_models[model_name] = ([model_path], model_size)
@@ -213,8 +214,20 @@ class SllmLocalStore:
                 <= self.pinned_memory_pool_chunks
             )
 
-    def _get_model_path(self, model_name, backend):
-        return os.path.join(backend, model_name)
+    def _get_model_path(self, backend, backend_config):
+        """Return on-disk model path root under STORAGE_PATH.
+
+        We always use the pretrained_model_name_or_path to derive the storage
+        directory, so that physical files live under
+          <STORAGE_PATH>/<backend>/<pretrained_model_name_or_path>/
+        regardless of the user-facing alias (model name).
+        """
+        pretrained = backend_config.get("pretrained_model_name_or_path")
+        if not pretrained:
+            # Fallback to prevent crashes; this mirrors previous behavior
+            # (alias-based path), but callers should always provide pretrained.
+            return os.path.join(backend, backend_config.get("model", ""))
+        return os.path.join(backend, pretrained)
 
     def _format_time(self, t):
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
@@ -229,7 +242,7 @@ class StoreManager:
         self.metadata_lock = asyncio.Lock()
         # Storage info
         self.round_robin_index = 0
-        self.local_servers = {}
+        self.local_servers: Dict[str, SllmLocalStore] = {}
         self.model_info = {}
         self.model_storage_info = {}
 
@@ -458,10 +471,8 @@ class StoreManager:
                 self.model_storage_info[model_name][node_id] = True
                 logger.info(f"{model_name} downloaded to node {node_id}")
                 if node_id in memory_pool:
-                    # preload to memory pool
-                    await self.load_to_host(
-                        node_id, pretrained_model_name_or_path
-                    )
+                    # Preload to memory pool by alias (disk_models keyed by alias)
+                    await self.load_to_host(node_id, model_name)
                     logger.info(f"{model_name} loaded to memory pool")
             self.model_info[model_name] = model_size
             logger.info(f"{model_name} registered")

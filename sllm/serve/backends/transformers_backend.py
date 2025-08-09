@@ -132,7 +132,7 @@ class TransformersBackend(SllmBackend):
             )
 
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = os.path.join("transformers", self.model_name)
+            model_path = os.path.join("transformers", self.pretrained_model_name_or_path)
             self.model = load_model(
                 model_path,
                 device_map=device_map,
@@ -142,7 +142,7 @@ class TransformersBackend(SllmBackend):
                 quantization_config=quantization_config,
             )
             tokenizer_path = os.path.join(
-                storage_path, "transformers", self.model_name, "tokenizer"
+                storage_path, "transformers", self.pretrained_model_name_or_path, "tokenizer"
             )
             if os.path.exists(tokenizer_path):
                 self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
@@ -393,7 +393,7 @@ class TransformersBackend(SllmBackend):
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        tokenizer = AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path)
         if tokenizer.pad_token is None:
             if tokenizer.eos_token:
                 tokenizer.add_special_tokens({"pad_token": tokenizer.eos_token})
@@ -419,7 +419,7 @@ class TransformersBackend(SllmBackend):
         training_config = request_data.get("training_config")
         storage_path = os.getenv("STORAGE_PATH", "./models")
         output_dir = request_data.get(
-            "output_dir", f"ft_{self.model_name}_adapter"
+            "output_dir", f"ft_{self.pretrained_model_name_or_path}_adapter"
         )
         lora_save_path = os.path.join(
             storage_path,
