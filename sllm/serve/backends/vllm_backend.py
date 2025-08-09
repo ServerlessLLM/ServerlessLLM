@@ -169,6 +169,8 @@ class VllmBackend(SllmBackend):
         torch_dtype = backend_config.get("torch_dtype")
         if torch_dtype is not None:
             filtered_engine_config["dtype"] = torch_dtype
+            
+        pretrained_model_name_or_path = backend_config.get("pretrained_model_name_or_path")
 
         if load_format is not None:
             filtered_engine_config["load_format"] = load_format
@@ -177,7 +179,7 @@ class VllmBackend(SllmBackend):
             )
         else:
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = os.path.join(storage_path, "vllm", model)
+            model_path = os.path.join(storage_path, "vllm", pretrained_model_name_or_path)
             filtered_engine_config["model"] = model_path
             filtered_engine_config["load_format"] = "serverless_llm"
 

@@ -46,9 +46,9 @@ def download_transformers_model(
     hf_model_class: str,
 ) -> bool:
     storage_path = os.getenv("STORAGE_PATH", "./models")
-    model_path = os.path.join(storage_path, "transformers", model_name)
+    model_path = os.path.join(storage_path, "transformers", pretrained_model_name_or_path)
     tokenizer_path = os.path.join(
-        storage_path, "transformers", model_name, "tokenizer"
+        storage_path, "transformers", pretrained_model_name_or_path, "tokenizer"
     )
 
     if os.path.exists(model_path):
@@ -71,7 +71,7 @@ def download_transformers_model(
         trust_remote_code=True,
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
 
     from sllm_store.transformers import save_model
 
@@ -83,7 +83,7 @@ def download_transformers_model(
         logger.error(f"Failed to save {model_path}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
         raise RuntimeError(
-            f"Failed to save {model_name} for transformer backend: {e}"
+            f"Failed to save {pretrained_model_name_or_path} for transformer backend: {e}"
         )
 
     # model_size = get_directory_size(model_path)
@@ -175,7 +175,7 @@ class VllmModelDownloader:
 
         # set the storage path
         storage_path = os.getenv("STORAGE_PATH", "./models")
-        model_path = os.path.join(storage_path, "vllm", model_name)
+        model_path = os.path.join(storage_path, "vllm", pretrained_model_name_or_path)
         if os.path.exists(model_path):
             logger.info(f"{model_path} already exists")
             return
@@ -187,7 +187,7 @@ class VllmModelDownloader:
             else:
                 # download from huggingface
                 input_dir = snapshot_download(
-                    model_name,
+                    pretrained_model_name_or_path,
                     cache_dir=cache_dir.name,
                     allow_patterns=[
                         "*.safetensors",
@@ -238,9 +238,9 @@ class VllmModelDownloader:
         except Exception as e:
             logger.info(f"An error occurred while saving the model: {e}")
             # remove the output dir
-            shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
+            shutil.rmtree(os.path.join(storage_path, "vllm", pretrained_model_name_or_path))
             raise RuntimeError(
-                f"Failed to save {model_name} for vllm backend: {e}"
+                f"Failed to save {pretrained_model_name_or_path} for vllm backend: {e}"
             )
         finally:
             cache_dir.cleanup()

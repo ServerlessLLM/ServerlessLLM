@@ -201,6 +201,8 @@ def deploy_model(
         )
     if precision:
         config_data.setdefault("backend_config", {})["precision"] = precision
+        
+    print(f"!!!! DEBUG: config_data: {config_data}")
 
     base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
     url = f"{base_url.rstrip('/')}/register"
