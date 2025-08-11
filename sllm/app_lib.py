@@ -21,7 +21,7 @@ import ray
 import ray.exceptions
 from fastapi import FastAPI, HTTPException, Request
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 

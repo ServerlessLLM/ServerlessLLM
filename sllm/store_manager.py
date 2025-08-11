@@ -23,14 +23,14 @@ from typing import List, Mapping, Optional
 
 import ray
 
-from sllm.serve.hardware_info_collector import collect_all_info
-from sllm.serve.logger import init_logger
-from sllm.serve.model_downloader import (
+from sllm.hardware_info_collector import collect_all_info
+from sllm.logger import init_logger
+from sllm.model_downloader import (
     VllmModelDownloader,
     download_lora_adapter,
     download_transformers_model,
 )
-from sllm.serve.utils import get_worker_nodes
+from sllm.utils import get_worker_nodes
 from sllm_store.client import SllmStoreClient
 
 logger = init_logger(__name__)

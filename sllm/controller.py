@@ -22,10 +22,10 @@ from typing import List, Mapping, Optional
 
 import ray
 
-from sllm.serve.logger import init_logger
-from sllm.serve.routers import MigrationRouter, RoundRobinRouter
-from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
-from sllm.serve.store_manager import StoreManager
+from sllm.logger import init_logger
+from sllm.routers import MigrationRouter, RoundRobinRouter
+from sllm.schedulers import FcfsScheduler, StorageAwareScheduler
+from sllm.store_manager import StoreManager
 
 
 class SllmControllerException(Exception):
