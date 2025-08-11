@@ -20,6 +20,8 @@ from contextlib import asynccontextmanager
 import ray
 import ray.exceptions
 from fastapi import FastAPI, HTTPException, Request
+from starlette.responses import StreamingResponse
+import orjson
 
 from sllm.serve.logger import init_logger
 
@@ -145,6 +147,36 @@ def create_app() -> FastAPI:
 
     @app.post("/v1/chat/completions")
     async def generate_handler(request: Request):
+        body = await request.json()
+        # If stream requested, return Server-Sent Events stream
+        if body.get("stream"):
+            model_name = body.get("model")
+            if not model_name:
+                raise HTTPException(
+                    status_code=400, detail="Missing model_name in request body"
+                )
+
+            request_router = ray.get_actor(model_name, namespace="models")
+
+            async def stream_results():
+                try:
+                    # Call router once; current backend returns buffered chunks list
+                    result = await request_router.inference.remote(body, "generate")
+                    # If backend returned a list of chunks, stream them one by one
+                    if isinstance(result, dict) and result.get("object") == "chat.completion.chunk.list":
+                        for chunk in result.get("data", []):
+                            yield "data: " + orjson.dumps(chunk).decode("utf-8") + "\n\n"
+                    else:
+                        # Fallback: stream the single result as one event
+                        yield "data: " + orjson.dumps(result).decode("utf-8") + "\n\n"
+                except Exception as e:
+                    out = {"error": {"message": str(e)}}
+                    yield "data: " + orjson.dumps(out).decode("utf-8") + "\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(stream_results(), media_type="text/event-stream; charset=utf-8")
+
+        # Non-streaming path
         return await inference_handler(request, "generate")
 
     @app.post("/v1/embeddings")

@@ -236,6 +236,9 @@ class VllmBackend(SllmBackend):
             "request_id", f"chatcmpl-{uuid.uuid4()}"
         )
 
+        # Extract stream flag before constructing SamplingParams to avoid validation errors
+        stream: bool = request_data.pop("stream", False)
+
         try:
             sampling_params = SamplingParams(**request_data)
         except Exception as e:
@@ -245,7 +248,73 @@ class VllmBackend(SllmBackend):
             inputs, sampling_params, request_id
         )
 
-        # TODO stream results
+        # Stream results if requested (OpenAI-compatible chunk format)
+        if stream:
+            previous_text_lengths: Dict[int, int] = {}
+            chunks: List[Dict[str, Any]] = []
+
+            async for response_output in results_generator:
+                await self.request_trace.update_status(request_id, response_output)
+                created_ts = (
+                    int(time.time())
+                    if response_output.metrics is None
+                    else response_output.metrics.arrival_time
+                )
+
+                for idx, result in enumerate(response_output.outputs):
+                    full_text = result.text or ""
+                    prev_len = previous_text_lengths.get(idx, 0)
+                    delta_text = full_text[prev_len:]
+                    previous_text_lengths[idx] = len(full_text)
+                    if delta_text:
+                        chunks.append(
+                            {
+                                "id": request_id,
+                                "object": "chat.completion.chunk",
+                                "created": created_ts,
+                                "model": model_name,
+                                "choices": [
+                                    {
+                                        "index": idx,
+                                        "delta": {"content": delta_text},
+                                        "logprobs": None,
+                                        "finish_reason": None,
+                                    }
+                                ],
+                            }
+                        )
+
+                if getattr(response_output, "finished", False):
+                    for idx, result in enumerate(response_output.outputs):
+                        finish_reason = result.finish_reason
+                        if finish_reason is not None:
+                            chunks.append(
+                                {
+                                    "id": request_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_ts,
+                                    "model": model_name,
+                                    "choices": [
+                                        {
+                                            "index": idx,
+                                            "delta": {},
+                                            "logprobs": None,
+                                            "finish_reason": finish_reason,
+                                        }
+                                    ],
+                                }
+                            )
+
+            if not self.trace_debug:
+                await self.request_trace.delete_request(request_id)
+
+            return {
+                "id": request_id,
+                "object": "chat.completion.chunk.list",
+                "model": model_name,
+                "data": chunks,
+            }
+
 
         # Non-stream case
         final_output = None
