@@ -74,13 +74,5 @@ setup(
     package_data={
         "sllm.cli": ["default_config.json"],
     },
-    packages=[
-        "sllm",
-        "sllm.serve",
-        "sllm.serve.commands.serve",
-        "sllm.serve.backends",
-        "sllm.serve.ft_backends",
-        "sllm.serve.routers",
-        "sllm.serve.schedulers",
-    ],
+    packages=find_packages(),
 )
