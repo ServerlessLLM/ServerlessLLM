@@ -20,8 +20,8 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-from sllm.serve.backends.backend_utils import SllmBackend
-from sllm.serve.logger import init_logger
+from sllm.backends.backend_utils import SllmBackend
+from sllm.logger import init_logger
 
 
 class DummyBackend(SllmBackend):

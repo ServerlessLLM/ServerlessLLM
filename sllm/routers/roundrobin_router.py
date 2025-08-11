@@ -22,9 +22,9 @@ from typing import Dict, List, Optional
 
 import ray
 
-from sllm.serve.fine_tuning_instance import start_ft_instance
-from sllm.serve.inference_instance import start_instance
-from sllm.serve.logger import init_logger
+from sllm.fine_tuning_instance import start_ft_instance
+from sllm.inference_instance import start_instance
+from sllm.logger import init_logger
 
 from ..utils import InstanceHandle
 from .router_utils import SllmRouter

@@ -23,7 +23,7 @@ from typing import List, Mapping, Optional, Tuple
 
 import ray
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 from ..utils import InstanceStatus
 from .fcfs_scheduler import FcfsScheduler
