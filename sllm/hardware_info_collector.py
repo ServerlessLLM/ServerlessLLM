@@ -10,7 +10,7 @@ import ray
 import speedtest
 from tqdm import tqdm
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 

@@ -34,4 +34,4 @@ jobs:
 
             - name: Run tests
               run: |
-                  pytest tests/cli_test
+                  pytest tests/new_cli_test
