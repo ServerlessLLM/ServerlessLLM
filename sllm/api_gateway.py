@@ -249,10 +249,10 @@ def create_app(
         }
 
         store: RedisStore = request.app.state.redis_store
-        
+
         # Set initial status to "queued"
         await store.set_request_status(task_id, "queued")
-        
+
         result_queue = asyncio.Queue()
 
         async def _result_listener(task_id: str):
@@ -328,13 +328,13 @@ def create_app(
         try:
             store: RedisStore = request.app.state.redis_store
             status = await store.get_request_status(request_id)
-            
+
             if status is None:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Request {request_id} not found or has expired"
+                    detail=f"Request {request_id} not found or has expired",
                 )
-            
+
             return {"request_id": request_id, "status": status}
         except HTTPException:
             raise

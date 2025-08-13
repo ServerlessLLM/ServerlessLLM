@@ -23,7 +23,6 @@ import subprocess
 import sys
 
 import click
-import ray
 import requests
 import uvicorn
 from uvicorn import Config, Server

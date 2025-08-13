@@ -1264,7 +1264,10 @@ class RedisStore:
         """Atomically set request status with TTL."""
         key = self._get_request_status_key(request_id)
         await self._execute_with_retry(
-            self.client.setex, key, 3600, status  # 1 hour TTL
+            self.client.setex,
+            key,
+            3600,
+            status,  # 1 hour TTL
         )
 
     async def get_request_status(self, request_id: str) -> Optional[str]:
