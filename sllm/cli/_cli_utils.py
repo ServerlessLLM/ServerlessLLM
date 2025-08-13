@@ -23,6 +23,7 @@ import subprocess
 import sys
 
 import click
+import ray
 import requests
 import uvicorn
 from uvicorn import Config, Server
@@ -453,7 +454,16 @@ def show_status():
         if response.status_code == 200:
             try:
                 data = response.json()
-                print(f"Model status: {data}")
+                models = data.get("models", [])
+                if models:
+                    print("Model status retrieved successfully:")
+                    for model in models:
+                        if isinstance(model, dict) and "id" in model:
+                            print(f"- {model['id']}")
+                        else:
+                            print(f"- {model}")
+                else:
+                    print("No models currently deployed.")
             except ValueError:
                 print("[❌ ERROR] Invalid JSON received from server.")
         else:
