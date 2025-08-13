@@ -1256,6 +1256,28 @@ class RedisStore:
 
         return len(expired_locks)
 
+    ### REQUEST STATUS TRACKING ###
+    def _get_request_status_key(self, request_id: str) -> str:
+        return f"request_status:{request_id}"
+
+    async def set_request_status(self, request_id: str, status: str) -> None:
+        """Atomically set request status with TTL."""
+        key = self._get_request_status_key(request_id)
+        await self._execute_with_retry(
+            self.client.setex, key, 3600, status  # 1 hour TTL
+        )
+
+    async def get_request_status(self, request_id: str) -> Optional[str]:
+        """Get current request status."""
+        key = self._get_request_status_key(request_id)
+        result = await self._execute_with_retry(self.client.get, key)
+        return result.decode() if result else None
+
+    async def delete_request_status(self, request_id: str) -> None:
+        """Delete request status when processing is complete."""
+        key = self._get_request_status_key(request_id)
+        await self._execute_with_retry(self.client.delete, key)
+
     ### ATOMIC OPERATIONS WITH LUA SCRIPTS ###
     async def atomic_model_status_update(
         self, model_key: str, old_status: str, new_status: str

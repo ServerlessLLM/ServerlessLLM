@@ -249,6 +249,10 @@ def create_app(
         }
 
         store: RedisStore = request.app.state.redis_store
+        
+        # Set initial status to "queued"
+        await store.set_request_status(task_id, "queued")
+        
         result_queue = asyncio.Queue()
 
         async def _result_listener(task_id: str):
@@ -276,8 +280,12 @@ def create_app(
             result = await asyncio.wait_for(
                 result_queue.get(), timeout=INFERENCE_REQUEST_TIMEOUT
             )
+            # Clear status when response is returned
+            await store.delete_request_status(task_id)
             return JSONResponse(content=result)
         except asyncio.TimeoutError:
+            # Clear status on timeout as well
+            await store.delete_request_status(task_id)
             raise HTTPException(
                 status_code=408,
                 detail="Request timed out waiting for inference result.",
@@ -313,6 +321,28 @@ def create_app(
             raise HTTPException(
                 status_code=500,
                 detail="Failed to retrieve models from the store.",
+            )
+
+    @app.get("/v1/status/{request_id}")
+    async def get_request_status(request_id: str, request: Request):
+        try:
+            store: RedisStore = request.app.state.redis_store
+            status = await store.get_request_status(request_id)
+            
+            if status is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Request {request_id} not found or has expired"
+                )
+            
+            return {"request_id": request_id, "status": status}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error retrieving request status: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve request status.",
             )
 
     return app

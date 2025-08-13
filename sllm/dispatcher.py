@@ -173,6 +173,9 @@ class Dispatcher:
                 f"Dispatching task {task_id} to instance {target_instance_id} on worker {target_worker['node_id']} port {target.get('port')}"
             )
 
+            # Update status to "inferencing" when dispatching
+            await self.store.set_request_status(task_id, "inferencing")
+
             try:
                 # Handle LoRA adapter loading if present in payload
                 if "lora_adapter_name" in payload:
