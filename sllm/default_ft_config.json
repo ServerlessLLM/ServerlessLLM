@@ -1,0 +1,32 @@
+{
+    "model": "facebook/opt-125m",
+    "ft_backend": "peft_lora",
+    "num_gpus": 1,
+    "num_cpus": 1,
+    "timeout": 3600,
+    "backend_config": {
+        "output_dir": "facebook/adapters/opt-125m_adapter_test",
+        "dataset_config": {
+            "dataset_source": "hf_hub",
+            "hf_dataset_name": "fka/awesome-chatgpt-prompts",
+            "tokenization_field": "prompt",
+            "split": "train",
+            "data_files": "",
+            "extension_type": ""
+        },
+        "lora_config": {
+            "r": 4,
+            "lora_alpha": 32,
+            "lora_dropout": 0.05,
+            "bias": "none",
+            "task_type": "CAUSAL_LM"
+        },
+        "training_config": {
+            "auto_find_batch_size": true,
+            "save_strategy": "no",
+            "num_train_epochs": 2,
+            "learning_rate": 0.0001,
+            "use_cpu": false
+        }
+    }
+}
