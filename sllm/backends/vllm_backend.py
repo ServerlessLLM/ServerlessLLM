@@ -102,7 +102,7 @@ class VllmBackend(SllmBackend):
                 raise
 
     def _build_serve_command(self) -> list:
-        storage_path = os.getenv("STORAGE_PATH", "/models")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
         storage_path = os.path.abspath(storage_path)
         model_path = os.path.join(storage_path, "vllm", self.model)
 

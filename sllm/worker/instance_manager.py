@@ -82,7 +82,7 @@ class InstanceManager:
 
     def scan_disk_models(self) -> None:
         """Scan storage directory and populate disk_models with available models."""
-        storage_path = os.getenv("STORAGE_PATH", "/models")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
         storage_path = os.path.abspath(storage_path)
 
         if not os.path.exists(storage_path):
@@ -183,7 +183,7 @@ class InstanceManager:
             )
         backend_config = model_config.get("backend_config", {})
 
-        storage_path = os.getenv("STORAGE_PATH", "/models")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
         storage_path = os.path.abspath(storage_path)
         if not validate_storage_path(storage_path):
             raise ValueError(
@@ -724,7 +724,7 @@ class InstanceManager:
             return -1
 
         # Check if LoRA adapter already exists
-        storage_path = os.getenv("STORAGE_PATH", "/models")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
         storage_path = os.path.abspath(storage_path)
         local_adapter_path = os.path.join(
             storage_path,
