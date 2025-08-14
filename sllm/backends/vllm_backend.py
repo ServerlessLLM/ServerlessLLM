@@ -202,7 +202,7 @@ class VllmBackend(SllmBackend):
                         if self.process.stdout
                         else ""
                     )
-                except:
+                except Exception:
                     stdout = "Could not read output"
                 logger.error(
                     f"VLLM process died during startup with exit code {exit_code}"
