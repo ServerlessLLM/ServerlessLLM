@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------- #
-#  serverlessllm                                                               #
-#  copyright (c) serverlessllm team 2025                                       #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2025                                       #
 #                                                                              #
-#  licensed under the apache license, version 2.0 (the "license");             #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
 #  you may not use this file except in compliance with the license.            #
 #                                                                              #
 #  you may obtain a copy of the license at                                     #
