@@ -51,10 +51,6 @@ initialize_head_node() {
     exit 1
   }
 
-  # Display and execute the command
-  echo "Executing: $CMD"
-  eval "$CMD"
-
   # Start sllm with any additional arguments passed to the script
   echo "Starting sllm with arguments: $@"
   exec sllm start head "$@"
