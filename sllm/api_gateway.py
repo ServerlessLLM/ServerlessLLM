@@ -280,6 +280,9 @@ def create_app(
 
         store: RedisStore = request.app.state.redis_store
 
+        # Log the request ID before queuing
+        logger.info(f"Processing request with ID: {task_id}")
+
         # Set initial status to "queued"
         await store.set_request_status(task_id, "queued")
 
@@ -391,8 +394,7 @@ def create_app(
             
             return {
                 "object": "list",
-                "data": sanitized_workers,
-                "total": len(sanitized_workers)
+                "data": sanitized_workers
             }
         except Exception as e:
             logger.error(f"Error retrieving workers: {e}", exc_info=True)
