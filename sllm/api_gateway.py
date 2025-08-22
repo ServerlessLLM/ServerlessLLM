@@ -17,11 +17,13 @@
 # ---------------------------------------------------------------------------- #
 import asyncio
 import json
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from sllm.dispatcher import Dispatcher
@@ -33,6 +35,9 @@ from sllm.worker_manager import WorkerManager
 INFERENCE_REQUEST_TIMEOUT = 300  # 5 minutes for VLLM cold starts
 
 logger = init_logger(__name__)
+origins_env = os.getenv("ALLOWED_ORIGINS", "")
+origins = [origin for origin in origins_env.split(",") if origin]
+origins += ["http://localhost", "http://localhost:3000"]
 
 
 def create_app(
@@ -50,6 +55,14 @@ def create_app(
         yield
 
     app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
+    
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
+        max_age=86400,
+    )
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
