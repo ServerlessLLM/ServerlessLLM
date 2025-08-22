@@ -92,15 +92,32 @@ def create_app(
         try:
             await request.app.state.model_manager.register(body)
             model_name = body.get("model")
-            return {"message": f"Model {model_name} registered successfully"}
-        except (ValueError, KeyError) as e:
+            backend = body.get("backend", "unknown")
+            return {"message": f"Model {model_name}:{backend} registered successfully"}
+        except ValueError as e:
+            # Check if this is a duplicate registration error
+            error_msg = str(e)
+            if "already registered" in error_msg:
+                raise HTTPException(
+                    status_code=409,  # Conflict status code for duplicates
+                    detail=error_msg,
+                )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Model registration validation failed: {error_msg}",
+                )
+        except KeyError as e:
             raise HTTPException(
                 status_code=400,
                 detail=f"Model registration validation failed: {str(e)}",
             )
         except Exception as e:
             logger.error(f"Cannot register model: {e}", exc_info=True)
-            raise RuntimeError("Model registration failed")
+            raise HTTPException(
+                status_code=500,
+                detail="Model registration failed due to internal error"
+            )
 
     @app.post("/update")
     async def update_handler(request: Request):
@@ -356,6 +373,32 @@ def create_app(
             raise HTTPException(
                 status_code=500,
                 detail="Failed to retrieve request status.",
+            )
+
+    @app.get("/v1/workers")
+    async def get_workers(request: Request):
+        try:
+            store: RedisStore = request.app.state.redis_store
+            all_workers = await store.get_all_workers()
+            
+            # Remove IP addresses from worker information for security
+            sanitized_workers = []
+            for worker in all_workers:
+                sanitized_worker = worker.copy()
+                # Remove sensitive information
+                sanitized_worker.pop("node_ip", None)
+                sanitized_workers.append(sanitized_worker)
+            
+            return {
+                "object": "list",
+                "data": sanitized_workers,
+                "total": len(sanitized_workers)
+            }
+        except Exception as e:
+            logger.error(f"Error retrieving workers: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to retrieve workers from the store.",
             )
 
     return app

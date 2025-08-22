@@ -398,16 +398,24 @@ class RedisStore:
         if not backend:
             raise ValueError("Model configuration must include 'backend' key")
 
-        # Check if model exists and is marked as excommunicado
+        # Check if model exists and handle different states
         existing_model = await self.get_model(model_name, backend)
-        if existing_model and existing_model.get("status") == "excommunicado":
-            logger.warning(
-                f"Registration blocked for '{model_name}:{backend}' - model is marked as 'excommunicado'. "
-                f"Please wait for cleanup to complete before re-registering."
-            )
-            raise ValueError(
-                f"Model {model_name}:{backend} is currently being deleted. Please wait for cleanup to complete."
-            )
+        if existing_model:
+            if existing_model.get("status") == "excommunicado":
+                logger.warning(
+                    f"Registration blocked for '{model_name}:{backend}' - model is marked as 'excommunicado'. "
+                    f"Please wait for cleanup to complete before re-registering."
+                )
+                raise ValueError(
+                    f"Model {model_name}:{backend} is currently being deleted. Please wait for cleanup to complete."
+                )
+            elif existing_model.get("status") == "alive":
+                logger.warning(
+                    f"Registration blocked for '{model_name}:{backend}' - model is already registered and alive."
+                )
+                raise ValueError(
+                    f"Model {model_name}:{backend} is already registered. Use update to modify existing model."
+                )
 
         key = self._get_model_key(model_name, backend)
         model_dict = model.copy()
