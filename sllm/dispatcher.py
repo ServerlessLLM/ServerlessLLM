@@ -174,7 +174,7 @@ class Dispatcher:
             )
 
             # Update status to "inferencing" when dispatching
-            await self.store.set_request_status(task_id, "inferencing")
+            await self.store.set_request_status(task_id, "INFERENCE")
 
             try:
                 # Handle LoRA adapter loading if present in payload
