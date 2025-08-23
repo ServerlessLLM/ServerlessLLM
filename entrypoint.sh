@@ -84,11 +84,11 @@ initialize_worker_node() {
 
   WORKER_HOST="${WORKER_HOST:-0.0.0.0}"
   WORKER_PORT="${WORKER_PORT:-$DEFAULT_WORKER_PORT}"
-  LLM_SERVER_URL="${LLM_SERVER_URL:-http://127.0.0.1:${DEFAULT_HEAD_PORT}}"
+  LLM_SERVER_URL="${LLM_SERVER_URL:-http://sllm_head:${DEFAULT_HEAD_PORT}}"
 
   # Validate required environment variables
   if [ -z "$LLM_SERVER_URL" ]; then
-    echo "ERROR: LLM_SERVER_URL must be set to the head node's URL (e.g., http://127.0.0.1:8343)"
+    echo "ERROR: LLM_SERVER_URL must be set to the head node's URL (e.g., http://sllm_head:8343)"
     exit 1
   fi
 
