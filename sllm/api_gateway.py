@@ -284,7 +284,7 @@ def create_app(
         logger.info(f"Processing request with ID: {task_id}")
 
         # Set initial status to "queued"
-        await store.set_request_status(task_id, "queued")
+        await store.set_request_status(task_id, "QUEUED")
 
         result_queue = asyncio.Queue()
 

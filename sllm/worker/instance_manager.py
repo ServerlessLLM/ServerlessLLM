@@ -442,7 +442,7 @@ class InstanceManager:
                 self._running_instances[model_identifier][instance_id] = {
                     "backend": backend_instance,
                     "model_config": model_config,
-                    "status": "running",
+                    "status": "RUNNING",
                     "host": backend_instance.host,
                     "port": allocated_port,
                     "endpoint": f"{self.node_ip}:{allocated_port}",
@@ -491,7 +491,7 @@ class InstanceManager:
 
                 # Shutdown backend (do this outside the lock to avoid holding lock during slow operation)
                 # But mark as stopping first
-                instance_info["status"] = "stopping"
+                instance_info["status"] = "STOPPING"
             except Exception as e:
                 logger.error(f"Stop prep failed {instance_id}: {e}")
                 return False
@@ -537,7 +537,7 @@ class InstanceManager:
                 return {"error": f"Instance {instance_id} not found"}
 
             instance_info = instances[instance_id]
-            if instance_info.get("status") != "running":
+            if instance_info.get("status") != "RUNNING":
                 logger.warning(
                     f"{instance_id} state: {instance_info.get('status')}"
                 )
@@ -571,7 +571,7 @@ class InstanceManager:
                 info[model_identifier] = {}
                 for instance_id, instance_data in instances.items():
                     info[model_identifier][instance_id] = {
-                        "status": instance_data.get("status", "unknown"),
+                        "status": instance_data.get("status", "UNKNOWN"),
                         "host": instance_data.get("host", "0.0.0.0"),
                         "port": instance_data.get("port", 0),
                         "endpoint": instance_data.get(

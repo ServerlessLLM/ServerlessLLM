@@ -50,7 +50,7 @@ def _get_live_gpu_info() -> dict:
     try:
         gpus = GPUtil.getGPUs()
         if not gpus:
-            return {"status": "No GPUs found."}
+            return {"status": "NO GPUS FOUND."}
 
         for gpu in gpus:
             gpus_info[gpu.id] = {
@@ -60,7 +60,7 @@ def _get_live_gpu_info() -> dict:
             }
     except Exception as e:
         logger.error(f"GPU info failed: {e}", exc_info=True)
-        gpus_info = {"status": "error", "message": str(e)}
+        gpus_info = {"status": "ERROR", "message": str(e)}
     return gpus_info
 
 
@@ -94,7 +94,7 @@ def _get_static_gpu_info() -> dict:
     try:
         gpus = GPUtil.getGPUs()
         if not gpus:
-            return {"status": "No GPUs found."}
+            return {"status": "NO GPUS FOUND."}
 
         for gpu in gpus:
             gpus_info[gpu.id] = {
@@ -103,7 +103,7 @@ def _get_static_gpu_info() -> dict:
             }
     except Exception as e:
         logger.error(f"Static GPU info failed: {e}", exc_info=True)
-        gpus_info = {"status": "error", "message": str(e)}
+        gpus_info = {"status": "ERROR", "message": str(e)}
     return gpus_info
 
 

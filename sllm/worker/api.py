@@ -52,7 +52,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
     async def health_check():
         """Health check endpoint for container orchestration."""
         return {
-            "status": "healthy",
+            "status": "HEALTHY",
             "node_id": getattr(app.state, "node_id", None),
             "running_instances": len(
                 instance_manager.get_running_instances_info()
@@ -92,7 +92,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
 
         # Send immediate confirmation that request was received
         response = {
-            "status": "received",
+            "status": "RECEIVED",
             "instance_id": instance_id,
             "message": f"Instance {instance_id} start request received and processing",
         }
