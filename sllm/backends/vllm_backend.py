@@ -86,14 +86,12 @@ class VllmBackend(SllmBackend):
                         f"VLLM process failed to start with exit code {self.process.returncode}"
                     )
 
-                await self._wait_for_server()
-                self.session = aiohttp.ClientSession()
-                self.status = BackendStatus.RUNNING
+                self.status = BackendStatus.STARTING
+                logger.info(f"VLLM process started, waiting for server to be ready on {self.base_url}")
 
-                # Start monitoring VLLM process logs
+                # Start background tasks for server readiness and log monitoring
+                asyncio.create_task(self._wait_for_server_async())
                 asyncio.create_task(self._monitor_process_logs())
-
-                logger.info(f"VLLM started on {self.base_url}")
 
             except Exception as e:
                 logger.error(f"Failed to start VLLM serve: {e}")
@@ -180,7 +178,8 @@ class VllmBackend(SllmBackend):
 
         return cmd
 
-    async def _wait_for_server(self, timeout: int = 600):
+    async def _wait_for_server_async(self, timeout: int = 600):
+        """Background task to wait for server readiness and update status."""
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
@@ -189,6 +188,11 @@ class VllmBackend(SllmBackend):
                         f"{self.base_url}/health"
                     ) as response:
                         if response.status == 200:
+                            async with self.status_lock:
+                                if self.status == BackendStatus.STARTING:
+                                    self.session = aiohttp.ClientSession()
+                                    self.status = BackendStatus.RUNNING
+                                    logger.info(f"VLLM server ready on {self.base_url}")
                             return
             except Exception:
                 pass
@@ -208,13 +212,15 @@ class VllmBackend(SllmBackend):
                     f"VLLM process died during startup with exit code {exit_code}"
                 )
                 logger.error(f"VLLM output: {stdout}")
-                raise RuntimeError(
-                    f"VLLM process died during startup with exit code {exit_code}"
-                )
+                async with self.status_lock:
+                    self.status = BackendStatus.DELETING
+                return
 
             await asyncio.sleep(2)
 
-        raise TimeoutError(f"VLLM serve did not start within {timeout} seconds")
+        logger.error(f"VLLM serve did not start within {timeout} seconds")
+        async with self.status_lock:
+            self.status = BackendStatus.DELETING
 
     async def _monitor_process_logs(self):
         """Monitor VLLM process logs and detect crashes."""
@@ -285,7 +291,9 @@ class VllmBackend(SllmBackend):
 
     async def encode(self, request_data: Dict[str, Any]):
         async with self.status_lock:
-            if self.status != BackendStatus.RUNNING:
+            if self.status == BackendStatus.STARTING:
+                return {"error": "Engine is still starting up"}
+            elif self.status != BackendStatus.RUNNING:
                 return {"error": "Engine is not running"}
 
         if not self.session:
