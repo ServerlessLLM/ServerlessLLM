@@ -78,16 +78,21 @@ def test_init_encoder(encoder_backend, encoder_model_name, encoder_config):
     assert encoder_backend.status == BackendStatus.UNINITIALIZED
 
 
-def test_init_backend(transformers_backend, backend_config):
+@pytest.mark.asyncio
+async def test_init_backend(transformers_backend, backend_config):
     with patch(
         "sllm.backends.transformers_backend.load_model"
-    ) as mock_load_model:
-        transformers_backend.init_backend()
+    ) as mock_load_model, patch(
+        "sllm.backends.transformers_backend.AutoTokenizer.from_pretrained"
+    ) as mock_tokenizer, patch(
+        "sllm.backends.transformers_backend.TransformersBackend._start_server"
+    ) as mock_start_server:
+        await transformers_backend.init_backend()
         mock_load_model.assert_called_once()
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = os.path.join(
             "transformers",
-            backend_config["pretrained_model_name_or_path"],
+            transformers_backend.model_name,
         )
         device_map = backend_config.get("device_map", "auto")
         torch_dtype = backend_config.get("torch_dtype", torch.float16)
@@ -104,16 +109,21 @@ def test_init_backend(transformers_backend, backend_config):
         )
 
 
-def test_init_encoder_backend(encoder_backend, encoder_config):
+@pytest.mark.asyncio
+async def test_init_encoder_backend(encoder_backend, encoder_config):
     with patch(
         "sllm.backends.transformers_backend.load_model"
-    ) as mock_load_model:
-        encoder_backend.init_backend()
+    ) as mock_load_model, patch(
+        "sllm.backends.transformers_backend.AutoTokenizer.from_pretrained"
+    ) as mock_tokenizer, patch(
+        "sllm.backends.transformers_backend.TransformersBackend._start_server"
+    ) as mock_start_server:
+        await encoder_backend.init_backend()
         mock_load_model.assert_called_once()
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = os.path.join(
             "transformers",
-            encoder_config["pretrained_model_name_or_path"],
+            encoder_backend.model_name,
         )
         device_map = encoder_config.get("device_map", "auto")
         torch_dtype = encoder_config.get("torch_dtype", torch.float16)
@@ -160,15 +170,20 @@ def encoder_tokenizer():
     )
 
 
-def test_generate(transformers_backend, model, tokenizer):
+@pytest.mark.asyncio
+async def test_generate(transformers_backend, model, tokenizer):
     with patch(
         "sllm.backends.transformers_backend.load_model",
         return_value=model,
     ), patch(
         "sllm.backends.transformers_backend.TransformersBackend._tokenize",
         return_value=tokenizer,
+    ), patch(
+        "sllm.backends.transformers_backend.AutoTokenizer.from_pretrained"
+    ), patch(
+        "sllm.backends.transformers_backend.TransformersBackend._start_server"
     ):
-        transformers_backend.init_backend()
+        await transformers_backend.init_backend()
         input = {
             "model": "facebook/opt-125m",
             "messages": [
@@ -180,7 +195,7 @@ def test_generate(transformers_backend, model, tokenizer):
             "temperature": 0.7,
             "max_tokens": 10,
         }
-        result = transformers_backend.generate(input)
+        result = await transformers_backend.generate(input)
         assert "error" not in result
         assert "choices" in result and len(result["choices"]) == 1
 
@@ -340,24 +355,21 @@ def test_encode(encoder_backend, encoder, encoder_tokenizer):
         assert "data" in result and len(result["data"]) == 1
 
 
-def test_generate_without_init(transformers_backend):
-    with patch(
-        "sllm.backends.transformers_backend.load_model",
-        return_value=model,
-    ):
-        request_data = {
-            "model": "facebook/opt-125m",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Hello, how are you? I am fine, thank you!",
-                }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 10,
-        }
-        response = transformers_backend.generate(request_data)
-        assert "error" in response
+@pytest.mark.asyncio
+async def test_generate_without_init(transformers_backend):
+    request_data = {
+        "model": "facebook/opt-125m",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, how are you? I am fine, thank you!",
+            }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 10,
+    }
+    response = await transformers_backend.generate(request_data)
+    assert "error" in response
 
 
 # LoRA-related fixtures and tests

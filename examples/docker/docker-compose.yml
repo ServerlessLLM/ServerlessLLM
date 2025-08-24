@@ -1,4 +1,31 @@
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#                                                                              #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+# ---------------------------------------------------------------------------- #
 services:
+  # Redis for coordination and task queuing
+  redis:
+    image: redis:7-alpine
+    container_name: sllm-redis
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    networks:
+      - sllm_network
+
   # Head Node
   sllm_head:
     build:
@@ -9,12 +36,17 @@ services:
     environment:
       - MODEL_FOLDER=${MODEL_FOLDER}
       - MODE=HEAD
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - HF_TOKEN=${HF_TOKEN}
     ports:
-      - "6379:6379"    # Redis port
-      - "8343:8343"    # ServerlessLLM port
+      - "8343:8343"
+    depends_on:
+      - redis
     networks:
       - sllm_network
-    command: []
+    volumes:
+      - ${MODEL_FOLDER}:/models
 
   # Worker Node 0
   sllm_worker_0:
@@ -29,16 +61,19 @@ services:
           devices:
             - driver: nvidia
               capabilities: ["gpu"]
-              device_ids: ["0"] # Assigns GPU 0 to the worker
+              device_ids: ["0"]
     environment:
       - WORKER_ID=0
       - STORAGE_PATH=/models
       - MODE=WORKER
+      - HF_TOKEN=${HF_TOKEN}
+    ports:
+      - "8000-8299:8000-8299"  # Backend instance ports
     networks:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["--mem-pool-size", "4GB", "--registration-required", "true"] # Customize the memory pool size here
+    command: ["--mem-pool-size", "40GB", "--registration-required", "true"]
 
 networks:
   sllm_network:
