@@ -268,7 +268,8 @@ class TransformersBackend(SllmBackend):
                 quantization_config=quantization_config,
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to load transformers model: {e}")
+            logger.error(f"Transformers model load failed for {self.model_name}: {e}")
+            raise RuntimeError(f"Failed to load transformers model {self.model_name}: {e}")
 
         # Load tokenizer
         tokenizer_path = os.path.join(
@@ -282,7 +283,8 @@ class TransformersBackend(SllmBackend):
                     self.pretrained_model_name_or_path
                 )
         except Exception as e:
-            raise RuntimeError(f"Failed to load tokenizer: {e}")
+            logger.error(f"Tokenizer load failed for {self.model_name}: {e}")
+            raise RuntimeError(f"Failed to load tokenizer for {self.model_name}: {e}")
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token

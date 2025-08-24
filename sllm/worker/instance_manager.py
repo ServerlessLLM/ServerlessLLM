@@ -610,7 +610,7 @@ class InstanceManager:
             model_path_list, model_size = self.disk_models[model_name]
             can_load = await self._lru_eviction(model_size)
             if not can_load:
-                logger.warning(f"{model_name} cannot be loaded")
+                logger.warning(f"{model_name} cannot be loaded: insufficient memory (need {model_size} bytes)")
                 await asyncio.sleep(1)
                 continue
 
@@ -618,7 +618,13 @@ class InstanceManager:
             logger.debug(f"Loading {model_name}")
             success = True
             for model_path in model_path_list:
-                if not self.client.load_into_cpu(model_path):
+                try:
+                    if not self.client.load_into_cpu(model_path):
+                        logger.error(f"Failed to load model path: {model_path}")
+                        success = False
+                        break
+                except Exception as e:
+                    logger.error(f"Exception loading model path {model_path}: {e}")
                     success = False
                     break
 
@@ -633,7 +639,7 @@ class InstanceManager:
                     ) // self.chunk_size
                     logger.info(f"{model_name} loaded")
                 else:
-                    logger.error(f"Failed to load {model_name}")
+                    logger.error(f"Failed to load {model_name}: model loading unsuccessful")
 
     async def _lru_eviction(self, model_size):
         """Evict least recently used models to make space"""
