@@ -93,72 +93,55 @@ class InstanceManager:
         # Scan vLLM models
         vllm_path = os.path.join(storage_path, "vllm")
         if os.path.exists(vllm_path):
-            for model_name in os.listdir(vllm_path):
-                model_dir = os.path.join(vllm_path, model_name)
-                if os.path.isdir(model_dir) and validate_vllm_model_path(
-                    model_dir
-                ):
-                    # Find all rank files - check inside each item directory
-                    model_paths = []
-                    total_size = 0
-                    rank_count = 0
+            for org_name in os.listdir(vllm_path):
+                org_dir = os.path.join(vllm_path, org_name)
+                if os.path.isdir(org_dir):
+                    for model_name in os.listdir(org_dir):
+                        model_dir = os.path.join(org_dir, model_name)
+                        if os.path.isdir(model_dir) and validate_vllm_model_path(model_dir):
+                            full_model_name = f"{org_name}/{model_name}"
+                            model_paths = []
+                            total_size = 0
+                            rank_count = 0
 
-                    for item in os.listdir(model_dir):
-                        item_path = os.path.join(model_dir, item)
-                        if os.path.isdir(item_path):
-                            # Look for rank directories inside this item
-                            for rank_item in os.listdir(item_path):
-                                if rank_item.startswith(
-                                    "rank_"
-                                ) and os.path.isdir(
-                                    os.path.join(item_path, rank_item)
-                                ):
-                                    rank_path = os.path.join(
-                                        item_path, rank_item
-                                    )
-                                    model_paths.append(
-                                        f"vllm/{model_name}/{item}/{rank_item}"
-                                    )
+                            for item in os.listdir(model_dir):
+                                if item.startswith("rank_") and os.path.isdir(os.path.join(model_dir, item)):
+                                    rank_path = os.path.join(model_dir, item)
+                                    model_paths.append(f"vllm/{full_model_name}/{item}")
                                     rank_count += 1
-                                    # Estimate size by summing file sizes
                                     for root, dirs, files in os.walk(rank_path):
                                         total_size += sum(
-                                            os.path.getsize(
-                                                os.path.join(root, file)
-                                            )
+                                            os.path.getsize(os.path.join(root, file))
                                             for file in files
                                         )
 
-                    if model_paths:
-                        logger.debug(
-                            f"Found vLLM {model_name}: {rank_count} ranks"
-                        )
-                    if model_paths:
-                        self.disk_models[f"{model_name}:vllm"] = (
-                            model_paths,
-                            total_size,
-                        )
+                            if model_paths:
+                                self.disk_models[f"{full_model_name}:vllm"] = (
+                                    model_paths,
+                                    total_size,
+                                )
 
         # Scan transformers models
         transformers_path = os.path.join(storage_path, "transformers")
         if os.path.exists(transformers_path):
-            for model_name in os.listdir(transformers_path):
-                model_dir = os.path.join(transformers_path, model_name)
-                if os.path.isdir(
-                    model_dir
-                ) and validate_transformers_model_path(model_dir):
-                    model_path = f"transformers/{model_name}"
-                    # Estimate size
-                    total_size = 0
-                    for root, dirs, files in os.walk(model_dir):
-                        total_size += sum(
-                            os.path.getsize(os.path.join(root, file))
-                            for file in files
-                        )
-                    self.disk_models[f"{model_name}:transformers"] = (
-                        [model_path],
-                        total_size,
-                    )
+            for org_name in os.listdir(transformers_path):
+                org_dir = os.path.join(transformers_path, org_name)
+                if os.path.isdir(org_dir):
+                    for model_name in os.listdir(org_dir):
+                        model_dir = os.path.join(org_dir, model_name)
+                        if os.path.isdir(model_dir) and validate_transformers_model_path(model_dir):
+                            full_model_name = f"{org_name}/{model_name}"
+                            model_path = f"transformers/{full_model_name}"
+                            total_size = 0
+                            for root, dirs, files in os.walk(model_dir):
+                                total_size += sum(
+                                    os.path.getsize(os.path.join(root, file))
+                                    for file in files
+                                )
+                            self.disk_models[f"{full_model_name}:transformers"] = (
+                                [model_path],
+                                total_size,
+                            )
 
         vllm_count = len(
             [k for k in self.disk_models.keys() if k.endswith(":vllm")]

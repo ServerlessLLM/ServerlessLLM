@@ -17,6 +17,8 @@
 # ---------------------------------------------------------------------------- #
 
 import asyncio
+import os
+import shutil
 
 from fastapi import FastAPI, HTTPException, Request
 
@@ -36,6 +38,35 @@ async def _start_instance_background(
             model_config, instance_id
         )
         logger.debug(f"Started {started_instance_id}")
+    except (FileNotFoundError, RuntimeError) as e:
+        logger.error(f"Model validation/loading failed for {instance_id}: {e}")
+        logger.info(f"Triggering model re-download for {model_config.get('model')}")
+        
+        model = model_config.get("model")
+        backend = model_config.get("backend")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        
+        if backend == "vllm":
+            model_path = os.path.join(storage_path, "vllm", model)
+        elif backend == "transformers":
+            model_path = os.path.join(storage_path, "transformers", model)
+        else:
+            logger.error(f"Unknown backend {backend} for cleanup")
+            return
+        
+        if os.path.exists(model_path):
+            logger.warning(f"Removing corrupted model directory: {model_path}")
+            shutil.rmtree(model_path)
+        
+        try:
+            await instance_manager._ensure_model_downloaded(model_config)
+            logger.info(f"Re-download completed, retrying instance start for {instance_id}")
+            started_instance_id = await instance_manager.start_instance(
+                model_config, instance_id
+            )
+            logger.debug(f"Started {started_instance_id} after re-download")
+        except Exception as retry_e:
+            logger.error(f"Failed to start instance {instance_id} even after re-download: {retry_e}")
     except Exception as e:
         logger.error(
             f"Failed to start instance {instance_id} in background: {e}"

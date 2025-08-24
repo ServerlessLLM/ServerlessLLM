@@ -104,9 +104,21 @@ class VllmBackend(SllmBackend):
         storage_path = os.path.abspath(storage_path)
         model_path = os.path.join(storage_path, "vllm", self.model)
 
-        # Validate model exists
+        # Validate model exists and has proper structure
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"VLLM model not found at {model_path}")
+        
+        rank_0_path = os.path.join(model_path, "rank_0")
+        if not os.path.exists(rank_0_path):
+            raise FileNotFoundError(f"VLLM model missing rank_0 directory: {model_path}")
+        
+        tensor_index_path = os.path.join(rank_0_path, "tensor_index.json")
+        if not os.path.exists(tensor_index_path):
+            raise FileNotFoundError(f"VLLM model missing tensor_index.json: {model_path}")
+        
+        has_tensor_data = any(f.startswith("tensor.data_") for f in os.listdir(rank_0_path))
+        if not has_tensor_data:
+            raise FileNotFoundError(f"VLLM model missing tensor.data_* files: {model_path}")
 
         cmd = [
             "vllm",

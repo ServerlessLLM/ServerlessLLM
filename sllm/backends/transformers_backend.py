@@ -251,28 +251,38 @@ class TransformersBackend(SllmBackend):
 
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = os.path.join("transformers", self.model_name)
+        full_model_path = os.path.join(storage_path, model_path)
+
+        # Validate model files exist
+        if not os.path.exists(full_model_path):
+            raise FileNotFoundError(f"Transformers model not found at {full_model_path}")
 
         # Load model using sllm_store
-        self.model = load_model(
-            model_path,
-            device_map=device_map,
-            torch_dtype=torch_dtype,
-            storage_path=storage_path,
-            hf_model_class=hf_model_class,
-            quantization_config=quantization_config,
-        )
+        try:
+            self.model = load_model(
+                model_path,
+                device_map=device_map,
+                torch_dtype=torch_dtype,
+                storage_path=storage_path,
+                hf_model_class=hf_model_class,
+                quantization_config=quantization_config,
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to load transformers model: {e}")
 
         # Load tokenizer
         tokenizer_path = os.path.join(
             storage_path, "transformers", self.model_name, "tokenizer"
         )
-        if os.path.exists(tokenizer_path):
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        else:
-            # Fall back to load from system's cache
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.pretrained_model_name_or_path
-            )
+        try:
+            if os.path.exists(tokenizer_path):
+                self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+            else:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.pretrained_model_name_or_path
+                )
+        except Exception as e:
+            raise RuntimeError(f"Failed to load tokenizer: {e}")
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
