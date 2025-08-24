@@ -38,6 +38,7 @@ services:
       - MODE=HEAD
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - HF_TOKEN=${HF_TOKEN}
     ports:
       - "8343:8343"
     depends_on:
@@ -65,13 +66,14 @@ services:
       - WORKER_ID=0
       - STORAGE_PATH=/models
       - MODE=WORKER
+      - HF_TOKEN=${HF_TOKEN}
     ports:
       - "8000-8299:8000-8299"  # Backend instance ports
     networks:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-    command: ["--mem-pool-size", "4GB", "--registration-required", "true"]
+    command: ["--mem-pool-size", "40GB", "--registration-required", "true"]
 
 networks:
   sllm_network:
