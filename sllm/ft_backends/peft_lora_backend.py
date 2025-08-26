@@ -33,11 +33,11 @@ from transformers import (
     TrainingArguments,
 )
 
-from sllm.serve.ft_backends.backend_utils import (
+from sllm.ft_backends.backend_utils import (
     FineTuningBackendStatus,
     SllmFineTuningBackend,
 )
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 from sllm_store.transformers import load_model, save_lora
 
 logger = init_logger(__name__)

@@ -153,31 +153,37 @@ def create_app() -> FastAPI:
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
 
-    @app.post("/fine-tuning")
+    @app.post("/v1/fine-tuning/jobs")
     async def fine_tuning(request: Request):
         return await fine_tuning_handler(request)
 
-    @app.get("/get-job-status")
-    async def get_job_status(job_id: str):
-        if not job_id:
+    @app.get("/v1/fine_tuning/jobs/{fine_tuning_job_id}")
+    async def get_job_status(fine_tuning_job_id: str):
+        if not fine_tuning_job_id:
             raise HTTPException(
-                status_code=400, detail="Missing job_id parameter"
+                status_code=400, detail="Missing fine_tuning_job_id parameter"
             )
         controller = ray.get_actor("controller")
-        status = await controller.get_ft_job_status.remote(job_id)
-        return {f"fine-tuning job {job_id} status": status}
+        status = await controller.get_ft_job_status.remote(fine_tuning_job_id)
+        return {
+            "id": fine_tuning_job_id,
+            "object": "fine_tuning.job",
+            "status": status,
+        }
 
-    @app.post("/cancel-job")
-    async def cancel_job(request: Request):
-        body = await request.json()
-        job_id = body.get("job_id")
-        if not job_id:
+    @app.post("/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel")
+    async def cancel_job(fine_tuning_job_id: str):
+        if not fine_tuning_job_id:
             raise HTTPException(
-                status_code=400, detail="Missing job_id in request body"
+                status_code=400, detail="Missing fine_tuning_job_id parameter"
             )
         controller = ray.get_actor("controller")
-        await controller.cancel_ft_job.remote(job_id)
-        return {f"fine-tuning job {job_id} cancelled"}
+        await controller.cancel_ft_job.remote(fine_tuning_job_id)
+        return {
+            "id": fine_tuning_job_id,
+            "object": "fine_tuning.job",
+            "status": "cancelled",
+        }
 
     @app.get("/v1/models")
     async def get_models():

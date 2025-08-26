@@ -28,14 +28,14 @@ sllm-store save --model facebook/opt-125m --backend transformers
 Submit a fine-tuning job using the REST API:
 
 ```bash
-curl -X POST $LLM_SERVER_URL/fine-tuning \
+curl -X POST $LLM_SERVER_URL/v1/fine-tuning/jobs \
   -H "Content-Type: application/json" \
-  -d @/path/to/fine_tuning_config.json
+  -d @examples/fine_tuning/fine_tuning_config.json
 ```
 
 #### Fine-tuning Configuration
 
-Create a configuration file (`default_ft_config.json`) with the following structure:
+Create a configuration file (`fine_tuning_config.json`) with the following structure:
 
 ```json
 {
@@ -125,14 +125,16 @@ Upon successful job submission, you'll receive a response with the job ID:
 Check the status of your fine-tuning job:
 
 ```bash
-curl -X GET "$LLM_SERVER_URL/get-job-status?job_id=job-123"
+curl -X GET "$LLM_SERVER_URL/v1/fine_tuning/jobs/job-123"
 ```
 
 #### Status Response
 
 ```json
 {
-  "fine-tuning job 65bb4144-87cc-47ff-ac10-11e926a41dc2 status": {
+  "id": "job-123",
+  "object": "fine_tuning.job",
+  "status": {
     "config": {
       "model": "facebook/opt-125m",
       "ft_backend": "peft_lora",
@@ -165,9 +167,9 @@ curl -X GET "$LLM_SERVER_URL/get-job-status?job_id=job-123"
         }
       }
     },
-    "status": "completed",
-    "created_time": "2025-07-29T18:30:03.050847",
-    "updated_time": "2025-07-29T18:30:03.050852",
+    "status": "running",
+    "created_time": "2025-08-26T04:18:11.155785",
+    "updated_time": "2025-08-26T04:18:11.155791",
     "priority": 0
   }
 }
@@ -185,9 +187,7 @@ curl -X GET "$LLM_SERVER_URL/get-job-status?job_id=job-123"
 If needed, you can cancel a running job:
 
 ```bash
-curl -X POST "$LLM_SERVER_URL/cancel-job" \
-  -H "Content-Type: application/json" \
-  -d '{"job_id": "job-123"}'
+curl -X POST "$LLM_SERVER_URL/v1/fine_tuning/jobs/job-123/cancel"
 ```
 
 ## Job Management
@@ -220,7 +220,7 @@ Jobs have configurable timeout limits:
 
 ### LoRA Adapter Storage
 
-Fine-tuned LoRA adapters are automatically saved to the `output_dir` path you config in the `default_ft_config.json`, like:
+Fine-tuned LoRA adapters are automatically saved to the `output_dir` path you config in the `fine_tuning_config.json`, like:
 
 ```
 {STORAGE_PATH}/transformers/facebook/adapters/opt-125m_adapter_test
@@ -272,9 +272,9 @@ For more details about PEFT LoRA Serving, please see the [documentation](./peft_
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/fine-tuning` | POST | Submit a fine-tuning job |
-| `/get-job-status` | GET | Get job status |
-| `/cancel-job` | POST | Cancel a running job |
+| `/v1/fine-tuning/jobs` | POST | Submit a fine-tuning job |
+| `/v1/fine_tuning/jobs/{fine_tuning_job_id}` | GET | Get job status |
+| `/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel` | POST | Cancel a running job |
 
 ### Response Codes
 
@@ -299,12 +299,12 @@ docker compose up -d --build
 
 # 3. Submit fine-tuning job
 cd .. && cd ..
-curl -X POST $LLM_SERVER_URL/fine-tuning \
+curl -X POST $LLM_SERVER_URL/v1/fine-tuning/jobs \
   -H "Content-Type: application/json" \
-  -d @sllm/default_ft_config.json
+  -d @examples/fine_tuning/fine_tuning_config.json
 
 # 4. Monitor job status
-curl -X GET "$LLM_SERVER_URL/get-job-status?job_id=job-123"
+curl -X GET "$LLM_SERVER_URL/v1/fine_tuning/jobs/job-123"
 
 # 5. Deploy base model with fine-tuned adapter
 sllm deploy --model facebook/opt-125m --backend transformers --enable-lora --lora-adapters "my_adapter=ft_facebook/opt-125m_adapter"

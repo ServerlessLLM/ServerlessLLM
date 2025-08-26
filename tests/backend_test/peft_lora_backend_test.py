@@ -23,8 +23,8 @@ import torch
 from datasets import Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from sllm.serve.ft_backends.backend_utils import FineTuningBackendStatus
-from sllm.serve.ft_backends.peft_lora_backend import (
+from sllm.ft_backends.backend_utils import FineTuningBackendStatus
+from sllm.ft_backends.peft_lora_backend import (
     FineTuningStatus,
     PeftLoraBackend,
 )
@@ -134,8 +134,8 @@ def test_init(peft_lora_backend, model_name, backend_config):
     )
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
 def test_init_backend_success(
     mock_tokenizer_from_pretrained,
     mock_load_model,
@@ -163,8 +163,8 @@ def test_init_backend_success(
     assert call_args[1]["hf_model_class"] == "AutoModelForCausalLM"
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
 def test_init_backend_with_local_tokenizer(
     mock_tokenizer_from_pretrained,
     mock_load_model,
@@ -185,7 +185,7 @@ def test_init_backend_with_local_tokenizer(
     )
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
 def test_init_backend_already_initialized(mock_load_model, peft_lora_backend):
     peft_lora_backend.status = FineTuningBackendStatus.RUNNING
     peft_lora_backend.init_backend()
@@ -196,11 +196,11 @@ def test_init_backend_invalid_torch_dtype(peft_lora_backend):
     peft_lora_backend.backend_config["torch_dtype"] = "invalid_dtype"
 
     with patch(
-        "sllm.serve.ft_backends.peft_lora_backend.load_model"
+        "sllm.ft_backends.peft_lora_backend.load_model"
     ) as mock_load_model:
         mock_load_model.return_value = MagicMock()
         with patch(
-            "sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained"
+            "sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained"
         ) as mock_tokenizer:
             mock_tokenizer.return_value = MagicMock()
             peft_lora_backend.init_backend()
@@ -272,8 +272,8 @@ def test_fine_tuning_status_get_status():
     assert "updated_at" in result
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
 def test_fine_tuning_not_initialized(
     mock_tokenizer_from_pretrained,
     mock_load_model,
@@ -285,14 +285,14 @@ def test_fine_tuning_not_initialized(
     assert "Model not initialized" in result["error"]
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_dataset")
-@patch("sllm.serve.ft_backends.peft_lora_backend.LoraConfig")
-@patch("sllm.serve.ft_backends.peft_lora_backend.get_peft_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.TrainingArguments")
-@patch("sllm.serve.ft_backends.peft_lora_backend.Trainer")
-@patch("sllm.serve.ft_backends.peft_lora_backend.save_lora")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_dataset")
+@patch("sllm.ft_backends.peft_lora_backend.LoraConfig")
+@patch("sllm.ft_backends.peft_lora_backend.get_peft_model")
+@patch("sllm.ft_backends.peft_lora_backend.TrainingArguments")
+@patch("sllm.ft_backends.peft_lora_backend.Trainer")
+@patch("sllm.ft_backends.peft_lora_backend.save_lora")
 def test_fine_tuning_success(
     mock_save_lora,
     mock_trainer_cls,
@@ -333,9 +333,9 @@ def test_fine_tuning_success(
     )
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_dataset")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_dataset")
 def test_fine_tuning_dataset_load_failure(
     mock_load_dataset,
     mock_tokenizer_from_pretrained,
@@ -357,10 +357,10 @@ def test_fine_tuning_dataset_load_failure(
     assert peft_lora_backend.ft_status.state == FineTuningBackendStatus.FAILED
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_dataset")
-@patch("sllm.serve.ft_backends.peft_lora_backend.LoraConfig")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_dataset")
+@patch("sllm.ft_backends.peft_lora_backend.LoraConfig")
 def test_fine_tuning_lora_config_failure(
     mock_lora_config_cls,
     mock_load_dataset,
@@ -385,11 +385,11 @@ def test_fine_tuning_lora_config_failure(
     assert peft_lora_backend.ft_status.state == FineTuningBackendStatus.FAILED
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_dataset")
-@patch("sllm.serve.ft_backends.peft_lora_backend.LoraConfig")
-@patch("sllm.serve.ft_backends.peft_lora_backend.get_peft_model")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_dataset")
+@patch("sllm.ft_backends.peft_lora_backend.LoraConfig")
+@patch("sllm.ft_backends.peft_lora_backend.get_peft_model")
 def test_fine_tuning_peft_model_failure(
     mock_get_peft_model,
     mock_lora_config_cls,
@@ -416,12 +416,12 @@ def test_fine_tuning_peft_model_failure(
     assert peft_lora_backend.ft_status.state == FineTuningBackendStatus.FAILED
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_dataset")
-@patch("sllm.serve.ft_backends.peft_lora_backend.LoraConfig")
-@patch("sllm.serve.ft_backends.peft_lora_backend.get_peft_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.TrainingArguments")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_dataset")
+@patch("sllm.ft_backends.peft_lora_backend.LoraConfig")
+@patch("sllm.ft_backends.peft_lora_backend.get_peft_model")
+@patch("sllm.ft_backends.peft_lora_backend.TrainingArguments")
 def test_fine_tuning_training_args_failure(
     mock_training_args_cls,
     mock_get_peft_model,
@@ -451,13 +451,13 @@ def test_fine_tuning_training_args_failure(
     assert peft_lora_backend.ft_status.state == FineTuningBackendStatus.FAILED
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_dataset")
-@patch("sllm.serve.ft_backends.peft_lora_backend.LoraConfig")
-@patch("sllm.serve.ft_backends.peft_lora_backend.get_peft_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.TrainingArguments")
-@patch("sllm.serve.ft_backends.peft_lora_backend.Trainer")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_dataset")
+@patch("sllm.ft_backends.peft_lora_backend.LoraConfig")
+@patch("sllm.ft_backends.peft_lora_backend.get_peft_model")
+@patch("sllm.ft_backends.peft_lora_backend.TrainingArguments")
+@patch("sllm.ft_backends.peft_lora_backend.Trainer")
 def test_fine_tuning_trainer_failure(
     mock_trainer_cls,
     mock_training_args_cls,
@@ -489,14 +489,14 @@ def test_fine_tuning_trainer_failure(
     assert peft_lora_backend.ft_status.state == FineTuningBackendStatus.FAILED
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_dataset")
-@patch("sllm.serve.ft_backends.peft_lora_backend.LoraConfig")
-@patch("sllm.serve.ft_backends.peft_lora_backend.get_peft_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.TrainingArguments")
-@patch("sllm.serve.ft_backends.peft_lora_backend.Trainer")
-@patch("sllm.serve.ft_backends.peft_lora_backend.save_lora")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_dataset")
+@patch("sllm.ft_backends.peft_lora_backend.LoraConfig")
+@patch("sllm.ft_backends.peft_lora_backend.get_peft_model")
+@patch("sllm.ft_backends.peft_lora_backend.TrainingArguments")
+@patch("sllm.ft_backends.peft_lora_backend.Trainer")
+@patch("sllm.ft_backends.peft_lora_backend.save_lora")
 def test_fine_tuning_training_failure(
     mock_save_lora,
     mock_trainer_cls,
@@ -540,7 +540,7 @@ def test_load_dataset_hf_hub(peft_lora_backend, mock_tokenizer):
     }
 
     with patch(
-        "sllm.serve.ft_backends.peft_lora_backend.load_dataset"
+        "sllm.ft_backends.peft_lora_backend.load_dataset"
     ) as mock_load_dataset:
         mock_dataset = MagicMock()
         mock_load_dataset.return_value = mock_dataset
@@ -562,7 +562,7 @@ def test_load_dataset_local(peft_lora_backend, mock_tokenizer):
     }
 
     with patch(
-        "sllm.serve.ft_backends.peft_lora_backend.load_dataset"
+        "sllm.ft_backends.peft_lora_backend.load_dataset"
     ) as mock_load_dataset:
         mock_dataset = MagicMock()
         mock_load_dataset.return_value = mock_dataset
@@ -624,8 +624,8 @@ def test_load_dataset_missing_data_files(peft_lora_backend, mock_tokenizer):
         peft_lora_backend._load_dataset(dataset_config, mock_tokenizer)
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
 def test_shutdown(
     mock_tokenizer_from_pretrained, mock_load_model, peft_lora_backend
 ):
@@ -648,8 +648,8 @@ def test_shutdown_already_deleting(peft_lora_backend):
     assert peft_lora_backend.status == FineTuningBackendStatus.DELETING
 
 
-@patch("sllm.serve.ft_backends.peft_lora_backend.load_model")
-@patch("sllm.serve.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
+@patch("sllm.ft_backends.peft_lora_backend.load_model")
+@patch("sllm.ft_backends.peft_lora_backend.AutoTokenizer.from_pretrained")
 def test_stop(
     mock_tokenizer_from_pretrained, mock_load_model, peft_lora_backend
 ):
@@ -683,35 +683,35 @@ def test_fine_tuning_with_custom_job_id(peft_lora_backend, sample_request_data):
     peft_lora_backend.tokenizer = MagicMock()
 
     with patch(
-        "sllm.serve.ft_backends.peft_lora_backend.load_dataset"
+        "sllm.ft_backends.peft_lora_backend.load_dataset"
     ) as mock_load_dataset:
         mock_dataset = MagicMock()
         mock_dataset.__len__ = MagicMock(return_value=100)
         mock_load_dataset.return_value = mock_dataset
 
         with patch(
-            "sllm.serve.ft_backends.peft_lora_backend.LoraConfig"
+            "sllm.ft_backends.peft_lora_backend.LoraConfig"
         ) as mock_lora_config:
             mock_lora_config.return_value = MagicMock()
 
             with patch(
-                "sllm.serve.ft_backends.peft_lora_backend.get_peft_model"
+                "sllm.ft_backends.peft_lora_backend.get_peft_model"
             ) as mock_get_peft:
                 mock_get_peft.return_value = MagicMock()
 
                 with patch(
-                    "sllm.serve.ft_backends.peft_lora_backend.TrainingArguments"
+                    "sllm.ft_backends.peft_lora_backend.TrainingArguments"
                 ) as mock_training_args:
                     mock_training_args.return_value = MagicMock()
 
                     with patch(
-                        "sllm.serve.ft_backends.peft_lora_backend.Trainer"
+                        "sllm.ft_backends.peft_lora_backend.Trainer"
                     ) as mock_trainer_cls:
                         mock_trainer = MagicMock()
                         mock_trainer_cls.return_value = mock_trainer
 
                         with patch(
-                            "sllm.serve.ft_backends.peft_lora_backend.save_lora"
+                            "sllm.ft_backends.peft_lora_backend.save_lora"
                         ):
                             peft_lora_backend.fine_tuning(sample_request_data)
 

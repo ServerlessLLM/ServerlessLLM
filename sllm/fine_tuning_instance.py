@@ -18,7 +18,7 @@
 
 import ray
 
-from sllm.serve.logger import init_logger
+from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 
@@ -29,7 +29,7 @@ def start_ft_instance(
 ):
     logger.info(f"Starting instance {instance_id} with backend {backend}")
     if backend == "peft_lora":
-        from sllm.serve.ft_backends import PeftLoraBackend
+        from sllm.ft_backends import PeftLoraBackend
 
         model_backend_cls = ray.remote(PeftLoraBackend)
     else:
