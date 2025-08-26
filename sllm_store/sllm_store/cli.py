@@ -362,6 +362,8 @@ def load(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4"
             )
 
+    model_full_path = os.path.join(storage_path, model_name)
+
     try:
         start_load_time = time.time()
 
@@ -374,7 +376,6 @@ def load(
                     "`./sllm_store/vllm_patch/patch.sh` first."
                 )
                 sys.exit(1)
-            model_full_path = os.path.join(storage_path, model_name)
             llm = LLM(
                 model=model_full_path,
                 load_format="serverless_llm",
@@ -393,11 +394,11 @@ def load(
                 torch.ones(1).to(f"cuda:{i}")
                 torch.cuda.synchronize()
             config = AutoConfig.from_pretrained(
-                model_name, trust_remote_code=True
+                model_full_path,
             )
             if adapter_name:
                 model = load_model(
-                    model_name,
+                    model_full_path,
                     device_map="auto",
                     torch_dtype=config.torch_dtype,
                     storage_path=storage_path,
@@ -414,7 +415,7 @@ def load(
                 )
             else:
                 model = load_model(
-                    model_name,
+                    model_full_path,
                     device_map="auto",
                     torch_dtype=config.torch_dtype,
                     storage_path=storage_path,
@@ -428,7 +429,7 @@ def load(
             example_inferences(
                 "transformers",
                 model=model,
-                model_name=model_name,
+                model_name=model_full_path,
                 adapter_name=adapter_name,
             )
 
@@ -467,11 +468,6 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
             generated_text = output.outputs[0].text
             print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
     elif backend == "transformers":
-        from pathlib import Path
-
-        parts = Path(model_name).parts
-        if len(parts) >= 2:
-            model_name = f"{parts[-2]}/{parts[-1]}"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
             "cuda"
