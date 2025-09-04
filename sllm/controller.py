@@ -389,6 +389,52 @@ class SllmController:
         await self.ft_job_store.update_status.remote(job_id, "running")
         logger.info(f"[FT Job {job_id}] Job status updated to 'running'.")
 
+        model_name = job_info["config"]["model"]
+        pretrained_model_name_or_path = model_name
+
+        logger.info(
+            f"[FT Job {job_id}] Checking if model {model_name} is available..."
+        )
+
+        model_info = await self.store_manager.get_model_info.remote(model_name)
+        if not model_info:
+            logger.info(
+                f"[FT Job {job_id}] Model {model_name} not found, downloading automatically..."
+            )
+            try:
+                ft_backend = job_info["config"].get("ft_backend", "peft_lora")
+                if ft_backend == "peft_lora":
+                    download_backend = "transformers"
+                else:
+                    download_backend = "transformers"
+
+                temp_model_config = {
+                    "model": model_name,
+                    "backend": download_backend,
+                    "backend_config": {
+                        "pretrained_model_name_or_path": pretrained_model_name_or_path,
+                        "hf_model_class": "AutoModelForCausalLM",
+                        "torch_dtype": "float16",
+                    },
+                    "num_gpus": job_info["config"].get("num_gpus", 0),
+                }
+
+                await self.store_manager.register.remote(temp_model_config)
+                logger.info(
+                    f"[FT Job {job_id}] Model {model_name} downloaded successfully."
+                )
+            except Exception as e:
+                error_msg = f"Failed to download model {model_name}: {str(e)}"
+                logger.error(f"[FT Job {job_id}] {error_msg}")
+                await self.ft_job_store.update_status.remote(
+                    job_id, "failed", error=error_msg
+                )
+                return
+        else:
+            logger.info(
+                f"[FT Job {job_id}] Model {model_name} already available."
+            )
+
         logger.info(
             f"[FT Job {job_id}] Creating fine-tuning router with resource limits."
         )

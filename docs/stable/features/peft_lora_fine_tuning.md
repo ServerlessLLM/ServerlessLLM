@@ -15,13 +15,21 @@ Before using the fine-tuning feature, ensure you have:
 
 ## Usage
 
-### Step 1: Save Base Model
-
-First, save a base model using the transformers backend:
+### Step 1. **Start the ServerlessLLM Services Using Docker Compose**
 
 ```bash
-sllm-store save --model facebook/opt-125m --backend transformers
+docker compose up -d
 ```
+
+This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
+
+:::tip
+Use the following command to monitor the logs of the head node:
+
+```bash
+docker logs -f sllm_head
+```
+:::
 
 ### Step 2: Submit Fine-tuning Job
 
