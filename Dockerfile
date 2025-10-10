@@ -20,7 +20,7 @@
 ARG CUDA_VERSION=12.1.1
 #################### BASE BUILD IMAGE ####################
 # prepare basic build environment
-FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS builder
 ARG CUDA_VERSION=12.1.1
 ARG PYTHON_VERSION=3.10
 ARG TARGETPLATFORM
