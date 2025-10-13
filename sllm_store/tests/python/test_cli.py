@@ -92,8 +92,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         expected_folder = Path("models") / TEST_MODEL_VLLM
         self.assertTrue(
