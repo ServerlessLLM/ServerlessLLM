@@ -146,9 +146,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
             logger.info(f"Using model class: {hf_model_class}")
 
             storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = os.path.join(
-                storage_path, "transformers", self.model_name
-            )
+            model_path = os.path.join("transformers", self.model_name)
 
             self.model = load_model(
                 model_path,
