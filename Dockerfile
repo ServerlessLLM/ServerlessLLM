@@ -15,8 +15,6 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-
-# Adapted from https://github.com/vllm-project/vllm/blob/23c1b10a4c8cd77c5b13afa9242d67ffd055296b/Dockerfile
 ARG CUDA_VERSION=12.1.1
 #################### BASE BUILD IMAGE ####################
 # prepare basic build environment
@@ -26,7 +24,7 @@ ARG PYTHON_VERSION=3.10
 ARG TARGETPLATFORM
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python and other dependencies
+# Install Python and build dependencies
 RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
     && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
     && apt-get update -y \
@@ -64,54 +62,68 @@ COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
 RUN cd sllm_store && conda run -n build python setup.py bdist_wheel
 
+
+# Copy only dependencies and build config first (for caching)
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/backends /app/sllm/backends
 COPY sllm/cli /app/sllm/cli
-COPY sllm/routers /app/sllm/routers
-COPY sllm/schedulers /app/sllm/schedulers
+COPY sllm/worker /app/sllm/worker
 COPY sllm/*.py /app/sllm/
 COPY README.md /app/
 RUN conda run -n build python setup.py bdist_wheel
 
-# Stage 2: Runner with conda environments
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
-# Set non-interactive installation
+# Set environment for HTTP-based architecture
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    STORAGE_PATH=/models \
+    HEAD_HOST=0.0.0.0 \
+    HEAD_PORT=8343\
+    REDIS_HOST=redis \
+    REDIS_PORT=6379\
+    WORKER_HOST=0.0.0.0 \
+    WORKER_PORT=8001
+
+# Install additional runtime dependencies
+RUN apt-get update -y && \
+    apt-get install -y curl netcat-openbsd gcc g++ && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
 
-# Create conda environments for head and worker
+# Create conda environments optimized for HTTP architecture
 RUN conda create -n head python=3.10 -y && \
     conda create -n worker python=3.10 -y
 
-RUN conda run -n head pip install -U pip
-RUN conda run -n worker pip install -U pip
+RUN conda run -n head pip install -U pip && \
+    conda run -n worker pip install -U pip
 
-# Copy requirements files
+# Copy and install updated requirements (no Ray dependencies)
 COPY requirements.txt /app/
-
-RUN conda run -n head pip install -r /app/requirements.txt
 COPY requirements-worker.txt /app/
 
+# Install head node dependencies (API gateway, Redis client)
+RUN conda run -n head pip install -r /app/requirements.txt
+
+# Install worker node dependencies (ML inference, HTTP client)
 RUN conda run -n worker pip install -r /app/requirements-worker.txt
 
-# Copy vllm patch for worker
+# Copy vLLM patch for worker (if needed)
 COPY sllm_store/vllm_patch /app/vllm_patch
 
 # Copy the built wheels from the builder
 COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
 
-# Install packages in head environment
+# Install ServerlessLLM packages in both environments
 RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
     conda run -n head pip install /app/dist/*.whl
 
-# Install packages in worker environment
 RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
     conda run -n worker pip install /app/dist/*.whl
 
@@ -121,6 +133,23 @@ RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
 # Copy the entrypoint
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD /app/entrypoint.sh health
+
+# Expose ports
+# Head node: 8343 (API Gateway)
+# Worker node: 8001 (Worker API)
+# Backend instances: 8000-8299 (vLLM: 8000-8099, Transformers: 8100-8199, Other: 8200-8299)
+EXPOSE 8343 8001 8000-8299
+
+# Labels for container identification
+LABEL org.opencontainers.image.title="ServerlessLLM HTTP" \
+      org.opencontainers.image.description="HTTP-based distributed LLM serving platform" \
+      org.opencontainers.image.version="2.0" \
+      org.opencontainers.image.vendor="ServerlessLLM Team" \
+      org.opencontainers.image.licenses="Apache-2.0"
 
 # Set the entrypoint directly to the entrypoint script
 ENTRYPOINT ["/app/entrypoint.sh"]

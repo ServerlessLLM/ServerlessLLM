@@ -15,35 +15,5 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-from abc import ABC, abstractmethod
-from typing import Mapping, Optional
 
-from sllm.logger import init_logger
-
-logger = init_logger(__name__)
-
-
-class SllmScheduler(ABC):
-    @abstractmethod
-    def __init__(self, scheduler_config: Optional[Mapping] = None):
-        super().__init__()
-
-    @abstractmethod
-    async def start(self) -> None:
-        pass
-
-    @abstractmethod
-    async def shutdown(self) -> None:
-        pass
-
-    @abstractmethod
-    async def allocate_resource(
-        self, model_name: str, instance_id: str, resources: Mapping
-    ):
-        pass
-
-    @abstractmethod
-    async def deallocate_resource(
-        self, model_name: str, instance_id: str, resources: Mapping
-    ):
-        pass
+"""ServerlessLLM CLI module."""

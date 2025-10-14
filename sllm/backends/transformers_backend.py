@@ -15,9 +15,10 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+
+import asyncio
 import json
 import os
-import threading
 import time
 import uuid
 from copy import deepcopy
@@ -27,8 +28,11 @@ import peft
 import torch
 import torch.nn.functional as F
 import transformers
+import uvicorn
 from datasets import load_dataset
+from fastapi import FastAPI
 from peft import LoraConfig, PeftModel, get_peft_model
+from pydantic import BaseModel
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -64,7 +68,6 @@ class InferenceStatus(BaseStreamer):
             # or dynamic batch size
             for i, v in enumerate(value):
                 self.intermediate[i].append(v)
-        logger.warning(f"Intermediate output: {self.intermediate}")
         if self.status == BackendStatus.DELETING:
             raise DeletingException("Backend is deleting")
 
@@ -79,60 +82,183 @@ class InferenceStatus(BaseStreamer):
         self.intermediate = []
 
 
+# Request models for FastAPI
+class ChatCompletionRequest(BaseModel):
+    model: Optional[str] = None
+    messages: List[Dict[str, str]]
+    max_tokens: Optional[int] = 100
+    temperature: Optional[float] = 0.7
+    top_p: Optional[float] = 1.0
+    task_id: Optional[str] = None
+    request_id: Optional[str] = None
+    lora_adapter_name: Optional[str] = None
+
+
+class CompletionRequest(BaseModel):
+    model: Optional[str] = None
+    prompt: str
+    max_tokens: Optional[int] = 100
+    temperature: Optional[float] = 0.7
+    top_p: Optional[float] = 1.0
+    task_id: Optional[str] = None
+    request_id: Optional[str] = None
+    lora_adapter_name: Optional[str] = None
+
+
+class EmbeddingRequest(BaseModel):
+    model: Optional[str] = None
+    input: List[str]
+    task_instruct: Optional[str] = ""
+    max_length: Optional[int] = 4096
+
+
 class TransformersBackend(SllmBackend):
     def __init__(
         self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
     ) -> None:
+        if backend_config is None:
+            raise ValueError("Backend config is missing")
+
         self.backend_config = backend_config
-        logger.info(
-            f"Initializing TransformersBackend for {model_name} with config: {backend_config}"
-        )
+        logger.info(f"Initializing TransformersBackend for {model_name}")
         self.model_name = model_name
         self.pretrained_model_name_or_path = backend_config.get(
             "pretrained_model_name_or_path"
         )
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
-        self.inf_status = InferenceStatus(self.status)
-        self.status_lock = threading.Lock()
+        self.status_lock = asyncio.Lock()
         self.model = None
         self.tokenizer = None
         self.past_key_values = None
+        self.current_tokens = None
+        self.inf_status = None
 
-    def convert_str_to_json(self, json_str):
-        try:
-            # Parse the JSON string and return the corresponding Python object
-            json_obj = json.loads(json_str)
-            return json_obj
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode JSON string: {e}")
-            return None
+        # Port allocation and server setup
+        self.port = backend_config.get("port") or allocate_backend_port(
+            "transformers"
+        )
+        self.host = backend_config.get("host", "0.0.0.0")
+        self.base_url = f"http://{self.host}:{self.port}"
 
-    def init_backend(self) -> None:
-        with self.status_lock:
+        # Update backend_config with allocated port for reference
+        self.backend_config["port"] = self.port
+        self.backend_config["host"] = self.host
+
+        # FastAPI app
+        self.app = FastAPI()
+        self.server = None
+        self.server_task = None
+
+        # Set up routes
+        self._setup_routes()
+
+    def _setup_routes(self):
+        """Set up FastAPI routes"""
+
+        @self.app.get("/health")
+        async def health():
+            return {"status": "ok"}
+
+        @self.app.post("/v1/chat/completions")
+        async def chat_completions(request: ChatCompletionRequest):
+            logger.info(f"Chat completions request: task_id={request.task_id}")
+            request_dict = {
+                "model": request.model or self.model_name,
+                "messages": request.messages,
+                "max_tokens": request.max_tokens,
+                "temperature": request.temperature,
+                "top_p": request.top_p,
+                "task_id": request.task_id,
+                "lora_adapter_name": request.lora_adapter_name,
+            }
+            return await self.generate(request_dict)
+
+        @self.app.post("/v1/completions")
+        async def completions(request: CompletionRequest):
+            logger.info(f"Completions request: task_id={request.task_id}")
+            request_dict = {
+                "model": request.model or self.model_name,
+                "prompt": request.prompt,
+                "max_tokens": request.max_tokens,
+                "temperature": request.temperature,
+                "top_p": request.top_p,
+                "task_id": request.task_id,
+                "lora_adapter_name": request.lora_adapter_name,
+            }
+            return await self.generate(request_dict)
+
+        @self.app.post("/v1/embeddings")
+        async def embeddings(request: EmbeddingRequest):
+            request_dict = {
+                "model": request.model or self.model_name,
+                "input": request.input,
+                "task_instruct": request.task_instruct,
+                "max_length": request.max_length,
+            }
+            return await self.encode(request_dict)
+
+        @self.app.get("/get_current_tokens")
+        async def get_current_tokens():
+            tokens = await self.get_current_tokens()
+            return {"tokens": tokens}
+
+        @self.app.post("/resume_kv_cache")
+        async def resume_kv_cache(request: Dict[str, Any]):
+            request_datas = request.get("request_datas", [])
+            await self.resume_kv_cache(request_datas)
+            return {"status": "ok"}
+
+    async def init_backend(self) -> None:
+        async with self.status_lock:
             if self.status != BackendStatus.UNINITIALIZED:
                 return
-            device_map = self.backend_config.get("device_map", "auto")
-            torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
-            torch_dtype = getattr(torch, torch_dtype)
-            hf_model_class = self.backend_config.get("hf_model_class", None)
-            if torch_dtype is None:
-                logger.warning(
-                    f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
-                )
-                torch_dtype = torch.float16
-            if hf_model_class is None:
-                logger.error(
-                    f"hf_model_class cannot be None. Please provide a valid model class"
-                )
-                raise ValueError(
-                    "hf_model_class cannot be None. Please provide a valid model class"
-                )
-            quantization_config = self.backend_config.get(
-                "quantization_config", None
-            )
 
-            storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = os.path.join("transformers", self.model_name)
+            logger.info(f"Starting backend for {self.model_name}")
+
+            try:
+                # Initialize the model
+                await self._load_model()
+
+                # Start FastAPI server
+                await self._start_server()
+
+                self.status = BackendStatus.RUNNING
+                logger.info(f"Backend started on {self.base_url}")
+
+            except Exception as e:
+                logger.error(f"Failed to start Transformers backend: {e}")
+                await self._cleanup()
+                raise
+
+    async def _load_model(self):
+        """Load the transformers model and tokenizer"""
+        device_map = self.backend_config.get("device_map", "auto")
+        torch_dtype = self.backend_config.get("torch_dtype", "float16")
+
+        # Convert string to torch dtype
+        if isinstance(torch_dtype, str):
+            torch_dtype = getattr(torch, torch_dtype, torch.float16)
+
+        hf_model_class = self.backend_config.get(
+            "hf_model_class", "AutoModelForCausalLM"
+        )
+        if hf_model_class is None:
+            raise ValueError("hf_model_class cannot be None")
+
+        quantization_config = self.backend_config.get(
+            "quantization_config", None
+        )
+
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        model_path = os.path.join("transformers", self.model_name)
+        full_model_path = os.path.join(storage_path, model_path)
+
+        # Validate model files exist
+        if not os.path.exists(full_model_path):
+            raise FileNotFoundError(f"Transformers model not found at {full_model_path}")
+
+        # Load model using sllm_store
+        try:
             self.model = load_model(
                 model_path,
                 device_map=device_map,
@@ -141,17 +267,48 @@ class TransformersBackend(SllmBackend):
                 hf_model_class=hf_model_class,
                 quantization_config=quantization_config,
             )
-            tokenizer_path = os.path.join(
-                storage_path, "transformers", self.model_name, "tokenizer"
-            )
+        except Exception as e:
+            logger.error(f"Transformers model load failed for {self.model_name}: {e}")
+            raise RuntimeError(f"Failed to load transformers model {self.model_name}: {e}")
+
+        # Load tokenizer
+        tokenizer_path = os.path.join(
+            storage_path, "transformers", self.model_name, "tokenizer"
+        )
+        try:
             if os.path.exists(tokenizer_path):
                 self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
             else:
-                # Fall back to load from system's cache
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     self.pretrained_model_name_or_path
                 )
-            self.status = BackendStatus.RUNNING
+        except Exception as e:
+            logger.error(f"Tokenizer load failed for {self.model_name}: {e}")
+            raise RuntimeError(f"Failed to load tokenizer for {self.model_name}: {e}")
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        # Initialize inference status
+        self.inf_status = InferenceStatus(self.status)
+
+        logger.info(f"Model loaded: {self.model_name}")
+
+    async def _start_server(self):
+        """Start the FastAPI server in a separate task"""
+        config = uvicorn.Config(
+            app=self.app,
+            host=self.host,
+            port=self.port,
+            log_level="error",  # Reduce uvicorn logging
+        )
+        self.server = uvicorn.Server(config)
+
+        # Start server in background task
+        self.server_task = asyncio.create_task(self.server.serve())
+
+        # Wait a moment for server to start
+        await asyncio.sleep(1)
 
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
@@ -165,8 +322,8 @@ class TransformersBackend(SllmBackend):
             return_tensors="pt",
         ).to("cuda:0")
 
-    def encode(self, request_data: Optional[Dict[str, Any]]):
-        with self.status_lock:
+    async def encode(self, request_data: Optional[Dict[str, Any]]):
+        async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
@@ -189,7 +346,7 @@ class TransformersBackend(SllmBackend):
         def get_detailed_instruct(task_description: str, query: str) -> str:
             return f"Instruct: {task_description}\nQuery: {query}"
 
-        model_name = request_data.get("model", "dummy-model")
+        model_name = request_data.get("model", self.model_name)
         task_instruct = request_data.get("task_instruct", "")
         max_length = request_data.get("max_length", 4096)
         query = request_data.get("input", [])
@@ -228,28 +385,53 @@ class TransformersBackend(SllmBackend):
 
         return response
 
-    def generate(self, request_data: Optional[Dict[str, Any]]):
-        with self.status_lock:
+    async def generate(self, request_data: Optional[Dict[str, Any]]):
+        task_id = (
+            request_data.get("task_id", "unknown")
+            if request_data
+            else "unknown"
+        )
+        logger.info(f"Generate request: task_id={task_id}")
+
+        async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
+                logger.error(f"Model not initialized: task_id={task_id}")
                 return {"error": "Model not initialized"}
 
         assert self.model is not None
 
-        model_name = request_data.get("model", "dummy-model")
-        messages = request_data.get("messages", [])
+        model_name = request_data.get("model", self.model_name)
+        # Handle both chat completions (messages) and completions (prompt)
+        if "messages" in request_data:
+            messages = request_data.get("messages", [])
+        else:
+            messages = []
+            # For completions, we'll handle the prompt directly later
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
         lora_adapter_name = request_data.get("lora_adapter_name", None)
 
-        # Combine messages to form the prompt
-        try:
-            prompt = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=False
+        # Generate prompt based on request type
+        if "messages" in request_data:
+            # Chat completions format
+            logger.debug(
+                f"Chat completion: task_id={task_id}, messages={len(messages)}"
             )
-        except Exception as e:
-            prompt = "\n".join(
-                f"{message['role'].capitalize()}: {message['content']}"
-                for message in messages
+            # Combine messages to form the prompt
+            try:
+                prompt = self.tokenizer.apply_chat_template(
+                    messages, add_generation_prompt=True, tokenize=False
+                )
+            except Exception as e:
+                prompt = "\n".join(
+                    f"{message['role'].capitalize()}: {message['content']}"
+                    for message in messages
+                )
+        else:
+            # Completions format - direct prompt
+            prompt = request_data.get("prompt", "")
+            logger.debug(
+                f"Completion: task_id={task_id}, prompt_len={len(prompt)}"
             )
 
         if not prompt:
@@ -273,6 +455,9 @@ class TransformersBackend(SllmBackend):
         prompt_tokens = inputs.input_ids.shape[1]
 
         # Generate response
+        logger.info(
+            f"Generation start: task_id={task_id}, tokens={prompt_tokens}"
+        )
         try:
             with torch.no_grad():
                 outputs = self.model.generate(
@@ -280,7 +465,7 @@ class TransformersBackend(SllmBackend):
                     **generate_kwargs,
                 )
         except DeletingException:
-            logger.info("Backend is shutting down. Aborting request")
+            logger.info(f"Aborting request due to shutdown: task_id={task_id}")
             output_tokens = self.inf_status.get()
             self.inf_status.delete()
             return {
@@ -289,7 +474,7 @@ class TransformersBackend(SllmBackend):
                 "completed_tokens": len(output_tokens[0]) - prompt_tokens,
             }
         except Exception as e:
-            logger.error(f"Failed to generate response: {e}")
+            logger.error(f"Generation failed: task_id={task_id}, error={e}")
             raise e
         else:
             output_text = self.tokenizer.decode(
@@ -303,32 +488,115 @@ class TransformersBackend(SllmBackend):
             )
 
             # Generate response compatible with OpenAI's API
-            response = {
-                "id": f"chatcmpl-{uuid.uuid4()}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": model_name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": output_text,
-                        },
-                        "logprobs": None,
-                        "finish_reason": finish_reason,
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                },
-            }
+            if "messages" in request_data:
+                # Chat completions format
+                response = {
+                    "id": f"chatcmpl-{uuid.uuid4()}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": output_text,
+                            },
+                            "logprobs": None,
+                            "finish_reason": finish_reason,
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens,
+                    },
+                }
+            else:
+                # Completions format
+                response = {
+                    "id": f"cmpl-{uuid.uuid4()}",
+                    "object": "text_completion",
+                    "created": int(time.time()),
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "text": output_text,
+                            "logprobs": None,
+                            "finish_reason": finish_reason,
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens,
+                    },
+                }
 
+            logger.debug(
+                f"Generation complete: task_id={task_id}, tokens={completion_tokens}"
+            )
             self.inf_status.delete()
-
             return response
+
+    async def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
+        async with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        dataset_config = request_data.get("dataset_config")
+        try:
+            dataset = self._load_dataset(dataset_config, tokenizer)
+        except ValueError as e:
+            logger.error(f"Failed to load dataset: {e}")
+            return {"error": str(e)}
+
+        lora_config = request_data.get("lora_config")
+        try:
+            lora_config = LoraConfig(**lora_config)
+        except TypeError as e:
+            logger.error(f"Failed to load lora_config: {e}")
+            raise e
+        peft_model = get_peft_model(self.model, lora_config)
+
+        training_config = request_data.get("training_config")
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        output_dir = request_data.get(
+            "output_dir", f"ft_{self.model_name}_adapter"
+        )
+        lora_save_path = os.path.join(
+            storage_path,
+            "transformers",
+            output_dir,
+        )
+        try:
+            training_args = TrainingArguments(
+                output_dir=lora_save_path, **training_config
+            )
+        except TypeError as e:
+            logger.error(f"Failed to load training_config: {e}")
+            raise e
+        trainer = Trainer(
+            model=peft_model,
+            args=training_args,
+            train_dataset=dataset,
+            data_collator=transformers.DataCollatorForLanguageModeling(
+                tokenizer, mlm=False
+            ),
+        )
+        trainer.train()
+
+        save_lora(peft_model, lora_save_path)
+        logger.info(f"Fine-tuning completed: {lora_save_path}")
+
+        response = {
+            "model": self.model_name,
+            "lora_save_path": lora_save_path,
+        }
+
+        return response
 
     def _load_dataset(
         self,
@@ -388,75 +656,8 @@ class TransformersBackend(SllmBackend):
             )
             return data
 
-    def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
-        with self.status_lock:
-            if self.status != BackendStatus.RUNNING:
-                return {"error": "Model not initialized"}
-
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        if tokenizer.pad_token is None:
-            if tokenizer.eos_token:
-                tokenizer.add_special_tokens({"pad_token": tokenizer.eos_token})
-            else:
-                logger.warning(
-                    "pad_token is not set and eos_token is not available; training may fail."
-                )
-        dataset_config = request_data.get("dataset_config")
-        try:
-            dataset = self._load_dataset(dataset_config, tokenizer)
-        except ValueError as e:
-            logger.error(f"Failed to load dataset: {e}")
-            return {"error": str(e)}
-
-        lora_config = request_data.get("lora_config")
-        try:
-            lora_config = LoraConfig(**lora_config)
-        except TypeError as e:
-            logger.error(f"Failed to load lora_config: {e}")
-            raise e
-        peft_model = get_peft_model(self.model, lora_config)
-
-        training_config = request_data.get("training_config")
-        storage_path = os.getenv("STORAGE_PATH", "./models")
-        output_dir = request_data.get(
-            "output_dir", f"ft_{self.model_name}_adapter"
-        )
-        lora_save_path = os.path.join(
-            storage_path,
-            "transformers",
-            output_dir,
-        )
-        try:
-            training_args = TrainingArguments(
-                output_dir=lora_save_path, **training_config
-            )
-        except TypeError as e:
-            logger.error(f"Failed to load training_config: {e}")
-            raise e
-        trainer = Trainer(
-            model=peft_model,
-            args=training_args,
-            train_dataset=dataset,
-            data_collator=transformers.DataCollatorForLanguageModeling(
-                tokenizer, mlm=False
-            ),
-        )
-        trainer.train()
-
-        save_lora(peft_model, lora_save_path)
-        logger.info(
-            f"Fine-tuning completed. LoRA adapter and config saved to {lora_save_path}"
-        )
-
-        response = {
-            "model": self.model_name,
-            "lora_save_path": lora_save_path,
-        }
-
-        return response
-
-    def load_lora_adapter(self, lora_name: str, lora_path: str):
-        with self.status_lock:
+    async def load_lora_adapter(self, lora_name: str, lora_path: str):
+        async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
@@ -470,13 +671,11 @@ class TransformersBackend(SllmBackend):
         lora_path = os.path.join("transformers", lora_path)
         storage_path = os.getenv("STORAGE_PATH", "./models")
         device_map = self.backend_config.get("device_map", "auto")
-        torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
-        torch_dtype = getattr(torch, torch_dtype)
-        if torch_dtype is None:
-            logger.warning(
-                f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
-            )
-            torch_dtype = torch.float16
+        torch_dtype = self.backend_config.get("torch_dtype", "float16")
+
+        if isinstance(torch_dtype, str):
+            torch_dtype = getattr(torch, torch_dtype, torch.float16)
+
         self.model = load_lora(
             self.model,
             lora_name,
@@ -487,50 +686,67 @@ class TransformersBackend(SllmBackend):
         )
         logger.info(f"Loaded LoRA adapter {lora_name} from {lora_path}")
 
-    def shutdown(self):
+    async def _cleanup(self):
+        """Clean up resources"""
+        if self.server_task and not self.server_task.done():
+            if self.server:
+                self.server.should_exit = True
+            try:
+                await asyncio.wait_for(self.server_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning("Server task did not stop gracefully")
+                self.server_task.cancel()
+
+        if self.model is not None:
+            del self.model
+            self.model = None
+
+    async def shutdown(self):
         """Abort all requests and shutdown the backend."""
-        with self.status_lock:
+        async with self.status_lock:
             if self.status == BackendStatus.DELETING:
                 return
             self.status = BackendStatus.DELETING
             if self.inf_status:
                 self.inf_status.status = BackendStatus.DELETING
 
+        # Wait for ongoing requests to finish
         while self.inf_status and len(self.inf_status.get()) > 0:
-            logger.info("Waiting for all requests to finish")
-            time.sleep(1)
+            await asyncio.sleep(1)
 
-        if self.model is not None:
-            del self.model
+        await self._cleanup()
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Wait for all requests to finish and shutdown the backend."""
-        with self.status_lock:
+        async with self.status_lock:
             if self.status.value >= BackendStatus.STOPPING.value:
                 return
             self.status = BackendStatus.STOPPING
-        while self.inf_status and len(self.inf_status.get()) > 0:
-            logger.info("Waiting for all requests to finish")
-            time.sleep(1)
-        logger.info("All requests finished. Shutting down the backend.")
-        self.shutdown()
 
-    def get_current_tokens(self) -> List[List[int]]:
+        while self.inf_status and len(self.inf_status.get()) > 0:
+            await asyncio.sleep(1)
+        await self.shutdown()
+
+    async def get_current_tokens(self) -> List[List[int]]:
         """Return a list of all ongoing request tokens."""
-        with self.status_lock:
+        async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return []
 
-        status = self.inf_status.get()
-        logger.info(f"Current tokens: {status}")
-        return status
+        if self.inf_status:
+            status = self.inf_status.get()
+            logger.debug(f"Current tokens: {status}")
+            return status
+        return []
 
-    def resume_kv_cache(self, request_datas):
-        logger.info(f"Resuming cache for {request_datas}")
+    async def resume_kv_cache(self, request_datas: List[List[int]]) -> None:
+        """Resume KV cache for given request token sequences."""
+        if self.status != BackendStatus.RUNNING:
+            return
+
         with torch.no_grad():
             device = self.model.device
             input_ids = torch.tensor(request_datas).to(device)
-            logger.info(input_ids)
             output = self.model.generate(
                 input_ids,
                 past_key_values=self.past_key_values,
@@ -540,94 +756,3 @@ class TransformersBackend(SllmBackend):
             )
             self.past_key_values = output.past_key_values
             self.current_tokens = output.sequences
-        logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
-
-    def resume_generate(
-        self, request_data: Optional[Dict[str, Any]], current_output
-    ):
-        with self.status_lock:
-            if self.status != BackendStatus.RUNNING:
-                return {"error": "Model not initialized"}
-
-        assert self.model is not None
-
-        model_name = request_data.get("model", "dummy-model")
-        messages = request_data.get("messages", [])
-        temperature = request_data.get("temperature", 0.7)
-        max_tokens = request_data.get("max_tokens", 10)
-
-        # Combine messages to form the prompt
-        try:
-            prompt = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, tokenize=False
-            )
-        except Exception as e:
-            prompt = "\n".join(
-                f"{message['role'].capitalize()}: {message['content']}"
-                for message in messages
-            )
-
-        if not prompt:
-            return {"error": "Missing prompt in request data"}
-
-        inputs = self._tokenize(prompt)
-        prompt_tokens = inputs.input_ids.shape[1]
-
-        # Generate response
-        try:
-            with torch.no_grad():
-                device = self.model.device
-                current_output = torch.tensor(current_output).to(device)
-                if len(current_output[0]) < len(self.current_tokens[0]):
-                    current_output = self.current_tokens
-                outputs = self.model.generate(
-                    current_output,
-                    past_key_values=self.past_key_values,
-                    max_new_tokens=max_tokens,
-                    temperature=temperature,
-                    streamer=self.inf_status,
-                )
-        except DeletingException:
-            logger.error("Backend is shutting down. Aborting request")
-            raise DeletingException("Backend is shutting down")
-        except Exception as e:
-            logger.error(f"Failed to generate response: {e}")
-            raise e
-        else:
-            output_text = self.tokenizer.decode(
-                outputs[0][prompt_tokens:], skip_special_tokens=True
-            )
-            total_tokens = len(outputs[0])
-            completion_tokens = total_tokens - prompt_tokens
-            # FIXME: consider corner case when max_tokens is reached
-            finish_reason = (
-                "stop" if completion_tokens < max_tokens else "length"
-            )
-
-            # Generate response compatible with OpenAI's API
-            response = {
-                "id": f"chatcmpl-{uuid.uuid4()}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": model_name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": output_text,
-                        },
-                        "logprobs": None,
-                        "finish_reason": finish_reason,
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                },
-            }
-
-            self.inf_status.delete()
-
-            return response

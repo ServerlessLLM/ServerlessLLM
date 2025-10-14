@@ -15,36 +15,30 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import asyncio
 import importlib
-import logging
 import os
 import shutil
 from typing import Optional
 
-import ray
+import torch
 from torch import nn
 from transformers import AutoTokenizer
 
-logger = logging.getLogger("ray")
+from sllm.logger import init_logger
+
+logger = init_logger(__name__)
 
 
-# def get_directory_size(directory):
-#     total_size = 0
-#     for dirpath, dirnames, filenames in os.walk(directory):
-#         for filename in filenames:
-#             file_path = os.path.join(dirpath, filename)
-#             if not os.path.islink(file_path):
-#                 total_size += os.path.getsize(file_path)
-#     return total_size
-
-
-@ray.remote(num_cpus=1)
-def download_transformers_model(
+async def download_transformers_model(
     model_name: str,
     pretrained_model_name_or_path: str,
     torch_dtype: str,
     hf_model_class: str,
 ) -> bool:
+    # Get event loop for thread pool operations
+    loop = asyncio.get_event_loop()
+
     storage_path = os.getenv("STORAGE_PATH", "./models")
     model_path = os.path.join(storage_path, "transformers", model_name)
     tokenizer_path = os.path.join(
@@ -52,48 +46,56 @@ def download_transformers_model(
     )
 
     if os.path.exists(model_path):
-        logger.info(f"{model_path} already exists")
+        logger.info(f"{model_name} exists")
         return True
 
-    import torch
+    try:
+        torch_dtype = getattr(torch, torch_dtype)
+    except AttributeError:
+        logger.error(f"Invalid torch dtype: {torch_dtype}, using float16")
+        torch_dtype = torch.float16
 
-    torch_dtype = getattr(torch, torch_dtype)
-    if torch_dtype is None:
-        raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
+    logger.info(f"Downloading {model_name}")
 
-    logger.info(f"Downloading {model_path}")
+    # Run blocking operations in thread pool to avoid blocking heartbeats
 
-    module = importlib.import_module("transformers")
-    hf_model_cls = getattr(module, hf_model_class)
-    model = hf_model_cls.from_pretrained(
-        pretrained_model_name_or_path,
-        torch_dtype=torch_dtype,
-        trust_remote_code=True,
-    )
+    def _load_model():
+        module = importlib.import_module("transformers")
+        hf_model_cls = getattr(module, hf_model_class)
+        return hf_model_cls.from_pretrained(
+            pretrained_model_name_or_path,
+            torch_dtype=torch_dtype,
+            trust_remote_code=True,
+        )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = await loop.run_in_executor(None, _load_model)
+
+    def _load_tokenizer():
+        return AutoTokenizer.from_pretrained(pretrained_model_name_or_path)
+
+    tokenizer = await loop.run_in_executor(None, _load_tokenizer)
 
     from sllm_store.transformers import save_model
 
-    logger.info(f"Saving {model_path}")
-    try:
+    logger.info(f"Saving {model_name}")
+
+    def _save_model_and_tokenizer():
         save_model(model, model_path)
         tokenizer.save_pretrained(tokenizer_path)
+
+    try:
+        await loop.run_in_executor(None, _save_model_and_tokenizer)
     except Exception as e:
-        logger.error(f"Failed to save {model_path}: {e}")
+        logger.error(f"Save failed {model_name}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
         raise RuntimeError(
             f"Failed to save {model_name} for transformer backend: {e}"
         )
 
-    # model_size = get_directory_size(model_path)
-    # logger.info(f"{model_name} (size: {model_size}) downloaded")
-
     return True
 
 
-@ray.remote(num_cpus=1)
-def download_lora_adapter(
+async def download_lora_adapter(
     base_model_name: str,
     adapter_name: str,
     adapter_name_or_path: str,
@@ -106,14 +108,14 @@ def download_lora_adapter(
     )
 
     if os.path.exists(adapter_path):
-        logger.info(f"{adapter_path} already exists")
+        logger.info(f"{adapter_name} exists")
         return True
 
-    import torch
-
-    torch_dtype = getattr(torch, torch_dtype)
-    if torch_dtype is None:
-        raise ValueError(f"Invalid torch_dtype: {torch_dtype}")
+    try:
+        torch_dtype = getattr(torch, torch_dtype)
+    except AttributeError:
+        logger.error(f"Invalid torch dtype: {torch_dtype}, using float16")
+        torch_dtype = torch.float16
 
     from transformers import AutoConfig
 
@@ -129,7 +131,7 @@ def download_lora_adapter(
         trust_remote_code=True,
     ).to(config.torch_dtype)
 
-    logger.info(f"Downloading {adapter_path}")
+    logger.info(f"Downloading {adapter_name}")
     from peft import PeftModel
 
     try:
@@ -140,11 +142,11 @@ def download_lora_adapter(
 
     from sllm_store.transformers import save_lora
 
-    logger.info(f"Saving {adapter_path}")
+    logger.info(f"Saving {adapter_name}")
     try:
         save_lora(model, adapter_path)
     except Exception as e:
-        logger.error(f"Failed to save {adapter_path}: {e}")
+        logger.error(f"Save failed {adapter_name}: {e}")
         # shutil.rmtree(model_path)  # TODO: deal with error in save_model
         raise RuntimeError(
             f"Failed to save {adapter_name} for transformer backend: {e}"
@@ -157,7 +159,7 @@ class VllmModelDownloader:
     def __init__(self):
         pass
 
-    def download_vllm_model(
+    async def download_vllm_model(
         self,
         model_name: str,
         pretrained_model_name_or_path: str,
@@ -169,15 +171,17 @@ class VllmModelDownloader:
         import gc
         from tempfile import TemporaryDirectory
 
-        import torch
         from huggingface_hub import snapshot_download
         from vllm import LLM
+
+        # Get event loop for thread pool operations
+        loop = asyncio.get_event_loop()
 
         # set the storage path
         storage_path = os.getenv("STORAGE_PATH", "./models")
         model_path = os.path.join(storage_path, "vllm", model_name)
         if os.path.exists(model_path):
-            logger.info(f"{model_path} already exists")
+            logger.info(f"{model_name} exists")
             return
 
         cache_dir = TemporaryDirectory()
@@ -185,34 +189,49 @@ class VllmModelDownloader:
             if os.path.exists(pretrained_model_name_or_path):
                 input_dir = pretrained_model_name_or_path
             else:
-                # download from huggingface
-                input_dir = snapshot_download(
-                    model_name,
-                    cache_dir=cache_dir.name,
-                    allow_patterns=[
-                        "*.safetensors",
-                        "*.bin",
-                        "*.json",
-                        "*.txt",
-                    ],
-                )
-            logger.info(f"Loading model from {input_dir}")
+                # download from huggingface (run in thread pool to avoid blocking)
 
-            # load models from the input directory
-            llm_writer = LLM(
-                model=input_dir,
-                download_dir=input_dir,
-                dtype=torch_dtype,
-                tensor_parallel_size=tensor_parallel_size,
-                num_gpu_blocks_override=1,
-                enforce_eager=True,
-                max_model_len=1,
-            )
-            # model_executer = llm_writer.llm_engine.model_executor #V0
-            model_executer = llm_writer.llm_engine.engine_core  # For engine V1
-            # save the models in the ServerlessLLM format
-            model_executer.save_serverless_llm_state(
-                path=model_path, pattern=pattern, max_size=max_size
+                def _download():
+                    return snapshot_download(
+                        model_name,
+                        cache_dir=cache_dir.name,
+                        allow_patterns=[
+                            "*.safetensors",
+                            "*.bin",
+                            "*.json",
+                            "*.txt",
+                        ],
+                    )
+
+                input_dir = await loop.run_in_executor(None, _download)
+            logger.info(f"Loading {model_name}")
+
+            # load models from the input directory (run in thread pool)
+            def _create_and_save_llm():
+                llm_writer = LLM(
+                    model=input_dir,
+                    download_dir=input_dir,
+                    dtype=torch_dtype,
+                    tensor_parallel_size=tensor_parallel_size,
+                    num_gpu_blocks_override=1,
+                    enforce_eager=True,
+                    max_model_len=1,
+                )
+                # Check vLLM version and use appropriate attribute
+                if hasattr(llm_writer.llm_engine, "engine_core"):
+                    # vLLM v1+
+                    model_executer = llm_writer.llm_engine.engine_core
+                else:
+                    # vLLM v0
+                    model_executer = llm_writer.llm_engine.model_executor
+                # save the models in the ServerlessLLM format
+                model_executer.save_serverless_llm_state(
+                    path=model_path, pattern=pattern, max_size=max_size
+                )
+                return llm_writer, model_executer
+
+            llm_writer, model_executer = await loop.run_in_executor(
+                None, _create_and_save_llm
             )
             for file in os.listdir(input_dir):
                 # Copy the metadata files into the output directory
@@ -223,8 +242,8 @@ class VllmModelDownloader:
                 ):
                     src_path = os.path.join(input_dir, file)
                     dest_path = os.path.join(model_path, file)
-                    logger.info(src_path)
-                    logger.info(dest_path)
+                    logger.debug(src_path)
+                    logger.debug(dest_path)
                     if os.path.isdir(src_path):
                         shutil.copytree(src_path, dest_path)
                     else:
@@ -236,9 +255,9 @@ class VllmModelDownloader:
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
         except Exception as e:
-            logger.info(f"An error occurred while saving the model: {e}")
+            logger.error(f"Save error {model_name}: {e}")
             # remove the output dir
-            shutil.rmtree(os.path.join(storage_path, "vllm", model_name))
+            shutil.rmtree(model_path)
             raise RuntimeError(
                 f"Failed to save {model_name} for vllm backend: {e}"
             )
