@@ -93,7 +93,6 @@ local limbo_set_key = KEYS[2]
 local instance_id = ARGV[1]
 local limbo_field = ARGV[2]
 
--- Add to set and increment counter atomically
 local set_result = redis.call('SADD', limbo_set_key, instance_id)
 if set_result == 1 then
     redis.call('HINCRBY', model_key, limbo_field, 1)
@@ -109,7 +108,6 @@ local limbo_set_key = KEYS[2]
 local instance_id = ARGV[1]
 local limbo_field = ARGV[2]
 
--- Remove from set and decrement counter atomically
 local set_result = redis.call('SREM', limbo_set_key, instance_id)
 if set_result == 1 then
     redis.call('HINCRBY', model_key, limbo_field, -1)
@@ -361,7 +359,6 @@ class RedisStore:
             logger.error(f"Failed to cleanup store data: {e}")
             return cleanup_stats
 
-    ### MODEL METHODS ###
     def _get_model_key(self, model_name: str, backend: str) -> str:
         return f"model:{model_name}:{backend}"
 
@@ -383,7 +380,6 @@ class RedisStore:
             except (json.JSONDecodeError, TypeError):
                 redis_hash["instances"] = []
 
-        # Handle limbo counters
         redis_hash["limbo_up"] = int(redis_hash.get("limbo_up", 0))
         redis_hash["limbo_down"] = int(redis_hash.get("limbo_down", 0))
 
@@ -398,7 +394,6 @@ class RedisStore:
         if not backend:
             raise ValueError("Model configuration must include 'backend' key")
 
-        # Check if model exists and handle different states
         existing_model = await self.get_model(model_name, backend)
         if existing_model:
             if existing_model.get("status") == "excommunicado":
@@ -439,7 +434,6 @@ class RedisStore:
             pipe.hset(key, mapping=model_dict)
             pipe.sadd(self._get_models_index_key(), key)
             pipe.sadd(self._get_model_status_index_key("alive"), key)
-            # TODO: implement lora registration logic
             await pipe.execute()
 
     async def get_model(self, model_name: str, backend: str) -> Optional[dict]:
@@ -615,7 +609,6 @@ class RedisStore:
             )
             message = {"model_key": model_key}
             pipe.publish("model:delete:notifications", json.dumps(message))
-            # TODO: delete lora adapters associated with the model too
             await pipe.execute()
 
     async def delete_lora_adapters(
@@ -802,7 +795,6 @@ class RedisStore:
         """Clean up all limbo data for instances that were associated with a specific worker."""
         cleanup_count = 0
 
-        # Get all models to check their limbo data
         all_models = await self.get_models_by_status("alive")
 
         for model in all_models:
@@ -811,7 +803,6 @@ class RedisStore:
             if not model_name or not backend:
                 continue
 
-            # Get limbo instances for this model
             limbo_up_instances = await self.get_limbo_up_instances(
                 model_name, backend
             )
@@ -819,7 +810,6 @@ class RedisStore:
                 model_name, backend
             )
 
-            # Filter instances that belong to this worker (by node_id prefix)
             worker_prefix = f"{model_name}-{backend}-"
 
             for instance_id in limbo_up_instances.copy():
@@ -851,7 +841,6 @@ class RedisStore:
 
         return cleanup_count
 
-    ### WORKER METHODS ###
     def _get_worker_key(self, node_id: str) -> str:
         return f"worker:{node_id}"
 
@@ -983,7 +972,6 @@ class RedisStore:
             pipe.srem(self._get_workers_status_index_key("initializing"), key)
             await pipe.execute()
 
-    ### DYNAMIC WORKER STATE & HEARTBEAT ###
     def _get_worker_set_key(
         self, model_name: str, backend: str, status: str
     ) -> str:
@@ -1032,7 +1020,6 @@ class RedisStore:
                 datetime.now(timezone.utc).isoformat(),
             )
 
-    ### TASK QUEUE METHODS ###
     def _get_task_queue_key(self, model_name: str, backend: str) -> str:
         return f"queue:{model_name}:{backend}"
 
@@ -1122,7 +1109,6 @@ class RedisStore:
                 self._lock_timestamps.pop(lock_key_name, None)
         return bool(result)
 
-    ### PUBSUB RESULT CHANNEL METHODS ###
     def _get_result_channel_key(self, task_id: str) -> str:
         return f"result-channel:{task_id}"
 
@@ -1144,7 +1130,6 @@ class RedisStore:
         async with self.client.pubsub() as pubsub:
             await pubsub.subscribe(channel_name)
             while True:
-                # Use shorter timeout for get_message to check overall timeout more frequently
                 message = await pubsub.get_message(
                     ignore_subscribe_messages=True, timeout=min(timeout, 30)
                 )
@@ -1152,7 +1137,6 @@ class RedisStore:
                     yield json.loads(message["data"])
                     break
                 else:
-                    # Check if overall timeout has been exceeded
                     elapsed_time = time.time() - start_time
                     if elapsed_time >= timeout:
                         yield {
@@ -1162,9 +1146,7 @@ class RedisStore:
                             }
                         }
                         break
-                    # Continue waiting if overall timeout not exceeded
 
-    ### PERFORMANCE AND MONITORING METHODS ###
     async def get_performance_metrics(self) -> Dict[str, Any]:
         async with self.client.pipeline() as pipe:
             pipe.scard(self._get_models_index_key())
@@ -1264,7 +1246,6 @@ class RedisStore:
 
         return len(expired_locks)
 
-    ### REQUEST STATUS TRACKING ###
     def _get_request_status_key(self, request_id: str) -> str:
         return f"request_status:{request_id}"
 
@@ -1289,7 +1270,6 @@ class RedisStore:
         key = self._get_request_status_key(request_id)
         await self._execute_with_retry(self.client.delete, key)
 
-    ### ATOMIC OPERATIONS WITH LUA SCRIPTS ###
     async def atomic_model_status_update(
         self, model_key: str, old_status: str, new_status: str
     ) -> bool:

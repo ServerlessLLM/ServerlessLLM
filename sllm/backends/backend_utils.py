@@ -33,7 +33,6 @@ logger = init_logger(__name__)
 
 class BackendStatus(Enum):
     UNINITIALIZED = auto()
-    STARTING = auto()
     RUNNING = auto()
     STOPPING = auto()
     DELETING = auto()

@@ -8,7 +8,7 @@ from sllm.kv_store import RedisStore
 from sllm.logger import init_logger
 
 QUEUE_PER_INSTANCE_THRESHOLD = 5
-AUTOSCALER_INTERVAL_SECONDS = 3  # More responsive scaling
+AUTOSCALER_INTERVAL_SECONDS = 3
 
 logger = init_logger(__name__)
 
@@ -19,7 +19,7 @@ class AutoScaler:
         self._shutdown = asyncio.Event()
         self.interval = AUTOSCALER_INTERVAL_SECONDS
         self.queue_threshold = QUEUE_PER_INSTANCE_THRESHOLD
-        self.model_idle_times: Dict[str, int] = {}  # Track idle time per model
+        self.model_idle_times: Dict[str, int] = {}
 
     async def run_scaling_loop(self) -> None:
         logger.info("Starting AutoScaler service loop...")
@@ -96,37 +96,27 @@ class AutoScaler:
             model_name, backend
         )
 
-        # Start with min_instances as baseline (fixes zero-instance startup)
         needed = min_instances
 
-        # Scale up based on queue demand
         if queue_length > 0:
             queue_based_instances = math.ceil(
                 queue_length / target_ongoing_requests
             )
             needed = max(needed, queue_based_instances)
 
-        # Ensure we respect min/max constraints
         final_needed = max(min_instances, min(needed, max_instances))
 
-        # Account for limbo states when calculating instance delta
-        # This prevents oscillation where autoscaler keeps making decisions
-        # that worker_manager will filter out due to limbo states
         effective_current = current_instances
         if final_needed > current_instances:
-            # Scale up: account for instances already being started (limbo_up)
             effective_current += limbo_up
         elif final_needed < current_instances:
-            # Scale down: account for instances already being stopped (limbo_down)
             effective_current -= limbo_down
 
         instance_delta = final_needed - effective_current
 
-        # Handle keep-alive logic for scale-down
-        if instance_delta < 0:  # Scale down
+        if instance_delta < 0:
             idle_time = self.model_idle_times.get(model_identifier, 0)
             if idle_time < keep_alive:
-                # Not idle long enough, don't scale down yet
                 self.model_idle_times[model_identifier] = (
                     idle_time + self.interval
                 )
@@ -134,12 +124,10 @@ class AutoScaler:
                     f"Model '{model_identifier}': keeping instances alive "
                     f"(idle_time: {idle_time + self.interval}s, keep_alive: {keep_alive}s)"
                 )
-                instance_delta = 0  # Don't scale down
+                instance_delta = 0
             else:
-                # Reset idle time after scaling down
                 self.model_idle_times[model_identifier] = 0
         else:
-            # Reset idle time when scaling up or no change needed
             self.model_idle_times[model_identifier] = 0
 
         if instance_delta != 0:

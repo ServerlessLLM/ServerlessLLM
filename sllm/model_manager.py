@@ -96,7 +96,6 @@ class ModelManager:
                 "Model configuration must include 'model' and 'backend' keys."
             )
 
-        # Check if model already exists and is alive
         existing_model = await self.store.get_model(model_name, backend)
         if existing_model and existing_model.get("status") == "alive":
             logger.warning(f"Model '{model_name}:{backend}' is already registered and alive. Skipping duplicate registration.")
@@ -172,7 +171,6 @@ class ModelManager:
         acquired_locks = []
         try:
             for b_name in backends_to_delete:
-                # Check if model is already marked for deletion
                 model_data = await self.store.get_model(model_name, b_name)
                 if model_data and model_data.get("status") == "excommunicado":
                     logger.info(
@@ -249,7 +247,6 @@ class ModelManager:
 
             logger.info(f"All instances for {model_key} are terminated.")
 
-            # Use atomic model deletion to prevent race conditions
             with self.store._deletion_locks_lock:
                 lock_value = self.store._deletion_locks.get(
                     f"{model_name}:{backend}"
@@ -264,7 +261,6 @@ class ModelManager:
                 )
 
                 if deletion_success:
-                    # Clean up additional resources
                     pipe = self.store.client.pipeline()
                     pipe.delete(task_queue_key)
                     pipe.delete(f"workers:ready:{model_name}:{backend}")
@@ -284,7 +280,6 @@ class ModelManager:
                     f"No deletion lock found for {model_key}, cannot perform atomic deletion"
                 )
 
-                # Fallback to old method
                 pipe = self.store.client.pipeline()
                 pipe.delete(model_key)
                 pipe.delete(task_queue_key)
@@ -302,7 +297,6 @@ class ModelManager:
             )
 
         finally:
-            # Always release the deletion lock
             await self.store.release_deletion_lock(model_name, backend)
             logger.info(f"Released deletion lock for {model_key}")
 
@@ -335,15 +329,10 @@ class ModelManager:
         ]
         return backends
 
-    ### HELPER FUNCTIONS ###
     def _get_model_key(self, model_name: str, backend: str) -> str:
         return f"model:{model_name}:{backend}"
 
     def _parse_model_key(self, model_key: str) -> Tuple[str, str]:
-        """
-        Parses a model_key back into its constituent parts.
-        Assumes format "model:name-part-1:backend" or "model:org/name:backend"
-        """
         try:
             parts = model_key.split(":")
             prefix = parts[0]

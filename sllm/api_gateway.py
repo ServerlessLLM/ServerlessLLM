@@ -95,7 +95,6 @@ def create_app(
             backend = body.get("backend", "unknown")
             return {"message": f"Model {model_name}:{backend} registered successfully"}
         except ValueError as e:
-            # Check if this is a duplicate registration error
             error_msg = str(e)
             if "already registered" in error_msg:
                 raise HTTPException(
@@ -251,7 +250,6 @@ def create_app(
                 detail=f"Model '{model_identifier}' not found or not registered.",
             )
 
-        # Generate OpenAI-compatible task_id based on action type
         if body.get("task_id") is None:
             if action == "generate":
                 task_id = f"chatcmpl-{uuid.uuid4()}"
@@ -266,11 +264,8 @@ def create_app(
         else:
             task_id = body["task_id"]
 
-        # Fix model field in payload to contain only model name, not model:backend
         payload = body.copy()
-        payload["model"] = (
-            model  # Use parsed model name instead of full identifier
-        )
+        payload["model"] = model
 
         task_package = {
             "task_id": task_id,
@@ -280,10 +275,8 @@ def create_app(
 
         store: RedisStore = request.app.state.redis_store
 
-        # Log the request ID before queuing
         logger.info(f"Processing request with ID: {task_id}")
 
-        # Set initial status to "queued"
         await store.set_request_status(task_id, "QUEUED")
 
         result_queue = asyncio.Queue()
@@ -313,11 +306,9 @@ def create_app(
             result = await asyncio.wait_for(
                 result_queue.get(), timeout=INFERENCE_REQUEST_TIMEOUT
             )
-            # Clear status when response is returned
             await store.delete_request_status(task_id)
             return JSONResponse(content=result)
         except asyncio.TimeoutError:
-            # Clear status on timeout as well
             await store.delete_request_status(task_id)
             raise HTTPException(
                 status_code=408,
@@ -345,7 +336,6 @@ def create_app(
     @app.get("/v1/models")
     async def get_models(request: Request):
         try:
-            # Use KV store's OpenAI-compliant get_all_models method
             store: RedisStore = request.app.state.redis_store
             model_statuses = await store.get_all_models()
             return model_statuses
@@ -384,11 +374,9 @@ def create_app(
             store: RedisStore = request.app.state.redis_store
             all_workers = await store.get_all_workers()
             
-            # Remove IP addresses from worker information for security
             sanitized_workers = []
             for worker in all_workers:
                 sanitized_worker = worker.copy()
-                # Remove sensitive information
                 sanitized_worker.pop("node_ip", None)
                 sanitized_workers.append(sanitized_worker)
             

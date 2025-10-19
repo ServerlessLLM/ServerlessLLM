@@ -97,7 +97,6 @@ class WorkerManager:
                         f"Processing scaling decision: {key} = {instances_required}"
                     )
 
-                    # Autoscaler now handles limbo adjustments, so use instances_required directly
                     instances_needed = instances_required
 
                     if instances_needed > 0:
@@ -142,7 +141,6 @@ class WorkerManager:
             )
             return
 
-        # Filter out workers that are currently busy or have pending start requests
         eligible_workers = []
         limbo_up_instances = await self.store.get_limbo_up_instances(
             model_name, backend
@@ -152,7 +150,6 @@ class WorkerManager:
             instances_on_device = worker.get("instances_on_device", {})
             running_instances = instances_on_device.get(model_identifier, [])
 
-            # Check if any limbo_up instances belong to this worker (by node_id in instance_id)
             node_id = worker["node_id"]
             worker_pattern = f"{model_name}-{backend}-{node_id}-"
             has_pending_starts = any(
@@ -160,7 +157,6 @@ class WorkerManager:
                 for instance_id in limbo_up_instances
             )
 
-            # Only include workers with no running instances and no pending starts
             if len(running_instances) == 0 and not has_pending_starts:
                 eligible_workers.append(worker)
             else:
@@ -211,7 +207,6 @@ class WorkerManager:
                 else:
                     logger.info(f"Successfully added {instance_id} to limbo_up")
 
-                # NOTE: is this necessary?
                 await self.store.set_worker_status(
                     model_name, backend, target_worker["node_id"], "busy"
                 )
@@ -275,7 +270,6 @@ class WorkerManager:
             )
             if success:
                 successful_stops += 1
-                # Add specific instance to limbo_down tracking (atomically updates counter too)
                 logger.info(
                     f"Adding instance {instance_id} to limbo_down for {model_name}:{backend}"
                 )
@@ -290,7 +284,6 @@ class WorkerManager:
                     logger.info(
                         f"Successfully added {instance_id} to limbo_down"
                     )
-                # Worker status will be updated when heartbeat confirms instance is stopped
             else:
                 logger.error(
                     f"Failed to stop instance {instance_id} on worker {worker['node_id']}"
@@ -318,7 +311,6 @@ class WorkerManager:
             )
             return "", False
 
-        # Generate instance_id at the head
         model_name = model_config.get("model")
         backend = model_config.get("backend")
         instance_id = self._generate_instance_id(
@@ -393,7 +385,6 @@ class WorkerManager:
             logger.warning(f"Invalid instances_on_device format from {node_id}")
             instances_on_device = {}
 
-        # Derive registered_models from instances_on_device keys
         registered_models = list(instances_on_device.keys())
 
         if not node_id:
@@ -554,7 +545,6 @@ class WorkerManager:
         node_id: str,
         instances_on_device: Dict[str, List[str]],
     ) -> None:
-        # Get the previous state to detect changes
         try:
             previous_worker = await self.store.get_worker(node_id)
             previous_instances = (
@@ -582,13 +572,11 @@ class WorkerManager:
                 previous_instances.get(model_identifier, [])
             )
 
-            # Log instance changes for debugging and update limbo tracking
             new_instances = current_instances - previous_instances_set
             if new_instances:
                 logger.debug(
                     f"Detected {len(new_instances)} new instances on {node_id}: {new_instances}"
                 )
-                # Check if any of these new instances were in limbo_up and remove them
                 limbo_up_instances = await self.store.get_limbo_up_instances(
                     model_name, backend
                 )
@@ -613,7 +601,6 @@ class WorkerManager:
                 logger.debug(
                     f"Detected {len(stopped_instances)} stopped instances on {node_id}: {stopped_instances}"
                 )
-                # Check if any of these stopped instances were in limbo_down and remove them
                 limbo_down_instances = (
                     await self.store.get_limbo_down_instances(
                         model_name, backend
@@ -683,7 +670,6 @@ class WorkerManager:
                 pipe.srem(key, node_id)
             await pipe.execute()
 
-        # Clean up any limbo data for this worker
         await self.store.cleanup_worker_limbo_data(node_id)
 
     async def _prune_loop(self):
@@ -981,7 +967,6 @@ class WorkerManager:
                 f"Relinking worker {node_id} at {node_ip}:{node_port} and reinstantiating models"
             )
 
-            # Clean up any stale limbo data for this worker since it's restarting
             cleanup_count = await self.store.cleanup_worker_limbo_data(node_id)
             if cleanup_count > 0:
                 logger.info(

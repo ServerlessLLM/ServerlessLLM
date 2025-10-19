@@ -32,6 +32,7 @@ from sllm.backends.backend_utils import (
 )
 from sllm.logger import init_logger
 from sllm.worker.utils import allocate_backend_port
+from sllm_store.transformers import save_model
 
 logger = init_logger(__name__)
 
@@ -62,43 +63,32 @@ class VllmBackend(SllmBackend):
             if self.status != BackendStatus.UNINITIALIZED:
                 return
 
-            cmd = self._build_serve_command()
+            logger.info(f"Starting vLLM backend for {self.model}")
 
             try:
-                self.process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,  # Merge stderr into stdout
-                    preexec_fn=os.setsid,
-                    text=True,
-                    bufsize=1,  # Line buffered
-                )
+                # Load model from ServerlessLLM storage
+                storage_path = os.getenv("STORAGE_PATH", "./models")
+                model_path = os.path.join(storage_path, "vllm", self.model)
 
-                # Check if process started successfully
-                await asyncio.sleep(1)  # Give it a moment to start
-                if self.process.poll() is not None:
-                    stdout, _ = self.process.communicate()
-                    logger.error(
-                        f"VLLM process failed to start. Exit code: {self.process.returncode}"
-                    )
-                    logger.error(f"VLLM output: {stdout}")
-                    raise RuntimeError(
-                        f"VLLM process failed to start with exit code {self.process.returncode}"
-                    )
+                # Validate model exists in ServerlessLLM format
+                if not os.path.exists(model_path):
+                    raise FileNotFoundError(f"vLLM model not found at {model_path}")
 
-                self.status = BackendStatus.STARTING
-                logger.info(f"VLLM process started, waiting for server to be ready on {self.base_url}")
+                # Build vLLM engine args
+                engine_args = self._build_engine_args(model_path)
+                
+                # Create AsyncLLMEngine with ServerlessLLM format
+                self.engine = AsyncLLMEngine.from_engine_args(engine_args)
 
-                # Start background tasks for server readiness and log monitoring
-                asyncio.create_task(self._wait_for_server_async())
-                asyncio.create_task(self._monitor_process_logs())
+                self.status = BackendStatus.RUNNING
+                logger.info(f"vLLM AsyncLLMEngine started for {self.model}")
 
             except Exception as e:
-                logger.error(f"Failed to start VLLM serve: {e}")
-                if self.process:
-                    self._cleanup_process()
+                logger.error(f"Failed to start vLLM backend: {e}")
+                await self._cleanup()
                 raise
 
+<<<<<<< Updated upstream
     def _build_serve_command(self) -> list:
         storage_path = os.getenv("STORAGE_PATH", "./models")
         storage_path = os.path.abspath(storage_path)
@@ -186,100 +176,31 @@ class VllmBackend(SllmBackend):
         simple_template = (
             "{% for message in messages %}{{ message.content }}{% endfor %}"
         )
-        cmd.extend(["--chat-template", simple_template])
 
-        return cmd
+        # Apply backend configuration
+        if "max_model_len" in self.backend_config:
+            engine_args.max_model_len = self.backend_config["max_model_len"]
+        if "tensor_parallel_size" in self.backend_config:
+            engine_args.tensor_parallel_size = self.backend_config["tensor_parallel_size"]
+        if "gpu_memory_utilization" in self.backend_config:
+            engine_args.gpu_memory_utilization = self.backend_config["gpu_memory_utilization"]
+        if "enforce_eager" in self.backend_config:
+            engine_args.enforce_eager = self.backend_config["enforce_eager"]
+        if "enable_prefix_caching" in self.backend_config:
+            engine_args.enable_prefix_caching = self.backend_config["enable_prefix_caching"]
+        if "dtype" in self.backend_config:
+            engine_args.dtype = self.backend_config["dtype"]
 
-    async def _wait_for_server_async(self, timeout: int = 600):
-        """Background task to wait for server readiness and update status."""
-        start_time = time.time()
-        while time.time() - start_time < timeout:
+        return engine_args
+
+    async def _cleanup(self):
+        """Cleanup AsyncLLMEngine resources"""
+        if self.engine:
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(
-                        f"{self.base_url}/health"
-                    ) as response:
-                        if response.status == 200:
-                            async with self.status_lock:
-                                if self.status == BackendStatus.STARTING:
-                                    self.session = aiohttp.ClientSession()
-                                    self.status = BackendStatus.RUNNING
-                                    logger.info(f"VLLM server ready on {self.base_url}")
-                            return
-            except Exception:
-                pass
-
-            if self.process.poll() is not None:
-                exit_code = self.process.returncode
-                # Read any available output without blocking
-                try:
-                    stdout = (
-                        self.process.stdout.read()
-                        if self.process.stdout
-                        else ""
-                    )
-                except Exception:
-                    stdout = "Could not read output"
-                logger.error(
-                    f"VLLM process died during startup with exit code {exit_code}"
-                )
-                logger.error(f"VLLM output: {stdout}")
-                async with self.status_lock:
-                    self.status = BackendStatus.DELETING
-                return
-
-            await asyncio.sleep(2)
-
-        logger.error(f"VLLM serve did not start within {timeout} seconds")
-        async with self.status_lock:
-            self.status = BackendStatus.DELETING
-
-    async def _monitor_process_logs(self):
-        """Monitor VLLM process logs and detect crashes."""
-        if not self.process or not self.process.stdout:
-            return
-
-        try:
-            while (
-                self.process.poll() is None
-                and self.status == BackendStatus.RUNNING
-            ):
-                line = await asyncio.get_event_loop().run_in_executor(
-                    None, self.process.stdout.readline
-                )
-                if line:
-                    line = line.strip()
-                    if line:
-                        # Only log errors and important messages
-                        if any(
-                            error in line.lower()
-                            for error in [
-                                "error",
-                                "exception",
-                                "traceback",
-                                "failed",
-                                "cuda error",
-                                "out of memory",
-                            ]
-                        ):
-                            logger.error(f"VLLM-{self.port}: {line}")
-                else:
-                    # No output, small delay to prevent busy waiting
-                    await asyncio.sleep(0.1)
-
-            # Process has ended
-            if self.process.poll() is not None:
-                exit_code = self.process.returncode
-                logger.error(
-                    f"VLLM-{self.port} process exited with code {exit_code}"
-                )
-
-        except Exception as e:
-            logger.error(f"VLLM-{self.port} error monitoring logs: {e}")
-
-    def _cleanup_process(self):
-        cleanup_subprocess(self.process)
-        self.process = None
+                # AsyncLLMEngine doesn't have explicit cleanup, but we can set to None
+                self.engine = None
+            except Exception as e:
+                logger.error(f"Error during engine cleanup: {e}")
 
     async def shutdown(self):
         async with self.status_lock:
@@ -303,9 +224,7 @@ class VllmBackend(SllmBackend):
 
     async def encode(self, request_data: Dict[str, Any]):
         async with self.status_lock:
-            if self.status == BackendStatus.STARTING:
-                return {"error": "Engine is still starting up"}
-            elif self.status != BackendStatus.RUNNING:
+            if self.status != BackendStatus.RUNNING:
                 return {"error": "Engine is not running"}
 
         if not self.session:

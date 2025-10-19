@@ -29,10 +29,8 @@ from sllm.utils import post_json_with_retry
 logger = init_logger(__name__)
 
 DEFAULT_WORKER_API_PORT = 8001
-DEFAULT_FORWARD_TIMEOUT = 300  # Timeout for waiting on a response from a worker (5 minutes for cold starts)
-DEFAULT_QUEUE_WAIT_TIMEOUT = (
-    10  # Timeout for BRPOP to allow for graceful shutdown checks
-)
+DEFAULT_FORWARD_TIMEOUT = 300
+DEFAULT_QUEUE_WAIT_TIMEOUT = 10
 
 
 class Dispatcher:
@@ -118,7 +116,6 @@ class Dispatcher:
 
         try:
             payload = task_data.get("payload")
-            # Handle case where queue_name might be bytes
             if isinstance(queue_name, bytes):
                 queue_name = queue_name.decode()
             model_identifier = queue_name.replace("queue:", "", 1)
@@ -146,11 +143,9 @@ class Dispatcher:
                 logger.debug(
                     f"No available workers for '{model_identifier}'. Requesting scaling and requeuing task {task_id}."
                 )
-                # Atomically increment scaling request to avoid race conditions
                 decision_key = f"scaling_decision:{model_name}:{backend}"
                 current_decision = await self.store.client.get(decision_key)
                 if current_decision is None:
-                    # Only set if no scaling decision exists (first request)
                     await self.store.client.set(decision_key, 1, ex=60)
                     logger.info(
                         f"Set scaling decision for {model_identifier}: +1 instance"
@@ -173,11 +168,9 @@ class Dispatcher:
                 f"Dispatching task {task_id} to instance {target_instance_id} on worker {target_worker['node_id']} port {target.get('port')}"
             )
 
-            # Update status to "inferencing" when dispatching
             await self.store.set_request_status(task_id, "INFERENCE")
 
             try:
-                # Handle LoRA adapter loading if present in payload
                 if "lora_adapter_name" in payload:
                     await self._handle_lora_loading(target, payload)
 
@@ -224,7 +217,6 @@ class Dispatcher:
         if not lora_adapter_name:
             return
 
-        # Get LoRA adapter path from KV store
         model_identifier = f"{payload.get('model_name', '')}:{payload.get('backend', 'transformers')}"
         lora_adapters = await self.store.get_lora_adapters(model_identifier)
 
@@ -242,7 +234,6 @@ class Dispatcher:
         if not node_ip or not instance_port:
             raise ValueError(f"Invalid worker configuration for LoRA loading")
 
-        # Load LoRA adapter on the target instance
         lora_payload = {
             "instance_id": instance_id,
             "payload": {"lora_name": lora_adapter_name, "lora_path": lora_path},
@@ -282,7 +273,6 @@ class Dispatcher:
             logger.warning(
                 f"Failed to use Redis counter for round-robin, falling back to local selection: {e}"
             )
-            # Fallback to simple modulo selection based on instance count
 
             fallback_index = int(time.time()) % len(instances)
             return instances[fallback_index]
@@ -295,8 +285,7 @@ class Dispatcher:
         active_instances = []
 
         for worker in all_workers:
-            # Parse instances_on_device from JSON string (stored format in Redis)
-            try:
+                try:
                 instances_on_device_str = worker.get(
                     "instances_on_device", "{}"
                 )
@@ -351,10 +340,9 @@ class Dispatcher:
                 f"Instance {instance_id} has no port information."
             )
 
-        # Determine request type and endpoint
         request_type = payload.get(
             "action", "generate"
-        )  # Get action from task_data, not payload
+        )
         if request_type == "fine_tuning":
             endpoint = "/fine-tuning"
         elif request_type == "encode":
@@ -362,14 +350,13 @@ class Dispatcher:
         elif request_type == "completions":
             endpoint = "/v1/completions"
         else:
-            endpoint = "/v1/chat/completions"  # Default inference endpoint
+            endpoint = "/v1/chat/completions"
 
         url = f"http://{node_ip}:{instance_port}{endpoint}"
         logger.info(
             f"Dispatching {request_type} request to: {url} with model: {payload.get('model', 'NOT_SET')}"
         )
 
-        # For fine-tuning requests, add concurrency limit
         if request_type == "fine_tuning":
             payload["concurrency"] = 1
 
