@@ -141,20 +141,8 @@ class Dispatcher:
 
             if not available_instances:
                 logger.debug(
-                    f"No available workers for '{model_identifier}'. Requesting scaling and requeuing task {task_id}."
+                    f"No available workers for '{model_identifier}'. Requeuing task {task_id}."
                 )
-                decision_key = f"scaling_decision:{model_name}:{backend}"
-                current_decision = await self.store.client.get(decision_key)
-                if current_decision is None:
-                    await self.store.client.set(decision_key, 1, ex=60)
-                    logger.info(
-                        f"Set scaling decision for {model_identifier}: +1 instance"
-                    )
-                else:
-                    logger.debug(
-                        f"Scaling already requested for {model_identifier}"
-                    )
-
                 await self.store.enqueue_task(model_name, backend, task_data)
                 return
 

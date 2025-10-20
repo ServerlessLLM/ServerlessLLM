@@ -654,37 +654,6 @@ class RedisStore:
             json.dumps(backend_config),
         )
 
-    async def increment_limbo_up(
-        self, model_name: str, backend: str, count: int = 1
-    ) -> None:
-        model_key = self._get_model_key(model_name, backend)
-        await self._execute_with_retry(
-            self.client.hincrby, model_key, "limbo_up", count
-        )
-
-    async def increment_limbo_down(
-        self, model_name: str, backend: str, count: int = 1
-    ) -> None:
-        model_key = self._get_model_key(model_name, backend)
-        await self._execute_with_retry(
-            self.client.hincrby, model_key, "limbo_down", count
-        )
-
-    async def decrement_limbo_up(
-        self, model_name: str, backend: str, count: int = 1
-    ) -> None:
-        model_key = self._get_model_key(model_name, backend)
-        await self._execute_with_retry(
-            self.client.hincrby, model_key, "limbo_up", -count
-        )
-
-    async def decrement_limbo_down(
-        self, model_name: str, backend: str, count: int = 1
-    ) -> None:
-        model_key = self._get_model_key(model_name, backend)
-        await self._execute_with_retry(
-            self.client.hincrby, model_key, "limbo_down", -count
-        )
 
     async def get_limbo_counters(
         self, model_name: str, backend: str
@@ -810,10 +779,8 @@ class RedisStore:
                 model_name, backend
             )
 
-            worker_prefix = f"{model_name}-{backend}-"
-
             for instance_id in limbo_up_instances.copy():
-                if instance_id.startswith(worker_prefix):
+                if f"-{node_id}-" in instance_id:
                     removed = await self.remove_limbo_up_instance(
                         model_name, backend, instance_id
                     )
@@ -824,7 +791,7 @@ class RedisStore:
                         )
 
             for instance_id in limbo_down_instances.copy():
-                if instance_id.startswith(worker_prefix):
+                if f"-{node_id}-" in instance_id:
                     removed = await self.remove_limbo_down_instance(
                         model_name, backend, instance_id
                     )
