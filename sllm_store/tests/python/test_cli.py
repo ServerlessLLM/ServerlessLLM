@@ -92,8 +92,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         expected_folder = Path("models") / TEST_MODEL_VLLM
         self.assertTrue(
@@ -157,8 +156,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         expected_folder = Path(TEST_DIRECTORY_SAVE) / TEST_MODEL_VLLM
         self.assertTrue(
@@ -226,8 +224,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         expected_folder = Path(TEST_DIRECTORY_SAVE) / TEST_MODEL_VLLM
         self.assertTrue(
@@ -284,8 +281,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         expected_folder = Path("./models") / TEST_MODEL_TRANSFORMERS
         self.assertTrue(
@@ -348,8 +344,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         expected_folder = (
             Path(TEST_DIRECTORY_SAVE) / TEST_ADAPTER_MODEL
@@ -398,7 +393,7 @@ class TestCliCommands(unittest.TestCase):
     def test_save_missing_model_name(self):
         result = self.runner.invoke(cli, ["save", "--backend", "vllm"])
         self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("Missing option '--model'", result.stderr)
+        self.assertIn("Missing option '--model'", result.output)
 
     def test_save_non_existent_hf_model(self):
         non_existent_model = "nonexistent/model-xyz-123"
@@ -437,8 +432,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         self.assertIn("Prompt:", result.output)
         self.assertIn("Generated text:", result.output)
@@ -459,8 +453,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         self.assertIn("Hello, my dog is cute", result.output)
 
@@ -482,8 +475,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         self.assertIn("Hello, my dog is cute", result.output)
 
@@ -505,8 +497,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         self.assertIn("Hello, my dog is cute", result.output)
 
@@ -528,8 +519,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         self.assertIn("Hello, my dog is cute", result.output)
 
@@ -566,8 +556,7 @@ class TestCliCommands(unittest.TestCase):
         self.assertEqual(
             result.exit_code,
             0,
-            f"Command failed with output: {result.output}\n"
-            f"Stderr: {result.stderr}",
+            f"Command failed with output: {result.output}",
         )
         self.assertIn("Hello, my dog is cute", result.output)
 

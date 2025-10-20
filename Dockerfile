@@ -28,16 +28,18 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
     && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
     && apt-get update -y \
-    && apt-get install -y ccache software-properties-common git curl sudo wget \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update -y \
-    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
-    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
-    && ln -sf /usr/bin/python${PYTHON_VERSION}-config /usr/bin/python3-config \
-    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
-    && python3 --version && python3 -m pip --version
-
+    && apt-get install -y --no-install-recommends \
+        ca-certificates curl git sudo build-essential cmake ninja-build pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+ENV CONDA_DIR=/opt/conda
+RUN curl -fsSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -o /tmp/mf.sh \
+    && bash /tmp/mf.sh -b -p ${CONDA_DIR} \
+    && rm /tmp/mf.sh
+ENV PATH=${CONDA_DIR}/bin:$PATH
+SHELL ["/bin/bash", "-lc"]
+RUN conda create -y -n build python=3.10 pip setuptools wheel \
+    && conda run -n build python -V \
+    && conda run -n build pip -V
 # Set the working directory
 WORKDIR /app
 
@@ -45,8 +47,8 @@ WORKDIR /app
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
 COPY sllm_store/requirements-build.txt /app/sllm_store/requirements-build.txt
 RUN cd sllm_store && \
-  pip install -r requirements-build.txt && \
-  pip install setuptools wheel
+  conda run -n build python -m pip install -r requirements-build.txt && \
+  conda run -n build python -m pip install setuptools wheel
 
 COPY sllm_store/cmake /app/sllm_store/cmake
 COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
@@ -58,7 +60,7 @@ COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
-RUN cd sllm_store && python3 setup.py bdist_wheel
+RUN cd sllm_store && conda run -n build python setup.py bdist_wheel
 
 
 # Copy only dependencies and build config first (for caching)
@@ -69,7 +71,7 @@ COPY sllm/cli /app/sllm/cli
 COPY sllm/worker /app/sllm/worker
 COPY sllm/*.py /app/sllm/
 COPY README.md /app/
-RUN python3 setup.py bdist_wheel
+RUN conda run -n build python setup.py bdist_wheel
 
 FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
