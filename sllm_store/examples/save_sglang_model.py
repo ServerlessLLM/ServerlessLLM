@@ -15,6 +15,7 @@ class SGLangModelSaver:
         storage_path: str = "./models",
         local_model_path: Optional[str] = None,
         tensor_parallel_size: int = 1,
+        device: Optional[str] = None,
         pattern: Optional[str] = None,
         max_size: Optional[int] = None,
     ) -> None:
@@ -53,7 +54,7 @@ class SGLangModelSaver:
                 else:
                     shutil.copy(src_path, dst_path)
 
-        def _load_and_save(input_dir: str, save_name: str, tp_size: int, pattern: Optional[str], max_size: Optional[int]) -> None:
+        def _load_and_save(input_dir: str, save_name: str, tp_size: int, device: Optional[str], pattern: Optional[str], max_size: Optional[int]) -> None:
             # Launch an sglang Engine instance (in-process) and save via engine API
             from sglang.srt.entrypoints.engine import Engine
 
@@ -61,15 +62,18 @@ class SGLangModelSaver:
             os.makedirs(out_dir, exist_ok=True)
 
             # Start engine with minimal args; use CPU by default to minimize GPU usage
-            with Engine(
-                model_path=input_dir,
-                dtype=torch_dtype,
-                device="cpu",
-                tp_size=max(1, int(tp_size)),
-                load_format=LoadFormat.AUTO.value,
-                log_level="error",
-                skip_server_warmup=True,
-            ) as engine:
+            engine_args = {
+                "model_path": input_dir,
+                "dtype": torch_dtype,
+                "tp_size": max(1, int(tp_size)),
+                "load_format": LoadFormat.AUTO.value,
+                "log_level": "error",
+                "skip_server_warmup": True,
+                "disable_cuda_graph": True,
+            }
+            if device == "cpu":
+                engine_args["device"] = "cpu"
+            with Engine(**engine_args) as engine:
                 engine.save_serverless_llm_state(path=out_dir, pattern=pattern, max_size=max_size)
 
             # Copy metadata files
@@ -96,7 +100,7 @@ class SGLangModelSaver:
                             "*.txt",
                         ],
                     )
-                _load_and_save(input_dir, model_name, tensor_parallel_size, pattern, max_size)
+                _load_and_save(input_dir, model_name, tensor_parallel_size, device, pattern, max_size)
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
@@ -144,6 +148,12 @@ if __name__ == "__main__":
         help="Tensor parallel size to launch the engine with.",
     )
     parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Device to use for loading the model.",
+    )
+    parser.add_argument(
         "--pattern",
         type=str,
         default=None,
@@ -163,6 +173,7 @@ if __name__ == "__main__":
     storage_path = args.storage_path
     torch_dtype = args.dtype
     tensor_parallel_size = args.tensor_parallel_size
+    device = args.device
     pattern = args.pattern
     max_size = args.max_size
 
@@ -173,6 +184,7 @@ if __name__ == "__main__":
         storage_path=storage_path,
         local_model_path=local_model_path,
         tensor_parallel_size=tensor_parallel_size,
+        device=device,
         pattern=pattern,
         max_size=max_size,
     )
