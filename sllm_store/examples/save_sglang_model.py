@@ -143,6 +143,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--tensor-parallel-size",
+        "--tp",
         type=int,
         default=1,
         help="Tensor parallel size to launch the engine with.",

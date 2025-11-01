@@ -30,7 +30,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable CUDA graph.",
     )
-
+    parser.add_argument(
+        "--tp-size",
+        "--tp",
+        type=int,
+        default=1,
+        help="Tensor parallel size to launch the engine with.",
+    )
     args = parser.parse_args()
 
     model_name = args.model_name
@@ -42,6 +48,7 @@ if __name__ == "__main__":
         load_format="serverless_llm",
         dtype=args.dtype,
         disable_cuda_graph=args.disable_cuda_graph,
+        tp_size=args.tp_size,
     )
 
     prompts = [
