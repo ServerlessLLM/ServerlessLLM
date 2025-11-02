@@ -98,7 +98,9 @@ class ModelManager:
 
         existing_model = await self.store.get_model(model_name, backend)
         if existing_model and existing_model.get("status") == "alive":
-            logger.warning(f"Model '{model_name}:{backend}' is already registered and alive. Skipping duplicate registration.")
+            logger.warning(
+                f"Model '{model_name}:{backend}' is already registered and alive. Skipping duplicate registration."
+            )
             raise ValueError(
                 f"Model '{model_name}:{backend}' is already registered."
             )

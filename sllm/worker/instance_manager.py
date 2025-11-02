@@ -98,20 +98,28 @@ class InstanceManager:
                 if os.path.isdir(org_dir):
                     for model_name in os.listdir(org_dir):
                         model_dir = os.path.join(org_dir, model_name)
-                        if os.path.isdir(model_dir) and validate_vllm_model_path(model_dir):
+                        if os.path.isdir(
+                            model_dir
+                        ) and validate_vllm_model_path(model_dir):
                             full_model_name = f"{org_name}/{model_name}"
                             model_paths = []
                             total_size = 0
                             rank_count = 0
 
                             for item in os.listdir(model_dir):
-                                if item.startswith("rank_") and os.path.isdir(os.path.join(model_dir, item)):
+                                if item.startswith("rank_") and os.path.isdir(
+                                    os.path.join(model_dir, item)
+                                ):
                                     rank_path = os.path.join(model_dir, item)
-                                    model_paths.append(f"vllm/{full_model_name}/{item}")
+                                    model_paths.append(
+                                        f"vllm/{full_model_name}/{item}"
+                                    )
                                     rank_count += 1
                                     for root, dirs, files in os.walk(rank_path):
                                         total_size += sum(
-                                            os.path.getsize(os.path.join(root, file))
+                                            os.path.getsize(
+                                                os.path.join(root, file)
+                                            )
                                             for file in files
                                         )
 
@@ -129,7 +137,9 @@ class InstanceManager:
                 if os.path.isdir(org_dir):
                     for model_name in os.listdir(org_dir):
                         model_dir = os.path.join(org_dir, model_name)
-                        if os.path.isdir(model_dir) and validate_transformers_model_path(model_dir):
+                        if os.path.isdir(
+                            model_dir
+                        ) and validate_transformers_model_path(model_dir):
                             full_model_name = f"{org_name}/{model_name}"
                             model_path = f"transformers/{full_model_name}"
                             total_size = 0
@@ -138,7 +148,9 @@ class InstanceManager:
                                     os.path.getsize(os.path.join(root, file))
                                     for file in files
                                 )
-                            self.disk_models[f"{full_model_name}:transformers"] = (
+                            self.disk_models[
+                                f"{full_model_name}:transformers"
+                            ] = (
                                 [model_path],
                                 total_size,
                             )
@@ -610,7 +622,9 @@ class InstanceManager:
             model_path_list, model_size = self.disk_models[model_name]
             can_load = await self._lru_eviction(model_size)
             if not can_load:
-                logger.warning(f"{model_name} cannot be loaded: insufficient memory (need {model_size} bytes)")
+                logger.warning(
+                    f"{model_name} cannot be loaded: insufficient memory (need {model_size} bytes)"
+                )
                 await asyncio.sleep(1)
                 continue
 
@@ -624,7 +638,9 @@ class InstanceManager:
                         success = False
                         break
                 except Exception as e:
-                    logger.error(f"Exception loading model path {model_path}: {e}")
+                    logger.error(
+                        f"Exception loading model path {model_path}: {e}"
+                    )
                     success = False
                     break
 
@@ -639,7 +655,9 @@ class InstanceManager:
                     ) // self.chunk_size
                     logger.info(f"{model_name} loaded")
                 else:
-                    logger.error(f"Failed to load {model_name}: model loading unsuccessful")
+                    logger.error(
+                        f"Failed to load {model_name}: model loading unsuccessful"
+                    )
 
     async def _lru_eviction(self, model_size):
         """Evict least recently used models to make space"""

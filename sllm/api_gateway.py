@@ -55,7 +55,7 @@ def create_app(
         yield
 
     app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
-    
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -93,12 +93,14 @@ def create_app(
             await request.app.state.model_manager.register(body)
             model_name = body.get("model")
             backend = body.get("backend", "unknown")
-            return {"message": f"Model {model_name}:{backend} registered successfully"}
+            return {
+                "message": f"Model {model_name}:{backend} registered successfully"
+            }
         except ValueError as e:
             error_msg = str(e)
             if "already registered" in error_msg:
                 raise HTTPException(
-                    status_code=409,  # Conflict status code for duplicates
+                    status_code=409,
                     detail=error_msg,
                 )
             else:
@@ -115,7 +117,7 @@ def create_app(
             logger.error(f"Cannot register model: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500,
-                detail="Model registration failed due to internal error"
+                detail="Model registration failed due to internal error",
             )
 
     @app.post("/update")
@@ -373,17 +375,14 @@ def create_app(
         try:
             store: RedisStore = request.app.state.redis_store
             all_workers = await store.get_all_workers()
-            
+
             sanitized_workers = []
             for worker in all_workers:
                 sanitized_worker = worker.copy()
                 sanitized_worker.pop("node_ip", None)
                 sanitized_workers.append(sanitized_worker)
-            
-            return {
-                "object": "list",
-                "data": sanitized_workers
-            }
+
+            return {"object": "list", "data": sanitized_workers}
         except Exception as e:
             logger.error(f"Error retrieving workers: {e}", exc_info=True)
             raise HTTPException(

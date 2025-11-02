@@ -654,7 +654,6 @@ class RedisStore:
             json.dumps(backend_config),
         )
 
-
     async def get_limbo_counters(
         self, model_name: str, backend: str
     ) -> tuple[int, int]:

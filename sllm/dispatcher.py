@@ -273,7 +273,7 @@ class Dispatcher:
         active_instances = []
 
         for worker in all_workers:
-                try:
+            try:
                 instances_on_device_str = worker.get(
                     "instances_on_device", "{}"
                 )
@@ -328,9 +328,7 @@ class Dispatcher:
                 f"Instance {instance_id} has no port information."
             )
 
-        request_type = payload.get(
-            "action", "generate"
-        )
+        request_type = payload.get("action", "generate")
         if request_type == "fine_tuning":
             endpoint = "/fine-tuning"
         elif request_type == "encode":

@@ -255,7 +255,9 @@ class TransformersBackend(SllmBackend):
 
         # Validate model files exist
         if not os.path.exists(full_model_path):
-            raise FileNotFoundError(f"Transformers model not found at {full_model_path}")
+            raise FileNotFoundError(
+                f"Transformers model not found at {full_model_path}"
+            )
 
         # Load model using sllm_store
         try:
@@ -268,8 +270,12 @@ class TransformersBackend(SllmBackend):
                 quantization_config=quantization_config,
             )
         except Exception as e:
-            logger.error(f"Transformers model load failed for {self.model_name}: {e}")
-            raise RuntimeError(f"Failed to load transformers model {self.model_name}: {e}")
+            logger.error(
+                f"Transformers model load failed for {self.model_name}: {e}"
+            )
+            raise RuntimeError(
+                f"Failed to load transformers model {self.model_name}: {e}"
+            )
 
         # Load tokenizer
         tokenizer_path = os.path.join(
@@ -284,7 +290,9 @@ class TransformersBackend(SllmBackend):
                 )
         except Exception as e:
             logger.error(f"Tokenizer load failed for {self.model_name}: {e}")
-            raise RuntimeError(f"Failed to load tokenizer for {self.model_name}: {e}")
+            raise RuntimeError(
+                f"Failed to load tokenizer for {self.model_name}: {e}"
+            )
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token

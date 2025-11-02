@@ -54,9 +54,18 @@ class VllmBackend(SllmBackend):
         self.base_url = f"http://{self.host}:{self.port}"
         self.session = None
 
-        # Update backend_config with allocated port for reference
         self.backend_config["port"] = self.port
         self.backend_config["host"] = self.host
+
+    def _start_vllm_server(self):
+        cmd = self._build_serve_command()
+        logger.info(f"Starting vLLM server with command: {' '.join(cmd)}")
+        self.process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=os.setsid,
+        )
 
     async def init_backend(self) -> None:
         async with self.status_lock:
@@ -66,19 +75,13 @@ class VllmBackend(SllmBackend):
             logger.info(f"Starting vLLM backend for {self.model}")
 
             try:
-                # Load model from ServerlessLLM storage
                 storage_path = os.getenv("STORAGE_PATH", "./models")
                 model_path = os.path.join(storage_path, "vllm", self.model)
 
-                # Validate model exists in ServerlessLLM format
                 if not os.path.exists(model_path):
-                    raise FileNotFoundError(f"vLLM model not found at {model_path}")
-
-                # Build vLLM engine args
-                engine_args = self._build_engine_args(model_path)
-                
-                # Create AsyncLLMEngine with ServerlessLLM format
-                self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+                    raise FileNotFoundError(
+                        f"vLLM model not found at {model_path}"
+                    )
 
                 self.status = BackendStatus.RUNNING
                 logger.info(f"vLLM AsyncLLMEngine started for {self.model}")
@@ -88,27 +91,33 @@ class VllmBackend(SllmBackend):
                 await self._cleanup()
                 raise
 
-<<<<<<< Updated upstream
     def _build_serve_command(self) -> list:
         storage_path = os.getenv("STORAGE_PATH", "./models")
         storage_path = os.path.abspath(storage_path)
         model_path = os.path.join(storage_path, "vllm", self.model)
 
-        # Validate model exists and has proper structure
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"VLLM model not found at {model_path}")
-        
+
         rank_0_path = os.path.join(model_path, "rank_0")
         if not os.path.exists(rank_0_path):
-            raise FileNotFoundError(f"VLLM model missing rank_0 directory: {model_path}")
-        
+            raise FileNotFoundError(
+                f"VLLM model missing rank_0 directory: {model_path}"
+            )
+
         tensor_index_path = os.path.join(rank_0_path, "tensor_index.json")
         if not os.path.exists(tensor_index_path):
-            raise FileNotFoundError(f"VLLM model missing tensor_index.json: {model_path}")
-        
-        has_tensor_data = any(f.startswith("tensor.data_") for f in os.listdir(rank_0_path))
+            raise FileNotFoundError(
+                f"VLLM model missing tensor_index.json: {model_path}"
+            )
+
+        has_tensor_data = any(
+            f.startswith("tensor.data_") for f in os.listdir(rank_0_path)
+        )
         if not has_tensor_data:
-            raise FileNotFoundError(f"VLLM model missing tensor.data_* files: {model_path}")
+            raise FileNotFoundError(
+                f"VLLM model missing tensor.data_* files: {model_path}"
+            )
 
         cmd = [
             "vllm",
@@ -124,7 +133,6 @@ class VllmBackend(SllmBackend):
             self.host,
         ]
 
-        # Validate VLLM command exists (optional check)
         try:
             subprocess.run(
                 ["vllm", "--version"],
@@ -177,30 +185,7 @@ class VllmBackend(SllmBackend):
             "{% for message in messages %}{{ message.content }}{% endfor %}"
         )
 
-        # Apply backend configuration
-        if "max_model_len" in self.backend_config:
-            engine_args.max_model_len = self.backend_config["max_model_len"]
-        if "tensor_parallel_size" in self.backend_config:
-            engine_args.tensor_parallel_size = self.backend_config["tensor_parallel_size"]
-        if "gpu_memory_utilization" in self.backend_config:
-            engine_args.gpu_memory_utilization = self.backend_config["gpu_memory_utilization"]
-        if "enforce_eager" in self.backend_config:
-            engine_args.enforce_eager = self.backend_config["enforce_eager"]
-        if "enable_prefix_caching" in self.backend_config:
-            engine_args.enable_prefix_caching = self.backend_config["enable_prefix_caching"]
-        if "dtype" in self.backend_config:
-            engine_args.dtype = self.backend_config["dtype"]
-
-        return engine_args
-
-    async def _cleanup(self):
-        """Cleanup AsyncLLMEngine resources"""
-        if self.engine:
-            try:
-                # AsyncLLMEngine doesn't have explicit cleanup, but we can set to None
-                self.engine = None
-            except Exception as e:
-                logger.error(f"Error during engine cleanup: {e}")
+        return cmd
 
     async def shutdown(self):
         async with self.status_lock:

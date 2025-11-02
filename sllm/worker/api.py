@@ -40,12 +40,14 @@ async def _start_instance_background(
         logger.debug(f"Started {started_instance_id}")
     except (FileNotFoundError, RuntimeError) as e:
         logger.error(f"Model validation/loading failed for {instance_id}: {e}")
-        logger.info(f"Triggering model re-download for {model_config.get('model')}")
-        
+        logger.info(
+            f"Triggering model re-download for {model_config.get('model')}"
+        )
+
         model = model_config.get("model")
         backend = model_config.get("backend")
         storage_path = os.getenv("STORAGE_PATH", "./models")
-        
+
         if backend == "vllm":
             model_path = os.path.join(storage_path, "vllm", model)
         elif backend == "transformers":
@@ -53,20 +55,24 @@ async def _start_instance_background(
         else:
             logger.error(f"Unknown backend {backend} for cleanup")
             return
-        
+
         if os.path.exists(model_path):
             logger.warning(f"Removing corrupted model directory: {model_path}")
             shutil.rmtree(model_path)
-        
+
         try:
             await instance_manager._ensure_model_downloaded(model_config)
-            logger.info(f"Re-download completed, retrying instance start for {instance_id}")
+            logger.info(
+                f"Re-download completed, retrying instance start for {instance_id}"
+            )
             started_instance_id = await instance_manager.start_instance(
                 model_config, instance_id
             )
             logger.debug(f"Started {started_instance_id} after re-download")
         except Exception as retry_e:
-            logger.error(f"Failed to start instance {instance_id} even after re-download: {retry_e}")
+            logger.error(
+                f"Failed to start instance {instance_id} even after re-download: {retry_e}"
+            )
     except Exception as e:
         logger.error(
             f"Failed to start instance {instance_id} in background: {e}"
@@ -75,8 +81,6 @@ async def _start_instance_background(
 
 def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
     app = FastAPI()
-
-    # Store node_id once assigned
     app.state.node_id = None
 
     @app.get("/health")
@@ -100,7 +104,6 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
             if not node_id:
                 raise HTTPException(status_code=400, detail="Missing node_id")
 
-            # Store the assigned node_id
             app.state.node_id = node_id
 
             return {"message": f"Node {node_id} confirmed successfully"}
@@ -121,14 +124,12 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
 
         logger.debug(f"Start request: {instance_id}")
 
-        # Send immediate confirmation that request was received
         response = {
             "status": "RECEIVED",
             "instance_id": instance_id,
             "message": f"Instance {instance_id} start request received and processing",
         }
 
-        # Start instance in background (don't await)
         asyncio.create_task(
             _start_instance_background(
                 instance_manager, model_config, instance_id
@@ -150,27 +151,5 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
                 status_code=500, detail="Failed to stop model instance"
             )
         return {"message": f"Instance {instance_id} stopped successfully"}
-
-    @app.post("/invoke")
-    async def invoke_handler(request: Request):
-        body = await request.json()
-        instance_id = body.get("instance_id")
-        payload = body.get("payload")
-
-        if not instance_id or not payload:
-            raise HTTPException(
-                status_code=400,
-                detail="Internal invoke requires instance_id and payload",
-            )
-
-        try:
-            result = await instance_manager.run_inference(instance_id, payload)
-            return result
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Inference failed: {str(e)}"
-            )
 
     return app
