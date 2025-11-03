@@ -25,7 +25,6 @@ jobs:
         shell: bash
         run: |
           echo "release_tag=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-
       - name: Create Release
         id: create_release
         uses: "actions/github-script@v6"
@@ -55,7 +54,6 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: |
           bash -x .github/workflows/scripts/env.sh
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -71,7 +69,6 @@ jobs:
           asset_name=${wheel_name//"linux"/"manylinux1"}
           echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
           echo "asset_name=${asset_name}" >> $GITHUB_ENV
-
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
@@ -81,6 +78,26 @@ jobs:
           asset_path: ./dist/${{ env.wheel_name }}
           asset_name: ${{ env.asset_name }}
           asset_content_type: application/*
+
+      - name: Rename wheel for PyPI
+        shell: bash
+        run: |
+          # Rename the wheel file to use manylinux1 tag for PyPI compatibility
+          mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
+
+      - name: Fix sdist filename
+        shell: bash
+        run: |
+          # Rename sdist files from hyphens to underscores to match PyPI requirements
+          for file in dist/*.tar.gz; do
+            if [ -f "$file" ]; then
+              new_name=$(echo "$file" | sed 's/serverless-llm/serverless_llm/')
+              if [ "$file" != "$new_name" ]; then
+                mv "$file" "$new_name"
+                echo "Renamed: $file -> $new_name"
+              fi
+            fi
+          done
 
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1.8
@@ -113,7 +130,6 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update && apt-get install -y ca-certificates git
-
       - name: Build sllm-store wheel
         working-directory: sllm_store
         env:
@@ -124,16 +140,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-build.txt
           python -m pip install setuptools wheel twine
-
           # Build the wheel
           python setup.py sdist bdist_wheel
-
           # Set wheel name environment variables using portable approach
           wheel_name=$(ls dist/*.whl | xargs -n 1 basename)
           asset_name=$(echo "$wheel_name" | sed 's/linux/manylinux1/')
           echo "wheel_name=$wheel_name" >> $GITHUB_ENV
           echo "asset_name=$asset_name" >> $GITHUB_ENV
-
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
@@ -148,6 +161,20 @@ jobs:
         working-directory: sllm_store  # Specify the directory
         run: |
           mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
+
+      - name: Fix sdist filename
+        working-directory: sllm_store
+        run: |
+          # Rename sdist files from hyphens to underscores to match PyPI requirements
+          for file in dist/*.tar.gz; do
+            if [ -f "$file" ]; then
+              new_name=$(echo "$file" | sed 's/serverless-llm-store/serverless_llm_store/')
+              if [ "$file" != "$new_name" ]; then
+                mv "$file" "$new_name"
+                echo "Renamed: $file -> $new_name"
+              fi
+            fi
+          done
 
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1.8
@@ -182,7 +209,6 @@ jobs:
         shell: sh
         run: |
           echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v4
         with:
