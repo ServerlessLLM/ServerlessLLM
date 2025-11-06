@@ -1,7 +1,7 @@
 name: Create Documentation Version
 
 # This workflow creates a versioned snapshot of documentation when a release is published
-# Runs when a new release/tag is created (e.g., v0.8.0, v0.9.0)
+# It directly updates the docs website repository
 
 on:
   push:
@@ -13,8 +13,6 @@ on:
 jobs:
   create-version:
     runs-on: ubuntu-latest
-    name: Create Documentation Version Snapshot
-
     steps:
       - name: Extract version from tag
         id: get_version
@@ -30,18 +28,99 @@ jobs:
           echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "📦 Creating documentation version: $VERSION (from tag: $TAG_NAME)"
 
-      - name: Trigger version creation in docs repo
-        run: |
-          curl -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.DOCS_GITHUB_TOKEN }}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/ServerlessLLM/serverlessllm.github.io/dispatches \
-            -d "{\"event_type\":\"create-version-snapshot\",\"client_payload\":{\"version\":\"${{ steps.get_version.outputs.version }}\",\"tag\":\"${{ steps.get_version.outputs.tag }}\"}}"
+      - name: Checkout ServerlessLLM repo at tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.get_version.outputs.tag }}
+          path: source
+          fetch-depth: 0
 
-      - name: Verify dispatch
+      - name: Checkout Documentation repo
+        uses: actions/checkout@v4
+        with:
+          repository: ServerlessLLM/serverlessllm.github.io
+          path: docs-site
+          token: ${{ secrets.DOCS_GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Install dependencies
         run: |
-          echo "✅ Successfully triggered documentation version creation"
-          echo "📝 Version: ${{ steps.get_version.outputs.version }}"
-          echo "🏷️  Tag: ${{ steps.get_version.outputs.tag }}"
-          echo "📚 The docs repo will now create versioned_docs/version-${{ steps.get_version.outputs.version }}/"
+          cd docs-site
+          npm ci
+
+      - name: Sync docs from tagged release
+        run: |
+          # Remove current docs content (excluding api/)
+          find docs-site/docs/ -mindepth 1 -maxdepth 1 ! -name 'api' ! -name 'images' ! -name 'README.md' -exec rm -rf {} +
+
+          # Remove old images
+          rm -rf docs-site/static/img/*
+
+          # Copy new docs content from tagged version
+          cp -r source/docs/* docs-site/docs/
+
+          # Copy images to the static/img directory
+          if [ -d "source/docs/images" ]; then
+            mkdir -p docs-site/static/img
+            cp -r source/docs/images/* docs-site/static/img/
+          fi
+
+      - name: Create version snapshot
+        run: |
+          cd docs-site
+          npm run docusaurus docs:version ${{ steps.get_version.outputs.version }}
+
+      - name: Update docusaurus.config.js to set new stable version
+        run: |
+          cd docs-site
+          VERSION="${{ steps.get_version.outputs.version }}"
+
+          # Update lastVersion to the new version
+          sed -i "s/lastVersion: '[^']*'/lastVersion: '$VERSION'/" docusaurus.config.js
+
+          echo "✅ Updated lastVersion to $VERSION"
+
+      - name: Commit and push changes
+        run: |
+          cd docs-site
+          git config user.name "${{ vars.GIT_USERNAME }}"
+          git config user.email "${{ vars.GIT_EMAIL }}"
+
+          # Check if there are changes to commit
+          if git status --porcelain | grep .; then
+            git add -A
+            git commit -m "docs: create version ${{ steps.get_version.outputs.version }} snapshot"
+
+            # Set up authentication with the PAT
+            TOKEN="${{ secrets.DOCS_GITHUB_TOKEN }}"
+            git remote set-url origin "https://x-access-token:${TOKEN}@github.com/ServerlessLLM/serverlessllm.github.io.git"
+
+            # Push with retry logic
+            max_retries=3
+            retry_count=0
+            while [ $retry_count -lt $max_retries ]; do
+              if git push; then
+                echo "✅ Successfully created version ${{ steps.get_version.outputs.version }}"
+                echo "📚 New version is now the default at https://serverlessllm.github.io/docs/"
+                break
+              else
+                retry_count=$((retry_count + 1))
+                echo "Push attempt $retry_count failed, retrying in 5 seconds..."
+                sleep 5
+              fi
+            done
+
+            if [ $retry_count -eq $max_retries ]; then
+              echo "❌ Failed to push after $max_retries attempts"
+              exit 1
+            fi
+          else
+            echo "No changes to commit"
+          fi
