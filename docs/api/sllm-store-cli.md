@@ -208,7 +208,7 @@ sllm-store load [OPTIONS]
   - Adapter name to save. Must be a Hugging Face pretrained LoRA adapter name.
 
 - `--precision <precision>`
-  - Precision to use when loading the model (`transformers` backend only). For more info on quantization in ServerlessLLM, visit [here](https://serverlessllm.github.io/docs/stable/store/quickstart#quantization).
+  - Precision to use when loading the model (`transformers` backend only). For more info on quantization in ServerlessLLM, visit [here](../store/quickstart.md#quantization).
 
 - `--storage-path <storage_path>`
   - Location where the model will be loaded from.

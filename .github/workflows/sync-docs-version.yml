@@ -1,0 +1,47 @@
+name: Create Documentation Version
+
+# This workflow creates a versioned snapshot of documentation when a release is published
+# Runs when a new release/tag is created (e.g., v0.8.0, v0.9.0)
+
+on:
+  push:
+    tags:
+      - v*
+  release:
+    types: [published]
+
+jobs:
+  create-version:
+    runs-on: ubuntu-latest
+    name: Create Documentation Version Snapshot
+
+    steps:
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          # Extract version from tag (e.g., v0.8.0 -> 0.8.0)
+          if [ "${{ github.event_name }}" == "release" ]; then
+            TAG_NAME="${{ github.event.release.tag_name }}"
+          else
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG_NAME#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "📦 Creating documentation version: $VERSION (from tag: $TAG_NAME)"
+
+      - name: Trigger version creation in docs repo
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.DOCS_GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/ServerlessLLM/serverlessllm.github.io/dispatches \
+            -d "{\"event_type\":\"create-version-snapshot\",\"client_payload\":{\"version\":\"${{ steps.get_version.outputs.version }}\",\"tag\":\"${{ steps.get_version.outputs.tag }}\"}}"
+
+      - name: Verify dispatch
+        run: |
+          echo "✅ Successfully triggered documentation version creation"
+          echo "📝 Version: ${{ steps.get_version.outputs.version }}"
+          echo "🏷️  Tag: ${{ steps.get_version.outputs.tag }}"
+          echo "📚 The docs repo will now create versioned_docs/version-${{ steps.get_version.outputs.version }}/"
