@@ -57,15 +57,11 @@ jobs:
 
       - name: Sync docs from tagged release
         run: |
-          # Remove current docs content (excluding api/)
-          find docs-site/docs/ -mindepth 1 -maxdepth 1 ! -name 'api' ! -name 'images' ! -name 'README.md' -exec rm -rf {} +
-
-          # Remove old images
+          # Remove existing docs content in the docs-site
+          rm -rf docs-site/docs/*
           rm -rf docs-site/static/img/*
-
           # Copy new docs content from tagged version
           cp -r source/docs/* docs-site/docs/
-
           # Copy images to the static/img directory
           if [ -d "source/docs/images" ]; then
             mkdir -p docs-site/static/img
