@@ -18,7 +18,7 @@ Curious about how it works under the hood? Check out our [System Walkthrough](ht
 ## News
 
 - **[03/25]** We're excited to share that we'll be giving a ServerlessLLM tutorial at the SESAME workshop, co-located with ASPLOS/EuroSys 2025 in Rotterdam, Netherlands, on March 31. [Slides](https://docs.google.com/presentation/d/1ioGCVpsg0x3oCxX19EiE820aMiY22X5MG6jgImZ1W18/edit?usp=sharing) | [More info](https://sesame25.github.io/)
-- **[11/24]** We have added experimental support of fast checkpoint loading for AMD GPUs (ROCm) when using with vLLM, PyTorch and HuggingFace Accelerate. Please refer to the [documentation](https://serverlessllm.github.io/docs/stable/store/rocm_quickstart) for more details.
+- **[11/24]** We have added experimental support of fast checkpoint loading for AMD GPUs (ROCm) when using with vLLM, PyTorch and HuggingFace Accelerate. Please refer to the [documentation](https://serverlessllm.github.io/docs/store/rocm_quickstart) for more details.
 - **[10/24]** ServerlessLLM was invited to present at a global AI tech vision forum in Singapore.
 - **[10/24]** We hosted the first ServerlessLLM developer meetup in Edinburgh, attracting over 50 attendees both offline and online. Together, we brainstormed many exciting new features to develop. If you have great ideas, we’d love for you to join us!
 - **[10/24]** We made the first public release of ServerlessLLM. Check out the details of the release [here](https://github.com/ServerlessLLM/ServerlessLLM/releases/tag/v0.5.0).
@@ -48,7 +48,7 @@ ServerlessLLM is designed to support multiple LLMs in efficiently sharing limite
 
 ## Getting Started
 
-1. Install ServerlessLLM with pip or [from source](https://serverlessllm.github.io/docs/stable/deployment/single_machine#installation).
+1. Install ServerlessLLM with pip or [from source](https://serverlessllm.github.io/docs/deployment/single_machine#installation).
 
 ```bash
 conda create -n sllm python=3.10 -y
@@ -56,9 +56,9 @@ conda activate sllm
 pip install serverless-llm
 ```
 
-2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/stable/getting_started).
+2. Start a local ServerlessLLM cluster using the [Quick Start Guide](https://serverlessllm.github.io/docs/getting_started).
 
-3. Want to try fast checkpoint loading in your own code? Check out the [ServerlessLLM Store Guide](https://serverlessllm.github.io/docs/stable/store/quickstart).
+3. Want to try fast checkpoint loading in your own code? Check out the [ServerlessLLM Store Guide](https://serverlessllm.github.io/docs/store/quickstart).
 
 ## Documentation
 
