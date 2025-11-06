@@ -20,7 +20,6 @@ import os
 import signal
 import subprocess
 import time
-import uuid
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional
@@ -31,13 +30,11 @@ from sllm.logger import init_logger
 
 logger = init_logger(__name__)
 
-
 class BackendStatus(Enum):
     UNINITIALIZED = auto()
     RUNNING = auto()
     STOPPING = auto()
     DELETING = auto()
-
 
 class ChatCompletionRequest(BaseModel):
     model: Optional[str] = None
@@ -49,7 +46,6 @@ class ChatCompletionRequest(BaseModel):
     request_id: Optional[str] = None
     lora_adapter_name: Optional[str] = None
 
-
 class CompletionRequest(BaseModel):
     model: Optional[str] = None
     prompt: str
@@ -60,13 +56,11 @@ class CompletionRequest(BaseModel):
     request_id: Optional[str] = None
     lora_adapter_name: Optional[str] = None
 
-
 class EmbeddingRequest(BaseModel):
     model: Optional[str] = None
     input: List[str]
     task_instruct: Optional[str] = ""
     max_length: Optional[int] = 4096
-
 
 class SllmBackend(ABC):
     @abstractmethod
@@ -77,10 +71,6 @@ class SllmBackend(ABC):
 
     @abstractmethod
     async def init_backend(self) -> None:
-        pass
-
-    @abstractmethod
-    def start_instance(self) -> None:
         pass
 
     @abstractmethod
@@ -107,7 +97,6 @@ class SllmBackend(ABC):
     async def fine_tuning(self, request_data: Dict[str, Any]):
         pass
 
-
 def cleanup_subprocess(process: Optional[subprocess.Popen]) -> None:
     """
     Safely cleanup a subprocess with graceful and force termination.
@@ -131,59 +120,3 @@ def cleanup_subprocess(process: Optional[subprocess.Popen]) -> None:
         except (ProcessLookupError, OSError):
             # Process already terminated
             pass
-
-
-def format_response(
-    model_name,
-    output_text,
-    finish_reason,
-    prompt_token,
-    completion_tokens,
-    total_tokens,
-    messages: bool,
-) -> Dict:
-    if messages:
-        response = {
-            "id": f"chatcmpl-{uuid.uuid4()}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": output_text,
-                    },
-                    "logprobs": None,
-                    "finish_reason": finish_reason,
-                }
-            ],
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-            },
-        }
-    else:
-        response = {
-            "id": f"cmpl-{uuid.uuid4()}",
-            "object": "text_completion",
-            "created": int(time.time()),
-            "model": model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "text": output_text,
-                    "logprobs": None,
-                    "finish_reason": finish_reason,
-                }
-            ],
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-            },
-        }
-
-    return response

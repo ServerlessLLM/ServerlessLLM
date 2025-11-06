@@ -42,7 +42,13 @@ from transformers import (
 )
 from transformers.generation.streamers import BaseStreamer
 
-from sllm.backends.backend_utils import BackendStatus, SllmBackend
+from sllm.backends.backend_utils import (
+    BackendStatus,
+    ChatCompletionRequest,
+    CompletionRequest,
+    EmbeddingRequest,
+    SllmBackend,
+)
 from sllm.logger import init_logger
 from sllm_store.transformers import load_lora, load_model, save_lora
 
@@ -82,36 +88,6 @@ class InferenceStatus(BaseStreamer):
         self.intermediate = []
 
 
-# Request models for FastAPI
-class ChatCompletionRequest(BaseModel):
-    model: Optional[str] = None
-    messages: List[Dict[str, str]]
-    max_tokens: Optional[int] = 100
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 1.0
-    task_id: Optional[str] = None
-    request_id: Optional[str] = None
-    lora_adapter_name: Optional[str] = None
-
-
-class CompletionRequest(BaseModel):
-    model: Optional[str] = None
-    prompt: str
-    max_tokens: Optional[int] = 100
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 1.0
-    task_id: Optional[str] = None
-    request_id: Optional[str] = None
-    lora_adapter_name: Optional[str] = None
-
-
-class EmbeddingRequest(BaseModel):
-    model: Optional[str] = None
-    input: List[str]
-    task_instruct: Optional[str] = ""
-    max_length: Optional[int] = 4096
-
-
 class TransformersBackend(SllmBackend):
     def __init__(
         self, model_name: str, backend_config: Optional[Dict[str, Any]] = None
@@ -133,24 +109,43 @@ class TransformersBackend(SllmBackend):
         self.current_tokens = None
         self.inf_status = None
 
-        # Port allocation and server setup
         self.port = backend_config.get("port") or allocate_backend_port(
             "transformers"
         )
         self.host = backend_config.get("host", "0.0.0.0")
         self.base_url = f"http://{self.host}:{self.port}"
 
-        # Update backend_config with allocated port for reference
         self.backend_config["port"] = self.port
         self.backend_config["host"] = self.host
 
-        # FastAPI app
         self.app = FastAPI()
         self.server = None
         self.server_task = None
 
-        # Set up routes
         self._setup_routes()
+
+    async def init_backend(self) -> None:
+        async with self.status_lock:
+            if self.status != BackendStatus.UNINITIALIZED:
+                return
+
+            logger.info(f"Starting backend for {self.model_name}")
+
+            try:
+                await self._load_model()
+                await self._start_server()
+
+                self.status = BackendStatus.RUNNING
+                logger.info(f"Backend started on {self.base_url}")
+
+            except Exception as e:
+                logger.error(f"Failed to start Transformers backend: {e}")
+                await self._cleanup()
+                raise
+
+    ###################################
+    ##### SERVER CODE <(´⌯ ̫⌯`)> #######
+    ###################################
 
     def _setup_routes(self):
         """Set up FastAPI routes"""
@@ -208,34 +203,28 @@ class TransformersBackend(SllmBackend):
             await self.resume_kv_cache(request_datas)
             return {"status": "ok"}
 
-    async def init_backend(self) -> None:
-        async with self.status_lock:
-            if self.status != BackendStatus.UNINITIALIZED:
-                return
+    async def _start_server(self):
+        """Start the FastAPI server in a separate task"""
+        config = uvicorn.Config(
+            app=self.app,
+            host=self.host,
+            port=self.port,
+            log_level="error",
+        )
+        self.server = uvicorn.Server(config)
 
-            logger.info(f"Starting backend for {self.model_name}")
+        self.server_task = asyncio.create_task(self.server.serve())
+        await asyncio.sleep(1)
 
-            try:
-                # Initialize the model
-                await self._load_model()
-
-                # Start FastAPI server
-                await self._start_server()
-
-                self.status = BackendStatus.RUNNING
-                logger.info(f"Backend started on {self.base_url}")
-
-            except Exception as e:
-                logger.error(f"Failed to start Transformers backend: {e}")
-                await self._cleanup()
-                raise
+    ##########################################
+    ##### MODEL LOADING CODE <(´⌯ ̫⌯`)> #######
+    ##########################################
 
     async def _load_model(self):
         """Load the transformers model and tokenizer"""
         device_map = self.backend_config.get("device_map", "auto")
         torch_dtype = self.backend_config.get("torch_dtype", "float16")
 
-        # Convert string to torch dtype
         if isinstance(torch_dtype, str):
             torch_dtype = getattr(torch, torch_dtype, torch.float16)
 
@@ -253,13 +242,11 @@ class TransformersBackend(SllmBackend):
         model_path = os.path.join("transformers", self.model_name)
         full_model_path = os.path.join(storage_path, model_path)
 
-        # Validate model files exist
         if not os.path.exists(full_model_path):
             raise FileNotFoundError(
                 f"Transformers model not found at {full_model_path}"
             )
 
-        # Load model using sllm_store
         try:
             self.model = load_model(
                 model_path,
@@ -277,7 +264,6 @@ class TransformersBackend(SllmBackend):
                 f"Failed to load transformers model {self.model_name}: {e}"
             )
 
-        # Load tokenizer
         tokenizer_path = os.path.join(
             storage_path, "transformers", self.model_name, "tokenizer"
         )
@@ -297,26 +283,8 @@ class TransformersBackend(SllmBackend):
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # Initialize inference status
         self.inf_status = InferenceStatus(self.status)
-
         logger.info(f"Model loaded: {self.model_name}")
-
-    async def _start_server(self):
-        """Start the FastAPI server in a separate task"""
-        config = uvicorn.Config(
-            app=self.app,
-            host=self.host,
-            port=self.port,
-            log_level="error",  # Reduce uvicorn logging
-        )
-        self.server = uvicorn.Server(config)
-
-        # Start server in background task
-        self.server_task = asyncio.create_task(self.server.serve())
-
-        # Wait a moment for server to start
-        await asyncio.sleep(1)
 
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
@@ -328,7 +296,9 @@ class TransformersBackend(SllmBackend):
             padding=True,
             truncation=True,
             return_tensors="pt",
-        ).to("cuda:0")
+        ).to(
+            "cuda:0"
+        )  # TODO: is this correct? do we always assign the tokenizer to cuda device 0?
 
     async def encode(self, request_data: Optional[Dict[str, Any]]):
         async with self.status_lock:
@@ -409,23 +379,18 @@ class TransformersBackend(SllmBackend):
         assert self.model is not None
 
         model_name = request_data.get("model", self.model_name)
-        # Handle both chat completions (messages) and completions (prompt)
         if "messages" in request_data:
             messages = request_data.get("messages", [])
         else:
             messages = []
-            # For completions, we'll handle the prompt directly later
         temperature = request_data.get("temperature", 0.7)
         max_tokens = request_data.get("max_tokens", 10)
         lora_adapter_name = request_data.get("lora_adapter_name", None)
 
-        # Generate prompt based on request type
         if "messages" in request_data:
-            # Chat completions format
             logger.debug(
                 f"Chat completion: task_id={task_id}, messages={len(messages)}"
             )
-            # Combine messages to form the prompt
             try:
                 prompt = self.tokenizer.apply_chat_template(
                     messages, add_generation_prompt=True, tokenize=False
@@ -436,7 +401,6 @@ class TransformersBackend(SllmBackend):
                     for message in messages
                 )
         else:
-            # Completions format - direct prompt
             prompt = request_data.get("prompt", "")
             logger.debug(
                 f"Completion: task_id={task_id}, prompt_len={len(prompt)}"
@@ -461,8 +425,6 @@ class TransformersBackend(SllmBackend):
 
         inputs = self._tokenize(prompt)
         prompt_tokens = inputs.input_ids.shape[1]
-
-        # Generate response
         logger.info(
             f"Generation start: task_id={task_id}, tokens={prompt_tokens}"
         )
@@ -484,6 +446,7 @@ class TransformersBackend(SllmBackend):
         except Exception as e:
             logger.error(f"Generation failed: task_id={task_id}, error={e}")
             raise e
+
         else:
             output_text = self.tokenizer.decode(
                 outputs[0][prompt_tokens:], skip_special_tokens=True
@@ -495,174 +458,22 @@ class TransformersBackend(SllmBackend):
                 "stop" if completion_tokens < max_tokens else "length"
             )
 
-            # Generate response compatible with OpenAI's API
-            if "messages" in request_data:
-                # Chat completions format
-                response = {
-                    "id": f"chatcmpl-{uuid.uuid4()}",
-                    "object": "chat.completion",
-                    "created": int(time.time()),
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "message": {
-                                "role": "assistant",
-                                "content": output_text,
-                            },
-                            "logprobs": None,
-                            "finish_reason": finish_reason,
-                        }
-                    ],
-                    "usage": {
-                        "prompt_tokens": prompt_tokens,
-                        "completion_tokens": completion_tokens,
-                        "total_tokens": total_tokens,
-                    },
-                }
-            else:
-                # Completions format
-                response = {
-                    "id": f"cmpl-{uuid.uuid4()}",
-                    "object": "text_completion",
-                    "created": int(time.time()),
-                    "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "text": output_text,
-                            "logprobs": None,
-                            "finish_reason": finish_reason,
-                        }
-                    ],
-                    "usage": {
-                        "prompt_tokens": prompt_tokens,
-                        "completion_tokens": completion_tokens,
-                        "total_tokens": total_tokens,
-                    },
-                }
+            is_message = "messages" in request_data
+            response = format_response(
+                model_name,
+                output_text,
+                finish_reason,
+                prompt_token,
+                completion_tokens,
+                total_tokens,
+                is_message,
+            )
 
             logger.debug(
                 f"Generation complete: task_id={task_id}, tokens={completion_tokens}"
             )
             self.inf_status.delete()
             return response
-
-    async def fine_tuning(self, request_data: Optional[Dict[str, Any]]):
-        async with self.status_lock:
-            if self.status != BackendStatus.RUNNING:
-                return {"error": "Model not initialized"}
-
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        dataset_config = request_data.get("dataset_config")
-        try:
-            dataset = self._load_dataset(dataset_config, tokenizer)
-        except ValueError as e:
-            logger.error(f"Failed to load dataset: {e}")
-            return {"error": str(e)}
-
-        lora_config = request_data.get("lora_config")
-        try:
-            lora_config = LoraConfig(**lora_config)
-        except TypeError as e:
-            logger.error(f"Failed to load lora_config: {e}")
-            raise e
-        peft_model = get_peft_model(self.model, lora_config)
-
-        training_config = request_data.get("training_config")
-        storage_path = os.getenv("STORAGE_PATH", "./models")
-        output_dir = request_data.get(
-            "output_dir", f"ft_{self.model_name}_adapter"
-        )
-        lora_save_path = os.path.join(
-            storage_path,
-            "transformers",
-            output_dir,
-        )
-        try:
-            training_args = TrainingArguments(
-                output_dir=lora_save_path, **training_config
-            )
-        except TypeError as e:
-            logger.error(f"Failed to load training_config: {e}")
-            raise e
-        trainer = Trainer(
-            model=peft_model,
-            args=training_args,
-            train_dataset=dataset,
-            data_collator=transformers.DataCollatorForLanguageModeling(
-                tokenizer, mlm=False
-            ),
-        )
-        trainer.train()
-
-        save_lora(peft_model, lora_save_path)
-        logger.info(f"Fine-tuning completed: {lora_save_path}")
-
-        response = {
-            "model": self.model_name,
-            "lora_save_path": lora_save_path,
-        }
-
-        return response
-
-    def _load_dataset(
-        self,
-        dataset_config: Optional[Dict[str, Any]],
-        tokenizer: PreTrainedTokenizerBase,
-    ):
-        dataset_source = dataset_config.get("dataset_source")
-        hf_dataset_name = dataset_config.get("hf_dataset_name")
-        tokenization_field = dataset_config.get("tokenization_field")
-        split = dataset_config.get("split", None)
-        data_files = dataset_config.get("data_files", None)
-        extension_type = dataset_config.get("extension_type")
-
-        if dataset_source not in {"hf_hub", "local"}:
-            logger.error(
-                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
-            )
-            raise ValueError(
-                "Invalid 'dataset_source'. Must be 'hf_hub' or 'local'."
-            )
-
-        if dataset_source == "hf_hub":
-            if not hf_dataset_name:
-                logger.error(
-                    "hf_dataset_name must be provided in the dataset configuration."
-                )
-                raise ValueError(
-                    "hf_dataset_name must be provided in the dataset configuration."
-                )
-            data = load_dataset(hf_dataset_name, split=split)
-            data = data.map(
-                lambda samples: tokenizer(samples[tokenization_field]),
-                batched=True,
-            )
-            return data
-        elif dataset_source == "local":
-            if not extension_type:
-                logger.error(
-                    "extension_type must be provided in the dataset configuration."
-                )
-                raise ValueError(
-                    "extension_type must be provided in the dataset configuration."
-                )
-            if not data_files:
-                logger.error(
-                    "data_files must be provided in the dataset configuration."
-                )
-                raise ValueError(
-                    "data_files must be provided in the dataset configuration."
-                )
-            data = load_dataset(
-                extension_type, data_files=data_files, split=split
-            )
-            data = data.map(
-                lambda samples: tokenizer(samples[tokenization_field]),
-                batched=True,
-            )
-            return data
 
     async def load_lora_adapter(self, lora_name: str, lora_path: str):
         async with self.status_lock:
@@ -718,7 +529,6 @@ class TransformersBackend(SllmBackend):
             if self.inf_status:
                 self.inf_status.status = BackendStatus.DELETING
 
-        # Wait for ongoing requests to finish
         while self.inf_status and len(self.inf_status.get()) > 0:
             await asyncio.sleep(1)
 

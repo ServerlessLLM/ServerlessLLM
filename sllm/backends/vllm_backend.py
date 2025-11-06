@@ -57,16 +57,6 @@ class VllmBackend(SllmBackend):
         self.backend_config["port"] = self.port
         self.backend_config["host"] = self.host
 
-    def _start_vllm_server(self):
-        cmd = self._build_serve_command()
-        logger.info(f"Starting vLLM server with command: {' '.join(cmd)}")
-        self.process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=os.setsid,
-        )
-
     async def init_backend(self) -> None:
         async with self.status_lock:
             if self.status != BackendStatus.UNINITIALIZED:
@@ -83,6 +73,17 @@ class VllmBackend(SllmBackend):
                         f"vLLM model not found at {model_path}"
                     )
 
+                cmd = self._build_serve_command()
+                logger.info(
+                    f"Starting vLLM server with command: {' '.join(cmd)}"
+                )
+                self.process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid,
+                )
+
                 self.status = BackendStatus.RUNNING
                 logger.info(f"vLLM AsyncLLMEngine started for {self.model}")
 
@@ -91,7 +92,7 @@ class VllmBackend(SllmBackend):
                 await self._cleanup()
                 raise
 
-    def _build_serve_command(self) -> list:
+    def _build_serve_command(self) -> List:
         storage_path = os.getenv("STORAGE_PATH", "./models")
         storage_path = os.path.abspath(storage_path)
         model_path = os.path.join(storage_path, "vllm", self.model)
@@ -187,26 +188,6 @@ class VllmBackend(SllmBackend):
 
         return cmd
 
-    async def shutdown(self):
-        async with self.status_lock:
-            if self.status == BackendStatus.DELETING:
-                return
-            self.status = BackendStatus.DELETING
-
-        if self.session:
-            await self.session.close()
-            self.session = None
-
-        self._cleanup_process()
-
-    async def stop(self) -> None:
-        async with self.status_lock:
-            if self.status.value >= BackendStatus.STOPPING.value:
-                return
-            self.status = BackendStatus.STOPPING
-
-        await self.shutdown()
-
     async def encode(self, request_data: Dict[str, Any]):
         async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
@@ -241,6 +222,26 @@ class VllmBackend(SllmBackend):
             logger.error(f"Error in encode: {e}")
             return {"error": f"Encoding failed: {str(e)}"}
 
+    async def shutdown(self):
+        async with self.status_lock:
+            if self.status == BackendStatus.DELETING:
+                return
+            self.status = BackendStatus.DELETING
+
+        if self.session:
+            await self.session.close()
+            self.session = None
+
+        self._cleanup_process()
+
+    async def stop(self) -> None:
+        async with self.status_lock:
+            if self.status.value >= BackendStatus.STOPPING.value:
+                return
+            self.status = BackendStatus.STOPPING
+
+        await self.shutdown()
+
     async def get_current_tokens(self) -> List[List[int]]:
         """Return a list of all ongoing request tokens."""
         if self.status != BackendStatus.RUNNING:
@@ -263,42 +264,9 @@ class VllmBackend(SllmBackend):
             return []
 
     async def resume_kv_cache(self, request_datas: List[List[int]]) -> None:
-        """Resume KV cache for given request token sequences."""
-        if self.status != BackendStatus.RUNNING:
-            return
-
-        try:
-            # For vLLM, simulate cache warming by sending short generation requests
-            constructed_inputs = [
-                {
-                    "prompt": "",  # Will be filled from tokens
-                    "max_tokens": 1,
-                    "temperature": 0.0,
-                }
-                for request_data in request_datas
-            ]
-
-            tasks = []
-            for i, (inputs, tokens) in enumerate(
-                zip(constructed_inputs, request_datas)
-            ):
-                # Convert tokens back to text (simplified approach)
-                inputs["prompt"] = f"<resume_cache_{i}>"
-                task = self.session.post(
-                    f"{self.base_url}/v1/completions", json=inputs
-                )
-                tasks.append(task)
-
-            # Execute all cache warming requests
-            responses = await asyncio.gather(*tasks, return_exceptions=True)
-            for response in responses:
-                if isinstance(response, Exception):
-                    logger.warning(f"Cache warming request failed: {response}")
-                elif hasattr(response, "close"):
-                    await response.close()
-
-        except Exception as e:
-            logger.error(f"Error resuming KV cache: {e}")
+        raise NotImplementedError(
+            "KV-cache resumption is not supported in this backend yet"
+        )
 
     async def fine_tuning(self, request_data: Dict[str, Any]):
         raise NotImplementedError(
