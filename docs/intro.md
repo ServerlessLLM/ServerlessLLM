@@ -35,4 +35,4 @@ ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 
 ### ServerlessLLM CLI
 
-- [ServerlessLLM CLI API](../api/cli.md)
+- [ServerlessLLM CLI API](./api/cli.md)
