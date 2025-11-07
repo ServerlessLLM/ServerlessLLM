@@ -59,10 +59,9 @@ jobs:
         run: |
           # Remove existing docs content in the docs-site
           rm -rf docs-site/docs/*
-          rm -rf docs-site/static/img/*
           # Copy new docs content from tagged version
           cp -r source/docs/* docs-site/docs/
-          # Copy images to the static/img directory
+          # Copy images to the static/img directory (append, don't delete existing)
           if [ -d "source/docs/images" ]; then
             mkdir -p docs-site/static/img
             cp -r source/docs/images/* docs-site/static/img/
@@ -72,6 +71,24 @@ jobs:
         run: |
           cd docs-site
           npm run docusaurus docs:version ${{ steps.get_version.outputs.version }}
+
+      - name: Restore latest docs to docs/ directory
+        run: |
+          # Checkout latest main branch to get current development docs
+          git clone --depth 1 --branch main https://github.com/ServerlessLLM/ServerlessLLM.git source-latest
+
+          # Remove tagged docs and restore latest
+          rm -rf docs-site/docs/*
+          cp -r source-latest/docs/* docs-site/docs/
+
+          # Update images with latest (append, don't delete)
+          if [ -d "source-latest/docs/images" ]; then
+            mkdir -p docs-site/static/img
+            cp -r source-latest/docs/images/* docs-site/static/img/
+          fi
+
+          # Clean up
+          rm -rf source-latest
 
       - name: Update docusaurus.config.js to set new stable version
         run: |
