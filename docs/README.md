@@ -36,4 +36,19 @@ This command generates static content into the `build` directory, which can be s
 
 ### About the image path
 
-Images are stored in `images` path. For example, we have an image called `a.jpg` in `images`. When we use this image in any position in the documents, we just use `/img/a.jpg`. (The document sync bot can copy `images` path into `img` folder in `serverlessllm.github.io` repo)
+Images are stored in the `images` directory alongside the documentation files. This ensures that each documentation version has its own images, preventing version conflicts.
+
+**Usage:**
+- Store images in: `docs/images/` (for Latest) or `versioned_docs/version-X.X.X/images/` (for versioned docs)
+- Reference images using relative paths: `./images/filename.jpg`
+
+**Examples:**
+```markdown
+<!-- Markdown syntax -->
+![Alt text](./images/a.jpg)
+
+<!-- HTML syntax with sizing -->
+<img src="./images/a.jpg" alt="Description" width="256px"/>
+```
+
+When you create a new documentation version using `npm run docusaurus docs:version X.X.X`, the images directory is automatically copied with the versioned docs.
