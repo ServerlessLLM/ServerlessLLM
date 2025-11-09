@@ -44,11 +44,11 @@ Images are stored in the `images` directory alongside the documentation files. T
 
 **Examples:**
 ```markdown
-<!-- Markdown syntax -->
+<!-- Markdown syntax (no width control) -->
 ![Alt text](./images/a.jpg)
 
-<!-- HTML syntax with sizing -->
-<img src="./images/a.jpg" alt="Description" width="256px"/>
+<!-- HTML syntax with sizing (use require for Docusaurus) -->
+<img src={require('./images/a.jpg').default} alt="Description" width="256px"/>
 ```
 
 When you create a new documentation version using `npm run docusaurus docs:version X.X.X`, the images directory is automatically copied with the versioned docs.
