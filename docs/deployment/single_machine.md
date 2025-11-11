@@ -182,7 +182,7 @@ conda activate sllm
 sllm deploy --model facebook/opt-1.3b
 ```
 
-This command downloads the specified model from Hugging Face Hub. To load a model from a local path, you can use a `config.json` file. Refer to the [CLI API documentation](../../api/cli.md#example-configuration-file-configjson) for details.
+This command downloads the specified model from Hugging Face Hub. To load a model from a local path, you can use a `config.json` file. Refer to the [CLI API documentation](../api/cli.md#example-configuration-file-configjson) for details.
 
 ### 5. Query the Model
 

@@ -1,5 +1,5 @@
 # ServerlessLLM Example Scripts
-Please follow the [Installation instructions](https://serverlessllm.github.io/docs/stable/deployment/single_machine#installation) to have ServerlessLLM successfully installed.
+Please follow the [Installation instructions](https://serverlessllm.github.io/docs/deployment/single_machine#installation) to have ServerlessLLM successfully installed.
 ## Calling Embedding API
 This example shows deploying and calling [all-MiniLM-L12-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2) using vllm backend of ServerlessLLM.
 
