@@ -2,7 +2,6 @@ import argparse
 import importlib
 import os
 
-import torch
 from transformers import AutoModelForCausalLM, AutoConfig
 from peft import PeftModel
 
@@ -40,7 +39,6 @@ config = AutoConfig.from_pretrained(
     os.path.join(storage_path, "transformers", base_model_name),
     trust_remote_code=True,
 )
-config.torch_dtype = torch.float16
 module = importlib.import_module("transformers")
 hf_model_cls = getattr(module, AutoModelForCausalLM)
 base_model = hf_model_cls.from_config(
