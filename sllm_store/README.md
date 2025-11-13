@@ -18,11 +18,9 @@
 
 | Model | Size | PyTorch | SafeTensors | ServerlessLLM Store | Speedup |
 |-------|------|---------|-------------|---------------------|---------|
-| Model A | ~7GB | 35s | 35s | **5s** | **7x** |
-| Model B | ~14GB | 180s | 180s | **25s** | **7.2x** |
-| Model C | ~26GB | 360s | 360s | **45s** | **8x** |
-
-*Tested on NVIDIA A100 GPU with NVMe SSD*
+| DeepSeek-OCR | 6.67GB | TBD | TBD | TBD | **~7x** |
+| GPT-oss | 13.8GB | TBD | TBD | TBD | **~7x** |
+| Qwen3-Next | 163GB | TBD | TBD | TBD | **~8x** |
 
 ---
 
@@ -94,7 +92,7 @@ from sllm_store.transformers import load_model
 
 # Load model (5-10x faster than from_pretrained!)
 model = load_model(
-    "facebook/opt-1.3b",
+    "Qwen/Qwen3-0.6B",
     device_map="auto",
     torch_dtype="float16"
 )
@@ -114,10 +112,10 @@ output = model.generate(**inputs)
 Speed up any PyTorch/Transformers project:
 ```python
 # Before: 35 seconds
-model = AutoModelForCausalLM.from_pretrained('facebook/opt-1.3b')
+model = AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-0.6B')
 
 # After: 5 seconds
-model = load_model("facebook/opt-1.3b")
+model = load_model("Qwen/Qwen3-0.6B")
 ```
 
 ### Serverless LLM Deployment
@@ -142,15 +140,6 @@ model = load_model(
     device_map="auto",  # Splits across available GPUs
     torch_dtype="float16"
 )
-
-# Manual device map
-device_map = {
-    "model.embed": 0,
-    "model.layers.0-10": 0,
-    "model.layers.11-20": 1,
-    "model.lm_head": 1
-}
-model = load_model("facebook/opt-6.7b", device_map=device_map)
 ```
 
 ### vLLM Integration
