@@ -1,0 +1,44 @@
+docs: major README overhaul - performance-first, feature-focused design
+
+This commit completely restructures the README to better showcase
+ServerlessLLM's technical innovations and unique value proposition.
+
+Key Changes:
+- Performance metrics moved to top with benchmark chart placeholder
+- Demo GIF section added for visual proof
+- News section removed (prevents staleness)
+- Features merged with examples (docs + code in one place)
+- Fine-tuning elevated to core innovation (vs competitors)
+- System architecture uses real diagram instead of ASCII art
+- Comparison table removed (avoid conflicts)
+- Research section simplified to citation only
+- Community description made more stable ("maintained by" vs "research-driven")
+
+Technical Improvements:
+- Added 5 badges (PyPI, Downloads, Discord, WeChat, License)
+- Explicit sllm-store install step added
+- Store server start command separated for copy-paste
+- Each feature now links to relevant docs
+- Model names kept but performance numbers as TBD placeholders
+
+sllm_store/README.md:
+- Simplified to essentials with performance numbers
+- Points to main README for full documentation
+- Standalone users can still use it directly
+
+New Documentation:
+- DEPLOY_README_NOW.md - Deployment checklist and quick reference
+- README_IMPROVEMENTS_TODO.md - Prioritized future improvements
+- docs/images/IMAGE_SPECIFICATIONS.md - Specs for benchmark chart and demo GIF
+
+Impact:
+- Clearer value proposition (10x faster loading)
+- Better positioning vs alternatives (unique features highlighted)
+- Reduced friction (Docker-first quick start)
+- Professional appearance (badges, architecture diagram)
+- Scalable structure (won't look stale over time)
+
+Next Steps:
+1. Update Discord server ID in badge (see README line 16)
+2. Create and upload benchmark_loading_speed.png
+3. Record and upload demo_quickstart.gif
