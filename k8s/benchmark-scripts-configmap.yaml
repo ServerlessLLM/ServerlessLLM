@@ -49,6 +49,11 @@ data:
         apt-get update -qq && apt-get install -y -qq curl 2>&1 | tee -a "$LOG_FILE"
     fi
 
+    # Activate conda environment (required for official serverlessllm/sllm image)
+    log "Activating conda environment..."
+    source /opt/conda/etc/profile.d/conda.sh
+    conda activate worker 2>&1 | tee -a "$LOG_FILE" || conda activate head 2>&1 | tee -a "$LOG_FILE"
+
     # Download benchmark scripts from GitHub
     log "Downloading benchmark scripts..."
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/download_models.py" -o download_models.py
