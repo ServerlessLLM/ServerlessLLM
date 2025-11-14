@@ -1,0 +1,15 @@
+# Optional: PersistentVolumeClaim for model storage
+# Only create this if you're using Option 1 (PVC) in the job manifest
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: <YOUR_PVC_NAME>  # REQUIRED: Must match claimName in sllm-store-job.yaml
+  namespace: <YOUR_NAMESPACE>  # REQUIRED: Your Kubernetes namespace
+spec:
+  accessModes:
+  - ReadWriteOnce  # Or ReadWriteMany if you need multi-pod access
+  resources:
+    requests:
+      storage: <STORAGE_SIZE>  # REQUIRED: e.g., "100Gi", "500Gi", "1Ti"
+  # Optional: Specify storage class
+  # storageClassName: <STORAGE_CLASS_NAME>  # e.g., "fast-ssd", "standard"

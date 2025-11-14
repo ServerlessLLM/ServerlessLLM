@@ -1,0 +1,101 @@
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#                                                                              #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+# ---------------------------------------------------------------------------- #
+
+# Based on Dockerfile.builder with added runtime stage for Kubernetes deployment
+ARG CUDA_VERSION=12.1.1
+#################### BASE BUILD IMAGE ####################
+# prepare basic build environment
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
+ARG CUDA_VERSION=12.1.1
+ARG PYTHON_VERSION=3.10
+ARG TARGETPLATFORM
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python and other dependencies
+RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
+    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
+    && apt-get update -y \
+    && apt-get install -y ccache software-properties-common git curl sudo \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update -y \
+    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
+    && ln -sf /usr/bin/python${PYTHON_VERSION}-config /usr/bin/python3-config \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
+    && python3 --version && python3 -m pip --version
+
+WORKDIR /app
+
+COPY requirements-build.txt .
+RUN python3 -m pip install --no-cache-dir -r requirements-build.txt
+
+# Add the rest of the source code
+COPY cmake ./cmake
+COPY CMakeLists.txt .
+COPY csrc ./csrc
+COPY sllm_store ./sllm_store
+COPY setup.py .
+COPY pyproject.toml .
+COPY MANIFEST.in .
+COPY requirements.txt .
+COPY README.md .
+COPY proto ./proto
+
+# Build the wheel
+ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0"
+RUN python3 setup.py bdist_wheel
+
+#################### RUNTIME IMAGE ####################
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu20.04
+
+ARG PYTHON_VERSION=3.10
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Install Python runtime
+RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
+    && echo 'tzdata tzdata/Zones/America select Los_Angeles' | debconf-set-selections \
+    && apt-get update -y \
+    && apt-get install -y software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update -y \
+    && apt-get install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-dev \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
+    && update-alternatives --set python3 /usr/bin/python${PYTHON_VERSION} \
+    && apt-get install -y curl \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy runtime requirements
+COPY requirements.txt .
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
+
+# Copy and install the built wheel
+COPY --from=builder /app/dist/*.whl /app/
+RUN python3 -m pip install --no-cache-dir /app/*.whl
+
+# Create directory for models
+RUN mkdir -p /models
+
+# Default command - can be overridden in Kubernetes
+CMD ["sllm-store", "start", "--storage-path", "/models", "--mem-pool-size", "4GB"]
