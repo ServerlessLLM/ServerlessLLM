@@ -42,19 +42,15 @@ process_yaml() {
     local input=$1
     local output=$2
 
-    # Use envsubst if available, otherwise sed
-    if command -v envsubst &> /dev/null; then
-        envsubst < "$input" > "$output"
-    else
-        sed -e "s|<YOUR_NAMESPACE>|${NS}|g" \
-            -e "s|<CPU_REQUEST>|${CPU}|g" \
-            -e "s|<CPU_LIMIT>|${CPU}|g" \
-            -e "s|<MEMORY_REQUEST>|${MEMORY}|g" \
-            -e "s|<MEMORY_LIMIT>|${MEMORY}|g" \
-            -e "s|<GPU_COUNT>|${GPU}|g" \
-            -e "s|<NVME_PATH>|${NVME_PATH}|g" \
-            "$input" > "$output"
-    fi
+    # Always use sed (envsubst doesn't handle <PLACEHOLDER> syntax)
+    sed -e "s|<YOUR_NAMESPACE>|${NS}|g" \
+        -e "s|<CPU_REQUEST>|${CPU}|g" \
+        -e "s|<CPU_LIMIT>|${CPU}|g" \
+        -e "s|<MEMORY_REQUEST>|${MEMORY}|g" \
+        -e "s|<MEMORY_LIMIT>|${MEMORY}|g" \
+        -e "s|<GPU_COUNT>|${GPU}|g" \
+        -e "s|<NVME_PATH>|${NVME_PATH}|g" \
+        "$input" > "$output"
 }
 
 # Process each manifest
