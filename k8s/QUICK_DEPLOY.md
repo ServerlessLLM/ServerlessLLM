@@ -3,11 +3,14 @@
 ## One-Command Deploy
 
 ```bash
-# Set your namespace and run
+# Deploy
 NS=sc24029 k8s/deploy-benchmark.sh
+
+# Monitor progress
+NS=sc24029 k8s/monitor-benchmark.sh
 ```
 
-Done! Script auto-replaces all `<PLACEHOLDERS>` from environment variables.
+Done! Scripts auto-replace all `<PLACEHOLDERS>` from environment variables.
 
 ## Configuration
 
