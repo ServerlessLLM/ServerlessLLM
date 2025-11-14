@@ -98,7 +98,9 @@ data:
     log "Starting benchmarks..."
     rm -rf "${STORAGE_PATH:?}"/* || true
 
-    for MODEL_FORMAT in safetensors sllm; do
+    # Run each format in subprocess to ensure GPU memory is freed
+    run_format_benchmark() {
+        local MODEL_FORMAT=$1
         log "=== Testing $MODEL_FORMAT format ==="
 
         log "Downloading $NUM_REPLICAS replicas..."
@@ -119,9 +121,14 @@ data:
             --output-dir "$RESULTS_PATH" \
             2>&1 | tee -a "$LOG_FILE"
 
-        log "Cleaning storage and GPU memory..."
+        log "Cleaning storage..."
         rm -rf "${STORAGE_PATH:?}"/* || true
-        python3 -c "import torch, gc; torch.cuda.empty_cache(); gc.collect(); print('GPU cache cleared')" 2>&1 | tee -a "$LOG_FILE"
+    }
+
+    # Run each format in separate subprocess (GPU memory freed on subprocess exit)
+    for MODEL_FORMAT in safetensors sllm; do
+        ( run_format_benchmark "$MODEL_FORMAT" )
+        log "Format $MODEL_FORMAT completed, GPU memory released"
         sleep 5
         log ""
     done
