@@ -136,17 +136,17 @@ data:
 
         # Explicit GPU memory cleanup
         log "Forcing GPU memory cleanup..."
-        python3 -c "
+        python3 -c '
 import torch
 import gc
-print(f'GPU memory allocated before cleanup: {torch.cuda.memory_allocated()/1024**3:.2f} GB')
-print(f'GPU memory reserved before cleanup: {torch.cuda.memory_reserved()/1024**3:.2f} GB')
+print("GPU memory allocated before cleanup: %.2f GB" % (torch.cuda.memory_allocated()/1024**3))
+print("GPU memory reserved before cleanup: %.2f GB" % (torch.cuda.memory_reserved()/1024**3))
 torch.cuda.empty_cache()
 gc.collect()
 torch.cuda.synchronize()
-print(f'GPU memory allocated after cleanup: {torch.cuda.memory_allocated()/1024**3:.2f} GB')
-print(f'GPU memory reserved after cleanup: {torch.cuda.memory_reserved()/1024**3:.2f} GB')
-" 2>&1 | tee -a "$LOG_FILE"
+print("GPU memory allocated after cleanup: %.2f GB" % (torch.cuda.memory_allocated()/1024**3))
+print("GPU memory reserved after cleanup: %.2f GB" % (torch.cuda.memory_reserved()/1024**3))
+' 2>&1 | tee -a "$LOG_FILE"
 
         # GPU memory after cleanup
         log "GPU memory after cleanup:"
