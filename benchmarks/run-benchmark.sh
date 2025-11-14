@@ -50,6 +50,7 @@ log "Starting sllm-store server..."
 sllm-store start \
     --storage-path "$STORAGE_PATH" \
     --mem-pool-size "$MEM_POOL_SIZE" \
+    --chunk-size 16MB \
     --num-thread 4 \
     > "${RESULTS_PATH}/sllm-store.log" 2>&1 &
 
@@ -88,12 +89,12 @@ cd "$SCRIPT_DIR"
 log "Cleaning storage directory..."
 rm -rf "${STORAGE_PATH:?}"/* || true
 
-# Download and benchmark for each format
-for MODEL_FORMAT in safetensors sllm; do
+# Run each format in subprocess to ensure GPU memory is freed
+run_format_benchmark() {
+    local MODEL_FORMAT=$1
     log "=== Testing $MODEL_FORMAT format ==="
 
-    # Download models
-    log "Downloading $NUM_REPLICAS replicas of $MODEL_NAME in $MODEL_FORMAT format..."
+    log "Downloading $NUM_REPLICAS replicas..."
     python3 download_models.py \
         --model-name "$MODEL_NAME" \
         --save-format "$MODEL_FORMAT" \
@@ -101,8 +102,7 @@ for MODEL_FORMAT in safetensors sllm; do
         --num-replicas "$NUM_REPLICAS" \
         2>&1 | tee -a "$LOG_FILE"
 
-    # Run benchmark
-    log "Running benchmark for $MODEL_FORMAT..."
+    log "Running benchmark..."
     python3 test_loading.py \
         --model-name "$MODEL_NAME" \
         --model-format "$MODEL_FORMAT" \
@@ -112,9 +112,16 @@ for MODEL_FORMAT in safetensors sllm; do
         --output-dir "$RESULTS_PATH" \
         2>&1 | tee -a "$LOG_FILE"
 
-    # Clean up for next iteration
-    log "Cleaning storage for next format..."
+    log "Cleaning storage..."
     rm -rf "${STORAGE_PATH:?}"/* || true
+}
+
+# Run each format in separate subprocess (GPU memory freed on subprocess exit)
+for MODEL_FORMAT in safetensors sllm; do
+    ( run_format_benchmark "$MODEL_FORMAT" )
+    log "Format $MODEL_FORMAT completed, GPU memory released"
+    sleep 5
+    log ""
 done
 
 # Generate summary report
