@@ -98,8 +98,16 @@ data:
     log "Starting benchmarks..."
     rm -rf "${STORAGE_PATH:?}"/* || true
 
+    # Initial GPU state
+    log "=== Initial GPU Memory State ==="
+    nvidia-smi --query-gpu=index,name,memory.used,memory.free,memory.total --format=csv 2>&1 | tee -a "$LOG_FILE"
+
     for MODEL_FORMAT in safetensors sllm; do
         log "=== Testing $MODEL_FORMAT format ==="
+
+        # GPU memory before this format
+        log "GPU memory before $MODEL_FORMAT:"
+        nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader,nounits 2>&1 | tee -a "$LOG_FILE"
 
         log "Downloading $NUM_REPLICAS replicas..."
         python3 download_models.py \
@@ -119,8 +127,34 @@ data:
             --output-dir "$RESULTS_PATH" \
             2>&1 | tee -a "$LOG_FILE"
 
+        # GPU memory after benchmark (before cleanup)
+        log "GPU memory after $MODEL_FORMAT benchmark (before cleanup):"
+        nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader,nounits 2>&1 | tee -a "$LOG_FILE"
+
         log "Cleaning storage..."
         rm -rf "${STORAGE_PATH:?}"/* || true
+
+        # Explicit GPU memory cleanup
+        log "Forcing GPU memory cleanup..."
+        python3 -c "
+import torch
+import gc
+print(f'GPU memory allocated before cleanup: {torch.cuda.memory_allocated()/1024**3:.2f} GB')
+print(f'GPU memory reserved before cleanup: {torch.cuda.memory_reserved()/1024**3:.2f} GB')
+torch.cuda.empty_cache()
+gc.collect()
+torch.cuda.synchronize()
+print(f'GPU memory allocated after cleanup: {torch.cuda.memory_allocated()/1024**3:.2f} GB')
+print(f'GPU memory reserved after cleanup: {torch.cuda.memory_reserved()/1024**3:.2f} GB')
+" 2>&1 | tee -a "$LOG_FILE"
+
+        # GPU memory after cleanup
+        log "GPU memory after cleanup:"
+        nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader,nounits 2>&1 | tee -a "$LOG_FILE"
+
+        # Extra sleep to ensure cleanup completes
+        sleep 5
+        log ""
     done
 
     # Generate report
