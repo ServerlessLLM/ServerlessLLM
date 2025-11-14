@@ -49,7 +49,7 @@ def _warmup_inference():
     print("Warming up inference")
     model_name = "facebook/opt-6.7b"
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch.float16, device_map="auto"
+        model_name, torch_dtype=torch.float16, device_map="cuda:0"
     )
     prompts = [
         "The quick brown fox jumps over the lazy dog.",
@@ -106,7 +106,7 @@ def measure(
             model = load_model(
                 f"{model_name}_{model_idx}",
                 storage_path=model_dir,
-                device_map="auto",
+                device_map="cuda:0",  # Force GPU-only (no CPU offload)
                 torch_dtype=torch.float16,
             )
             end_time = time.time()
@@ -118,7 +118,7 @@ def measure(
             model = AutoModelForCausalLM.from_pretrained(
                 model_path,
                 torch_dtype=torch.float16,
-                device_map="auto",
+                device_map="cuda:0",  # Force GPU-only (no CPU offload)
             )
             end_time = time.time()
         model_record["loading_time"] = end_time - start_time

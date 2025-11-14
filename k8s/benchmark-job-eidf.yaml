@@ -76,6 +76,6 @@ spec:
       - name: results
         emptyDir: {}
 
-      # Optional: Node selector for specific GPU
-      # nodeSelector:
-      #   nvidia.com/gpu.product: '<GPU_PRODUCT_NAME>'
+      # Node selector for specific GPU (H100)
+      nodeSelector:
+        nvidia.com/gpu.product: 'NVIDIA-H100-80GB-HBM3'
