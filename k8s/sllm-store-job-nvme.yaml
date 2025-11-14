@@ -1,0 +1,134 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sllm-store-worker
+  labels:
+    kueue.x-k8s.io/queue-name: <YOUR_NAMESPACE>-user-queue  # REQUIRED: Replace with your namespace
+spec:
+  template:
+    metadata:
+      labels:
+        app: sllm-store
+    spec:
+      restartPolicy: Never
+
+      # Init container to detect and verify NVMe storage
+      initContainers:
+      - name: nvme-detect
+        image: ubuntu:20.04
+        command: ["/bin/bash", "/scripts/detect-nvme.sh"]
+        env:
+        - name: MODEL_PATH
+          value: "/models"
+        # Optional: Set ownership of model path (if needed)
+        # - name: CHOWN_USER
+        #   value: "1000"
+        securityContext:
+          privileged: true  # Required to access /dev/nvme* devices
+        volumeMounts:
+        - name: nvme-detect-script
+          mountPath: /scripts
+        - name: model-storage
+          mountPath: /models
+        - name: debug-logs
+          mountPath: /debug
+        - name: dev
+          mountPath: /dev
+        - name: sys
+          mountPath: /sys
+
+      containers:
+      - name: sllm-store
+        image: <YOUR_REGISTRY>/sllm-store:latest  # REQUIRED: Replace with your Docker registry and image name
+
+        # Resource requests and limits (REQUIRED by EIDF)
+        resources:
+          requests:
+            cpu: "<CPU_REQUEST>"           # REQUIRED: e.g., "4" or "4000m"
+            memory: "<MEMORY_REQUEST>"     # REQUIRED: e.g., "16Gi"
+            nvidia.com/gpu: <GPU_COUNT>    # REQUIRED: Number of GPUs, e.g., 1
+          limits:
+            cpu: "<CPU_LIMIT>"             # REQUIRED: e.g., "4" or "4000m"
+            memory: "<MEMORY_LIMIT>"       # REQUIRED: e.g., "16Gi"
+            nvidia.com/gpu: <GPU_COUNT>    # REQUIRED: Must match requests
+
+        # sllm-store command with configurable options
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          echo "=== Starting sllm-store ==="
+          echo "Timestamp: $(date)"
+          echo "Storage path: /models"
+          echo "Available space: $(df -h /models | tail -n1 | awk '{print $4}')"
+          echo ""
+
+          # Show NVMe detection results
+          if [ -f /debug/nvme-detection.log ]; then
+            echo "=== NVMe Detection Results ==="
+            cat /debug/nvme-detection.log
+            echo ""
+          fi
+
+          exec sllm-store start --storage-path /models --mem-pool-size <MEM_POOL_SIZE>
+
+        # Volume mounts
+        volumeMounts:
+        - name: model-storage
+          mountPath: /models
+        - name: debug-logs
+          mountPath: /debug
+          readOnly: true
+
+        # Environment variables
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+
+      # Volume configuration
+      volumes:
+      - name: nvme-detect-script
+        configMap:
+          name: nvme-detect-script
+          defaultMode: 0755
+
+      - name: debug-logs
+        emptyDir: {}  # Shared between init container and main container
+
+      - name: dev
+        hostPath:
+          path: /dev
+          type: Directory
+
+      - name: sys
+        hostPath:
+          path: /sys
+          type: Directory
+
+      # LOCAL NVME STORAGE CONFIGURATION
+      # Choose one of the options below:
+
+      # OPTION 1: NVMe device mounted at a specific path (RECOMMENDED)
+      # If your NVMe is mounted at /mnt/nvme, /data, or similar
+      - name: model-storage
+        hostPath:
+          path: <NVME_MOUNT_PATH>/sllm-models  # REQUIRED: e.g., "/mnt/nvme/sllm-models" or "/data/sllm-models"
+          type: DirectoryOrCreate  # Will create directory if it doesn't exist
+
+      # OPTION 2: Direct NVMe partition mount (Advanced)
+      # Uncomment if you want to mount a specific NVMe partition
+      # This requires the partition to be formatted and have a filesystem
+      # - name: model-storage
+      #   hostPath:
+      #     path: /mnt/nvme0n1p1/sllm-models  # Adjust based on your partition
+      #     type: DirectoryOrCreate
+
+      # Optional: Node selector to ensure pod runs on nodes with NVMe
+      # nodeSelector:
+      #   storage.type: nvme  # Requires nodes to be labeled
+      #   nvidia.com/gpu.product: '<GPU_PRODUCT_NAME>'  # e.g., 'NVIDIA-A100-SXM4-40GB'
+
+      # Optional: Tolerations
+      # tolerations:
+      # - key: "nvidia.com/gpu"
+      #   operator: "Exists"
+      #   effect: "NoSchedule"

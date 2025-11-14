@@ -2,6 +2,8 @@
 
 This guide shows how to build and deploy sllm-store using the `Dockerfile.k8s` on the EIDF GPU cluster.
 
+**For NVMe local storage setup with auto-detection, see [NVME_SETUP.md](NVME_SETUP.md)**
+
 ## Prerequisites
 
 1. Access to EIDF GPU cluster with `kubectl` configured
