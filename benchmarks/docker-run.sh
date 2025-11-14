@@ -29,6 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Run benchmark
 docker run --rm --gpus all \
+    -e MODE=WORKER \
     -e MODEL_NAME="$MODEL_NAME" \
     -e NUM_REPLICAS="$NUM_REPLICAS" \
     -e MEM_POOL_SIZE="$MEM_POOL_SIZE" \
@@ -37,6 +38,7 @@ docker run --rm --gpus all \
     -v "$STORAGE_PATH":/models \
     -v "$RESULTS_PATH":/results \
     -v "$SCRIPT_DIR":/scripts \
+    --entrypoint /bin/bash \
     "$IMAGE" \
     /scripts/run-benchmark.sh
 
