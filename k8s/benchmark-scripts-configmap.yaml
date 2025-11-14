@@ -61,7 +61,8 @@ data:
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/test_loading.py" -o test_loading.py
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/benchmark_utils.py" -o benchmark_utils.py
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/generate_report.py" -o generate_report.py
-    chmod +x generate_report.py
+    curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/gpu_cleanup.py" -o gpu_cleanup.py
+    chmod +x generate_report.py gpu_cleanup.py
 
     # Start sllm-store (match official benchmark setup)
     log "Starting sllm-store server..."
@@ -136,18 +137,7 @@ data:
 
         # Explicit GPU memory cleanup
         log "Forcing GPU memory cleanup..."
-        cat > /tmp/gpu_cleanup.py << 'CLEANUP_SCRIPT'
-import torch
-import gc
-print("GPU memory allocated before cleanup: %.2f GB" % (torch.cuda.memory_allocated()/1024**3))
-print("GPU memory reserved before cleanup: %.2f GB" % (torch.cuda.memory_reserved()/1024**3))
-torch.cuda.empty_cache()
-gc.collect()
-torch.cuda.synchronize()
-print("GPU memory allocated after cleanup: %.2f GB" % (torch.cuda.memory_allocated()/1024**3))
-print("GPU memory reserved after cleanup: %.2f GB" % (torch.cuda.memory_reserved()/1024**3))
-CLEANUP_SCRIPT
-        python3 /tmp/gpu_cleanup.py 2>&1 | tee -a "$LOG_FILE"
+        python3 gpu_cleanup.py 2>&1 | tee -a "$LOG_FILE"
 
         # GPU memory after cleanup
         log "GPU memory after cleanup:"
