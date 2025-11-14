@@ -35,6 +35,12 @@ log "Storage: $STORAGE_PATH"
 log "Benchmark Type: $BENCHMARK_TYPE"
 log ""
 
+# Activate conda environment (required for official serverlessllm/sllm image)
+log "Activating conda environment..."
+source /opt/conda/etc/profile.d/conda.sh
+conda activate worker || conda activate head
+log "Conda environment activated: $(conda info --envs | grep '*' | awk '{print $1}')"
+
 # Install dependencies if needed
 log "Installing benchmark dependencies..."
 pip install -q seaborn matplotlib pandas sentencepiece 2>&1 | tee -a "$LOG_FILE"
