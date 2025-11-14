@@ -24,10 +24,12 @@ data:
     LOG_FILE="${RESULTS_PATH}/benchmark.log"
     SUMMARY_FILE="${RESULTS_PATH}/summary.txt"
 
-    log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
-
+    # Create directories first
     mkdir -p "$RESULTS_PATH" /tmp/benchmarks
     cd /tmp/benchmarks
+
+    # Define log function after directories exist
+    log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
 
     log "=== ServerlessLLM Automated Benchmark ==="
     log "Model: $MODEL_NAME"
