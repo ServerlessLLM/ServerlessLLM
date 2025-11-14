@@ -1,5 +1,7 @@
 # Running Benchmarks on EIDF Cluster
 
+**Quick Start**: See [QUICK_DEPLOY.md](QUICK_DEPLOY.md) for one-command deployment.
+
 EIDF has specific requirements that differ from standard Kubernetes:
 
 ## Key Differences

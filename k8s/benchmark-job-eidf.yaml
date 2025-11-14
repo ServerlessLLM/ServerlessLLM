@@ -59,26 +59,24 @@ spec:
 
       # Volumes
       volumes:
-      # Scripts from ConfigMap (embedded below)
+      # Scripts from ConfigMap
       - name: benchmark-scripts
         configMap:
           name: benchmark-scripts-full
           defaultMode: 0755
 
-      # Model storage - use emptyDir or PVC (hostPath not allowed on EIDF)
+      # Model storage on NVMe (hostPath - warning is non-blocking on EIDF)
       - name: model-storage
-        emptyDir:
-          sizeLimit: 100Gi  # Adjust based on model size
-        # Alternative: Use PVC if you have one
-        # persistentVolumeClaim:
-        #   claimName: <YOUR_PVC_NAME>
+        hostPath:
+          path: <NVME_PATH>/sllm-benchmark-models  # Set via NVME_PATH env (default: /nvme)
+          type: DirectoryOrCreate
+        # If hostPath fails, use emptyDir (slower):
+        # emptyDir:
+        #   sizeLimit: 100Gi
 
-      # Results storage
+      # Results storage (temporary - copied out after completion)
       - name: results
         emptyDir: {}
-        # Alternative: Use PVC to persist results
-        # persistentVolumeClaim:
-        #   claimName: <YOUR_RESULTS_PVC>
 
       # Optional: Node selector for specific GPU
       # nodeSelector:
