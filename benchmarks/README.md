@@ -2,8 +2,24 @@
 
 Welcome to the benchmarking suite for ServerlessLLM Store. This suite is designed to measure the model loading performance of ServerlessLLM Store and compare it against several baselines on a variety of State-of-the-Art Large Language Models (LLMs).
 
+## Quick Start: Automated Benchmarks
+
+**NEW:** Run end-to-end benchmarks automatically with a single command.
+
+```bash
+# Docker
+cd benchmarks && ./docker-run.sh
+
+# Kubernetes
+kubectl apply -f k8s/benchmark-configmap.yaml
+kubectl apply -f k8s/benchmark-job.yaml
+```
+
+See [BENCHMARK.md](BENCHMARK.md) for details.
+
 ## Table of Contents
 
+- [Quick Start: Automated Benchmarks](#quick-start-automated-benchmarks) **← NEW**
 - [Hardware Requirements](#hardware-requirements)
 - [Prerequisites](#prerequisites)
 - [Setting Up the Environment](#setting-up-the-environment)

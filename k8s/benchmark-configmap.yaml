@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benchmark-config
+  namespace: <YOUR_NAMESPACE>  # REQUIRED: Replace with your namespace
+data:
+  # Environment configuration
+  config.env: |
+    MODEL_NAME=facebook/opt-1.3b
+    NUM_REPLICAS=10
+    MEM_POOL_SIZE=8GB
+    STORAGE_PATH=/models
+    RESULTS_PATH=/results
+    BENCHMARK_TYPE=random
+    GENERATE_PLOTS=false
+    KEEP_ALIVE=false
