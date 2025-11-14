@@ -52,7 +52,8 @@ data:
     # Activate conda environment (required for official serverlessllm/sllm image)
     log "Activating conda environment..."
     source /opt/conda/etc/profile.d/conda.sh
-    conda activate worker 2>&1 | tee -a "$LOG_FILE" || conda activate head 2>&1 | tee -a "$LOG_FILE"
+    conda activate worker || conda activate head
+    log "Conda environment activated: $(conda info --envs | grep '*' | awk '{print $1}')"
 
     # Download benchmark scripts from GitHub
     log "Downloading benchmark scripts..."
