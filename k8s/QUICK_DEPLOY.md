@@ -6,8 +6,11 @@
 # Deploy
 NS=sc24029 k8s/deploy-benchmark.sh
 
-# Monitor progress
+# Monitor progress (includes queue status)
 NS=sc24029 k8s/monitor-benchmark.sh
+
+# Check queue status only
+NS=sc24029 k8s/monitor-queue.sh
 ```
 
 Done! Scripts auto-replace all `<PLACEHOLDERS>` from environment variables.
