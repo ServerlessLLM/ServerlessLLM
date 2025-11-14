@@ -4,6 +4,7 @@ metadata:
   generateName: sllm-benchmark-  # EIDF requires generateName (auto-generates unique names)
   namespace: <YOUR_NAMESPACE>  # REQUIRED: Replace with your namespace
   labels:
+    app: sllm-benchmark
     kueue.x-k8s.io/queue-name: <YOUR_NAMESPACE>-user-queue  # REQUIRED: Replace with your namespace
 spec:
   template:
