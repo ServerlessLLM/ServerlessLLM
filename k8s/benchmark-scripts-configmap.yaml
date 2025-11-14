@@ -61,8 +61,7 @@ data:
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/test_loading.py" -o test_loading.py
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/benchmark_utils.py" -o benchmark_utils.py
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/generate_report.py" -o generate_report.py
-    curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/gpu_cleanup.py" -o gpu_cleanup.py
-    chmod +x generate_report.py gpu_cleanup.py
+    chmod +x generate_report.py
 
     # Start sllm-store (match official benchmark setup)
     log "Starting sllm-store server..."
@@ -99,16 +98,8 @@ data:
     log "Starting benchmarks..."
     rm -rf "${STORAGE_PATH:?}"/* || true
 
-    # Initial GPU state
-    log "=== Initial GPU Memory State ==="
-    nvidia-smi --query-gpu=index,name,memory.used,memory.free,memory.total --format=csv 2>&1 | tee -a "$LOG_FILE"
-
     for MODEL_FORMAT in safetensors sllm; do
         log "=== Testing $MODEL_FORMAT format ==="
-
-        # GPU memory before this format
-        log "GPU memory before $MODEL_FORMAT:"
-        nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader,nounits 2>&1 | tee -a "$LOG_FILE"
 
         log "Downloading $NUM_REPLICAS replicas..."
         python3 download_models.py \
@@ -128,22 +119,9 @@ data:
             --output-dir "$RESULTS_PATH" \
             2>&1 | tee -a "$LOG_FILE"
 
-        # GPU memory after benchmark (before cleanup)
-        log "GPU memory after $MODEL_FORMAT benchmark (before cleanup):"
-        nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader,nounits 2>&1 | tee -a "$LOG_FILE"
-
-        log "Cleaning storage..."
+        log "Cleaning storage and GPU memory..."
         rm -rf "${STORAGE_PATH:?}"/* || true
-
-        # Explicit GPU memory cleanup
-        log "Forcing GPU memory cleanup..."
-        python3 gpu_cleanup.py 2>&1 | tee -a "$LOG_FILE"
-
-        # GPU memory after cleanup
-        log "GPU memory after cleanup:"
-        nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader,nounits 2>&1 | tee -a "$LOG_FILE"
-
-        # Extra sleep to ensure cleanup completes
+        python3 -c "import torch, gc; torch.cuda.empty_cache(); gc.collect(); print('GPU cache cleared')" 2>&1 | tee -a "$LOG_FILE"
         sleep 5
         log ""
     done
