@@ -41,6 +41,12 @@ data:
     log "Installing dependencies..."
     pip install -q seaborn matplotlib pandas sentencepiece 2>&1 | tee -a "$LOG_FILE"
 
+    # Install curl if not available
+    if ! command -v curl &> /dev/null; then
+        log "Installing curl..."
+        apt-get update -qq && apt-get install -y -qq curl 2>&1 | tee -a "$LOG_FILE"
+    fi
+
     # Download benchmark scripts from GitHub
     log "Downloading benchmark scripts..."
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/download_models.py" -o download_models.py

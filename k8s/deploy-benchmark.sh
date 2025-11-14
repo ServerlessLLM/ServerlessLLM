@@ -8,7 +8,7 @@ set -e
 # Configuration from environment
 NS="${NS:-}"
 CPU="${CPU:-8}"
-MEMORY="${MEMORY:-32Gi}"
+MEMORY="${MEMORY:-128Gi}"
 GPU="${GPU:-1}"
 NVME_PATH="${NVME_PATH:-/nvme}"
 MODEL_NAME="${MODEL_NAME:-facebook/opt-1.3b}"
