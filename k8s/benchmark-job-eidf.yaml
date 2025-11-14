@@ -66,14 +66,11 @@ spec:
           name: benchmark-scripts-full
           defaultMode: 0755
 
-      # Model storage on NVMe (hostPath - warning is non-blocking on EIDF)
+      # Model storage - using emptyDir (hostPath blocked by EIDF PodSecurity)
+      # Note: emptyDir may use node local storage (including NVMe) depending on cluster config
       - name: model-storage
-        hostPath:
-          path: <NVME_PATH>/sllm-benchmark-models  # Set via NVME_PATH env (default: /nvme)
-          type: DirectoryOrCreate
-        # If hostPath fails, use emptyDir (slower):
-        # emptyDir:
-        #   sizeLimit: 100Gi
+        emptyDir:
+          sizeLimit: 200Gi  # Adjust based on model size
 
       # Results storage (temporary - copied out after completion)
       - name: results
