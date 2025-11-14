@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: sllm-benchmark-  # EIDF requires generateName (auto-generates unique names)
+  namespace: <YOUR_NAMESPACE>  # REQUIRED: Replace with your namespace
+  labels:
+    kueue.x-k8s.io/queue-name: <YOUR_NAMESPACE>-user-queue  # REQUIRED: Replace with your namespace
+spec:
+  template:
+    metadata:
+      labels:
+        app: sllm-benchmark
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: benchmark
+        # Use official ServerlessLLM image
+        image: serverlessllm/sllm:latest  # Or: <YOUR_REGISTRY>/sllm-store:latest
+
+        # Override command to run benchmark
+        command: ["/bin/bash", "/scripts/run-benchmark.sh"]
+
+        # Environment configuration
+        envFrom:
+        - configMapRef:
+            name: benchmark-config
+
+        # Additional env vars
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # Uncomment to override defaults:
+        # - name: MODEL_NAME
+        #   value: "facebook/opt-6.7b"
+        # - name: NUM_REPLICAS
+        #   value: "20"
+
+        # Resource requests (REQUIRED by EIDF)
+        resources:
+          requests:
+            cpu: "<CPU_REQUEST>"           # e.g., "8"
+            memory: "<MEMORY_REQUEST>"     # e.g., "32Gi"
+            nvidia.com/gpu: <GPU_COUNT>    # e.g., 1
+          limits:
+            cpu: "<CPU_LIMIT>"             # e.g., "8"
+            memory: "<MEMORY_LIMIT>"       # e.g., "32Gi"
+            nvidia.com/gpu: <GPU_COUNT>    # e.g., 1
+
+        # Volume mounts
+        volumeMounts:
+        - name: benchmark-scripts
+          mountPath: /scripts
+          readOnly: true
+        - name: model-storage
+          mountPath: /models
+        - name: results
+          mountPath: /results
+
+      # Volumes
+      volumes:
+      # Scripts from ConfigMap (embedded below)
+      - name: benchmark-scripts
+        configMap:
+          name: benchmark-scripts-full
+          defaultMode: 0755
+
+      # Model storage - use emptyDir or PVC (hostPath not allowed on EIDF)
+      - name: model-storage
+        emptyDir:
+          sizeLimit: 100Gi  # Adjust based on model size
+        # Alternative: Use PVC if you have one
+        # persistentVolumeClaim:
+        #   claimName: <YOUR_PVC_NAME>
+
+      # Results storage
+      - name: results
+        emptyDir: {}
+        # Alternative: Use PVC to persist results
+        # persistentVolumeClaim:
+        #   claimName: <YOUR_RESULTS_PVC>
+
+      # Optional: Node selector for specific GPU
+      # nodeSelector:
+      #   nvidia.com/gpu.product: '<GPU_PRODUCT_NAME>'
