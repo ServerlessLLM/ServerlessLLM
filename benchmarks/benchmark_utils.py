@@ -27,6 +27,16 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from sllm_store.transformers import load_model
 
 
+def print_gpu_memory(prefix=""):
+    """Print GPU memory usage via PyTorch."""
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**3
+        reserved = torch.cuda.memory_reserved() / 1024**3
+        print(f"[GPU Memory {prefix}] Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB")
+    else:
+        print(f"[GPU Memory {prefix}] CUDA not available")
+
+
 def _warmup_cuda():
     num_gpus = torch.cuda.device_count()
     print(f"Warming up {num_gpus} GPUs")
@@ -82,9 +92,11 @@ def measure(
     print(
         f"Measuring loading time for {model_format} model={model_name}, repeating {len(loading_order)} times"
     )
+    print_gpu_memory("BEFORE benchmark")
     # loading_order = torch.randperm(num_replicas)
     for model_idx in loading_order:
         print(f"Loading {model_name}_{model_idx}")
+        print_gpu_memory(f"before load #{model_idx}")
         model_record = {"model_name": f"{model_name}_{model_idx}"}
 
         # Model Loading
@@ -122,8 +134,12 @@ def measure(
 
         results.append(model_record)
 
+        print_gpu_memory(f"after inference #{model_idx}")
         del model
         gc.collect()
         torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+        print_gpu_memory(f"after cleanup #{model_idx}")
 
+    print_gpu_memory("AFTER all benchmarks")
     return results
