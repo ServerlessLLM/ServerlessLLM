@@ -62,11 +62,12 @@ data:
     curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/generate_report.py" -o generate_report.py
     chmod +x generate_report.py
 
-    # Start sllm-store
+    # Start sllm-store (match official benchmark setup)
     log "Starting sllm-store server..."
     sllm-store start \
         --storage-path "$STORAGE_PATH" \
         --mem-pool-size "$MEM_POOL_SIZE" \
+        --chunk-size 16MB \
         --num-thread 4 \
         > "${RESULTS_PATH}/sllm-store.log" 2>&1 &
 
