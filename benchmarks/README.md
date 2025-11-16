@@ -7,13 +7,20 @@ Welcome to the benchmarking suite for ServerlessLLM Store. This suite is designe
 **NEW:** Run end-to-end benchmarks automatically with a single command.
 
 ```bash
-# Docker
+# Docker (default: facebook/opt-6.7b, 30 replicas, 32GB memory pool)
 cd benchmarks && ./docker-run.sh
+
+# Docker with custom GPU limit (default: 1 GPU)
+GPU_LIMIT=2 ./docker-run.sh              # Use 2 GPUs
+GPU_LIMIT="all" ./docker-run.sh          # Use all GPUs
+GPU_LIMIT='"device=0"' ./docker-run.sh   # Use specific GPU
 
 # Kubernetes
 kubectl apply -f k8s/benchmark-configmap.yaml
 kubectl apply -f k8s/benchmark-job.yaml
 ```
+
+**Three-way comparison**: Benchmarks now compare **SLLM**, **SafeTensors**, and **Torch** (PyTorch native) formats automatically.
 
 See [BENCHMARK.md](BENCHMARK.md) for details.
 
@@ -78,10 +85,10 @@ The random load test emulates **model serving scenarios** (such as Serverless LL
 
 #### 1.1 Small Models
 
-Start the ServerlessLLM Store server with a 18GB memory pool:
+Start the ServerlessLLM Store server with a 32GB memory pool:
 
 ```bash
-sllm-store start --chunk-size=16MB --mem-pool-size=18GB --num-thread=4 --storage-path=./models
+sllm-store start --chunk-size=16MB --mem-pool-size=32GB --num-thread=4 --storage-path=./models
 ```
 
 In a separate terminal, run the following commands to benchmark the loading performance of several small models. We repeat each test 30 times to ensure statistical stability:
@@ -91,6 +98,8 @@ CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh meta-llama/Meta-Llama-3-8B 
 CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh mistralai/Mistral-7B-v0.3 ./models 30
 CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh google/gemma-7b ./models 30
 ```
+
+**Note**: The benchmark script now tests three formats (SLLM, SafeTensors, and Torch) automatically, providing a comprehensive comparison of model loading performance.
 
 Plot the results with the following command, saving the output for review and documentation:
 

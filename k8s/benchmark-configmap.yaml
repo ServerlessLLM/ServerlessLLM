@@ -6,9 +6,9 @@ metadata:
 data:
   # Environment configuration
   config.env: |
-    MODEL_NAME=facebook/opt-1.3b
-    NUM_REPLICAS=10
-    MEM_POOL_SIZE=8GB
+    MODEL_NAME=facebook/opt-6.7b
+    NUM_REPLICAS=30
+    MEM_POOL_SIZE=32GB
     STORAGE_PATH=/models
     RESULTS_PATH=/results
     BENCHMARK_TYPE=random

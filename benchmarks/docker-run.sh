@@ -6,9 +6,9 @@
 set -e
 
 # Default configuration
-MODEL_NAME="${MODEL_NAME:-facebook/opt-1.3b}"
-NUM_REPLICAS="${NUM_REPLICAS:-10}"
-MEM_POOL_SIZE="${MEM_POOL_SIZE:-8GB}"
+MODEL_NAME="${MODEL_NAME:-facebook/opt-6.7b}"
+NUM_REPLICAS="${NUM_REPLICAS:-30}"
+MEM_POOL_SIZE="${MEM_POOL_SIZE:-32GB}"
 STORAGE_PATH="${STORAGE_PATH:-/mnt/nvme}"
 RESULTS_PATH="${RESULTS_PATH:-$(pwd)/results}"
 IMAGE="${IMAGE:-serverlessllm/sllm:latest}"
