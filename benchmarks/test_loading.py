@@ -20,7 +20,12 @@ import json
 import os
 
 import torch
-from benchmark_utils import _warmup_cuda, _warmup_inference, measure, print_gpu_memory
+from benchmark_utils import (
+    _warmup_cuda,
+    _warmup_inference,
+    measure,
+    print_gpu_memory,
+)
 
 
 def get_args():
@@ -35,7 +40,7 @@ def get_args():
         "--model-format",
         type=str,
         required=True,
-        choices=["sllm", "safetensors"],
+        choices=["sllm", "safetensors", "torch"],
         help="Format to save the model in",
     )
     parser.add_argument(
@@ -68,10 +73,10 @@ def get_args():
 
 def main():
     args = get_args()
-    print("="*80)
+    print("=" * 80)
     print(f"Starting benchmark for {args.model_format} format")
     print_gpu_memory("START of script")
-    print("="*80)
+    print("=" * 80)
 
     _warmup_cuda()
     _warmup_inference()
@@ -107,9 +112,9 @@ def main():
         json.dump(results, f, indent=4)
     print(f"Results saved to {output_filename}")
 
-    print("="*80)
+    print("=" * 80)
     print_gpu_memory("END of script")
-    print("="*80)
+    print("=" * 80)
 
 
 if __name__ == "__main__":

@@ -92,7 +92,7 @@ fi
 clean_models_dir
 
 # Start measuring performance for each format
-for MODEL_FORMAT in safetensors sllm; do
+for MODEL_FORMAT in safetensors sllm torch; do
     echo "Measuring $MODEL_FORMAT performance for $MODEL_NAME..."
     download_models "$MODEL_NAME" "$MODEL_FORMAT" "$MODELS_DIR" "$NUM_REPLICAS"
     run_benchmark "$MODEL_NAME" "$MODEL_FORMAT" "$MODELS_DIR" "$NUM_REPLICAS" "random"

@@ -4,13 +4,15 @@ metadata:
   name: benchmark-scripts-full
   namespace: <YOUR_NAMESPACE>  # REQUIRED: Replace with your namespace
 data:
-  # Download and run benchmark script
-  # This downloads scripts from GitHub at runtime to avoid embedding large files
+  # K8s Launcher Script
+  # Downloads ALL scripts from GitHub (including run-benchmark.sh)
+  # This ensures K8s uses IDENTICAL scripts as local/docker execution
+  # Single source of truth: benchmarks/ directory in GitHub
   run-benchmark.sh: |
     #!/bin/bash
     set -e
 
-    # Configuration
+    # Configuration from environment variables
     MODEL_NAME="${MODEL_NAME:-facebook/opt-1.3b}"
     NUM_REPLICAS="${NUM_REPLICAS:-10}"
     MEM_POOL_SIZE="${MEM_POOL_SIZE:-8GB}"
@@ -21,137 +23,94 @@ data:
     KEEP_ALIVE="${KEEP_ALIVE:-false}"
     BRANCH="${BRANCH:-claude/serverlessllm-docker-setup-01SxEhpoNSDpRQp1iKqWfyRS}"
 
-    LOG_FILE="${RESULTS_PATH}/benchmark.log"
-    SUMMARY_FILE="${RESULTS_PATH}/summary.txt"
+    echo "============================================================"
+    echo "ServerlessLLM K8s Benchmark Launcher"
+    echo "============================================================"
+    echo "Branch: $BRANCH"
+    echo "Model: $MODEL_NAME"
+    echo "Replicas: $NUM_REPLICAS"
+    echo "Storage: $STORAGE_PATH"
+    echo "Results: $RESULTS_PATH"
+    echo ""
 
-    # Create directories first
+    # Create directories
     mkdir -p "$RESULTS_PATH" /tmp/benchmarks
     cd /tmp/benchmarks
 
-    # Define log function after directories exist
-    log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
+    LOG_FILE="${RESULTS_PATH}/benchmark.log"
 
-    log "=== ServerlessLLM Automated Benchmark ==="
-    log "Model: $MODEL_NAME"
-    log "Replicas: $NUM_REPLICAS"
-    log "Memory Pool: $MEM_POOL_SIZE"
-    log "Storage: $STORAGE_PATH"
-    log "Branch: $BRANCH"
-    log ""
+    # Set up logging
+    exec 1> >(tee -a "$LOG_FILE")
+    exec 2>&1
 
-    # Install dependencies
-    log "Installing dependencies..."
-    pip install -q seaborn matplotlib pandas sentencepiece 2>&1 | tee -a "$LOG_FILE"
-
-    # Install curl if not available
+    echo "[$(date)] Installing curl if needed..."
     if ! command -v curl &> /dev/null; then
-        log "Installing curl..."
-        apt-get update -qq && apt-get install -y -qq curl 2>&1 | tee -a "$LOG_FILE"
+        apt-get update -qq && apt-get install -y -qq curl
     fi
 
-    # Activate conda environment (required for official serverlessllm/sllm image)
-    log "Activating conda environment..."
-    source /opt/conda/etc/profile.d/conda.sh
-    conda activate worker || conda activate head
-    log "Conda environment activated: $(conda info --envs | grep '*' | awk '{print $1}')"
+    echo "[$(date)] Downloading ALL benchmark scripts from GitHub..."
+    echo "This ensures K8s uses identical scripts as local/docker execution"
+    echo ""
 
-    # Download benchmark scripts from GitHub
-    log "Downloading benchmark scripts..."
-    curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/download_models.py" -o download_models.py
-    curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/test_loading.py" -o test_loading.py
-    curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/benchmark_utils.py" -o benchmark_utils.py
-    curl -sL "https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks/generate_report.py" -o generate_report.py
-    chmod +x generate_report.py
+    # Download ALL scripts including the main orchestration script
+    BASE_URL="https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/${BRANCH}/benchmarks"
 
-    # Start sllm-store (match official benchmark setup)
-    log "Starting sllm-store server..."
-    sllm-store start \
-        --storage-path "$STORAGE_PATH" \
-        --mem-pool-size "$MEM_POOL_SIZE" \
-        --chunk-size 16MB \
-        --num-thread 4 \
-        > "${RESULTS_PATH}/sllm-store.log" 2>&1 &
+    curl -fsSL "${BASE_URL}/run-benchmark.sh" -o actual-run-benchmark.sh
+    curl -fsSL "${BASE_URL}/download_models.py" -o download_models.py
+    curl -fsSL "${BASE_URL}/test_loading.py" -o test_loading.py
+    curl -fsSL "${BASE_URL}/benchmark_utils.py" -o benchmark_utils.py
+    curl -fsSL "${BASE_URL}/generate_report.py" -o generate_report.py
 
-    SLLM_STORE_PID=$!
-    log "sllm-store started (PID: $SLLM_STORE_PID)"
+    chmod +x actual-run-benchmark.sh generate_report.py
 
-    # Wait for ready
-    log "Waiting for sllm-store..."
-    sleep 10
+    echo "[$(date)] Scripts downloaded successfully"
+    echo ""
+    echo "[$(date)] Activating conda environment..."
 
-    if ! kill -0 $SLLM_STORE_PID 2>/dev/null; then
-        log "ERROR: sllm-store failed to start"
-        cat "${RESULTS_PATH}/sllm-store.log"
-        exit 1
+    # Activate conda (required for serverlessllm/sllm image)
+    if [ -f /opt/conda/etc/profile.d/conda.sh ]; then
+        source /opt/conda/etc/profile.d/conda.sh
+        conda activate worker || conda activate head
+        echo "Environment: $(conda info --envs | grep '*' | awk '{print $1}')"
     fi
-    log "sllm-store ready"
 
-    # Cleanup on exit
-    cleanup() {
-        log "Cleaning up..."
-        kill $SLLM_STORE_PID 2>/dev/null || true
-        wait $SLLM_STORE_PID 2>/dev/null || true
-    }
-    trap cleanup EXIT INT TERM
+    echo "[$(date)] Installing Python dependencies..."
+    pip install --quiet transformers torch accelerate tqdm sentencepiece || true
+    echo ""
 
-    # Run benchmarks
-    log "Starting benchmarks..."
-    rm -rf "${STORAGE_PATH:?}"/* || true
-
-    # Run each format in subprocess to ensure GPU memory is freed
-    run_format_benchmark() {
-        local MODEL_FORMAT=$1
-        log "=== Testing $MODEL_FORMAT format ==="
-
-        log "Downloading $NUM_REPLICAS replicas..."
-        python3 download_models.py \
-            --model-name "$MODEL_NAME" \
-            --save-format "$MODEL_FORMAT" \
-            --save-dir "$STORAGE_PATH" \
-            --num-replicas "$NUM_REPLICAS" \
-            2>&1 | tee -a "$LOG_FILE"
-
-        log "Running benchmark..."
-        python3 test_loading.py \
-            --model-name "$MODEL_NAME" \
-            --model-format "$MODEL_FORMAT" \
-            --model-dir "$STORAGE_PATH" \
-            --num-replicas "$NUM_REPLICAS" \
-            --benchmark-type "$BENCHMARK_TYPE" \
-            --output-dir "$RESULTS_PATH" \
-            2>&1 | tee -a "$LOG_FILE"
-
-        log "Cleaning storage..."
-        rm -rf "${STORAGE_PATH:?}"/* || true
-    }
-
-    # Run each format in separate subprocess (GPU memory freed on subprocess exit)
-    for MODEL_FORMAT in safetensors sllm; do
-        ( run_format_benchmark "$MODEL_FORMAT" )
-        log "Format $MODEL_FORMAT completed, GPU memory released"
-        sleep 5
-        log ""
-    done
-
-    # Generate report
-    log "Generating report..."
-    python3 generate_report.py \
-        --model-name "$MODEL_NAME" \
-        --num-replicas "$NUM_REPLICAS" \
-        --benchmark-type "$BENCHMARK_TYPE" \
-        --results-dir "$RESULTS_PATH" \
-        --output-file "$SUMMARY_FILE" \
-        --generate-plots "$GENERATE_PLOTS" \
-        2>&1 | tee -a "$LOG_FILE"
-
-    log ""
-    log "=== Benchmark Summary ==="
-    cat "$SUMMARY_FILE" | tee -a "$LOG_FILE"
-    log ""
-    log "=== Benchmark Complete ==="
-    log "Results: $RESULTS_PATH"
-
+    # Set up cleanup trap for KEEP_ALIVE mode
     if [ "$KEEP_ALIVE" = "true" ]; then
-        log "KEEP_ALIVE=true, keeping container running..."
-        tail -f /dev/null
+        cleanup() {
+            echo ""
+            echo "============================================================"
+            echo "Benchmark complete. KEEP_ALIVE=true, container staying alive"
+            echo "Results are available at: $RESULTS_PATH"
+            echo "============================================================"
+            tail -f /dev/null
+        }
+        trap cleanup EXIT
     fi
+
+    # Export all configuration for the actual script
+    export MODEL_NAME
+    export NUM_REPLICAS
+    export MEM_POOL_SIZE
+    export STORAGE_PATH
+    export RESULTS_PATH
+    export BENCHMARK_TYPE
+    export GENERATE_PLOTS
+
+    echo "============================================================"
+    echo "Executing downloaded run-benchmark.sh"
+    echo "This is the SAME script used for local/docker execution"
+    echo "============================================================"
+    echo ""
+
+    # Execute the actual benchmark script from GitHub
+    bash actual-run-benchmark.sh
+
+    echo ""
+    echo "============================================================"
+    echo "K8s Benchmark Complete"
+    echo "Results saved to: $RESULTS_PATH"
+    echo "============================================================"

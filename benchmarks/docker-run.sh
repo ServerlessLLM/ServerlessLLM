@@ -12,11 +12,14 @@ MEM_POOL_SIZE="${MEM_POOL_SIZE:-8GB}"
 STORAGE_PATH="${STORAGE_PATH:-/mnt/nvme}"
 RESULTS_PATH="${RESULTS_PATH:-$(pwd)/results}"
 IMAGE="${IMAGE:-serverlessllm/sllm:latest}"
+# GPU_LIMIT options: 1, 2, "all", '"device=0"', '"device=0,1"', etc.
+GPU_LIMIT="${GPU_LIMIT:-1}"
 
 echo "=== ServerlessLLM Benchmark (Docker) ==="
 echo "Image: $IMAGE"
 echo "Model: $MODEL_NAME"
 echo "Replicas: $NUM_REPLICAS"
+echo "GPU Limit: $GPU_LIMIT"
 echo "Storage: $STORAGE_PATH"
 echo "Results: $RESULTS_PATH"
 echo ""
@@ -28,7 +31,7 @@ mkdir -p "$RESULTS_PATH"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Run benchmark
-docker run --rm --gpus all \
+docker run --rm --gpus "$GPU_LIMIT" \
     -e MODE=WORKER \
     -e MODEL_NAME="$MODEL_NAME" \
     -e NUM_REPLICAS="$NUM_REPLICAS" \

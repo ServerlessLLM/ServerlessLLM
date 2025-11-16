@@ -32,7 +32,9 @@ def print_gpu_memory(prefix=""):
     if torch.cuda.is_available():
         allocated = torch.cuda.memory_allocated() / 1024**3
         reserved = torch.cuda.memory_reserved() / 1024**3
-        print(f"[GPU Memory {prefix}] Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB")
+        print(
+            f"[GPU Memory {prefix}] Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB"
+        )
     else:
         print(f"[GPU Memory {prefix}] CUDA not available")
 
@@ -119,6 +121,18 @@ def measure(
                 model_path,
                 torch_dtype=torch.float16,
                 device_map="auto",
+            )
+            end_time = time.time()
+        elif model_format == "torch":
+            model_path = os.path.join(
+                model_dir, f"{model_name}_torch_{model_idx}"
+            )
+            start_time = time.time()
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                use_safetensors=False,
             )
             end_time = time.time()
         model_record["loading_time"] = end_time - start_time
