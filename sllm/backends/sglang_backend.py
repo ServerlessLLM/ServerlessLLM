@@ -39,7 +39,7 @@ def process_output(output: Dict[str, Any], model_name: str) -> Dict[str, Any]:
     # SGLang output format: {"text": str, "meta_info": {...}}
     text = output.get("text", "")
     meta_info = output.get("meta_info", {})
-    
+
     choices: List[Dict[str, Any]] = [
         {
             "index": 0,
@@ -68,16 +68,18 @@ def process_output(output: Dict[str, Any], model_name: str) -> Dict[str, Any]:
     return api_response
 
 
-def process_embedding_output(output: Dict[str, Any], model_name: str) -> Dict[str, Any]:
+def process_embedding_output(
+    output: Dict[str, Any], model_name: str
+) -> Dict[str, Any]:
     """Process SGLang embedding output to match OpenAI API format."""
     # SGLang embedding output format
     embeddings = output.get("embedding", [])
     if not isinstance(embeddings[0], list):
         embeddings = [embeddings]
-    
+
     meta_info = output.get("meta_info", {})
     query_tokens = meta_info.get("prompt_tokens", 0)
-    
+
     api_response = {
         "object": "list",
         "data": [
@@ -102,7 +104,9 @@ class LLMEngineStatusDict:
         self.status_dict: Dict[str, Union[Dict, str]] = {}
         self.lock = asyncio.Lock()
 
-    async def update_status(self, request_id: str, request_output: Union[Dict, str]):
+    async def update_status(
+        self, request_id: str, request_output: Union[Dict, str]
+    ):
         async with self.lock:
             self.status_dict[request_id] = request_output
 
@@ -176,10 +180,10 @@ class SglangBackend(SllmBackend):
         async with self.status_lock:
             if self.status != BackendStatus.UNINITIALIZED:
                 return
-            
+
             # Import here to avoid circular dependencies
             from sglang.srt.entrypoints.engine import Engine
-            
+
             self.engine = Engine(**self.engine_config)
             self.status = BackendStatus.RUNNING
 
@@ -195,7 +199,7 @@ class SglangBackend(SllmBackend):
 
         model_name: str = request_data.pop("model", "sglang-model")
         messages: List[Dict[str, str]] = request_data.pop("messages", [])
-        
+
         # Construct prompt from messages
         construct_prompt: str = "\n".join(
             [
@@ -207,7 +211,7 @@ class SglangBackend(SllmBackend):
 
         # If prompt is not provided, construct it from messages
         prompt: str = request_data.pop("prompt", construct_prompt)
-        
+
         request_id: str = request_data.pop(
             "request_id", f"chatcmpl-{uuid.uuid4()}"
         )
@@ -221,9 +225,13 @@ class SglangBackend(SllmBackend):
         if "max_tokens" in request_data:
             sampling_params["max_new_tokens"] = request_data["max_tokens"]
         if "frequency_penalty" in request_data:
-            sampling_params["frequency_penalty"] = request_data["frequency_penalty"]
+            sampling_params["frequency_penalty"] = request_data[
+                "frequency_penalty"
+            ]
         if "presence_penalty" in request_data:
-            sampling_params["presence_penalty"] = request_data["presence_penalty"]
+            sampling_params["presence_penalty"] = request_data[
+                "presence_penalty"
+            ]
         if "stop" in request_data:
             sampling_params["stop"] = request_data["stop"]
 
@@ -234,14 +242,14 @@ class SglangBackend(SllmBackend):
                 sampling_params=sampling_params,
                 rid=request_id,
             )
-            
+
             await self.request_trace.update_status(request_id, output)
-            
+
             if not self.trace_debug:
                 await self.request_trace.delete_request(request_id)
 
             return process_output(output, model_name)
-            
+
         except Exception as e:
             logger.error(f"Error during generation: {e}")
             return {"error": f"Generation failed: {e}"}
@@ -265,9 +273,9 @@ class SglangBackend(SllmBackend):
         try:
             # Call SGLang engine's async_encode
             output = await self.engine.async_encode(prompt=query)
-            
+
             return process_embedding_output(output, model_name)
-            
+
         except Exception as e:
             logger.error(f"Error during encoding: {e}")
             return {"error": f"Encoding failed: {e}"}
@@ -283,11 +291,11 @@ class SglangBackend(SllmBackend):
         requests = await self.request_trace.return_all_request_ids()
         for request_id in requests:
             await self.request_trace.delete_request(request_id)
-        
+
         if hasattr(self, "engine") and self.engine is not None:
             self.engine.shutdown()
             del self.engine
-            
+
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -299,11 +307,11 @@ class SglangBackend(SllmBackend):
             if self.status.value >= BackendStatus.STOPPING.value:
                 return
             self.status = BackendStatus.STOPPING
-        
+
         while await self.request_trace.request_count() > 0:
             logger.info("Waiting for all requests to finish")
             await asyncio.sleep(1)
-        
+
         logger.info("All requests finished. Shutting down the backend.")
         await self.shutdown()
 
@@ -312,7 +320,7 @@ class SglangBackend(SllmBackend):
         async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return []
-        
+
         results = await self.request_trace.return_all_results()
         ongoing_results: List[Dict] = [
             result for result in results if isinstance(result, dict)
@@ -332,7 +340,7 @@ class SglangBackend(SllmBackend):
         async with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return
-        
+
         constructed_inputs = [
             {
                 "input_tokens": request_data,
@@ -342,4 +350,3 @@ class SglangBackend(SllmBackend):
         ]
         tasks = [self.generate(inputs) for inputs in constructed_inputs]
         await asyncio.gather(*tasks)
-
