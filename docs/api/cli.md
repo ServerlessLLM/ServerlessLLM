@@ -162,6 +162,7 @@ sllm deploy [OPTIONS]
 sllm deploy --model facebook/opt-1.3b
 sllm deploy --config /path/to/config.json
 sllm deploy --model facebook/opt-1.3b --backend transformers
+sllm deploy --model facebook/opt-1.3b --backend sglang
 sllm deploy --model facebook/opt-1.3b --num-gpus 2 --target 5 --min-instances 1 --max-instances 5
 ```
 
@@ -239,12 +240,39 @@ Then copy it into `config.json`:
 }
 ```
 
+##### Example SGLang Configuration (`config.json`)
+
+```json
+{
+    "model": "facebook/opt-1.3b",
+    "backend": "sglang",
+    "num_gpus": 1,
+    "auto_scaling_config": {
+        "metric": "concurrency",
+        "target": 1,
+        "min_instances": 0,
+        "max_instances": 10,
+        "keep_alive": 0
+    },
+    "backend_config": {
+        "pretrained_model_name_or_path": "facebook/opt-1.3b",
+        "torch_dtype": "float16",
+        "tp_size": 1,
+        "trust_remote_code": false,
+        "disable_cuda_graph": false,
+        "log_level": "error"
+    }
+}
+```
+
+**Note:** When using the SGLang backend with ServerlessLLM's checkpoint store, the `load_format` will automatically be set to `"serverless_llm"` if not specified. Make sure to save your model using the `save_sglang_model.py` script first.
+
 Below is a description of all the fields in config.json.
 
 | Field | Description |
 | ----- | ----------- |
 | model | HuggingFace model name, used to identify model instance. |
-| backend | Inference engine, supports `transformers` and `vllm`. |
+| backend | Inference engine, supports `transformers`, `vllm`, and `sglang`. |
 | num_gpus | Number of GPUs used to deploy a model instance. |
 | auto_scaling_config | Config about auto scaling. |
 | auto_scaling_config.metric | Metric used to decide whether to scale up or down. |

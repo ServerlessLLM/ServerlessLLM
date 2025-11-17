@@ -40,6 +40,10 @@ def start_instance(
         from sllm.backends import TransformersBackend
 
         model_backend_cls = TransformersBackend
+    elif backend == "sglang":
+        from sllm.backends import SglangBackend
+
+        model_backend_cls = SglangBackend
     else:
         logger.error(f"Unknown backend: {backend}")
         raise ValueError(f"Unknown backend: {backend}")

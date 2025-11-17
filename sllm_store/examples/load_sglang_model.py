@@ -65,5 +65,6 @@ if __name__ == "__main__":
     for i, output in enumerate(outputs):
         prompt = prompts[i]
         generated_text = output["text"]
-        print(f"""===============================\nPrompt: {prompt}\nGenerated text: {generated_text}\n===============================\n""")
-
+        print(
+            f"""===============================\nPrompt: {prompt}\nGenerated text: {generated_text}\n===============================\n"""
+        )

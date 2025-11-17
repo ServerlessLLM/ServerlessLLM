@@ -54,7 +54,14 @@ class SGLangModelSaver:
                 else:
                     shutil.copy(src_path, dst_path)
 
-        def _load_and_save(input_dir: str, save_name: str, tp_size: int, device: Optional[str], pattern: Optional[str], max_size: Optional[int]) -> None:
+        def _load_and_save(
+            input_dir: str,
+            save_name: str,
+            tp_size: int,
+            device: Optional[str],
+            pattern: Optional[str],
+            max_size: Optional[int],
+        ) -> None:
             # Launch an sglang Engine instance (in-process) and save via engine API
             from sglang.srt.entrypoints.engine import Engine
 
@@ -74,7 +81,7 @@ class SGLangModelSaver:
             if device == "cpu":
                 engine_args["device"] = "cpu"
             with Engine(**engine_args) as engine:
-                engine.save_serverless_llm_state(path=out_dir, pattern=pattern, max_size=max_size)
+                engine.save_serverless_llm_state(path=out_dir)
 
             # Copy metadata files
             _copy_metadata(input_dir, out_dir)
@@ -100,7 +107,14 @@ class SGLangModelSaver:
                             "*.txt",
                         ],
                     )
-                _load_and_save(input_dir, model_name, tensor_parallel_size, device, pattern, max_size)
+                _load_and_save(
+                    input_dir,
+                    model_name,
+                    tensor_parallel_size,
+                    device,
+                    pattern,
+                    max_size,
+                )
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
             # remove the output dir
@@ -189,5 +203,3 @@ if __name__ == "__main__":
         pattern=pattern,
         max_size=max_size,
     )
-
-
