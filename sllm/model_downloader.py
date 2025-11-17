@@ -244,3 +244,96 @@ class VllmModelDownloader:
             )
         finally:
             cache_dir.cleanup()
+
+
+class SglangModelDownloader:
+    def __init__(self):
+        pass
+
+    def download_sglang_model(
+        self,
+        model_name: str,
+        pretrained_model_name_or_path: str,
+        torch_dtype: str,
+        tensor_parallel_size: int = 1,
+        pattern: Optional[str] = None,
+        max_size: Optional[int] = None,
+    ):
+        import gc
+        from tempfile import TemporaryDirectory
+
+        import torch
+        from huggingface_hub import snapshot_download
+
+        # set the storage path
+        storage_path = os.getenv("STORAGE_PATH", "./models")
+        model_path = os.path.join(storage_path, "sglang", model_name)
+        if os.path.exists(model_path):
+            logger.info(f"{model_path} already exists")
+            return
+
+        cache_dir = TemporaryDirectory()
+        try:
+            if os.path.exists(pretrained_model_name_or_path):
+                input_dir = pretrained_model_name_or_path
+            else:
+                # download from huggingface
+                input_dir = snapshot_download(
+                    model_name,
+                    cache_dir=cache_dir.name,
+                    allow_patterns=[
+                        "*.safetensors",
+                        "*.bin",
+                        "*.json",
+                        "*.txt",
+                    ],
+                )
+            logger.info(f"Loading model from {input_dir}")
+
+            # load model using SGLang Engine
+            from sglang.srt.entrypoints.engine import Engine
+
+            engine = Engine(
+                model_path=input_dir,
+                dtype=torch_dtype,
+                tp_size=tensor_parallel_size,
+                log_level="error",
+                skip_server_warmup=True,
+                disable_cuda_graph=True,
+            )
+
+            # save the models in the ServerlessLLM format
+            engine.save_serverless_llm_state(path=model_path)
+
+            for file in os.listdir(input_dir):
+                # Copy the metadata files into the output directory
+                if os.path.splitext(file)[1] not in (
+                    ".bin",
+                    ".pt",
+                    ".safetensors",
+                ):
+                    src_path = os.path.join(input_dir, file)
+                    dest_path = os.path.join(model_path, file)
+                    logger.info(src_path)
+                    logger.info(dest_path)
+                    if os.path.isdir(src_path):
+                        shutil.copytree(src_path, dest_path)
+                    else:
+                        shutil.copy(src_path, dest_path)
+
+            engine.shutdown()
+            del engine
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+        except Exception as e:
+            logger.info(f"An error occurred while saving the model: {e}")
+            # remove the output dir
+            if os.path.exists(os.path.join(storage_path, "sglang", model_name)):
+                shutil.rmtree(os.path.join(storage_path, "sglang", model_name))
+            raise RuntimeError(
+                f"Failed to save {model_name} for sglang backend: {e}"
+            )
+        finally:
+            cache_dir.cleanup()
