@@ -6,5 +6,10 @@
     "Qwen/Qwen2.5-1.5B": {
         "can_store": true,
         "can_inference": true
+    },
+    "Qwen/Qwen2-VL-2B-Instruct": {
+        "can_store": true,
+        "can_inference": true,
+        "hf_model_class": "AutoModelForVision2Seq"
     }
 }
