@@ -51,6 +51,25 @@ if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
     pip install -q -r "$SCRIPT_DIR/requirements.txt" 2>&1 | tee -a "$LOG_FILE"
 fi
 
+# Install model-specific requirements if they exist
+MODEL_SLUG=$(echo "$MODEL_NAME" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
+MODEL_REQ_FILE="$SCRIPT_DIR/model_requirements/${MODEL_SLUG}.txt"
+if [ -f "$MODEL_REQ_FILE" ]; then
+    log "Installing model-specific requirements for $MODEL_NAME..."
+    log "Using requirements file: $MODEL_REQ_FILE"
+    # Install flash-attn separately with --no-build-isolation if it's in the requirements
+    if grep -qE "^flash-attn" "$MODEL_REQ_FILE"; then
+        log "Installing git (required for flash-attn)..."
+        apt-get update -qq && apt-get install -y -qq git 2>&1 | tee -a "$LOG_FILE"
+        log "Installing flash-attn with --no-build-isolation..."
+        grep -E "^flash-attn" "$MODEL_REQ_FILE" | xargs pip install --no-build-isolation 2>&1 | tee -a "$LOG_FILE"
+        # Install other requirements (skip comments and empty lines)
+        grep -vE "^flash-attn|^#|^$" "$MODEL_REQ_FILE" | xargs -r pip install 2>&1 | tee -a "$LOG_FILE"
+    else
+        pip install -r "$MODEL_REQ_FILE" 2>&1 | tee -a "$LOG_FILE"
+    fi
+fi
+
 # NVMe detection (if script exists)
 if [ -f "/scripts/detect-nvme.sh" ]; then
     log "Running NVMe detection..."
