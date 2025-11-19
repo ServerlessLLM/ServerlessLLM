@@ -3,37 +3,41 @@
 ## One-Command Deploy
 
 ```bash
-# Deploy
-NS=sc24029 k8s/deploy-benchmark.sh
+# Deploy with CLI flags (recommended)
+k8s/deploy-benchmark.sh --namespace sc24029
 
 # Monitor progress (includes queue status)
-NS=sc24029 k8s/monitor-benchmark.sh
+k8s/monitor-benchmark.sh --namespace sc24029
 
 # Check queue status only
-NS=sc24029 k8s/monitor-queue.sh
+k8s/monitor-queue.sh --namespace sc24029
 ```
 
-Done! Scripts auto-replace all `<PLACEHOLDERS>` from environment variables.
+Done! The deploy script auto-replaces all `<PLACEHOLDERS>` in YAML files.
 
 ## Configuration
 
-Set environment variables before running:
+Use command-line flags for easy configuration:
 
 ```bash
-# Required
-export NS=sc24029              # Your namespace
+# Basic deployment
+k8s/deploy-benchmark.sh --namespace sc24029
 
-# Optional (with defaults)
-export CPU=8                   # CPU cores (default: 8)
-export MEMORY=32Gi            # Memory (default: 32Gi)
-export GPU=1                   # GPU count (default: 1)
-export NVME_PATH=/nvme        # NVMe mount path (default: /nvme)
-export MODEL_NAME=facebook/opt-1.3b
-export NUM_REPLICAS=10
+# Full customization with CLI flags
+k8s/deploy-benchmark.sh \
+    --namespace sc24029 \
+    --cpu 16 \
+    --memory 256Gi \
+    --gpu 2 \
+    --nvme-path /nvme \
+    --model-name meta-llama/Meta-Llama-3-8B \
+    --num-replicas 50
 
-# Deploy
-k8s/deploy-benchmark.sh
+# See all available options
+k8s/deploy-benchmark.sh --help
 ```
+
+**Backward compatibility:** Environment variables are still supported (e.g., `NS=sc24029 k8s/deploy-benchmark.sh`), but CLI flags are recommended.
 
 ## What It Does
 
@@ -117,16 +121,16 @@ kubectl delete -n $NS \
 
 ## Troubleshooting
 
-**"NS environment variable not set"**
+**"Namespace not specified"**
 ```bash
-NS=your-namespace k8s/deploy-benchmark.sh
+k8s/deploy-benchmark.sh --namespace your-namespace
 ```
 
 **"hostPath volumes" warning appears but job runs**
 - This is expected - the warning is non-blocking
 
 **Job fails with storage errors**
-- Check NVMe path: `NVME_PATH=/correct/path k8s/deploy-benchmark.sh`
+- Check NVMe path: `k8s/deploy-benchmark.sh --nvme-path /correct/path`
 - Or use emptyDir (edit yaml manually)
 
 **"command not found: envsubst"**

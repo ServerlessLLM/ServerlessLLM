@@ -10,10 +10,23 @@ Welcome to the benchmarking suite for ServerlessLLM Store. This suite is designe
 # Docker (default: facebook/opt-6.7b, 30 replicas, 32GB memory pool)
 cd benchmarks && ./docker-run.sh
 
-# Docker with custom GPU limit (default: 1 GPU)
-GPU_LIMIT=2 ./docker-run.sh              # Use 2 GPUs
-GPU_LIMIT="all" ./docker-run.sh          # Use all GPUs
-GPU_LIMIT='"device=0"' ./docker-run.sh   # Use specific GPU
+# Customize with command-line flags
+./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --num-replicas 50
+
+# Control GPU allocation (default: 1 GPU)
+./docker-run.sh --gpu-limit 2                           # Use 2 GPUs
+./docker-run.sh --gpu-limit "all"                       # Use all GPUs
+./docker-run.sh --gpu-limit '"device=0"'                # Use specific GPU
+
+# Full example with multiple options
+./docker-run.sh \
+    --model-name facebook/opt-6.7b \
+    --num-replicas 30 \
+    --mem-pool-size 64GB \
+    --gpu-limit 2
+
+# See all options
+./docker-run.sh --help
 
 # Kubernetes
 kubectl apply -f k8s/benchmark-configmap.yaml

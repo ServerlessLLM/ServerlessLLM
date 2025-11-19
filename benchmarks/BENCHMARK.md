@@ -12,15 +12,25 @@ cd benchmarks
 ./docker-run.sh
 
 # Custom model
-MODEL_NAME=meta-llama/Meta-Llama-3-8B NUM_REPLICAS=50 ./docker-run.sh
+./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --num-replicas 50
 
 # Custom GPU allocation
-GPU_LIMIT=2 ./docker-run.sh              # Use 2 GPUs
-GPU_LIMIT="all" ./docker-run.sh          # Use all GPUs
-GPU_LIMIT='"device=0,1"' ./docker-run.sh # Use specific GPUs
+./docker-run.sh --gpu-limit 2                           # Use 2 GPUs
+./docker-run.sh --gpu-limit "all"                       # Use all GPUs
+./docker-run.sh --gpu-limit '"device=0,1"'              # Use specific GPUs
 
 # Custom storage and memory
-STORAGE_PATH=/data/nvme MEM_POOL_SIZE=64GB ./docker-run.sh
+./docker-run.sh --storage-path /data/nvme --mem-pool-size 64GB
+
+# All options combined
+./docker-run.sh \
+    --model-name meta-llama/Meta-Llama-3-8B \
+    --num-replicas 50 \
+    --mem-pool-size 64GB \
+    --gpu-limit 2
+
+# See all options
+./docker-run.sh --help
 ```
 
 ### Kubernetes (EIDF)
@@ -48,19 +58,23 @@ kubectl cp sllm-benchmark-xxxxx:/results ./results
 
 ## Configuration
 
-### Environment Variables
+### Command-Line Flags (docker-run.sh)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MODEL_NAME` | `facebook/opt-6.7b` | Model to benchmark |
-| `NUM_REPLICAS` | `30` | Number of iterations |
-| `MEM_POOL_SIZE` | `32GB` | sllm-store memory pool |
-| `GPU_LIMIT` | `1` | GPU allocation (1, 2, "all", or "device=X") |
-| `BENCHMARK_TYPE` | `random` | Test type (random/single) |
-| `STORAGE_PATH` | `/models` | Model storage location |
-| `RESULTS_PATH` | `/results` | Results output location |
-| `GENERATE_PLOTS` | `false` | Generate plots (requires matplotlib) |
-| `KEEP_ALIVE` | `false` | Keep container running after benchmark |
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--model-name` | `-m` | `facebook/opt-6.7b` | Model to benchmark |
+| `--num-replicas` | `-n` | `30` | Number of iterations |
+| `--mem-pool-size` | `-p` | `32GB` | sllm-store memory pool |
+| `--gpu-limit` | `-g` | `1` | GPU allocation (1, 2, "all", or "device=X") |
+| `--benchmark-type` | `-t` | `random` | Test type (random/single) |
+| `--storage-path` | `-s` | `/mnt/nvme` | Host storage directory |
+| `--results-path` | `-r` | `./results` | Host results directory |
+| `--image` | `-i` | `serverlessllm/sllm:latest` | Docker image to use |
+| `--generate-plots` | - | `false` | Generate plots (requires matplotlib) |
+| `--keep-alive` | - | `false` | Keep container running after benchmark |
+| `--help` | `-h` | - | Show help message |
+
+**Note:** Environment variables are still supported for backward compatibility (e.g., `MODEL_NAME=...`), but CLI flags are recommended and take precedence.
 
 ### Custom Models
 
@@ -131,14 +145,14 @@ kubectl exec <pod> -- cat /results/sllm-store.log
 ```
 
 **Out of memory:**
-- Increase `MEM_POOL_SIZE`
+- Increase memory pool size: `./docker-run.sh --mem-pool-size 64GB`
 - Use smaller model
-- Reduce `NUM_REPLICAS`
+- Reduce replicas: `./docker-run.sh --num-replicas 20`
 
 **Storage full:**
-- Clean old models: `rm -rf $STORAGE_PATH/*`
+- Clean old models: `rm -rf /mnt/nvme/*` (or your storage path)
 - Increase storage allocation
-- Reduce `NUM_REPLICAS`
+- Reduce replicas: `./docker-run.sh --num-replicas 20`
 
 **GPU not available:**
 ```bash
@@ -150,23 +164,23 @@ kubectl exec <pod> -- nvidia-smi
 
 ### Multiple Models
 ```bash
-# Run sequentially
+# Run sequentially with CLI flags
 for model in facebook/opt-6.7b meta-llama/Meta-Llama-3-8B mistralai/Mistral-7B-v0.3; do
-  MODEL_NAME=$model ./docker-run.sh
+  ./docker-run.sh --model-name "$model"
 done
 ```
 
 ### Save Results to Different Locations
 ```bash
 # Each run saves to different directory
-RESULTS_PATH=./results/opt-6.7b MODEL_NAME=facebook/opt-6.7b ./docker-run.sh
-RESULTS_PATH=./results/llama-8b MODEL_NAME=meta-llama/Meta-Llama-3-8B ./docker-run.sh
+./docker-run.sh --model-name facebook/opt-6.7b --results-path ./results/opt-6.7b
+./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --results-path ./results/llama-8b
 ```
 
 ### Debug Mode
 ```bash
 # Keep container alive after benchmark
-KEEP_ALIVE=true ./docker-run.sh
+./docker-run.sh --keep-alive
 
 # Then inspect
 docker exec -it <container> bash

@@ -5,14 +5,17 @@ Automated benchmark system for EIDF GPU cluster.
 ## Quick Start
 
 ```bash
-# Deploy benchmark
-NS=eidf230ns k8s/deploy-benchmark.sh
+# Deploy benchmark (using CLI flags)
+k8s/deploy-benchmark.sh --namespace eidf230ns
 
 # Monitor progress
-NS=eidf230ns k8s/monitor-benchmark.sh
+k8s/monitor-benchmark.sh --namespace eidf230ns
 
 # Check queue status
-NS=eidf230ns k8s/monitor-queue.sh
+k8s/monitor-queue.sh --namespace eidf230ns
+
+# See all options
+k8s/deploy-benchmark.sh --help
 ```
 
 See [QUICK_DEPLOY.md](QUICK_DEPLOY.md) for full guide.
@@ -48,7 +51,15 @@ Uses official `serverlessllm/sllm:latest` image with:
 - Memory: 128Gi
 - GPU: 1x A100
 
-Override with environment variables:
+Customize with command-line flags:
 ```bash
-NS=eidf230ns CPU=16 MEMORY=256Gi GPU=2 k8s/deploy-benchmark.sh
+k8s/deploy-benchmark.sh \
+    --namespace eidf230ns \
+    --cpu 16 \
+    --memory 256Gi \
+    --gpu 2 \
+    --model-name meta-llama/Meta-Llama-3-8B \
+    --num-replicas 50
 ```
+
+**Note:** Environment variables are still supported for backward compatibility.

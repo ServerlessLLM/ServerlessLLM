@@ -5,15 +5,97 @@
 
 set -e
 
-# Configuration (via environment variables)
-MODEL_NAME="${MODEL_NAME:-facebook/opt-6.7b}"
-NUM_REPLICAS="${NUM_REPLICAS:-30}"
-MEM_POOL_SIZE="${MEM_POOL_SIZE:-32GB}"
-STORAGE_PATH="${STORAGE_PATH:-/models}"
-RESULTS_PATH="${RESULTS_PATH:-/results}"
-BENCHMARK_TYPE="${BENCHMARK_TYPE:-random}"
-GENERATE_PLOTS="${GENERATE_PLOTS:-false}"
-KEEP_ALIVE="${KEEP_ALIVE:-false}"
+# Help function
+show_help() {
+    cat << EOF
+Usage: $(basename "$0") [OPTIONS]
+
+Run ServerlessLLM benchmarks with automated model loading and testing.
+
+OPTIONS:
+  -m, --model-name NAME        Model to benchmark (default: facebook/opt-6.7b)
+  -n, --num-replicas N         Number of test replicas (default: 30)
+  -p, --mem-pool-size SIZE     Memory pool size (default: 32GB)
+  -s, --storage-path PATH      Model storage directory (default: /models)
+  -r, --results-path PATH      Results output directory (default: /results)
+  -t, --benchmark-type TYPE    Test type: random|single (default: random)
+      --generate-plots         Generate visualization plots
+      --keep-alive             Keep container running after completion
+  -h, --help                   Show this help message
+
+EXAMPLES:
+  # Basic usage with custom model
+  $0 --model-name meta-llama/Meta-Llama-3-8B
+
+  # Full configuration
+  $0 --model-name facebook/opt-6.7b \\
+     --num-replicas 50 \\
+     --mem-pool-size 64GB \\
+     --generate-plots
+
+  # Backward compatible (env vars still work)
+  MODEL_NAME=facebook/opt-6.7b NUM_REPLICAS=30 $0
+
+For more information, see: benchmarks/README.md
+EOF
+}
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -m|--model-name)
+            CLI_MODEL_NAME="$2"
+            shift 2
+            ;;
+        -n|--num-replicas)
+            CLI_NUM_REPLICAS="$2"
+            shift 2
+            ;;
+        -p|--mem-pool-size)
+            CLI_MEM_POOL_SIZE="$2"
+            shift 2
+            ;;
+        -s|--storage-path)
+            CLI_STORAGE_PATH="$2"
+            shift 2
+            ;;
+        -r|--results-path)
+            CLI_RESULTS_PATH="$2"
+            shift 2
+            ;;
+        -t|--benchmark-type)
+            CLI_BENCHMARK_TYPE="$2"
+            shift 2
+            ;;
+        --generate-plots)
+            CLI_GENERATE_PLOTS="true"
+            shift
+            ;;
+        --keep-alive)
+            CLI_KEEP_ALIVE="true"
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Configuration: CLI args > environment variables > defaults
+MODEL_NAME="${CLI_MODEL_NAME:-${MODEL_NAME:-facebook/opt-6.7b}}"
+NUM_REPLICAS="${CLI_NUM_REPLICAS:-${NUM_REPLICAS:-30}}"
+MEM_POOL_SIZE="${CLI_MEM_POOL_SIZE:-${MEM_POOL_SIZE:-32GB}}"
+STORAGE_PATH="${CLI_STORAGE_PATH:-${STORAGE_PATH:-/models}}"
+RESULTS_PATH="${CLI_RESULTS_PATH:-${RESULTS_PATH:-/results}}"
+BENCHMARK_TYPE="${CLI_BENCHMARK_TYPE:-${BENCHMARK_TYPE:-random}}"
+GENERATE_PLOTS="${CLI_GENERATE_PLOTS:-${GENERATE_PLOTS:-false}}"
+KEEP_ALIVE="${CLI_KEEP_ALIVE:-${KEEP_ALIVE:-false}}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="${RESULTS_PATH}/benchmark.log"

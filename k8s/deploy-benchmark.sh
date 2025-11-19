@@ -1,23 +1,103 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------- #
-#  EIDF Benchmark Setup - Auto-configure from environment                     #
+#  EIDF Benchmark Setup - Deploy benchmarks to Kubernetes                     #
 # ---------------------------------------------------------------------------- #
 
 set -e
 
-# Configuration from environment
-NS="${NS:-}"
-CPU="${CPU:-8}"
-MEMORY="${MEMORY:-128Gi}"
-GPU="${GPU:-1}"
-NVME_PATH="${NVME_PATH:-/nvme}"
-MODEL_NAME="${MODEL_NAME:-facebook/opt-1.3b}"
-NUM_REPLICAS="${NUM_REPLICAS:-10}"
+# Help function
+show_help() {
+    cat << EOF
+Usage: $(basename "$0") [OPTIONS]
+
+Deploy ServerlessLLM benchmarks to Kubernetes cluster.
+
+OPTIONS:
+  --namespace NS               Kubernetes namespace (required)
+  --cpu CORES                  CPU cores (default: 8)
+  --memory SIZE                Memory size (default: 128Gi)
+  --gpu COUNT                  GPU count (default: 1)
+  --nvme-path PATH             NVMe mount path (default: /nvme)
+  -m, --model-name NAME        Model to benchmark (default: facebook/opt-6.7b)
+  -n, --num-replicas N         Number of test replicas (default: 30)
+  -h, --help                   Show this help message
+
+EXAMPLES:
+  # Basic deployment
+  $0 --namespace my-namespace
+
+  # Full configuration
+  $0 --namespace my-namespace \\
+     --cpu 16 \\
+     --memory 256Gi \\
+     --gpu 2 \\
+     --model-name meta-llama/Meta-Llama-3-8B \\
+     --num-replicas 50
+
+  # Backward compatible (env vars still work)
+  NS=my-namespace CPU=16 $0
+
+For more information, see: k8s/README.md
+EOF
+}
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --namespace)
+            CLI_NS="$2"
+            shift 2
+            ;;
+        --cpu)
+            CLI_CPU="$2"
+            shift 2
+            ;;
+        --memory)
+            CLI_MEMORY="$2"
+            shift 2
+            ;;
+        --gpu)
+            CLI_GPU="$2"
+            shift 2
+            ;;
+        --nvme-path)
+            CLI_NVME_PATH="$2"
+            shift 2
+            ;;
+        -m|--model-name)
+            CLI_MODEL_NAME="$2"
+            shift 2
+            ;;
+        -n|--num-replicas)
+            CLI_NUM_REPLICAS="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Configuration: CLI args > environment variables > defaults
+NS="${CLI_NS:-${NS:-}}"
+CPU="${CLI_CPU:-${CPU:-8}}"
+MEMORY="${CLI_MEMORY:-${MEMORY:-128Gi}}"
+GPU="${CLI_GPU:-${GPU:-1}}"
+NVME_PATH="${CLI_NVME_PATH:-${NVME_PATH:-/nvme}}"
+MODEL_NAME="${CLI_MODEL_NAME:-${MODEL_NAME:-facebook/opt-6.7b}}"
+NUM_REPLICAS="${CLI_NUM_REPLICAS:-${NUM_REPLICAS:-30}}"
 
 # Validate namespace
 if [ -z "$NS" ]; then
-    echo "ERROR: NS environment variable not set"
-    echo "Usage: NS=<your-namespace> ./deploy-benchmark.sh"
+    echo "ERROR: Namespace not specified"
+    echo ""
+    show_help
     echo ""
     echo "Find your namespace:"
     echo "  kubectl get namespaces"

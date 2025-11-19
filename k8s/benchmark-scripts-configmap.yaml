@@ -91,23 +91,33 @@ data:
         trap cleanup EXIT
     fi
 
-    # Export all configuration for the actual script
-    export MODEL_NAME
-    export NUM_REPLICAS
-    export MEM_POOL_SIZE
-    export STORAGE_PATH
-    export RESULTS_PATH
-    export BENCHMARK_TYPE
-    export GENERATE_PLOTS
+    # Build arguments for run-benchmark.sh (using CLI flags, not env vars)
+    BENCHMARK_ARGS=(
+        --model-name "$MODEL_NAME"
+        --num-replicas "$NUM_REPLICAS"
+        --mem-pool-size "$MEM_POOL_SIZE"
+        --storage-path "$STORAGE_PATH"
+        --results-path "$RESULTS_PATH"
+        --benchmark-type "$BENCHMARK_TYPE"
+    )
+
+    # Add boolean flags if set
+    if [ "$GENERATE_PLOTS" = "true" ]; then
+        BENCHMARK_ARGS+=(--generate-plots)
+    fi
+
+    if [ "$KEEP_ALIVE" = "true" ]; then
+        BENCHMARK_ARGS+=(--keep-alive)
+    fi
 
     echo "============================================================"
-    echo "Executing downloaded run-benchmark.sh"
+    echo "Executing downloaded run-benchmark.sh with CLI arguments"
     echo "This is the SAME script used for local/docker execution"
     echo "============================================================"
     echo ""
 
-    # Execute the actual benchmark script from GitHub
-    bash actual-run-benchmark.sh
+    # Execute the actual benchmark script from GitHub with CLI args
+    bash actual-run-benchmark.sh "${BENCHMARK_ARGS[@]}"
 
     echo ""
     echo "============================================================"
