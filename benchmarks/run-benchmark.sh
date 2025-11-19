@@ -45,6 +45,12 @@ log "Conda environment activated: $(conda info --envs | grep '*' | awk '{print $
 log "Installing benchmark dependencies..."
 pip install -q seaborn matplotlib pandas sentencepiece 2>&1 | tee -a "$LOG_FILE"
 
+# Install additional requirements if requirements.txt exists
+if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
+    log "Installing additional requirements from requirements.txt..."
+    pip install -q -r "$SCRIPT_DIR/requirements.txt" 2>&1 | tee -a "$LOG_FILE"
+fi
+
 # NVMe detection (if script exists)
 if [ -f "/scripts/detect-nvme.sh" ]; then
     log "Running NVMe detection..."
