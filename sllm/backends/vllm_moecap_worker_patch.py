@@ -15,44 +15,34 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+"""
+Worker initialization module for MoE-CAP monkey patching.
 
-import ray
+This module is imported by each vLLM Ray worker to apply the execute_model patch.
+It must be imported BEFORE any vLLM worker initialization happens.
+"""
 
-from sllm.logger import init_logger
+import logging
+import os
+import sys
 
-logger = init_logger(__name__)
+logger = logging.getLogger("ray")
 
+# Apply the monkey patch immediately when this module is imported
+try:
+    # Import and patch BEFORE any other vLLM components
+    from sllm.backends.vllm_moecap_backend import (
+        GPUModelRunner,
+        execute_model_moecap,
+    )
 
-@ray.remote
-def start_instance(
-    instance_id, backend, model_name, backend_config, startup_config
-):
-    logger.info(f"Starting instance {instance_id} with backend {backend}")
-    if backend == "vllm":
-        from sllm.backends import VllmBackend
+    GPUModelRunner.execute_model = execute_model_moecap
 
-        model_backend_cls = VllmBackend
-    elif backend == "vllm_moecap":
-        from sllm.backends import VllmMoeCapBackend
+except Exception as e:
+    logger.error(
+        f"[PID {os.getpid()}] vllm_moecap_worker_patch: Failed to apply monkey patch: {e}"
+    )
+    import traceback
 
-        model_backend_cls = VllmMoeCapBackend
-    elif backend == "dummy":
-        from sllm.backends import DummyBackend
-
-        model_backend_cls = DummyBackend
-    elif backend == "transformers":
-        from sllm.backends import TransformersBackend
-
-        model_backend_cls = TransformersBackend
-    else:
-        logger.error(f"Unknown backend: {backend}")
-        raise ValueError(f"Unknown backend: {backend}")
-
-    model_actor_cls = ray.remote(model_backend_cls)
-
-    return model_actor_cls.options(
-        name=instance_id,
-        **startup_config,
-        max_concurrency=10,
-        lifetime="detached",
-    ).remote(model_name, backend_config)
+    traceback.print_exc()
+    raise

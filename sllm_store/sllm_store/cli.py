@@ -251,7 +251,7 @@ def save(
     )
 
     try:
-        if backend == "vllm":
+        if backend == "vllm" or backend == "vllm_moecap":
             if not check_vllm():
                 logger.error(
                     "vLLM is not patched. Please run "
@@ -361,7 +361,7 @@ def load(
     try:
         start_load_time = time.time()
 
-        if backend == "vllm":
+        if backend == "vllm" or backend == "vllm_moecap":
             from vllm import LLM
 
             if not check_vllm():

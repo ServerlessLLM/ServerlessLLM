@@ -437,10 +437,12 @@ class RoundRobinRouter(SllmRouter):
         logger.info(f"Startup config: {startup_config}, {self.backend_config}")
 
         await start_instance.options(
+            num_cpus=self.resource_requirements["num_cpus"],
+            num_gpus=self.resource_requirements["num_gpus"],
             resources={
                 "worker_node": 0.1,
                 f"worker_id_{startup_node}": 0.1,
-            }
+            },
         ).remote(
             instance_id,
             self.backend,
@@ -498,7 +500,9 @@ class RoundRobinRouter(SllmRouter):
 
         try:
             instance.backend_instance = await start_ft_instance.options(
-                resources=startup_config["resources"]
+                num_cpus=self.resource_requirements["num_cpus"],
+                num_gpus=self.resource_requirements["num_gpus"],
+                resources=startup_config["resources"],
             ).remote(
                 instance_id,
                 self.backend,
@@ -581,3 +585,76 @@ class RoundRobinRouter(SllmRouter):
             self.model_name, instance_id, self.resource_requirements
         )
         return
+
+    # MoE-CAP Batch Recording Methods
+    async def start_batch_recording(self):
+        """Start batch recording on all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            # Get first available instance (or we could broadcast to all)
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.start_batch_recording.remote()
+
+    async def stop_batch_recording(self):
+        """Stop batch recording on all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.stop_batch_recording.remote()
+
+    async def dump_batch_recording(self):
+        """Dump batch recording from all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                    "records": [],
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.dump_batch_recording.remote()
+
+    async def batch_recording_status(self):
+        """Get batch recording status from all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.batch_recording_status.remote()
+
+    async def clear_batch_recording(self):
+        """Clear batch recording on all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.clear_batch_recording.remote()

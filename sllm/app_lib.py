@@ -149,6 +149,60 @@ def create_app() -> FastAPI:
     async def generate_handler(request: Request):
         return await inference_handler(request, "generate")
 
+    @app.post("/v1/completions")
+    async def completions_handler(request: Request):
+        """Handle legacy /v1/completions endpoint by converting to chat format."""
+        body = await request.json()
+
+        # Convert prompt-based request to chat format
+        prompt = body.get("prompt", "")
+
+        # OpenAI completions API supports both string and array of strings
+        # For simplicity, we only handle single prompt (string or single-element list)
+        # Multiple prompts in one request would require multiple inference calls
+        if isinstance(prompt, list):
+            if len(prompt) == 0:
+                raise HTTPException(status_code=400, detail="Empty prompt list")
+            elif len(prompt) > 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Multiple prompts in single request not supported. Please send separate requests for each prompt.",
+                )
+            prompt = prompt[0]
+
+        # Create chat-style messages
+        chat_body = {
+            "model": body.get("model"),
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": body.get("max_tokens", 100),
+            "temperature": body.get("temperature", 0.0),
+            "stream": body.get("stream", False),
+        }
+
+        # Copy any extra parameters
+        for key in ["top_p", "frequency_penalty", "presence_penalty"]:
+            if key in body:
+                chat_body[key] = body[key]
+
+        # Create a new request with modified body
+        from fastapi import Request
+        from starlette.datastructures import Headers
+
+        # Call the chat completions handler with modified body
+        class ModifiedRequest:
+            def __init__(self, original_request, new_body):
+                self._original = original_request
+                self._body = new_body
+
+            async def json(self):
+                return self._body
+
+            def __getattr__(self, name):
+                return getattr(self._original, name)
+
+        modified_request = ModifiedRequest(request, chat_body)
+        return await inference_handler(modified_request, "generate")
+
     @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")
@@ -204,5 +258,105 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=500, detail="Failed to retrieve models"
             )
+
+    # MoE-CAP Batch Recording Endpoints
+    async def moecap_handler(request: Request, action: str):
+        """Generic handler for MoE-CAP batch recording operations."""
+        body = await request.json()
+        model_name = body.get("model")
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing 'model' field in request body"
+            )
+
+        try:
+            request_router = ray.get_actor(model_name, namespace="models")
+        except ValueError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model {model_name} not found or not deployed",
+            )
+
+        # Call the appropriate method on the backend
+        try:
+            if action == "start":
+                result = await request_router.start_batch_recording.remote()
+            elif action == "stop":
+                result = await request_router.stop_batch_recording.remote()
+            elif action == "dump":
+                result = await request_router.dump_batch_recording.remote()
+            elif action == "status":
+                result = await request_router.batch_recording_status.remote()
+            elif action == "clear":
+                result = await request_router.clear_batch_recording.remote()
+            else:
+                raise HTTPException(
+                    status_code=400, detail=f"Unknown action: {action}"
+                )
+            return result
+        except AttributeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model {model_name} does not support batch recording. "
+                "Please deploy with backend='vllm_moecap'",
+            )
+        except Exception as e:
+            logger.error(f"Error in MoE-CAP {action} operation: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to execute {action}: {str(e)}"
+            )
+
+    @app.post("/start_batch_recording")
+    async def start_batch_recording(request: Request):
+        """Start recording batch statistics for MoE-CAP evaluation."""
+        return await moecap_handler(request, "start")
+
+    @app.post("/stop_batch_recording")
+    async def stop_batch_recording(request: Request):
+        """Stop recording batch statistics."""
+        return await moecap_handler(request, "stop")
+
+    @app.post("/dump_batch_recording")
+    async def dump_batch_recording(request: Request):
+        """Dump all recorded batch statistics."""
+        return await moecap_handler(request, "dump")
+
+    @app.get("/batch_recording_status")
+    async def batch_recording_status(request: Request):
+        """Get current recording status."""
+        # For GET requests, get model from query parameter
+        model_name = request.query_params.get("model")
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model query parameter"
+            )
+
+        try:
+            request_router = ray.get_actor(model_name, namespace="models")
+        except ValueError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model {model_name} not found or not deployed",
+            )
+
+        try:
+            result = await request_router.batch_recording_status.remote()
+            return result
+        except AttributeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model {model_name} does not support batch recording. "
+                "Please deploy with backend='vllm_moecap'",
+            )
+        except Exception as e:
+            logger.error(f"Error getting batch recording status: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to get status: {str(e)}"
+            )
+
+    @app.post("/clear_batch_recording")
+    async def clear_batch_recording(request: Request):
+        """Clear all recorded batch statistics."""
+        return await moecap_handler(request, "clear")
 
     return app

@@ -15,44 +15,38 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+"""
+Custom vLLM worker that applies MoE-CAP monkey patch on initialization.
 
-import ray
+This worker is used by VllmMoeCapBackend to ensure the execute_model patch
+is applied in every worker process (including Ray workers).
+"""
 
-from sllm.logger import init_logger
+import logging
+import os
 
-logger = init_logger(__name__)
+logger = logging.getLogger(__name__)
+
+# Apply monkey patch BEFORE importing Worker
+from vllm.v1.worker.gpu_model_runner import GPUModelRunner
+
+from sllm.backends.vllm_moecap_backend import execute_model_moecap
+
+GPUModelRunner.execute_model = execute_model_moecap
+
+# Now import the actual worker class (it's called Worker in vLLM v1, not GPUWorker)
+from vllm.v1.worker.gpu_worker import Worker
 
 
-@ray.remote
-def start_instance(
-    instance_id, backend, model_name, backend_config, startup_config
-):
-    logger.info(f"Starting instance {instance_id} with backend {backend}")
-    if backend == "vllm":
-        from sllm.backends import VllmBackend
+class MoeCapGPUWorker(Worker):
+    """
+    Custom GPU worker that ensures MoE-CAP monkey patch is applied.
 
-        model_backend_cls = VllmBackend
-    elif backend == "vllm_moecap":
-        from sllm.backends import VllmMoeCapBackend
+    The patch is applied at module import time (above), so by the time
+    this class is instantiated, GPUModelRunner.execute_model is already patched.
 
-        model_backend_cls = VllmMoeCapBackend
-    elif backend == "dummy":
-        from sllm.backends import DummyBackend
+    The instance_id is passed via a global variable that's inherited from the
+    parent process when Ray workers are created.
+    """
 
-        model_backend_cls = DummyBackend
-    elif backend == "transformers":
-        from sllm.backends import TransformersBackend
-
-        model_backend_cls = TransformersBackend
-    else:
-        logger.error(f"Unknown backend: {backend}")
-        raise ValueError(f"Unknown backend: {backend}")
-
-    model_actor_cls = ray.remote(model_backend_cls)
-
-    return model_actor_cls.options(
-        name=instance_id,
-        **startup_config,
-        max_concurrency=10,
-        lifetime="detached",
-    ).remote(model_name, backend_config)
+    pass  # No special initialization needed - patch and global var are sufficient
