@@ -1,12 +1,68 @@
 #!/bin/bash
-# Monitor Kueue queue status on EIDF
+# ---------------------------------------------------------------------------- #
+#  Monitor Kueue queue status on EIDF                                         #
+# ---------------------------------------------------------------------------- #
 
-NS="${NS:-}"
-DETAILED="${DETAILED:-false}"
+set -e
+
+# Help function
+show_help() {
+    cat << EOF
+Usage: $(basename "$0") [OPTIONS]
+
+Monitor Kueue queue status for ServerlessLLM benchmarks in Kubernetes.
+
+OPTIONS:
+  -n, --namespace NS           Kubernetes namespace (required)
+  -d, --detailed               Show detailed queue/workload information
+  -h, --help                   Show this help message
+
+EXAMPLES:
+  # Basic queue status
+  $0 --namespace my-namespace
+
+  # Show detailed information
+  $0 --namespace my-namespace --detailed
+
+  # Backward compatible (env vars still work)
+  NS=my-namespace $0
+  NS=my-namespace DETAILED=true $0
+
+For more information, see: k8s/QUEUE_MONITORING.md
+EOF
+}
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -n|--namespace)
+            CLI_NS="$2"
+            shift 2
+            ;;
+        -d|--detailed)
+            CLI_DETAILED="true"
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Configuration: CLI args > environment variables > defaults
+NS="${CLI_NS:-${NS:-}}"
+DETAILED="${CLI_DETAILED:-${DETAILED:-false}}"
 
 if [ -z "$NS" ]; then
-    echo "Usage: NS=<namespace> $0"
-    echo "       NS=<namespace> DETAILED=true $0  # Show full details"
+    echo "ERROR: Namespace not specified"
+    echo ""
+    show_help
     exit 1
 fi
 
@@ -66,5 +122,5 @@ if [ "$DETAILED" = "true" ]; then
     fi
 else
     echo "Tip: For detailed queue/workload info, run:"
-    echo "  NS=$NS DETAILED=true $0"
+    echo "  $0 --namespace $NS --detailed"
 fi

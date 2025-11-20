@@ -6,10 +6,10 @@ EIDF uses Kueue for job scheduling and resource quota management.
 
 ```bash
 # Monitor queue and workload status
-NS=sc24029 k8s/monitor-queue.sh
+k8s/monitor-queue.sh --namespace sc24029
 
 # Monitor benchmark progress (includes queue status)
-NS=sc24029 k8s/monitor-benchmark.sh
+k8s/monitor-benchmark.sh --namespace sc24029
 
 # Manual commands
 kubectl get queue sc24029-user-queue -n sc24029

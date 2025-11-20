@@ -1,10 +1,58 @@
 #!/bin/bash
-# Monitor benchmark job progress
+# ---------------------------------------------------------------------------- #
+#  Monitor ServerlessLLM benchmark job progress                                #
+# ---------------------------------------------------------------------------- #
 
-NS="${NS:-}"
+set -e
+
+# Help function
+show_help() {
+    cat << EOF
+Usage: $(basename "$0") [OPTIONS]
+
+Monitor ServerlessLLM benchmark job progress in Kubernetes.
+
+OPTIONS:
+  -n, --namespace NS           Kubernetes namespace (required)
+  -h, --help                   Show this help message
+
+EXAMPLES:
+  # Monitor benchmark in a namespace
+  $0 --namespace my-namespace
+
+  # Backward compatible (env vars still work)
+  NS=my-namespace $0
+
+For more information, see: k8s/README.md
+EOF
+}
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -n|--namespace)
+            CLI_NS="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Configuration: CLI args > environment variables > defaults
+NS="${CLI_NS:-${NS:-}}"
 
 if [ -z "$NS" ]; then
-    echo "Usage: NS=<namespace> $0"
+    echo "ERROR: Namespace not specified"
+    echo ""
+    show_help
     exit 1
 fi
 
@@ -51,7 +99,7 @@ if [ -n "$POD" ]; then
             kubectl get workload "$WORKLOAD" -n "$NS" 2>/dev/null
             echo ""
             echo "Tip: Job may be queued. Check queue status:"
-            echo "  NS=$NS k8s/monitor-queue.sh"
+            echo "  k8s/monitor-queue.sh --namespace $NS"
         fi
         echo ""
         echo "Waiting for pod to start..."
@@ -66,6 +114,6 @@ else
     echo "ERROR: Could not find pod"
     echo ""
     echo "Check if job is queued:"
-    echo "  NS=$NS k8s/monitor-queue.sh"
+    echo "  k8s/monitor-queue.sh --namespace $NS"
     exit 1
 fi
