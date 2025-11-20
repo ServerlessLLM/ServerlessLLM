@@ -130,6 +130,9 @@ process_yaml() {
         -e "s|<MEMORY_LIMIT>|${MEMORY}|g" \
         -e "s|<GPU_COUNT>|${GPU}|g" \
         -e "s|<NVME_PATH>|${NVME_PATH}|g" \
+        -e "s|<MODEL_NAME>|${MODEL_NAME}|g" \
+        -e "s|<NUM_REPLICAS>|${NUM_REPLICAS}|g" \
+        -e "s|<MEM_POOL_SIZE>|${MEM_POOL_SIZE}|g" \
         "$input" > "$output"
 }
 
