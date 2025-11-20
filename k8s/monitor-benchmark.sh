@@ -14,11 +14,15 @@ Monitor ServerlessLLM benchmark job progress in Kubernetes.
 
 OPTIONS:
   -n, --namespace NS           Kubernetes namespace (required)
+  -j, --job-name NAME          Specific job name to monitor (optional)
   -h, --help                   Show this help message
 
 EXAMPLES:
-  # Monitor benchmark in a namespace
+  # Monitor latest benchmark job
   $0 --namespace my-namespace
+
+  # Monitor specific job
+  $0 --namespace my-namespace --job-name sllm-benchmark-abc123
 
   # Backward compatible (env vars still work)
   NS=my-namespace $0
@@ -32,6 +36,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         -n|--namespace)
             CLI_NS="$2"
+            shift 2
+            ;;
+        -j|--job-name)
+            CLI_JOB_NAME="$2"
             shift 2
             ;;
         -h|--help)
@@ -48,6 +56,7 @@ done
 
 # Configuration: CLI args > environment variables > defaults
 NS="${CLI_NS:-${NS:-}}"
+JOB_NAME="${CLI_JOB_NAME:-${JOB_NAME:-}}"
 
 if [ -z "$NS" ]; then
     echo "ERROR: Namespace not specified"
@@ -64,23 +73,59 @@ echo "=== Queue Status ==="
 kubectl get queue "${NS}-user-queue" -n "$NS" 2>/dev/null || echo "Queue info not available"
 echo ""
 
-# Find latest job
-JOB=$(kubectl get jobs -n "$NS" -l app=sllm-benchmark --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null)
+# List all available jobs
+echo "=== Available Benchmark Jobs ==="
+ALL_JOBS=$(kubectl get jobs -n "$NS" -l app=sllm-benchmark --sort-by=.metadata.creationTimestamp -o custom-columns=NAME:.metadata.name,STATUS:.status.conditions[0].type,COMPLETIONS:.status.succeeded,AGE:.metadata.creationTimestamp 2>/dev/null)
 
-if [ -z "$JOB" ]; then
+if [ -z "$ALL_JOBS" ]; then
     echo "No benchmark jobs found in namespace $NS"
     exit 1
 fi
 
-echo "Job: $JOB"
+echo "$ALL_JOBS"
+echo ""
 
-# Find pod
-POD=$(kubectl get pods -n "$NS" -l app=sllm-benchmark --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null)
+# Select job to monitor
+if [ -n "$JOB_NAME" ]; then
+    # User specified a job name
+    JOB="$JOB_NAME"
+    echo "Monitoring specified job: $JOB"
+else
+    # Find the most recent job (sort by creation time, get the newest)
+    # Using tail to get the last line after sorting (most recent)
+    JOB=$(kubectl get jobs -n "$NS" -l app=sllm-benchmark --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | tail -1)
+
+    if [ -z "$JOB" ]; then
+        echo "ERROR: Could not determine latest job"
+        exit 1
+    fi
+
+    echo "Monitoring latest job: $JOB"
+fi
+
+# Verify job exists
+if ! kubectl get job "$JOB" -n "$NS" &>/dev/null; then
+    echo "ERROR: Job '$JOB' not found in namespace $NS"
+    echo ""
+    echo "Available jobs:"
+    kubectl get jobs -n "$NS" -l app=sllm-benchmark -o name
+    exit 1
+fi
+
+# Show job details
+echo ""
+echo "=== Job Details ==="
+kubectl get job "$JOB" -n "$NS"
+echo ""
+
+# Find pod for this specific job
+echo "=== Finding Pod for Job ==="
+POD=$(kubectl get pods -n "$NS" -l app=sllm-benchmark,job-name="$JOB" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 
 if [ -z "$POD" ]; then
     echo "Waiting for pod to be created..."
     sleep 5
-    POD=$(kubectl get pods -n "$NS" -l app=sllm-benchmark --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}' 2>/dev/null)
+    POD=$(kubectl get pods -n "$NS" -l app=sllm-benchmark,job-name="$JOB" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 fi
 
 if [ -n "$POD" ]; then
