@@ -21,7 +21,6 @@ __all__ = [
     "DummyBackend",
     "VllmBackend",
     "TransformersBackend",
-    "VllmMoeCapBackend",
 ]
 
 
@@ -39,8 +38,5 @@ def __getattr__(name):
         from .transformers_backend import TransformersBackend
 
         return TransformersBackend
-    elif name == "VllmMoeCapBackend":
-        from .vllm_moecap_backend import VllmMoeCapBackend
 
-        return VllmMoeCapBackend
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

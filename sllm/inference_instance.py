@@ -32,10 +32,7 @@ def start_instance(
         from sllm.backends import VllmBackend
 
         model_backend_cls = VllmBackend
-    elif backend == "vllm_moecap":
-        from sllm.backends import VllmMoeCapBackend
 
-        model_backend_cls = VllmMoeCapBackend
     elif backend == "dummy":
         from sllm.backends import DummyBackend
 

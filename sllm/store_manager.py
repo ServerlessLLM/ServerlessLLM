@@ -75,13 +75,11 @@ class SllmLocalStore:
             if model_name in self.disk_models:
                 logger.error(f"{model_name} already registered")
                 return
-            if backend == "vllm_moecap":
-                backend = "vllm"
             model_path = self._get_model_path(model_name, backend)
             if backend == "transformers":
                 model_size = self.client.register_model(model_path)
                 self.disk_models[model_name] = ([model_path], model_size)
-            elif backend == "vllm" or backend == "vllm_moecap":
+            elif backend == "vllm":
                 tensor_parallel_size = backend_config.get(
                     "tensor_parallel_size", 1
                 )
@@ -448,7 +446,7 @@ class StoreManager:
                         hf_model_class,
                         torch_dtype,
                     )
-                elif backend == "vllm" or backend == "vllm_moecap":
+                elif backend == "vllm":
                     await self.download_vllm_model(
                         model_name,
                         pretrained_model_name_or_path,
