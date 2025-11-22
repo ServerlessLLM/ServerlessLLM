@@ -149,6 +149,60 @@ def create_app() -> FastAPI:
     async def generate_handler(request: Request):
         return await inference_handler(request, "generate")
 
+    @app.post("/v1/completions")
+    async def completions_handler(request: Request):
+        """Handle legacy /v1/completions endpoint by converting to chat format."""
+        body = await request.json()
+
+        # Convert prompt-based request to chat format
+        prompt = body.get("prompt", "")
+
+        # OpenAI completions API supports both string and array of strings
+        # For simplicity, we only handle single prompt (string or single-element list)
+        # Multiple prompts in one request would require multiple inference calls
+        if isinstance(prompt, list):
+            if len(prompt) == 0:
+                raise HTTPException(status_code=400, detail="Empty prompt list")
+            elif len(prompt) > 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Multiple prompts in single request not supported. Please send separate requests for each prompt.",
+                )
+            prompt = prompt[0]
+
+        # Create chat-style messages
+        chat_body = {
+            "model": body.get("model"),
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": body.get("max_tokens", 100),
+            "temperature": body.get("temperature", 0.0),
+            "stream": body.get("stream", False),
+        }
+
+        # Copy any extra parameters
+        for key in ["top_p", "frequency_penalty", "presence_penalty"]:
+            if key in body:
+                chat_body[key] = body[key]
+
+        # Create a new request with modified body
+        from fastapi import Request
+        from starlette.datastructures import Headers
+
+        # Call the chat completions handler with modified body
+        class ModifiedRequest:
+            def __init__(self, original_request, new_body):
+                self._original = original_request
+                self._body = new_body
+
+            async def json(self):
+                return self._body
+
+            def __getattr__(self, name):
+                return getattr(self._original, name)
+
+        modified_request = ModifiedRequest(request, chat_body)
+        return await inference_handler(modified_request, "generate")
+
     @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
         return await inference_handler(request, "encode")

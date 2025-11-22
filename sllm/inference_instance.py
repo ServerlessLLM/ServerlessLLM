@@ -32,6 +32,7 @@ def start_instance(
         from sllm.backends import VllmBackend
 
         model_backend_cls = VllmBackend
+
     elif backend == "dummy":
         from sllm.backends import DummyBackend
 

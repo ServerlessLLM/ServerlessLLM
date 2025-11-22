@@ -15,8 +15,28 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-from .dummy_backend import DummyBackend
-from .transformers_backend import TransformersBackend
-from .vllm_backend import VllmBackend
 
-__all__ = ["DummyBackend", "VllmBackend", "TransformersBackend"]
+# Lazy imports to avoid loading heavy dependencies on head nodes
+__all__ = [
+    "DummyBackend",
+    "VllmBackend",
+    "TransformersBackend",
+]
+
+
+def __getattr__(name):
+    """Lazy import backends only when accessed."""
+    if name == "DummyBackend":
+        from .dummy_backend import DummyBackend
+
+        return DummyBackend
+    elif name == "VllmBackend":
+        from .vllm_backend import VllmBackend
+
+        return VllmBackend
+    elif name == "TransformersBackend":
+        from .transformers_backend import TransformersBackend
+
+        return TransformersBackend
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
