@@ -41,7 +41,8 @@ index 000000000..c65b46989
 +from vllm.config import LoadConfig, VllmConfig, ModelConfig
 +from vllm.model_executor.model_loader.base_loader import BaseModelLoader
 +from vllm.model_executor.model_loader.utils import (
-+    initialize_model, set_default_torch_dtype)
++    initialize_model)
++from vllm.utils.torch_utils import set_default_torch_dtype
 +
 +class ServerlessLLMLoader(BaseModelLoader):
 +    # DEFAULT_PATTERN = "model-rank-{rank}-part-{part}.safetensors"
