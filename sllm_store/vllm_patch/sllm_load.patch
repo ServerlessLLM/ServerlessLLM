@@ -183,6 +183,7 @@ index 000000000..c65b46989
 +            os.makedirs(save_path)
 +            
 +        save_dict(state_dict, save_path)
+\ No newline at end of file
 diff --git a/vllm/v1/engine/core.py b/vllm/v1/engine/core.py
 index d49eb752d..87bca1fc7 100644
 --- a/vllm/v1/engine/core.py
