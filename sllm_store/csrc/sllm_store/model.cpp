@@ -317,8 +317,9 @@ int Model::ToGpu(
             }
             if (gpu_replica->state_ == MemoryState::CANCELLED) {
               LOG(INFO) << "Loading from mem for model " << model_path_
-                        << " is cancelled," << " chunk " << chunk_id
-                        << " offset " << " size " << size;
+                        << " is cancelled,"
+                        << " chunk " << chunk_id << " offset "
+                        << " size " << size;
               return 0;
             }
 
