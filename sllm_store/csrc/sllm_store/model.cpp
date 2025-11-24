@@ -95,23 +95,22 @@ int Model::ToHost(int num_threads) {
     // Open file
     int fd = open(tensor_path.c_str(), O_DIRECT | O_RDONLY);
     if (fd < 0) {
-        // open() failed
-        if (errno == EINVAL) {
-            LOG(WARNING) << "O_DIRECT not supported on " << tensor_path
-                        << ", retrying without it";
-            fd = open(tensor_path.c_str(), O_RDONLY);
-            if (fd < 0) {
-                std::string err = "open() failed for file (no O_DIRECT): " +
-                                  tensor_path.string() + ", error: " + strerror(errno);
-                LOG(ERROR) << err;
-                return -1;
-            }
-        } else {
-            std::string err = "open() failed for file: " + tensor_path.string() +
-                              ", error: " + strerror(errno);
-            LOG(ERROR) << err;
-            return -1;
-        }
+      bool retried_without_odirect = false;
+      if (errno == EINVAL) {
+        LOG(WARNING) << "O_DIRECT not supported on " << tensor_path
+                     << ", retrying without it";
+        fd = open(tensor_path.c_str(), O_RDONLY);
+        retried_without_odirect = true;
+      }
+      if (fd < 0) {
+        std::string err_msg_prefix =
+            retried_without_odirect ? "open() failed for file (no O_DIRECT): "
+                                    : "open() failed for file: ";
+        std::string err = err_msg_prefix + tensor_path.string() +
+                          ", error: " + strerror(errno);
+        LOG(ERROR) << err;
+        return -1;
+      }
     }
 
     file_descriptors.push_back(fd);
@@ -318,9 +317,8 @@ int Model::ToGpu(
             }
             if (gpu_replica->state_ == MemoryState::CANCELLED) {
               LOG(INFO) << "Loading from mem for model " << model_path_
-                        << " is cancelled,"
-                        << " chunk " << chunk_id << " offset "
-                        << " size " << size;
+                        << " is cancelled," << " chunk " << chunk_id
+                        << " offset " << " size " << size;
               return 0;
             }
 
