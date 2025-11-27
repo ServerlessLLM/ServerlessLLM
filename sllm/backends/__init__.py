@@ -16,7 +16,10 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 from .dummy_backend import DummyBackend
+from .sglang_backend import SglangBackend
 from .transformers_backend import TransformersBackend
-from .vllm_backend import VllmBackend
 
-__all__ = ["DummyBackend", "VllmBackend", "TransformersBackend"]
+# from .vllm_backend import VllmBackend
+
+# __all__ = ["DummyBackend", "VllmBackend", "TransformersBackend", "SglangBackend"]
+__all__ = ["DummyBackend", "TransformersBackend", "SglangBackend"]
