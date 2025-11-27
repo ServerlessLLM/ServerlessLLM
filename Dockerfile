@@ -69,19 +69,26 @@ COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/backends /app/sllm/backends
 COPY sllm/ft_backends /app/sllm/ft_backends
 COPY sllm/cli /app/sllm/cli
+COPY sllm/client /app/sllm/client
 COPY sllm/routers /app/sllm/routers
 COPY sllm/schedulers /app/sllm/schedulers
+COPY sllm/serve /app/sllm/serve
 COPY sllm/*.py /app/sllm/
 COPY README.md /app/
 RUN conda run -n build python setup.py bdist_wheel
 
 # Stage 2: Runner with conda environments
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel
 
 # Set non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
+
+# Install git for cloning MoE-CAP
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
@@ -118,6 +125,11 @@ RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
 
 # Apply vLLM patch in worker environment
 RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
+
+# Install MoE-CAP from GitHub for both environments
+RUN git clone https://github.com/Auto-CAP/MoE-CAP.git /app/MoE-CAP && \
+    conda run -n head pip install -e /app/MoE-CAP && \
+    conda run -n worker pip install -e /app/MoE-CAP
 
 # Copy the entrypoint
 COPY entrypoint.sh .

@@ -26,6 +26,7 @@ DEFAULT_RAY_RESOURCES_HEAD='{"control_node": 1}'
 DEFAULT_RAY_NUM_CPUS=20
 DEFAULT_RAY_HEAD_ADDRESS="sllm_head:6379"
 DEFAULT_STORAGE_PATH="/models"
+export STORAGE_PATH=DEFAULT_STORAGE_PATH
 
 # Source conda
 source /opt/conda/etc/profile.d/conda.sh

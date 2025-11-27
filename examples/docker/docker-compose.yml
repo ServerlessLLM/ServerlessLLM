@@ -4,14 +4,15 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile
-    image: serverlessllm/sllm:latest
+    image: seanjiang01/sllm:latest
     container_name: sllm_head
+    init: true
     environment:
-      - MODEL_FOLDER=${MODEL_FOLDER}
+      - MODEL_FOLDER=${MODEL_FOLDER:-/models}
       - MODE=HEAD
     ports:
-      - "6379:6379"    # Redis port
-      - "8343:8343"    # ServerlessLLM port
+      - "6380:6380"    # Redis port
+      - "8500:8500"    # ServerlessLLM port
     networks:
       - sllm_network
     command: []
@@ -21,8 +22,9 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile
-    image: serverlessllm/sllm:latest
+    image: seanjiang01/sllm:latest
     container_name: sllm_worker_0
+    init: true
     deploy:
       resources:
         reservations:
@@ -37,8 +39,8 @@ services:
     networks:
       - sllm_network
     volumes:
-      - ${MODEL_FOLDER}:/models
-    command: ["--mem-pool-size", "4GB", "--registration-required", "true"] # Customize the memory pool size here
+      - ${MODEL_FOLDER:-/models}:/models
+    command: ["--mem-pool-size", "96GB", "--registration-required", "true"] # Customize the memory pool size here
 
 networks:
   sllm_network:
