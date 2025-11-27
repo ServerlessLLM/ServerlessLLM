@@ -11,7 +11,7 @@ class VllmModelDownloader:
     def download_vllm_model(
         self,
         model_name: str,
-        torch_dtype: str,
+        torch_dtype: str = "auto",
         tensor_parallel_size: int = 1,
         storage_path: str = "./models",
         local_model_path: Optional[str] = None,
@@ -128,7 +128,6 @@ tensor_parallel_size = args.tensor_parallel_size
 downloader = VllmModelDownloader()
 downloader.download_vllm_model(
     model_name,
-    "float16",
     tensor_parallel_size=tensor_parallel_size,
     storage_path=storage_path,
     local_model_path=local_model_path,
