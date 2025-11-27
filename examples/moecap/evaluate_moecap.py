@@ -35,6 +35,7 @@ from moe_cap.utils.acc_metrics import (
 from moe_cap.utils.continuous_batching_utils import (
     _calculate_continuous_metrics,
 )
+from moe_cap.utils.cost_utils import calculate_cost
 from tqdm.asyncio import tqdm_asyncio
 
 # Import recording client APIs
@@ -565,6 +566,11 @@ def main():
 
     # Merge accuracy metrics into res_dict
     res_dict.update(accuracy_metrics)
+
+    # Calculate cost
+    cost = calculate_cost(round(total_time, 2), gpu_raw_type, num_gpus)
+    if cost is not None:
+        res_dict["cost"] = cost
 
     # Remove gpu_raw_type from output if present
     if "gpu_raw_type" in res_dict:
