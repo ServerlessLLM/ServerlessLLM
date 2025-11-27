@@ -180,7 +180,7 @@ class VllmModelDownloader:
             logger.info(f"{model_path} already exists")
             return
 
-        cache_dir = TemporaryDirectory()
+        cache_dir = "/data/jysc"
         try:
             if os.path.exists(pretrained_model_name_or_path):
                 input_dir = pretrained_model_name_or_path
@@ -188,7 +188,7 @@ class VllmModelDownloader:
                 # download from huggingface
                 input_dir = snapshot_download(
                     model_name,
-                    cache_dir=cache_dir.name,
+                    cache_dir=cache_dir,
                     allow_patterns=[
                         "*.safetensors",
                         "*.bin",
@@ -243,4 +243,4 @@ class VllmModelDownloader:
                 f"Failed to save {model_name} for vllm backend: {e}"
             )
         finally:
-            cache_dir.cleanup()
+            pass

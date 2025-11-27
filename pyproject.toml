@@ -42,3 +42,4 @@ skip_gitignore = true
 [tool.codespell]
 skip = 'build,*.egg-info,images'
 quiet-level = 1
+ignore-words-list = 'deques'

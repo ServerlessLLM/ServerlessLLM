@@ -37,6 +37,8 @@ from dataclasses import fields
 from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
 import torch
+from moe_cap.utils.hardware_utils import get_gpu_details
+from transformers import AutoTokenizer
 from vllm import (
     AsyncEngineArgs,
     AsyncLLMEngine,
@@ -68,7 +70,52 @@ from vllm.v1.worker.utils import is_residual_scattered_for_sp
 
 from sllm.backends.backend_utils import BackendStatus, SllmBackend
 
+GLOBAL_GPU_TYPE = get_gpu_details()
 logger = logging.getLogger("ray")
+
+# ============================================================================
+# CRITICAL: Apply expert distribution monkey patching BEFORE any other vLLM imports
+# ============================================================================
+import sys
+
+# Add path to extracted_expert_dist for imports
+_current_file_dir = os.path.dirname(os.path.abspath(__file__))
+_expert_dist_path = os.path.join(_current_file_dir, "extracted_expert_dist")
+if _expert_dist_path not in sys.path:
+    sys.path.insert(0, _expert_dist_path)
+
+try:
+    from vllm_integration import apply_vllm_monkey_patching
+
+    apply_vllm_monkey_patching()
+    logger.info(
+        f"[PID {os.getpid()}] Expert distribution monkey patching applied successfully!"
+    )
+except ImportError as e:
+    logger.warning(
+        f"[PID {os.getpid()}] Could not import expert distribution patching: {e}"
+    )
+except Exception as e:
+    logger.warning(
+        f"[PID {os.getpid()}] Failed to apply expert distribution patching: {e}"
+    )
+    import traceback
+
+    traceback.print_exc()
+
+# Expert distribution recording state
+EXPERT_DISTRIBUTION_RECORDING_FLAG_FILE = os.path.join(
+    tempfile.gettempdir(), "sllm_expert_distribution_recording.flag"
+)
+EXPERT_DISTRIBUTION_AUTO_START_FLAG_FILE = os.path.join(
+    tempfile.gettempdir(), "sllm_expert_distribution_auto_start.flag"
+)
+EXPERT_DISTRIBUTION_OUTPUT_DIR = os.path.join(
+    os.getcwd(), "logs/expert_distribution"
+)
+_expert_record_lock = threading.Lock()
+_forward_pass_id_counter = 0
+_forward_pass_id_lock = threading.Lock()
 
 # ============================================================================
 # Helper functions from VllmBackend
@@ -297,6 +344,102 @@ class RecordingState:
 
 
 # ============================================================================
+# Expert Distribution Recording State
+# ============================================================================
+class ExpertDistributionRecordingState:
+    """State for expert distribution recording with automatic JSONL output."""
+
+    def __init__(self, instance_id: str = None):
+        self.expert_record_list = []
+        self.output_dir = EXPERT_DISTRIBUTION_OUTPUT_DIR
+        self.model_path = None
+        self.enabled = False
+        self.checked_auto_start = False
+        self.instance_id = instance_id or str(uuid.uuid4())
+        # Instance-specific flag files
+        safe_id = self.instance_id.replace("/", "_").replace(":", "_")
+        self.flag_file = os.path.join(
+            tempfile.gettempdir(), f"sllm_expert_{safe_id}_recording.flag"
+        )
+
+    def set_model_path(self, model_path: str):
+        """Set the model path for output file naming."""
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sanitized_name = model_path.replace("/", "_")
+        self.model_path = f"{sanitized_name}_{timestamp}"
+
+    def enable(self):
+        """Enable automatic expert distribution recording."""
+        self.enabled = True
+        # Create flag file
+        with open(self.flag_file, "w") as f:
+            f.write(self.model_path or "")
+        # Create output directory
+        os.makedirs(self.output_dir, exist_ok=True)
+        logger.info(
+            f"Expert distribution recording enabled for {self.instance_id}"
+        )
+
+    def disable(self):
+        """Disable automatic expert distribution recording."""
+        self.enabled = False
+        if os.path.exists(self.flag_file):
+            os.remove(self.flag_file)
+
+    def is_recording(self):
+        """Check if recording is active."""
+        return os.path.exists(self.flag_file) or self.enabled
+
+    def add_record(self, record: dict):
+        """Add a record and write to JSONL file."""
+        if not self.enabled:
+            return
+
+        with _expert_record_lock:
+            self.expert_record_list.append(record)
+
+            # Write to JSONL file immediately
+            if self.model_path:
+                output_file = os.path.join(
+                    self.output_dir,
+                    f"{self.model_path}/expert_distribution_record.jsonl",
+                )
+                output_dir = os.path.dirname(output_file)
+                os.makedirs(output_dir, exist_ok=True)
+
+                with open(output_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(record) + "\n")
+                    f.flush()
+
+    def get_records(self):
+        """Get all recorded records."""
+        return self.expert_record_list.copy()
+
+    def clear_records(self):
+        """Clear all recorded records."""
+        count = len(self.expert_record_list)
+        self.expert_record_list = []
+        return count
+
+
+# Global expert distribution recording states per instance
+_expert_distribution_states = {}
+
+
+def get_or_create_expert_distribution_state(
+    instance_id: str,
+) -> ExpertDistributionRecordingState:
+    """Get or create expert distribution recording state for an instance."""
+    if instance_id not in _expert_distribution_states:
+        _expert_distribution_states[instance_id] = (
+            ExpertDistributionRecordingState(instance_id)
+        )
+    return _expert_distribution_states[instance_id]
+
+
+# ============================================================================
 # Custom execute_model implementation with MoE-CAP batch tracking
 # ============================================================================
 # Global dict to store recording state instances per model
@@ -311,6 +454,93 @@ def execute_model_moecap(
 ) -> Union[ModelRunnerOutput, AsyncModelRunnerOutput, IntermediateTensors]:
     """Custom execute_model with latency and batch statistics tracking."""
 
+    # ========================================================================
+    # Lazy initialization of expert_distribution_recorder if not already done
+    # This is critical for expert activation recording to work
+    # ========================================================================
+    if not hasattr(self, "_moecap_recorder_initialized"):
+        self._moecap_recorder_initialized = True
+        try:
+            # Add path to extracted_expert_dist if not already in sys.path
+            import os
+            import sys
+
+            _current_file_dir = os.path.dirname(os.path.abspath(__file__))
+            _expert_dist_path = os.path.join(
+                _current_file_dir, "extracted_expert_dist"
+            )
+            if _expert_dist_path not in sys.path:
+                sys.path.insert(0, _expert_dist_path)
+
+            # Try to initialize expert distribution recorder
+            from expert_distribution_recorder import (
+                ExpertDistributionRecorder,
+                ExpertLocationMetadata,
+                set_global_expert_distribution_recorder,
+            )
+
+            # Get model info for recorder initialization
+            hf_config = self.model_config.hf_config
+
+            # Detect number of experts
+            num_experts = getattr(hf_config, "num_experts", None)
+            if num_experts is None:
+                num_experts = getattr(hf_config, "n_routed_experts", None)
+            if num_experts is None:
+                num_experts = getattr(
+                    hf_config, "num_local_experts", 8
+                )  # Default
+
+            num_layers = getattr(hf_config, "num_hidden_layers", 28)
+
+            expert_location_metadata = ExpertLocationMetadata(
+                num_layers=num_layers,
+                num_logical_experts=num_experts,
+                num_physical_experts=num_experts,
+                num_local_physical_experts=num_experts,
+                ep_size=1,
+            )
+
+            rank = (
+                torch.distributed.get_rank()
+                if torch.distributed.is_initialized()
+                else 0
+            )
+
+            self.expert_distribution_recorder = (
+                ExpertDistributionRecorder.init_new(
+                    recording_mode="per_pass",
+                    expert_location_metadata=expert_location_metadata,
+                    rank=rank,
+                    device=str(self.device),
+                    buffer_size=-1,
+                    enable_metrics=True,
+                )
+            )
+            set_global_expert_distribution_recorder(
+                self.expert_distribution_recorder
+            )
+
+            # Auto-start recording
+            self.expert_distribution_recorder.start_record()
+
+            if rank == 0:
+                print(
+                    f"[MOECAP] ✓ Expert distribution recorder initialized: {num_layers} layers, {num_experts} experts",
+                    flush=True,
+                )
+        except Exception as e:
+            print(
+                f"[MOECAP] ⚠️ Failed to initialize expert distribution recorder: {e}",
+                flush=True,
+            )
+            import traceback
+
+            traceback.print_exc()
+            self.expert_distribution_recorder = None
+
+    world_size = self.vllm_config.parallel_config.world_size
+    gpu_raw_type = GLOBAL_GPU_TYPE
     with record_function_or_nullcontext("Preprocess"):
         with self.synchronize_input_prep():
             # Update persistent batch states.
@@ -533,6 +763,124 @@ def execute_model_moecap(
     forward_mode = "decode" if uniform_decode else "prefill"
     sum_seq_len = num_input_tokens
 
+    # Track forward pass ID
+    global _forward_pass_id_counter
+    with _forward_pass_id_lock:
+        _forward_pass_id_counter += 1
+        forward_pass_id = _forward_pass_id_counter
+
+    # Collect expert distribution data (per_pass mode)
+    expert_activation = 0
+    expert_utilization = 0
+    num_experts_total = 0
+    try:
+        # Try multiple ways to get expert distribution data
+        recorder = None
+
+        # Method 1: Check self.expert_distribution_recorder (standard location)
+        if (
+            hasattr(self, "expert_distribution_recorder")
+            and self.expert_distribution_recorder is not None
+        ):
+            recorder = self.expert_distribution_recorder
+
+        # # Method 2: Check global recorder
+        # if recorder is None:
+        #     try:
+        #         from extracted_expert_dist.expert_distribution_recorder import get_global_expert_distribution_recorder
+        #         recorder = get_global_expert_distribution_recorder()
+        #     except ImportError:
+        #         pass
+
+        if (
+            recorder is not None
+            and hasattr(recorder, "_recording")
+            and recorder._recording
+        ):
+            # Get number of experts for utilization calculation
+            if (
+                hasattr(recorder, "_expert_location_metadata")
+                and recorder._expert_location_metadata is not None
+            ):
+                num_experts_total = (
+                    recorder._expert_location_metadata.num_logical_experts
+                )
+
+            # Try to collect from gatherer
+            if (
+                hasattr(recorder, "_gatherer")
+                and recorder._gatherer is not None
+            ):
+                gatherer = recorder._gatherer
+
+                # Collect the data
+                collected_data = gatherer.collect()
+                collected_data["forward_mode"] = forward_mode
+
+                # Reset gatherer for next pass
+                gatherer.reset()
+
+                # Append to accumulator
+                if (
+                    hasattr(recorder, "_accumulator")
+                    and recorder._accumulator is not None
+                ):
+                    recorder._accumulator.append(
+                        forward_pass_id, collected_data
+                    )
+
+                # Calculate expert activation from collected data
+                # Try different keys that might contain expert counts
+                counts = None
+                for key in [
+                    "expert_count",
+                    "expert_counts",
+                    "logical_count",
+                    "counts",
+                ]:
+                    if (
+                        key in collected_data
+                        and collected_data[key] is not None
+                    ):
+                        counts = collected_data[key]
+                        break
+
+                if (
+                    counts is not None
+                    and isinstance(counts, torch.Tensor)
+                    and counts.numel() > 0
+                ):
+                    # Shape could be (num_layers, num_experts) or (1, num_layers, num_experts)
+                    if counts.dim() == 3:
+                        counts = counts.squeeze(0)
+                    if counts.dim() == 2:
+                        # Average activated experts per layer
+                        activated_per_layer = (
+                            (counts > 0).float().sum(dim=1)
+                        )  # (num_layers,)
+                        expert_activation = activated_per_layer.mean().item()
+                    elif counts.dim() == 1:
+                        expert_activation = (counts > 0).float().sum().item()
+
+                # Calculate utilization
+                if expert_activation > 0 and num_experts_total > 0:
+                    expert_utilization = expert_activation / num_experts_total
+
+    except Exception as e:
+        # Log the error for debugging but don't crash
+        import traceback
+
+        print(f"[MOECAP] Could not collect expert distribution data: {e}")
+        print(traceback.format_exc())
+
+    # Only warn about missing expert data after CUDA graph warmup (first ~10-15 passes)
+    # During warmup, the recorder may not be fully active yet
+    WARMUP_PASSES = 15
+    if expert_activation == 0 and forward_pass_id > WARMUP_PASSES:
+        print(
+            f"[MOECAP] ⚠️ Expert distribution data not available for forward pass {forward_pass_id}"
+        )
+
     # Record batch statistics if recording is enabled
     # Get instance_id from global variable (set by VllmMoeCapBackend in this process)
     instance_id = get_current_instance_id()
@@ -541,7 +889,7 @@ def execute_model_moecap(
         # Get or create recording state for this instance
         if instance_id not in _recording_states:
             _recording_states[instance_id] = RecordingState(instance_id)
-            logger.info(
+            print(
                 f"[MOECAP] Created RecordingState for instance {instance_id} in PID {os.getpid()}"
             )
 
@@ -552,11 +900,16 @@ def execute_model_moecap(
                 "latency": latency,
                 "seq_lens_sum": sum_seq_len,
                 "forward_mode": forward_mode,
-                "expert_activation": 0,  # Will be populated later with actual expert data
+                "expert_activation": expert_activation,
+                "forward_pass_id": forward_pass_id,
+                "gpu_num": world_size,
+                "gpu_raw_type": gpu_raw_type,
             }
             rec_state.add_record(rec_dict)
-            logger.info(
-                f"[MOECAP] ✓ Recorded {forward_mode}: batch_size={batch_size}, latency={latency:.4f}s"
+            print(
+                f"[MOECAP] ✓ Recorded {forward_mode}: batch_size={batch_size}, "
+                f"latency={latency:.4f}s, expert_act={expert_activation:.2f}"
+                f"forward_pass_id={forward_pass_id}"
             )
 
     if not self.use_async_scheduling:
@@ -614,6 +967,7 @@ class VllmMoeCapBackend(SllmBackend):
         )
 
         # Create instance-specific recording state with unique UUID
+        self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.model_name = model
         self.instance_id = str(uuid.uuid4())
         self.recording_state = RecordingState(self.instance_id)
@@ -695,13 +1049,19 @@ class VllmMoeCapBackend(SllmBackend):
 
         model_name: str = request_data.pop("model", "vllm-model")
         messages: Dict[Dict[str, str], str] = request_data.pop("messages", [])
-        construct_prompt: str = "\n".join(
-            [
-                f"{message['role']}: {message['content']}"
-                for message in messages
-                if "content" in message
-            ]
+        valid_massages = [
+            message for message in messages if "content" in message
+        ]
+        construct_prompt = self.tokenizer.apply_chat_template(
+            valid_massages, tokenize=False, add_generation_prompt=True
         )
+        # construct_prompt: str = "\n".join(
+        #     [
+        #         f"{message['role']}: {message['content']}"
+        #         for message in messages
+        #         if "content" in message
+        #     ]
+        # )
 
         inputs: Union[str, TokensPrompt] = request_data.pop(
             "prompt", construct_prompt
@@ -886,5 +1246,193 @@ class VllmMoeCapBackend(SllmBackend):
             "model": self.model_name,
             "instance_id": self.instance_id,
             "message": f"Cleared {count} records",
+            "cleared_count": count,
+        }
+
+    # =========================================================================
+    # Expert Distribution Recording Methods
+    # =========================================================================
+
+    async def configure_expert_distribution(
+        self,
+        recording_mode: str = "per_pass",
+        enable_metrics: bool = True,
+        buffer_size: int = -1,
+    ) -> Dict[str, Any]:
+        """
+        Configure expert distribution recording on all workers.
+
+        Args:
+            recording_mode: One of "per_token", "per_pass", "stat", "stat_approx"
+            enable_metrics: Whether to compute and log metrics
+            buffer_size: Size of recording buffer (-1 for unlimited)
+
+        Returns:
+            Configuration status
+        """
+        if self.engine is None:
+            return {"status": "error", "message": "Engine not initialized"}
+
+        # Get or create expert distribution state for this instance
+        exp_state = get_or_create_expert_distribution_state(self.instance_id)
+        exp_state.set_model_path(self.model_name)
+
+        try:
+            # Use collective_rpc to configure on all workers
+            result = await self.engine.collective_rpc(
+                "configure_expert_distribution_recorder",
+                args=(recording_mode, enable_metrics, buffer_size),
+            )
+            return {
+                "status": "success",
+                "message": f"Configured expert distribution recording with mode={recording_mode}",
+                "instance_id": self.instance_id,
+                "worker_results": result,
+            }
+        except Exception as e:
+            logger.error(f"Failed to configure expert distribution: {e}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "instance_id": self.instance_id,
+            }
+
+    async def start_expert_distribution_recording(
+        self,
+        recording_mode: str = "per_pass",
+    ) -> Dict[str, Any]:
+        """
+        Start expert distribution recording on all workers.
+
+        Args:
+            recording_mode: One of "per_token", "per_pass", "stat", "stat_approx"
+
+        Returns:
+            Status of the operation
+        """
+        if self.engine is None:
+            return {"status": "error", "message": "Engine not initialized"}
+
+        # Enable local recording state
+        exp_state = get_or_create_expert_distribution_state(self.instance_id)
+        exp_state.set_model_path(self.model_name)
+        exp_state.enable()
+
+        try:
+            # Configure and start on workers
+            await self.engine.collective_rpc(
+                "configure_expert_distribution_recorder",
+                args=(recording_mode, True, -1),
+            )
+            await self.engine.collective_rpc(
+                "start_expert_distribution_recording",
+            )
+            return {
+                "status": "success",
+                "message": f"Started expert distribution recording with mode={recording_mode}",
+                "instance_id": self.instance_id,
+            }
+        except Exception as e:
+            logger.error(f"Failed to start expert distribution recording: {e}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "instance_id": self.instance_id,
+            }
+
+    async def stop_expert_distribution_recording(self) -> Dict[str, Any]:
+        """Stop expert distribution recording on all workers."""
+        if self.engine is None:
+            return {"status": "error", "message": "Engine not initialized"}
+
+        # Disable local recording state
+        exp_state = get_or_create_expert_distribution_state(self.instance_id)
+        exp_state.disable()
+
+        try:
+            await self.engine.collective_rpc(
+                "stop_expert_distribution_recording",
+            )
+            return {
+                "status": "success",
+                "message": "Stopped expert distribution recording",
+                "instance_id": self.instance_id,
+                "total_records": len(exp_state.get_records()),
+            }
+        except Exception as e:
+            logger.error(f"Failed to stop expert distribution recording: {e}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "instance_id": self.instance_id,
+            }
+
+    async def dump_expert_distribution(
+        self,
+        output_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Dump expert distribution data from all workers.
+
+        Args:
+            output_path: Path to save the recording (optional)
+
+        Returns:
+            Dictionary containing recorded data from all workers
+        """
+        if self.engine is None:
+            return {"status": "error", "message": "Engine not initialized"}
+
+        # Get local recording state data (fast)
+        exp_state = get_or_create_expert_distribution_state(self.instance_id)
+        local_records = exp_state.get_records()
+
+        # Try to get worker data with timeout
+        worker_results = []
+        try:
+            worker_results = await asyncio.wait_for(
+                self.engine.collective_rpc(
+                    "dump_expert_distribution_record",
+                    args=(output_path,),
+                ),
+                timeout=5.0,  # 5 second timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Timeout waiting for worker expert distribution data"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Could not get worker expert distribution data: {e}"
+            )
+
+        return {
+            "status": "success",
+            "model": self.model_name,
+            "instance_id": self.instance_id,
+            "worker_data": worker_results,
+            "local_records": local_records,
+            "total_local_records": len(local_records),
+        }
+
+    async def expert_distribution_status(self) -> Dict[str, Any]:
+        """Get current expert distribution recording status."""
+        exp_state = get_or_create_expert_distribution_state(self.instance_id)
+        return {
+            "model": self.model_name,
+            "instance_id": self.instance_id,
+            "is_recording": exp_state.is_recording(),
+            "total_records": len(exp_state.get_records()),
+        }
+
+    async def clear_expert_distribution(self) -> Dict[str, Any]:
+        """Clear all recorded expert distribution data."""
+        exp_state = get_or_create_expert_distribution_state(self.instance_id)
+        count = exp_state.clear_records()
+        return {
+            "status": "success",
+            "model": self.model_name,
+            "instance_id": self.instance_id,
+            "message": f"Cleared {count} expert distribution records",
             "cleared_count": count,
         }

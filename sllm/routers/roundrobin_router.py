@@ -658,3 +658,108 @@ class RoundRobinRouter(SllmRouter):
             instance = self.ready_inference_instances[instance_id]
 
         return await instance.backend_instance.clear_batch_recording.remote()
+
+    # Expert Distribution Recording Methods
+    async def configure_expert_distribution(
+        self,
+        recording_mode: str = "per_pass",
+        enable_metrics: bool = True,
+        buffer_size: int = -1,
+    ):
+        """Configure expert distribution recording on all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.configure_expert_distribution.remote(
+            recording_mode=recording_mode,
+            enable_metrics=enable_metrics,
+            buffer_size=buffer_size,
+        )
+
+    async def start_expert_distribution_recording(
+        self, recording_mode: str = "per_pass"
+    ):
+        """Start expert distribution recording on all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.start_expert_distribution_recording.remote(
+            recording_mode=recording_mode
+        )
+
+    async def stop_expert_distribution_recording(self):
+        """Stop expert distribution recording on all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.stop_expert_distribution_recording.remote()
+
+    async def dump_expert_distribution(self, output_path: str = None):
+        """Dump expert distribution data from all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                    "worker_data": [],
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return await instance.backend_instance.dump_expert_distribution.remote(
+            output_path=output_path
+        )
+
+    async def expert_distribution_status(self):
+        """Get expert distribution recording status from all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return (
+            await instance.backend_instance.expert_distribution_status.remote()
+        )
+
+    async def clear_expert_distribution(self):
+        """Clear expert distribution data on all ready inference instances."""
+        async with self.instance_management_lock:
+            if not self.ready_inference_instances:
+                return {
+                    "status": "error",
+                    "message": "No ready instances available",
+                }
+
+            instance_id = next(iter(self.ready_inference_instances))
+            instance = self.ready_inference_instances[instance_id]
+
+        return (
+            await instance.backend_instance.clear_expert_distribution.remote()
+        )

@@ -4,9 +4,9 @@ MoE-CAP Evaluation Script for ServerlessLLM
 
 This script evaluates MoE models using the MoE-CAP methodology by:
 1. Loading benchmark datasets using MoE-CAP data loaders
-2. Starting batch recording on ServerlessLLM
+2. Starting batch recording and expert distribution recording on ServerlessLLM
 3. Sending inference requests to ServerlessLLM API
-4. Collecting batch statistics
+4. Collecting batch statistics and expert distribution data
 5. Computing MoE-CAP metrics
 
 Usage:
@@ -21,16 +21,10 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import aiohttp
 import requests
-from tqdm.asyncio import tqdm_asyncio
-
-# Add MoE-CAP to path
-moecap_path = Path(__file__).parent.parent.parent.parent / "MoE-CAP-Real"
-sys.path.insert(0, str(moecap_path))
-
 from moe_cap.configs import CAPConfig
 from moe_cap.data_loader import GSM8KLoader, LongBenchV2Loader, NuminaMathLoader
 from moe_cap.model_loader import HFModelInfoRetriever
@@ -40,6 +34,21 @@ from moe_cap.utils.acc_metrics import (
 )
 from moe_cap.utils.continuous_batching_utils import (
     _calculate_continuous_metrics,
+)
+from tqdm.asyncio import tqdm_asyncio
+
+# Import recording client APIs
+from sllm.client.recording import (
+    clear_batch_recording,
+    clear_expert_distribution,
+    dump_batch_recording,
+    dump_expert_distribution,
+    get_batch_recording_status,
+    get_expert_distribution_status,
+    start_batch_recording,
+    start_expert_distribution_recording,
+    stop_batch_recording,
+    stop_expert_distribution_recording,
 )
 
 
@@ -88,93 +97,13 @@ def load_dataset(
     return prompts, targets
 
 
-def start_recording(server_url: str, model_name: str) -> bool:
-    """Start batch recording on the server."""
-    url = f"{server_url}/start_batch_recording"
-    payload = {"model": model_name}
-
-    try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        print(f"✓ Started batch recording for {model_name}")
-        return True
-    except Exception as e:
-        print(f"✗ Failed to start recording: {e}")
-        return False
-
-
-def stop_recording(server_url: str, model_name: str) -> bool:
-    """Stop batch recording on the server."""
-    url = f"{server_url}/stop_batch_recording"
-    payload = {"model": model_name}
-
-    try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        print(f"✓ Stopped batch recording for {model_name}")
-        return True
-    except Exception as e:
-        print(f"✗ Failed to stop recording: {e}")
-        return False
-
-
-def get_recording_status(server_url: str, model_name: str) -> Dict[str, Any]:
-    """Get current recording status."""
-    url = f"{server_url}/batch_recording_status"
-
-    try:
-        response = requests.get(url, params={"model": model_name})
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print(f"✗ Failed to get status: {e}")
-        return {}
-
-
-def dump_recording(server_url: str, model_name: str) -> Dict[str, Any]:
-    """Dump recorded batch statistics."""
-    url = f"{server_url}/dump_batch_recording"
-    payload = {"model": model_name}
-
-    try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-
-        # Normalize the response - backend might return 'batches' or 'records'
-        if "batches" in data and "records" not in data:
-            data["records"] = data["batches"]
-        elif "records" not in data:
-            data["records"] = []
-
-        print(f"✓ Dumped {len(data.get('records', []))} batch records")
-        return data
-    except Exception as e:
-        print(f"✗ Failed to dump recording: {e}")
-        return {}
-
-
-def clear_recording(server_url: str, model_name: str) -> bool:
-    """Clear all recorded statistics."""
-    url = f"{server_url}/clear_batch_recording"
-    payload = {"model": model_name}
-
-    try:
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
-        print(f"✓ Cleared batch recording for {model_name}")
-        return True
-    except Exception as e:
-        print(f"✗ Failed to clear recording: {e}")
-        return False
-
-
 def send_inference_request(
     server_url: str,
     model_name: str,
     prompt: str,
     max_tokens: int = 512,
     temperature: float = 0.0,
+    system_prompt: str = "You are a helpful assistant.",
 ) -> Dict[str, Any]:
     """Send an inference request to ServerlessLLM.
 
@@ -184,6 +113,7 @@ def send_inference_request(
         prompt: Input prompt
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
+        system_prompt: System prompt for the assistant
 
     Returns:
         Response dictionary with generated text
@@ -191,7 +121,10 @@ def send_inference_request(
     url = f"{server_url}/v1/chat/completions"
     payload = {
         "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
@@ -212,12 +145,16 @@ async def send_inference_request_async(
     prompt: str,
     max_tokens: int = 512,
     temperature: float = 0.0,
+    system_prompt: str = "You are a helpful assistant.",
 ) -> Dict[str, Any]:
     """Send an inference request asynchronously."""
     url = f"{server_url}/v1/chat/completions"
     payload = {
         "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
@@ -263,92 +200,6 @@ async def run_inference_batch(
         return outputs
 
 
-def calculate_moecap_metrics(
-    batch_data: Dict[str, Any],
-    model_name: str,
-    num_gpus: int = 1,
-) -> Dict[str, Any]:
-    """Calculate MoE-CAP metrics from batch statistics.
-
-    Args:
-        batch_data: Dictionary with 'records' list from dump_batch_recording
-        model_name: Model identifier for loading model config
-        num_gpus: Number of GPUs used for inference
-
-    Returns:
-        Dictionary with MoE-CAP metrics computed by _calculate_continuous_metrics
-    """
-    # The backend returns {'records': [...], 'status': 'success', ...}
-    records = batch_data.get("records", [])
-    if not records:
-        return {"error": "No batch data available"}
-
-    # Calculate MoE-CAP metrics using model info
-    try:
-        # Load model configuration
-        config = CAPConfig(
-            dataset_names=["gsm8k"],  # Dummy dataset for config
-            metrics=["em"],
-            model_id=model_name,
-        )
-        model_info = HFModelInfoRetriever(config)
-
-        # Get model architecture details
-        arch_info = model_info.get_architecture_info()
-        attn_info = model_info.get_attention_info()
-        moe_info = model_info.get_moe_info()
-
-        n_layers = arch_info.get("num_hidden_layers", 0)
-        d_model = arch_info.get("hidden_size", 0)
-        d_ff = moe_info.get("ffn_dim") or arch_info.get("intermediate_size", 0)
-        n_attn_heads = attn_info.get("num_attention_heads", 0)
-        n_kv_heads = attn_info.get("num_key_value_heads") or n_attn_heads
-        d_head = attn_info.get("head_dim") or (
-            d_model // n_attn_heads if n_attn_heads > 0 else 0
-        )
-
-        # Get precision (precision should be bytes per element, not a string)
-        precision_bits = (
-            model_info.get_model_precision_bits()
-        )  # Returns bytes (e.g., 2.0 for bfloat16)
-        used_dtype = f"float{int(precision_bits * 8)}"  # String like "float16" for hardware specs
-        precision = (
-            precision_bits  # Use the numeric value (bytes) for calculations
-        )
-
-        # The records are already in the exact format expected by _calculate_continuous_metrics!
-        # Each record has: batch_size, latency (seconds), seq_lens_sum, forward_mode, expert_activation
-        output_data = records
-
-        # Calculate advanced metrics using MoE-CAP's function
-        hf_config = model_info.hf_config
-        metrics = _calculate_continuous_metrics(
-            n_layers=n_layers,
-            d_model=d_model,
-            n_attn_heads=n_attn_heads,
-            d_head=d_head,
-            n_kv_heads=n_kv_heads,
-            d_ff=d_ff,
-            hf_config=hf_config,
-            num_gpus=num_gpus,
-            model_name=model_name,
-            used_dtype=used_dtype,
-            precision=precision,
-            output_data=output_data,
-        )
-
-        # Add total records count
-        metrics["total_records"] = len(records)
-        return metrics
-
-    except Exception as e:
-        print(f"Warning: Could not calculate MoE-CAP metrics: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return {"error": str(e), "total_records": len(records)}
-
-
 def extract_generated_text(response: Dict[str, Any]) -> str:
     """Extract generated text from ServerlessLLM response.
 
@@ -372,90 +223,54 @@ def extract_generated_text(response: Dict[str, Any]) -> str:
         return ""
 
 
-def compute_inference_accuracy(
-    outputs: List[Dict[str, Any]],
-    dataset_name: str,
-) -> Dict[str, Any]:
-    """Compute accuracy metrics for inference outputs using MoE-CAP utilities.
-
-    Args:
-        outputs: List of output dictionaries with 'response' and 'expected' fields
-        dataset_name: Name of dataset for answer extraction
-
-    Returns:
-        Dictionary with accuracy metrics
-    """
-    predictions = []
-    targets = []
-
-    for output in outputs:
-        # Extract generated text from response
-        generated = extract_generated_text(output.get("response", {}))
-        expected = output.get("expected", "")
-
-        predictions.append(generated)
-        targets.append(str(expected))
-
-    # Use MoE-CAP's accuracy computation with answer extraction
-    accuracy_metrics = compute_accuracy_metrics(
-        predictions=predictions,
-        targets=targets,
-        dataset_name=dataset_name,
-        extract_answers=True,
-    )
-
-    return accuracy_metrics
+def get_model_simple_name(model_name: str) -> str:
+    """Get simplified model name for output directory."""
+    norm_path = os.path.normpath(model_name)
+    parts = norm_path.split(os.sep)
+    if len(parts) >= 2:
+        return f"{parts[-2]}/{parts[-1]}"
+    return model_name
 
 
 def save_results(
-    output_dir: str, results: Dict[str, Any], backend: str = "vllm_moecap"
+    output_dir: str,
+    model_name: str,
+    dataset_name: str,
+    metrics: Dict[str, Any],
+    detailed_results: List[Dict[str, Any]] = None,
+    backend: str = "sllm",
 ):
-    """Save evaluation results to files.
+    """Save evaluation results to files matching openai_api_profile format.
 
-    Files are saved in: {output_dir}/{model_name}/cap_metrics_{backend}_{dataset}.json
+    Saves:
+    - cap_metrics_{backend}_{dataset}.json: All metrics in flat format
+    - detailed_results_{dataset}.jsonl: Per-request detailed results (optional)
     """
-    model_name = results.get("config", {}).get("model", "unknown_model")
-    dataset_name = results.get("config", {}).get("dataset", "unknown_dataset")
+    from datetime import datetime
 
     # Create model-specific directory
-    model_dir = os.path.join(output_dir, model_name)
+    model_dir = os.path.join(output_dir, get_model_simple_name(model_name))
     os.makedirs(model_dir, exist_ok=True)
 
-    # Save combined metrics with naming: cap_metrics_{backend}_{dataset}.json
+    # Save metrics with timestamp (matching openai_api_profile format)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     metrics_file = os.path.join(
-        model_dir, f"cap_metrics_{backend}_{dataset_name}.json"
+        model_dir, f"cap_metrics_{backend}_{dataset_name}_{timestamp}.json"
     )
-    combined_metrics = {
-        "batch_metrics": results.get("batch_metrics", {}),
-        "accuracy_metrics": results.get("accuracy_metrics", {}),
-    }
-    with open(metrics_file, "w") as f:
-        json.dump(combined_metrics, f, indent=2)
-    print(f"✓ Saved metrics to {metrics_file}")
 
-    # Save raw batch data
-    batch_file = os.path.join(
-        model_dir, f"batch_data_{backend}_{dataset_name}.json"
-    )
-    with open(batch_file, "w") as f:
-        json.dump(results["batch_data"], f, indent=2)
-    print(f"✓ Saved batch data to {batch_file}")
+    with open(metrics_file, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=4)
+    print(f"✓ Metrics saved to {metrics_file}")
 
-    # Save inference outputs
-    outputs_file = os.path.join(
-        model_dir, f"inference_outputs_{dataset_name}.json"
-    )
-    with open(outputs_file, "w") as f:
-        json.dump(results["outputs"], f, indent=2)
-    print(f"✓ Saved inference outputs to {outputs_file}")
-
-    # Save config
-    config_file = os.path.join(
-        model_dir, f"config_{backend}_{dataset_name}.json"
-    )
-    with open(config_file, "w") as f:
-        json.dump(results.get("config", {}), f, indent=2)
-    print(f"✓ Saved config to {config_file}")
+    # Save detailed results if provided
+    if detailed_results:
+        detailed_file = os.path.join(
+            model_dir, f"detailed_results_{dataset_name}.jsonl"
+        )
+        with open(detailed_file, "w", encoding="utf-8") as f:
+            for record in detailed_results:
+                f.write(json.dumps(record) + "\n")
+        print(f"✓ Detailed results saved to {detailed_file}")
 
 
 def warmup_model(server_url: str, model_name: str) -> bool:
@@ -527,6 +342,19 @@ def main():
         action="store_true",
         help="Clear previous recordings before starting",
     )
+    # Expert distribution recording options
+    parser.add_argument(
+        "--enable-expert-recording",
+        action="store_true",
+        help="Enable expert distribution recording",
+    )
+    parser.add_argument(
+        "--expert-recording-mode",
+        type=str,
+        default="per_pass",
+        choices=["per_token", "per_pass", "stat", "stat_approx"],
+        help="Expert distribution recording mode (default: per_pass)",
+    )
 
     args = parser.parse_args()
 
@@ -537,10 +365,14 @@ def main():
     print(f"Dataset: {args.dataset}")
     print(f"Server: {args.server_url}")
     print(f"Output: {args.output_dir}")
+    if args.enable_expert_recording:
+        print(f"Expert Recording: ENABLED (mode={args.expert_recording_mode})")
+    else:
+        print("Expert Recording: DISABLED")
     print("=" * 80)
 
     # Load dataset using MoE-CAP data loaders
-    print("\n[1/6] Loading dataset...")
+    print("\n[1/7] Loading dataset...")
     try:
         prompts, targets = load_dataset(
             args.dataset, args.model, args.num_samples
@@ -552,26 +384,44 @@ def main():
 
     # Clear previous recordings if requested
     if args.clear_before:
-        print("\n[2/6] Clearing previous recordings...")
-        clear_recording(args.server_url, args.model)
+        print("\n[2/7] Clearing previous recordings...")
+        clear_batch_recording(args.server_url, args.model)
+        if args.enable_expert_recording:
+            clear_expert_distribution(args.server_url, args.model)
     else:
-        print("\n[2/6] Skipping clear (use --clear-before to clear)")
+        print("\n[2/7] Skipping clear (use --clear-before to clear)")
 
     # Warmup
     warmup_model(args.server_url, args.model)
 
-    # Start recording
-    print("\n[3/6] Starting batch recording...")
-    if not start_recording(args.server_url, args.model):
-        print("Failed to start recording. Exiting.")
+    # Start batch recording
+    print("\n[3/7] Starting batch recording...")
+    if not start_batch_recording(args.server_url, args.model):
+        print("Failed to start batch recording. Exiting.")
         return
 
-    # Check status
-    status = get_recording_status(args.server_url, args.model)
-    print(f"Recording status: {status}")
+    # Start expert distribution recording if enabled
+    if args.enable_expert_recording:
+        print("\n[3.5/7] Starting expert distribution recording...")
+        if not start_expert_distribution_recording(
+            args.server_url, args.model, args.expert_recording_mode
+        ):
+            print(
+                "Warning: Failed to start expert distribution recording. Continuing without it."
+            )
 
-    # Send inference requests
-    print(f"\n[4/6] Sending {len(prompts)} inference requests...")
+    # Check status
+    status = get_batch_recording_status(args.server_url, args.model)
+    print(f"Batch recording status: {status}")
+    if args.enable_expert_recording:
+        expert_status = get_expert_distribution_status(
+            args.server_url, args.model
+        )
+        print(f"Expert distribution status: {expert_status}")
+
+    # Send inference requests and measure total time
+    print(f"\n[4/7] Sending {len(prompts)} inference requests...")
+    start_time = time.perf_counter()
     outputs = asyncio.run(
         run_inference_batch(
             args.server_url,
@@ -582,70 +432,236 @@ def main():
             args.temperature,
         )
     )
-    print(f"✓ Completed {len(outputs)} inference requests")
+    total_time = time.perf_counter() - start_time
+    print(f"✓ Completed {len(outputs)} inference requests in {total_time:.2f}s")
 
-    # Stop recording
-    print("\n[5/6] Stopping batch recording...")
-    if not stop_recording(args.server_url, args.model):
-        print("Failed to stop recording.")
+    # Stop batch recording
+    print("\n[5/7] Stopping batch recording...")
+    if not stop_batch_recording(args.server_url, args.model):
+        print("Failed to stop batch recording.")
 
-    # Dump and analyze results
-    print("\n[6/6] Dumping and analyzing results...")
-    batch_data = dump_recording(args.server_url, args.model)
+    # Stop expert distribution recording if enabled
+    expert_distribution_data = {}
+    if args.enable_expert_recording:
+        print("\n[5.5/7] Stopping expert distribution recording...")
+        if not stop_expert_distribution_recording(args.server_url, args.model):
+            print("Warning: Failed to stop expert distribution recording.")
+
+        # Dump expert distribution data
+        print("Dumping expert distribution data...")
+        expert_distribution_data = dump_expert_distribution(
+            args.server_url, args.model
+        )
+
+    # Dump and analyze batch results
+    print("\n[6/7] Dumping and analyzing results...")
+    batch_data = dump_batch_recording(args.server_url, args.model)
 
     if not batch_data.get("records"):
         print("✗ No batch data collected. Check if backend is vllm_moecap.")
         return
 
-    # Calculate batch performance metrics
-    batch_metrics = calculate_moecap_metrics(
-        batch_data,
-        model_name=args.model,
-        num_gpus=args.num_gpus,
+    server_records = batch_data.get("records", [])
+
+    # Calculate batch performance metrics using _calculate_continuous_metrics
+    print("\n[7/7] Computing metrics...")
+
+    # Load model info for metrics calculation
+    config = CAPConfig(
+        dataset_names=[args.dataset],
+        metrics=["em"],
+        model_id=args.model,
+    )
+    model_info = HFModelInfoRetriever(config)
+
+    # Get model architecture details
+    arch_info = model_info.get_architecture_info()
+    attn_info = model_info.get_attention_info()
+    moe_info = model_info.get_moe_info()
+
+    n_layers = arch_info.get("num_hidden_layers", 0)
+    d_model = arch_info.get("hidden_size", 0)
+    d_ff = moe_info.get("ffn_dim") or arch_info.get("intermediate_size", 0)
+    n_attn_heads = attn_info.get("num_attention_heads", 0)
+    n_kv_heads = attn_info.get("num_key_value_heads") or n_attn_heads
+    d_head = attn_info.get("head_dim") or (
+        d_model // n_attn_heads if n_attn_heads > 0 else 0
     )
 
-    # Calculate accuracy metrics using MoE-CAP utilities
-    print("\n[7/7] Computing accuracy metrics...")
-    accuracy_metrics = compute_inference_accuracy(outputs, args.dataset)
+    # Get precision
+    precision = model_info.get_model_precision_bytes()
+    used_dtype = f"float{int(precision * 8)}" if precision else "bfloat16"
 
+    # Auto-detect GPU type and number from server records or locally
+    num_gpus = args.num_gpus
+    gpu_type = "Unknown"
+    gpu_raw_type = None
+
+    # Try to get GPU info from server records first
+    if server_records:
+        first_record = server_records[0]
+        num_gpus = first_record.get("gpu_num", args.num_gpus)
+        gpu_raw_type = first_record.get("gpu_raw_type", None)
+
+    # If gpu_raw_type is not in server records, detect it locally
+    if not gpu_raw_type:
+        try:
+            from moe_cap.utils.hardware_utils import get_gpu_details
+
+            gpu_raw_type = get_gpu_details()
+            print(f"✓ Detected GPU type locally: {gpu_raw_type}")
+        except Exception as e:
+            print(f"Warning: Could not detect GPU type: {e}")
+            gpu_raw_type = None
+
+    # Extract simplified GPU name for display
+    if gpu_raw_type:
+        import re
+
+        gpu_name_pattern = re.compile(r"NVIDIA[\s-]+(RTX[\s-]+)?([A-Z0-9]+)")
+        match = gpu_name_pattern.search(gpu_raw_type)
+        if match:
+            gpu_type = "".join(filter(None, match.groups())).strip()
+
+    # Calculate metrics using MoE-CAP's function
+    try:
+        res_dict = _calculate_continuous_metrics(
+            n_layers=n_layers,
+            d_model=d_model,
+            gpu_raw_type=gpu_raw_type,
+            n_attn_heads=n_attn_heads,
+            d_head=d_head,
+            n_kv_heads=n_kv_heads,
+            d_ff=d_ff,
+            hf_config=model_info.hf_config,
+            num_gpus=num_gpus,
+            model_name=args.model,
+            used_dtype=used_dtype,
+            precision=precision,
+            output_data=server_records,
+        )
+    except Exception as e:
+        print(f"Warning: Could not calculate continuous batching metrics: {e}")
+        import traceback
+
+        traceback.print_exc()
+        res_dict = {}
+
+    # Compute accuracy metrics
+    predictions = [
+        extract_generated_text(o.get("response", {})) for o in outputs
+    ]
+    successful_count = sum(1 for p in predictions if p)
+
+    # Import extract_answer for detailed results
+    from moe_cap.utils.acc_metrics import extract_answer
+
+    accuracy_metrics = compute_accuracy_metrics(
+        predictions=predictions,
+        targets=targets[: len(predictions)],
+        dataset_name=args.dataset,
+        extract_answers=True,
+    )
+
+    # Merge accuracy metrics into res_dict
+    res_dict.update(accuracy_metrics)
+
+    # Remove gpu_raw_type from output if present
+    if "gpu_raw_type" in res_dict:
+        del res_dict["gpu_raw_type"]
+
+    # Add metadata fields matching openai_api_profile format
+    res_dict["model_name"] = args.model
+    res_dict["method"] = "sllm"
+    res_dict["precision"] = used_dtype
+    res_dict["e2e_s"] = round(total_time, 2)
+    res_dict["batch_size"] = None  # Continuous batching
+    res_dict["gpu_type"] = f"{num_gpus}x{gpu_type}"
+    res_dict["dataset"] = args.dataset
+    res_dict["model_type"] = (
+        "instruct"
+        if any(x in args.model.lower() for x in ["instruct", "chat"])
+        else "thinking"
+    )
+    res_dict["total_requests"] = len(outputs)
+    res_dict["successful_requests"] = successful_count
+    res_dict["failed_requests"] = len(outputs) - successful_count
+
+    # Add expert distribution summary if available
+    if expert_distribution_data and "local_records" in expert_distribution_data:
+        local_records = expert_distribution_data.get("local_records", [])
+        if local_records:
+            num_records = len(local_records)
+            res_dict["expert_total_records"] = num_records
+            res_dict["expert_avg_activation"] = (
+                sum(r.get("expert_activation", 0) for r in local_records)
+                / num_records
+                if num_records > 0
+                else 0
+            )
+            res_dict["expert_avg_utilization"] = (
+                sum(r.get("expert_utilization", 0) for r in local_records)
+                / num_records
+                if num_records > 0
+                else 0
+            )
+
+    # Print metrics summary
     print("\n" + "=" * 80)
-    print("Performance Metrics (Batch Statistics)")
+    print("Metrics Summary")
     print("=" * 80)
-    for key, value in batch_metrics.items():
+    for key, value in res_dict.items():
         if isinstance(value, float):
             print(f"{key:30s}: {value:.4f}")
         else:
             print(f"{key:30s}: {value}")
+    print("=" * 80)
 
-    print("\n" + "=" * 80)
-    print("Accuracy Metrics")
-    print("=" * 80)
-    print(format_accuracy_summary(accuracy_metrics))
-    for key, value in accuracy_metrics.items():
-        if isinstance(value, float):
-            print(f"{key:30s}: {value:.4f}")
-        else:
-            print(f"{key:30s}: {value}")
-    print("=" * 80)
+    # Print accuracy summary
+    summary = format_accuracy_summary(accuracy_metrics)
+    print(f"\nAccuracy: {summary}")
+
+    # Build detailed results for JSONL output (with extracted answer)
+    detailed_results = []
+    for i, output in enumerate(outputs):
+        response = output.get("response", {})
+        generated_text = extract_generated_text(response)
+        extracted = (
+            extract_answer(generated_text, args.dataset)
+            if generated_text
+            else ""
+        )
+        expected = str(output.get("expected", ""))
+        is_correct = (
+            extracted.lower() == expected.lower() if extracted else False
+        )
+        detailed_results.append(
+            {
+                "index": i,
+                "success": bool(generated_text),
+                "is_correct": is_correct,
+                "prompt": output.get("prompt", "")[:200] + "..."
+                if len(output.get("prompt", "")) > 200
+                else output.get("prompt", ""),
+                "expected": expected,
+                "extracted_answer": extracted,
+                "generated": generated_text[:500] if generated_text else "",
+                "error": "" if generated_text else "No response",
+            }
+        )
 
     # Save results
-    results = {
-        "batch_metrics": batch_metrics,
-        "accuracy_metrics": accuracy_metrics,
-        "batch_data": batch_data,
-        "outputs": outputs,
-        "config": {
-            "model": args.model,
-            "dataset": args.dataset,
-            "num_samples": len(prompts),
-            "max_tokens": args.max_tokens,
-            "temperature": args.temperature,
-        },
-    }
-    save_results(args.output_dir, results, backend="vllm_moecap")
+    save_results(
+        output_dir=args.output_dir,
+        model_name=args.model,
+        dataset_name=args.dataset,
+        metrics=res_dict,
+        detailed_results=detailed_results,
+        backend="sllm",
+    )
 
     print(
-        f"\n✓ Evaluation complete! Results saved to {args.output_dir}/{args.model}/"
+        f"\n✓ Evaluation complete! Results saved to {args.output_dir}/{get_model_simple_name(args.model)}/"
     )
 
 

@@ -359,4 +359,127 @@ def create_app() -> FastAPI:
         """Clear all recorded batch statistics."""
         return await moecap_handler(request, "clear")
 
+    # =========================================================================
+    # Expert Distribution Recording Endpoints
+    # =========================================================================
+
+    async def expert_distribution_handler(request: Request, action: str):
+        """Handle expert distribution recording requests."""
+        body = await request.json()
+        model_name = body.get("model")
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model in request body"
+            )
+
+        try:
+            request_router = ray.get_actor(model_name, namespace="models")
+        except ValueError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model {model_name} not found or not deployed",
+            )
+
+        try:
+            if action == "start":
+                recording_mode = body.get("recording_mode", "per_pass")
+                result = await request_router.start_expert_distribution_recording.remote(
+                    recording_mode=recording_mode
+                )
+            elif action == "stop":
+                result = await request_router.stop_expert_distribution_recording.remote()
+            elif action == "dump":
+                output_path = body.get("output_path")
+                result = await request_router.dump_expert_distribution.remote(
+                    output_path=output_path
+                )
+            elif action == "clear":
+                result = await request_router.clear_expert_distribution.remote()
+            elif action == "configure":
+                recording_mode = body.get("recording_mode", "per_pass")
+                enable_metrics = body.get("enable_metrics", True)
+                buffer_size = body.get("buffer_size", -1)
+                result = (
+                    await request_router.configure_expert_distribution.remote(
+                        recording_mode=recording_mode,
+                        enable_metrics=enable_metrics,
+                        buffer_size=buffer_size,
+                    )
+                )
+            else:
+                raise HTTPException(
+                    status_code=400, detail=f"Unknown action: {action}"
+                )
+            return result
+        except AttributeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model {model_name} does not support expert distribution recording. "
+                "Please deploy with backend='vllm_moecap'",
+            )
+        except Exception as e:
+            logger.error(
+                f"Error in expert distribution {action} operation: {str(e)}"
+            )
+            raise HTTPException(
+                status_code=500, detail=f"Failed to execute {action}: {str(e)}"
+            )
+
+    @app.post("/configure_expert_distribution")
+    async def configure_expert_distribution(request: Request):
+        """Configure expert distribution recording."""
+        return await expert_distribution_handler(request, "configure")
+
+    @app.post("/start_expert_distribution")
+    async def start_expert_distribution(request: Request):
+        """Start expert distribution recording."""
+        return await expert_distribution_handler(request, "start")
+
+    @app.post("/stop_expert_distribution")
+    async def stop_expert_distribution(request: Request):
+        """Stop expert distribution recording."""
+        return await expert_distribution_handler(request, "stop")
+
+    @app.post("/dump_expert_distribution")
+    async def dump_expert_distribution(request: Request):
+        """Dump recorded expert distribution data."""
+        return await expert_distribution_handler(request, "dump")
+
+    @app.post("/clear_expert_distribution")
+    async def clear_expert_distribution(request: Request):
+        """Clear all recorded expert distribution data."""
+        return await expert_distribution_handler(request, "clear")
+
+    @app.get("/expert_distribution_status")
+    async def expert_distribution_status(request: Request):
+        """Get current expert distribution recording status."""
+        model_name = request.query_params.get("model")
+        if not model_name:
+            raise HTTPException(
+                status_code=400, detail="Missing model query parameter"
+            )
+
+        try:
+            request_router = ray.get_actor(model_name, namespace="models")
+        except ValueError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model {model_name} not found or not deployed",
+            )
+
+        try:
+            result = await request_router.expert_distribution_status.remote()
+            return result
+        except AttributeError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model {model_name} does not support expert distribution recording. "
+                "Please deploy with backend='vllm_moecap'",
+            )
+        except Exception as e:
+            logger.error(f"Error getting expert distribution status: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to get status: {str(e)}"
+            )
+
     return app
