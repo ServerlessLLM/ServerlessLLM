@@ -1,6 +1,7 @@
 fastapi==0.115.12
 GPUtil==1.4.0
 openai==2.8.0
+pillow==12.0.0
 pydantic==2.12.4
 pydantic_core==2.41.5
 ray==2.48.0
