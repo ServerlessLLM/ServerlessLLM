@@ -437,10 +437,12 @@ class RoundRobinRouter(SllmRouter):
         logger.info(f"Startup config: {startup_config}, {self.backend_config}")
 
         await start_instance.options(
+            num_cpus=self.resource_requirements["num_cpus"],
+            num_gpus=self.resource_requirements["num_gpus"],
             resources={
                 "worker_node": 0.1,
                 f"worker_id_{startup_node}": 0.1,
-            }
+            },
         ).remote(
             instance_id,
             self.backend,
@@ -498,7 +500,9 @@ class RoundRobinRouter(SllmRouter):
 
         try:
             instance.backend_instance = await start_ft_instance.options(
-                resources=startup_config["resources"]
+                num_cpus=self.resource_requirements["num_cpus"],
+                num_gpus=self.resource_requirements["num_gpus"],
+                resources=startup_config["resources"],
             ).remote(
                 instance_id,
                 self.backend,

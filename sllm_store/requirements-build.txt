@@ -3,5 +3,5 @@ ninja
 numpy
 peft==0.15.2
 setuptools
-torch==2.7.0
+torch==2.8.0
 wheel

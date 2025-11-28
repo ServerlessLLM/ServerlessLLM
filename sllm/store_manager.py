@@ -86,10 +86,18 @@ class SllmLocalStore:
                 model_size = 0
                 model_path_list = []
                 for rank in range(tensor_parallel_size):
+                    logger.info(
+                        f"Registering rank {rank} of model {model_name}"
+                    )
                     model_rank_path = os.path.join(model_path, f"rank_{rank}")
                     model_size += self.client.register_model(model_rank_path)
                     model_path_list.append(model_rank_path)
                 self.disk_models[model_name] = (model_path_list, model_size)
+            else:
+                logger.error(
+                    f"Unknown backend {backend} for model {model_name}"
+                )
+                return
             logger.info(f"{model_name} registered, {self.disk_models}")
 
         return model_size

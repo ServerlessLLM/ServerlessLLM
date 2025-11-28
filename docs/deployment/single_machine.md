@@ -132,14 +132,14 @@ ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 \
 
 ### 2. Start the ServerlessLLM Store Server
 
-Next, start the ServerlessLLM Store server. By default, it uses `./models` as the storage path.
+Next, start the ServerlessLLM Store server. By default, it uses `./models` as the storage path, but we recommend setting your own storage path by the flag `--storage-path`.
 
 Open a new terminal and run:
 
 ```bash
 conda activate sllm-worker
 export CUDA_VISIBLE_DEVICES=0 # Or your desired GPU ID
-sllm-store start
+sllm-store start --storage-path <YOUR-STORAGE-PATH>
 ```
 
 Expected output:
@@ -147,11 +147,11 @@ Expected output:
 ```log
 $ sllm-store start
 INFO 12-31 17:13:23 cli.py:58] Starting gRPC server
-INFO 12-31 17:13:23 server.py:34] StorageServicer: storage_path=./models, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
+INFO 12-31 17:13:23 server.py:34] StorageServicer: storage_path=<YOUR-STORAGE-PATH>, mem_pool_size=4294967296, num_thread=4, chunk_size=33554432, registration_required=False
 WARNING: Logging before InitGoogleLogging() is written to STDERR
 I20241231 17:13:23.947276 2165054 checkpoint_store.cpp:41] Number of GPUs: 1
 I20241231 17:13:23.947299 2165054 checkpoint_store.cpp:43] I/O threads: 4, chunk size: 32MB
-I20241231 17:13:23.947309 2165054 checkpoint_store.cpp:45] Storage path: "./models"
+I20241231 17:13:23.947309 2165054 checkpoint_store.cpp:45] Storage path: "<YOUR-STORAGE-PATH>"
 I20241231 17:13:24.038651 2165054 checkpoint_store.cpp:71] GPU 0 UUID: c9938b31-33b0-e02f-24c5-88bd6fbe19ad
 I20241231 17:13:24.038700 2165054 pinned_memory_pool.cpp:29] Creating PinnedMemoryPool with 128 buffers of 33554432 bytes
 I20241231 17:13:25.557906 2165054 checkpoint_store.cpp:83] Memory pool created with 4GB
