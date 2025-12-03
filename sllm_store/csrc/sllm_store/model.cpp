@@ -97,8 +97,9 @@ int Model::ToHost(int num_threads) {
     if (fd < 0) {
       bool retried_without_odirect = false;
       if (errno == EINVAL) {
-        LOG(WARNING) << "O_DIRECT not supported on " << tensor_path
-                     << ", retrying without it";
+        LOG(ERROR) << "O_DIRECT not supported on " << tensor_path
+                   << ", falling back to compatible mode (may severely impact "
+                      "the performance!)";
         fd = open(tensor_path.c_str(), O_RDONLY);
         retried_without_odirect = true;
       }
