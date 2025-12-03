@@ -70,7 +70,7 @@ spec:
       # Note: emptyDir may use node local storage (including NVMe) depending on cluster config
       - name: model-storage
         emptyDir:
-          sizeLimit: 200Gi  # Adjust based on model size
+          sizeLimit: 2Ti  # Increased to 2TB for large model benchmarks
 
       # Results storage (temporary - copied out after completion)
       - name: results
