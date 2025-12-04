@@ -21,13 +21,21 @@ OPTIONS:
   -i, --image IMAGE            Docker image to use (default: serverlessllm/sllm:latest)
   -g, --gpu-limit LIMIT        GPU limit: 1, 2, "all", or "device=N" (default: 1)
   -t, --benchmark-type TYPE    Test type: random|single (default: random)
+      --hf-token TOKEN         Hugging Face token for gated models (or set HF_TOKEN env var)
+      --mount-hf-cache         Mount ~/.cache/huggingface into container
       --generate-plots         Generate visualization plots
       --keep-alive             Keep container running after completion
   -h, --help                   Show this help message
 
 EXAMPLES:
   # Basic usage with custom model
-  $0 --model-name meta-llama/Meta-Llama-3-8B
+  $0 --model-name meta-llama/Meta-Llama-3-8B --hf-token \$HF_TOKEN
+
+  # Use HF_TOKEN from environment
+  HF_TOKEN=hf_xxx $0 --model-name meta-llama/Meta-Llama-3-8B
+
+  # Mount existing HF cache (reuses downloaded models & token)
+  $0 --model-name meta-llama/Meta-Llama-3-8B --mount-hf-cache
 
   # Specify GPU and replicas
   $0 --gpu-limit 2 --num-replicas 50
@@ -77,6 +85,14 @@ while [[ $# -gt 0 ]]; do
             CLI_BENCHMARK_TYPE="$2"
             shift 2
             ;;
+        --hf-token)
+            CLI_HF_TOKEN="$2"
+            shift 2
+            ;;
+        --mount-hf-cache)
+            CLI_MOUNT_HF_CACHE="true"
+            shift
+            ;;
         --generate-plots)
             CLI_GENERATE_PLOTS="true"
             shift
@@ -108,6 +124,8 @@ GPU_LIMIT="${CLI_GPU_LIMIT:-${GPU_LIMIT:-1}}"
 BENCHMARK_TYPE="${CLI_BENCHMARK_TYPE:-${BENCHMARK_TYPE:-random}}"
 GENERATE_PLOTS="${CLI_GENERATE_PLOTS:-${GENERATE_PLOTS:-false}}"
 KEEP_ALIVE="${CLI_KEEP_ALIVE:-${KEEP_ALIVE:-false}}"
+HF_TOKEN="${CLI_HF_TOKEN:-${HF_TOKEN:-}}"
+MOUNT_HF_CACHE="${CLI_MOUNT_HF_CACHE:-${MOUNT_HF_CACHE:-false}}"
 
 echo "=== ServerlessLLM Benchmark (Docker) ==="
 echo "Image: $IMAGE"
@@ -143,12 +161,37 @@ if [ "$KEEP_ALIVE" = "true" ]; then
     BENCHMARK_ARGS+=(--keep-alive)
 fi
 
+# Build docker run arguments
+DOCKER_ARGS=(
+    --rm
+    --gpus "$GPU_LIMIT"
+    -e MODE=WORKER
+    -v "$STORAGE_PATH":/models
+    -v "$RESULTS_PATH":/results
+    -v "$SCRIPT_DIR":/scripts
+)
+
+# Add HF_TOKEN if provided
+if [ -n "$HF_TOKEN" ]; then
+    DOCKER_ARGS+=(-e "HF_TOKEN=$HF_TOKEN")
+    echo "HF Token: provided"
+fi
+
+# Mount HF cache if requested
+if [ "$MOUNT_HF_CACHE" = "true" ]; then
+    HF_CACHE_DIR="${HF_HOME:-$HOME/.cache/huggingface}"
+    if [ -d "$HF_CACHE_DIR" ]; then
+        DOCKER_ARGS+=(-v "$HF_CACHE_DIR":/root/.cache/huggingface)
+        echo "HF Cache: $HF_CACHE_DIR (mounted)"
+    else
+        echo "Warning: HF cache directory not found at $HF_CACHE_DIR"
+    fi
+fi
+
+echo ""
+
 # Run benchmark (passing args as CLI flags instead of env vars)
-docker run --rm --gpus "$GPU_LIMIT" \
-    -e MODE=WORKER \
-    -v "$STORAGE_PATH":/models \
-    -v "$RESULTS_PATH":/results \
-    -v "$SCRIPT_DIR":/scripts \
+docker run "${DOCKER_ARGS[@]}" \
     --entrypoint /bin/bash \
     "$IMAGE" \
     /scripts/run-benchmark.sh "${BENCHMARK_ARGS[@]}"
