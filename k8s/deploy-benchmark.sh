@@ -20,6 +20,7 @@ OPTIONS:
   --nvme-path PATH             NVMe mount path (default: /nvme)
   -m, --model-name NAME        Model to benchmark (default: facebook/opt-6.7b)
   -n, --num-replicas N         Number of test replicas (default: 30)
+  -p, --mem-pool-size SIZE     Memory pool size for sllm-store (default: 32GB)
   --hf-token TOKEN             Hugging Face token for gated models (or set HF_TOKEN env var)
   --hf-secret NAME             Use existing K8s secret for HF token (default: hf-token)
   -h, --help                   Show this help message
@@ -80,6 +81,10 @@ while [[ $# -gt 0 ]]; do
             CLI_NUM_REPLICAS="$2"
             shift 2
             ;;
+        -p|--mem-pool-size)
+            CLI_MEM_POOL_SIZE="$2"
+            shift 2
+            ;;
         --hf-token)
             CLI_HF_TOKEN="$2"
             shift 2
@@ -108,6 +113,7 @@ GPU="${CLI_GPU:-${GPU:-1}}"
 NVME_PATH="${CLI_NVME_PATH:-${NVME_PATH:-/nvme}}"
 MODEL_NAME="${CLI_MODEL_NAME:-${MODEL_NAME:-facebook/opt-6.7b}}"
 NUM_REPLICAS="${CLI_NUM_REPLICAS:-${NUM_REPLICAS:-30}}"
+MEM_POOL_SIZE="${CLI_MEM_POOL_SIZE:-${MEM_POOL_SIZE:-32GB}}"
 HF_TOKEN="${CLI_HF_TOKEN:-${HF_TOKEN:-}}"
 HF_SECRET="${CLI_HF_SECRET:-${HF_SECRET:-hf-token}}"
 
@@ -127,6 +133,7 @@ echo "Namespace: $NS"
 echo "Resources: ${CPU} CPU, ${MEMORY} RAM, ${GPU} GPU"
 echo "NVMe Path: $NVME_PATH"
 echo "Model: $MODEL_NAME (${NUM_REPLICAS} replicas)"
+echo "Memory Pool: $MEM_POOL_SIZE"
 if [ -n "$HF_TOKEN" ]; then
     echo "HF Token: provided (will create secret '$HF_SECRET')"
 elif kubectl get secret "$HF_SECRET" -n "$NS" &>/dev/null; then

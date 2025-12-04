@@ -4,13 +4,12 @@ metadata:
   name: benchmark-config
   namespace: <YOUR_NAMESPACE>  # REQUIRED: Replace with your namespace
 data:
-  # Environment configuration
-  config.env: |
-    MODEL_NAME=<MODEL_NAME>
-    NUM_REPLICAS=<NUM_REPLICAS>
-    MEM_POOL_SIZE=<MEM_POOL_SIZE>
-    STORAGE_PATH=/models
-    RESULTS_PATH=/results
-    BENCHMARK_TYPE=random
-    GENERATE_PLOTS=false
-    KEEP_ALIVE=false
+  # Environment variables (direct key-value for envFrom)
+  MODEL_NAME: "<MODEL_NAME>"
+  NUM_REPLICAS: "<NUM_REPLICAS>"
+  MEM_POOL_SIZE: "<MEM_POOL_SIZE>"
+  STORAGE_PATH: "/models"
+  RESULTS_PATH: "/results"
+  BENCHMARK_TYPE: "random"
+  GENERATE_PLOTS: "false"
+  KEEP_ALIVE: "false"
