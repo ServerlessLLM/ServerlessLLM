@@ -10,6 +10,9 @@ Welcome to the benchmarking suite for ServerlessLLM Store. This suite is designe
 # Docker (default: facebook/opt-6.7b, 30 replicas, 32GB memory pool)
 cd benchmarks && ./docker-run.sh
 
+# Gated models require HF token
+./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --hf-token $HF_TOKEN
+
 # Customize with command-line flags
 ./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --num-replicas 50
 

@@ -60,6 +60,12 @@ k8s/deploy-benchmark.sh \
     --gpu 2 \
     --model-name meta-llama/Meta-Llama-3-8B \
     --num-replicas 50
+
+# Gated models require HF token
+k8s/deploy-benchmark.sh \
+    --namespace eidf230ns \
+    --hf-token $HF_TOKEN \
+    --model-name meta-llama/Meta-Llama-3-8B
 ```
 
 **Note:** Environment variables are still supported for backward compatibility.

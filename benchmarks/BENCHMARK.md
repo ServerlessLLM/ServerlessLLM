@@ -11,6 +11,12 @@ Run end-to-end benchmarks automatically using the official `serverlessllm/sllm` 
 cd benchmarks
 ./docker-run.sh
 
+# Gated models (e.g., Meta-Llama) - provide HF token
+./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --hf-token $HF_TOKEN
+
+# Or mount existing HF cache (reuses login & downloaded models)
+./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --mount-hf-cache
+
 # Custom model
 ./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --num-replicas 50
 
@@ -70,11 +76,13 @@ kubectl cp sllm-benchmark-xxxxx:/results ./results
 | `--storage-path` | `-s` | `/mnt/nvme` | Host storage directory |
 | `--results-path` | `-r` | `./results` | Host results directory |
 | `--image` | `-i` | `serverlessllm/sllm:latest` | Docker image to use |
+| `--hf-token` | - | - | Hugging Face token for gated models |
+| `--mount-hf-cache` | - | `false` | Mount ~/.cache/huggingface into container |
 | `--generate-plots` | - | `false` | Generate plots (requires matplotlib) |
 | `--keep-alive` | - | `false` | Keep container running after benchmark |
 | `--help` | `-h` | - | Show help message |
 
-**Note:** Environment variables are still supported for backward compatibility (e.g., `MODEL_NAME=...`), but CLI flags are recommended and take precedence.
+**Note:** Environment variables are still supported for backward compatibility (e.g., `MODEL_NAME=...`, `HF_TOKEN=...`), but CLI flags are recommended and take precedence.
 
 ### Custom Models
 
@@ -158,6 +166,15 @@ kubectl exec <pod> -- cat /results/sllm-store.log
 ```bash
 # Verify GPU in pod
 kubectl exec <pod> -- nvidia-smi
+```
+
+**Gated model access denied (401/403 error):**
+```bash
+# Provide HF token
+./docker-run.sh --hf-token $HF_TOKEN --model-name meta-llama/Meta-Llama-3-8B
+
+# Or mount existing HF cache
+./docker-run.sh --mount-hf-cache --model-name meta-llama/Meta-Llama-3-8B
 ```
 
 ## Advanced Usage

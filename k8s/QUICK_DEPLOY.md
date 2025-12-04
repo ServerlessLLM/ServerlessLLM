@@ -23,6 +23,18 @@ Use command-line flags for easy configuration:
 # Basic deployment
 k8s/deploy-benchmark.sh --namespace sc24029
 
+# Gated models (e.g., Meta-Llama) - provide HF token
+k8s/deploy-benchmark.sh \
+    --namespace sc24029 \
+    --hf-token $HF_TOKEN \
+    --model-name meta-llama/Meta-Llama-3-8B
+
+# Use existing K8s secret for HF token
+k8s/deploy-benchmark.sh \
+    --namespace sc24029 \
+    --hf-secret my-hf-secret \
+    --model-name meta-llama/Meta-Llama-3-8B
+
 # Full customization with CLI flags
 k8s/deploy-benchmark.sh \
     --namespace sc24029 \
@@ -43,9 +55,10 @@ k8s/deploy-benchmark.sh --help
 
 1. ✅ Validates namespace is set
 2. ✅ Processes all YAML files with your values
-3. ✅ Applies ConfigMaps
-4. ✅ Creates benchmark job
-5. ✅ Shows commands to monitor progress
+3. ✅ Creates HF token secret (if `--hf-token` provided)
+4. ✅ Applies ConfigMaps
+5. ✅ Creates benchmark job
+6. ✅ Shows commands to monitor progress
 
 ## Example Output
 
@@ -135,3 +148,12 @@ k8s/deploy-benchmark.sh --namespace your-namespace
 
 **"command not found: envsubst"**
 - Script auto-falls back to `sed` - no action needed
+
+**Gated model access denied (401/403 error)**
+```bash
+# Provide HF token when deploying
+k8s/deploy-benchmark.sh --namespace sc24029 --hf-token $HF_TOKEN
+
+# Or create secret manually
+kubectl create secret generic hf-token --from-literal=token=$HF_TOKEN -n sc24029
+```

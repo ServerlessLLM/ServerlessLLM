@@ -20,11 +20,19 @@ OPTIONS:
   --nvme-path PATH             NVMe mount path (default: /nvme)
   -m, --model-name NAME        Model to benchmark (default: facebook/opt-6.7b)
   -n, --num-replicas N         Number of test replicas (default: 30)
+  --hf-token TOKEN             Hugging Face token for gated models (or set HF_TOKEN env var)
+  --hf-secret NAME             Use existing K8s secret for HF token (default: hf-token)
   -h, --help                   Show this help message
 
 EXAMPLES:
   # Basic deployment
   $0 --namespace my-namespace
+
+  # With HF token for gated models (creates secret automatically)
+  $0 --namespace my-namespace --hf-token hf_xxxxx --model-name meta-llama/Meta-Llama-3-8B
+
+  # Use existing K8s secret
+  $0 --namespace my-namespace --hf-secret my-hf-secret --model-name meta-llama/Meta-Llama-3-8B
 
   # Full configuration
   $0 --namespace my-namespace \\
@@ -72,6 +80,14 @@ while [[ $# -gt 0 ]]; do
             CLI_NUM_REPLICAS="$2"
             shift 2
             ;;
+        --hf-token)
+            CLI_HF_TOKEN="$2"
+            shift 2
+            ;;
+        --hf-secret)
+            CLI_HF_SECRET="$2"
+            shift 2
+            ;;
         -h|--help)
             show_help
             exit 0
@@ -92,6 +108,8 @@ GPU="${CLI_GPU:-${GPU:-1}}"
 NVME_PATH="${CLI_NVME_PATH:-${NVME_PATH:-/nvme}}"
 MODEL_NAME="${CLI_MODEL_NAME:-${MODEL_NAME:-facebook/opt-6.7b}}"
 NUM_REPLICAS="${CLI_NUM_REPLICAS:-${NUM_REPLICAS:-30}}"
+HF_TOKEN="${CLI_HF_TOKEN:-${HF_TOKEN:-}}"
+HF_SECRET="${CLI_HF_SECRET:-${HF_SECRET:-hf-token}}"
 
 # Validate namespace
 if [ -z "$NS" ]; then
@@ -109,6 +127,13 @@ echo "Namespace: $NS"
 echo "Resources: ${CPU} CPU, ${MEMORY} RAM, ${GPU} GPU"
 echo "NVMe Path: $NVME_PATH"
 echo "Model: $MODEL_NAME (${NUM_REPLICAS} replicas)"
+if [ -n "$HF_TOKEN" ]; then
+    echo "HF Token: provided (will create secret '$HF_SECRET')"
+elif kubectl get secret "$HF_SECRET" -n "$NS" &>/dev/null; then
+    echo "HF Secret: $HF_SECRET (exists)"
+else
+    echo "HF Token: not provided (gated models may fail)"
+fi
 echo ""
 
 # Create temp directory for processed manifests
@@ -133,6 +158,7 @@ process_yaml() {
         -e "s|<MODEL_NAME>|${MODEL_NAME}|g" \
         -e "s|<NUM_REPLICAS>|${NUM_REPLICAS}|g" \
         -e "s|<MEM_POOL_SIZE>|${MEM_POOL_SIZE}|g" \
+        -e "s|<HF_SECRET>|${HF_SECRET}|g" \
         "$input" > "$output"
 }
 
@@ -151,6 +177,14 @@ process_yaml "$K8S_DIR/benchmark-job-eidf.yaml" "$TEMP_DIR/benchmark-job-eidf.ya
 # Apply configurations
 echo ""
 echo "Applying configurations..."
+
+# Create HF token secret if provided
+if [ -n "$HF_TOKEN" ]; then
+    echo "  - hf-token secret"
+    kubectl create secret generic "$HF_SECRET" \
+        --from-literal=token="$HF_TOKEN" \
+        --dry-run=client -o yaml | kubectl apply -f - -n "$NS"
+fi
 
 echo "  - benchmark-configmap"
 kubectl apply -f "$TEMP_DIR/benchmark-configmap.yaml" -n "$NS"

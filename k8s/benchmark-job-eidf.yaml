@@ -31,6 +31,13 @@ spec:
         env:
         - name: PYTHONUNBUFFERED
           value: "1"
+        # HF token for gated models (from secret)
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: <HF_SECRET>
+              key: token
+              optional: true  # Don't fail if secret doesn't exist
         # Uncomment to override defaults:
         # - name: MODEL_NAME
         #   value: "facebook/opt-6.7b"
