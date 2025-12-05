@@ -47,13 +47,13 @@ spec:
         # Resource requests (REQUIRED by EIDF)
         resources:
           requests:
-            cpu: "8"                       # Override with <CPU_REQUEST> or CPU env var
-            memory: "128Gi"                # Override with <MEMORY_REQUEST> or MEMORY env var
-            nvidia.com/gpu: 1              # Override with <GPU_COUNT> or GPU env var
+            cpu: "<CPU_REQUEST>"
+            memory: "<MEMORY_REQUEST>"
+            nvidia.com/gpu: <GPU_COUNT>
           limits:
-            cpu: "8"                       # Override with <CPU_LIMIT> or CPU env var
-            memory: "128Gi"                # Override with <MEMORY_LIMIT> or MEMORY env var
-            nvidia.com/gpu: 1              # Override with <GPU_COUNT> or GPU env var
+            cpu: "<CPU_LIMIT>"
+            memory: "<MEMORY_LIMIT>"
+            nvidia.com/gpu: <GPU_COUNT>
 
         # Volume mounts
         volumeMounts:
