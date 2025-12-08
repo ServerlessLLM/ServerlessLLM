@@ -181,7 +181,6 @@ index 000000000..c65b46989
 +        save_path = os.path.join(path, f"rank_{rank}")
 +        if not os.path.exists(save_path):
 +            os.makedirs(save_path)
-+            
 +        save_dict(state_dict, save_path)
 diff --git a/vllm/v1/engine/core.py b/vllm/v1/engine/core.py
 index d49eb752d..87bca1fc7 100644
