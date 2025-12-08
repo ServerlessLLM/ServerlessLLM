@@ -46,34 +46,40 @@ bool WriteBytesToFile(const std::string& file_path,
   return file.good();  // Return true if the write was successful
 }
 
-class CheckpointStoreTest : public ::testing::Test {
+class CheckpointStoreTest : public ::testing::TestWithParam<std::string> {
  protected:
   static CheckpointStore* storage;
   static size_t mem_pool_size;
-  static std::string storage_path;
   static int num_thread;
   static size_t chunk_size;
+  static std::string storage_path;
 
   static void SetUpTestSuite() {
     mem_pool_size = 4L * 1024 * 1024 * 1024;  // 4GB
-    storage_path = "./test_models";
     num_thread = 4;
     chunk_size = 4 * 1024 * 1024;  // 4MB
+  }
 
+  void SetUp() override {
+    storage_path = GetParam();  // ← Parameter injected
     storage = new CheckpointStore(storage_path, mem_pool_size, num_thread,
                                   chunk_size);
   }
 
-  static void TearDownTestSuite() { delete storage; }
+  void TearDown() override {
+    delete storage;
+    // Cleanup test files
+    std::filesystem::remove_all(storage_path);
+  }
 };
 
 CheckpointStore* CheckpointStoreTest::storage = nullptr;
 size_t CheckpointStoreTest::mem_pool_size = 0;
-std::string CheckpointStoreTest::storage_path = "";
 int CheckpointStoreTest::num_thread = 0;
 size_t CheckpointStoreTest::chunk_size = 0;
+std::string CheckpointStoreTest::storage_path = "";
 
-TEST_F(CheckpointStoreTest, LoadModelFromDisk) {
+TEST_P(CheckpointStoreTest, LoadModelFromDisk) {
   std::string model_path = "facebook/opt-1.3b";
   size_t model_size = 256 * 1024 * 1024;  // 256MB
 
@@ -83,16 +89,15 @@ TEST_F(CheckpointStoreTest, LoadModelFromDisk) {
   bool write_success = WriteBytesToFile(data_path, model_data);
   ASSERT_TRUE(write_success) << "Failed to write test data to file";
 
-  // Register model
   size_t registered_model_size = storage->RegisterModelInfo(model_path);
   EXPECT_EQ(registered_model_size, model_size);
 
-  // Load model from disk
   EXPECT_EQ(storage->LoadModelFromDisk(model_path), 0);
-
-  // Clear all models
   EXPECT_EQ(storage->ClearMem(), 0);
-
-  // Remove the model file
-  std::filesystem::remove_all(storage_path + "/*");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    StoragePaths, CheckpointStoreTest,
+    ::testing::Values("./test_models",  // Original storage path
+                      "/dev/shm"        // New shared-memory path
+                      ));
