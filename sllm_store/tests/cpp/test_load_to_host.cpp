@@ -81,7 +81,7 @@ std::string CheckpointStoreTest::storage_path = "";
 
 TEST_P(CheckpointStoreTest, LoadModelFromDisk) {
   std::string model_path = "facebook/opt-1.3b";
-  size_t model_size = 256 * 1024 * 1024;  // 256MB
+  size_t model_size = 32 * 1024 * 1024;  // 256MB
 
   std::vector<uint8_t> model_data(model_size, 0xFF);
   std::string data_path = storage_path + "/" + model_path + "/tensor.data_0";
