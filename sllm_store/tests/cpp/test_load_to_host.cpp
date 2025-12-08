@@ -98,6 +98,6 @@ TEST_P(CheckpointStoreTest, LoadModelFromDisk) {
 
 INSTANTIATE_TEST_SUITE_P(
     StoragePaths, CheckpointStoreTest,
-    ::testing::Values("./test_models",  // Original storage path
-                      "/dev/shm"        // New shared-memory path
+    ::testing::Values("./test_models",        // Original storage path
+                      "/dev/shm/test_models"  // New shared-memory path
                       ));
