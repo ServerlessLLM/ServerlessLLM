@@ -47,7 +47,7 @@ class VllmModelDownloader:
     def download_vllm_model(
         self,
         model_name: str,
-        torch_dtype: str,
+        torch_dtype: str = "auto",
         tensor_parallel_size: int = 1,
         storage_path: str = "./models",
         local_model_path: Optional[str] = None,
@@ -261,7 +261,6 @@ def save(
             downloader = VllmModelDownloader()
             downloader.download_vllm_model(
                 model_name,
-                "float16",
                 tensor_parallel_size=tensor_parallel_size,
                 storage_path=storage_path,
                 local_model_path=local_model_path,
@@ -272,7 +271,6 @@ def save(
                     model_name,
                     trust_remote_code=True,
                 )
-                config.torch_dtype = torch.float16
                 module = importlib.import_module("transformers")
                 hf_model_cls = module.AutoModelForCausalLM
                 base_model = hf_model_cls.from_config(
@@ -288,8 +286,14 @@ def save(
                 save_lora(model, model_path)
             else:
                 # Load a model from HuggingFace model hub
+                config = AutoConfig.from_pretrained(
+                    model_name,
+                    trust_remote_code=True,
+                )
                 model = AutoModelForCausalLM.from_pretrained(
-                    model_name, torch_dtype=torch.float16
+                    model_name,
+                    torch_dtype=config.torch_dtype,
+                    trust_remote_code=True,
                 )
 
                 # Save the model to the local path
@@ -358,6 +362,8 @@ def load(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4"
             )
 
+    model_full_path = os.path.join(storage_path, model_name)
+
     try:
         start_load_time = time.time()
 
@@ -370,11 +376,10 @@ def load(
                     "`./sllm_store/vllm_patch/patch.sh` first."
                 )
                 sys.exit(1)
-            model_full_path = os.path.join(storage_path, model_name)
             llm = LLM(
                 model=model_full_path,
                 load_format="serverless_llm",
-                dtype="float16",
+                dtype="auto",
             )
             logger.info(
                 f"Model loading time: {time.time() - start_load_time:.2f}s"
@@ -388,11 +393,14 @@ def load(
             for i in range(num_gpus):
                 torch.ones(1).to(f"cuda:{i}")
                 torch.cuda.synchronize()
+            config = AutoConfig.from_pretrained(
+                model_full_path,
+            )
             if adapter_name:
                 model = load_model(
-                    model_name,
+                    model_full_path,
                     device_map="auto",
-                    torch_dtype=torch.float16,
+                    torch_dtype=config.torch_dtype,
                     storage_path=storage_path,
                     fully_parallel=True,
                 )
@@ -403,13 +411,13 @@ def load(
                     adapter_path=adapter_name,
                     device_map="auto",
                     storage_path=storage_path,
-                    torch_dtype=torch.float16,
+                    torch_dtype=config.torch_dtype,
                 )
             else:
                 model = load_model(
-                    model_name,
+                    model_full_path,
                     device_map="auto",
-                    torch_dtype=torch.float16,
+                    torch_dtype=config.torch_dtype,
                     storage_path=storage_path,
                     fully_parallel=True,
                     quantization_config=quantization_config,
@@ -421,7 +429,7 @@ def load(
             example_inferences(
                 "transformers",
                 model=model,
-                model_name=model_name,
+                model_name=model_full_path,
                 adapter_name=adapter_name,
             )
 
@@ -460,11 +468,6 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
             generated_text = output.outputs[0].text
             print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
     elif backend == "transformers":
-        from pathlib import Path
-
-        parts = Path(model_name).parts
-        if len(parts) >= 2:
-            model_name = f"{parts[-2]}/{parts[-1]}"
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         inputs = tokenizer("Hello, my dog is cute", return_tensors="pt").to(
             "cuda"
