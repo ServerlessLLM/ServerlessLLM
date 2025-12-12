@@ -231,7 +231,7 @@ sllm-store load --model facebook/opt-1.3b --backend transformers --adapter --ada
 
 #### Note: loading vLLM models
 
-To load models with vLLM, you need to apply a compatibility patch to your vLLM installation. This patch has been tested with vLLM version `0.9.0.1`.
+To load models with vLLM, you need to apply a compatibility patch to your vLLM installation. This patch has been tested with vLLM version `0.11.2`.
 
 ```bash
    ./sllm_store/vllm_patch/patch.sh

@@ -20,7 +20,7 @@ ARG BASE_IMAGE="rocm/vllm-dev:base_ROCm-6.3.1_20250528_tuned_20250530"
 ARG PYTORCH_ROCM_ARCH="gfx908;gfx90a;gfx942;gfx1100"
 
 # vLLM branch version
-ARG VLLM_BRANCH="v0.9.0.1"
+ARG VLLM_BRANCH="v0.11.2"
 
 
 # Base image build stage

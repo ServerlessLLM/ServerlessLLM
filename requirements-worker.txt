@@ -9,4 +9,4 @@ ray==2.46.0
 speedtest-cli==2.1.3
 torch==2.9.0
 transformers==4.52.4
-vllm==0.9.0.1
+vllm==0.11.2
