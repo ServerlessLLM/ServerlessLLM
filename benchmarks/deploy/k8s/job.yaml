@@ -1,0 +1,83 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sllm-benchmark
+  # namespace: <YOUR_NAMESPACE>
+  labels:
+    app: sllm-benchmark
+spec:
+  template:
+    metadata:
+      labels:
+        app: sllm-benchmark
+    spec:
+      restartPolicy: Never
+
+      containers:
+      - name: benchmark
+        image: serverlessllm/sllm:latest
+
+        command: ["/bin/bash", "/scripts/run-benchmark.sh"]
+
+        envFrom:
+        - configMapRef:
+            name: benchmark-config
+
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        # Uncomment to use HF token from secret:
+        # - name: HF_TOKEN
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: hf-token
+        #       key: token
+
+        resources:
+          requests:
+            cpu: "8"
+            memory: "64Gi"
+            nvidia.com/gpu: 1
+          limits:
+            cpu: "8"
+            memory: "64Gi"
+            nvidia.com/gpu: 1
+
+        volumeMounts:
+        - name: benchmark-scripts
+          mountPath: /scripts
+          readOnly: true
+        - name: model-storage
+          mountPath: /models
+        - name: results
+          mountPath: /results
+
+      volumes:
+      - name: benchmark-scripts
+        configMap:
+          name: benchmark-scripts
+          defaultMode: 0755
+
+      # Model storage - choose one:
+      # Option 1: emptyDir (default, uses node storage)
+      - name: model-storage
+        emptyDir:
+          sizeLimit: 500Gi
+
+      # Option 2: hostPath (if allowed, better for NVMe)
+      # - name: model-storage
+      #   hostPath:
+      #     path: /mnt/nvme/sllm-benchmark
+      #     type: DirectoryOrCreate
+
+      # Option 3: PersistentVolumeClaim
+      # - name: model-storage
+      #   persistentVolumeClaim:
+      #     claimName: sllm-models-pvc
+
+      - name: results
+        emptyDir: {}
+
+      # Optional: target specific GPU types
+      # nodeSelector:
+      #   nvidia.com/gpu.product: 'NVIDIA-A100-SXM4-40GB'

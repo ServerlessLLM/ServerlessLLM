@@ -1,4 +1,0 @@
-# Ignore customized yaml files with sensitive information
-*-filled.yaml
-*-custom.yaml
-*.local.yaml

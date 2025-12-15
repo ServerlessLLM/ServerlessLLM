@@ -1,6 +1,6 @@
 #!/bin/bash
 # ---------------------------------------------------------------------------- #
-#  Helper script to run benchmarks using Docker                               #
+#  Docker launcher for ServerlessLLM benchmarks                               #
 # ---------------------------------------------------------------------------- #
 
 set -e
@@ -139,8 +139,9 @@ echo ""
 # Create results directory
 mkdir -p "$RESULTS_PATH"
 
-# Get script directory
+# Get benchmarks directory (two levels up from deploy/docker/)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BENCHMARKS_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Build run-benchmark.sh arguments
 BENCHMARK_ARGS=(
@@ -168,7 +169,7 @@ DOCKER_ARGS=(
     -e MODE=WORKER
     -v "$STORAGE_PATH":/models
     -v "$RESULTS_PATH":/results
-    -v "$SCRIPT_DIR":/scripts
+    -v "$BENCHMARKS_DIR":/scripts
 )
 
 # Add HF_TOKEN if provided
@@ -202,3 +203,4 @@ echo "Results saved to: $RESULTS_PATH"
 echo ""
 echo "View summary:"
 echo "  cat $RESULTS_PATH/summary.txt"
+
