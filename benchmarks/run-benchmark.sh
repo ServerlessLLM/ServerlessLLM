@@ -16,8 +16,8 @@ OPTIONS:
   -m, --model-name NAME        Model to benchmark (default: facebook/opt-6.7b)
   -n, --num-replicas N         Number of test replicas (default: 30)
   -p, --mem-pool-size SIZE     Memory pool size (default: 32GB)
-  -s, --storage-path PATH      Model storage directory (default: /models)
-  -r, --results-path PATH      Results output directory (default: /results)
+  -s, --storage-path PATH      Model storage directory (default: ./models)
+  -r, --results-path PATH      Results output directory (default: ./results)
   -t, --benchmark-type TYPE    Test type: random|cached (default: random)
       --generate-plots         Generate visualization plots
       --keep-alive             Keep container running after completion
@@ -91,8 +91,8 @@ done
 MODEL_NAME="${CLI_MODEL_NAME:-${MODEL_NAME:-facebook/opt-6.7b}}"
 NUM_REPLICAS="${CLI_NUM_REPLICAS:-${NUM_REPLICAS:-30}}"
 MEM_POOL_SIZE="${CLI_MEM_POOL_SIZE:-${MEM_POOL_SIZE:-32GB}}"
-STORAGE_PATH="${CLI_STORAGE_PATH:-${STORAGE_PATH:-/models}}"
-RESULTS_PATH="${CLI_RESULTS_PATH:-${RESULTS_PATH:-/results}}"
+STORAGE_PATH="${CLI_STORAGE_PATH:-${STORAGE_PATH:-./models}}"
+RESULTS_PATH="${CLI_RESULTS_PATH:-${RESULTS_PATH:-./results}}"
 BENCHMARK_TYPE="${CLI_BENCHMARK_TYPE:-${BENCHMARK_TYPE:-random}}"
 GENERATE_PLOTS="${CLI_GENERATE_PLOTS:-${GENERATE_PLOTS:-false}}"
 KEEP_ALIVE="${CLI_KEEP_ALIVE:-${KEEP_ALIVE:-false}}"
@@ -117,45 +117,16 @@ log "Storage: $STORAGE_PATH"
 log "Benchmark Type: $BENCHMARK_TYPE"
 log ""
 
-# Activate conda environment (required for official serverlessllm/sllm image)
-log "Activating conda environment..."
-source /opt/conda/etc/profile.d/conda.sh
-conda activate worker || conda activate head
-log "Conda environment activated: $(conda info --envs | grep '*' | awk '{print $1}')"
+# Activate conda environment if running in Docker (serverlessllm/sllm image)
+if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
+    log "Activating conda environment..."
+    source /opt/conda/etc/profile.d/conda.sh
+    conda activate worker || conda activate head || true
+    log "Conda environment: $(conda info --envs 2>/dev/null | grep '*' | awk '{print $1}' || echo 'default')"
 
-# Install dependencies if needed
-log "Installing benchmark dependencies..."
-pip install -q seaborn matplotlib pandas sentencepiece 2>&1 | tee -a "$LOG_FILE"
-
-# Install additional requirements if requirements.txt exists
-if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
-    log "Installing additional requirements from requirements.txt..."
-    pip install -q -r "$SCRIPT_DIR/requirements.txt" 2>&1 | tee -a "$LOG_FILE"
-fi
-
-# Install model-specific requirements if they exist
-MODEL_SLUG=$(echo "$MODEL_NAME" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
-MODEL_REQ_FILE="$SCRIPT_DIR/model_requirements/${MODEL_SLUG}.txt"
-if [ -f "$MODEL_REQ_FILE" ]; then
-    log "Installing model-specific requirements for $MODEL_NAME..."
-    log "Using requirements file: $MODEL_REQ_FILE"
-    # Install flash-attn separately with --no-build-isolation if it's in the requirements
-    if grep -qE "^flash-attn" "$MODEL_REQ_FILE"; then
-        log "Installing git (required for flash-attn)..."
-        apt-get update -qq && apt-get install -y -qq git 2>&1 | tee -a "$LOG_FILE"
-        log "Installing flash-attn with --no-build-isolation..."
-        grep -E "^flash-attn" "$MODEL_REQ_FILE" | xargs pip install --no-build-isolation 2>&1 | tee -a "$LOG_FILE"
-        # Install other requirements (skip comments and empty lines)
-        grep -vE "^flash-attn|^#|^$" "$MODEL_REQ_FILE" | xargs -r pip install 2>&1 | tee -a "$LOG_FILE"
-    else
-        pip install -r "$MODEL_REQ_FILE" 2>&1 | tee -a "$LOG_FILE"
-    fi
-fi
-
-# NVMe detection (if script exists)
-if [ -f "/scripts/detect-nvme.sh" ]; then
-    log "Running NVMe detection..."
-    bash /scripts/detect-nvme.sh 2>&1 | tee -a "$LOG_FILE" || log "NVMe detection failed (non-critical)"
+    # Install dependencies in Docker
+    log "Installing benchmark dependencies..."
+    pip install -q seaborn matplotlib pandas sentencepiece 2>&1 | tee -a "$LOG_FILE" || true
 fi
 
 # Start sllm-store in background

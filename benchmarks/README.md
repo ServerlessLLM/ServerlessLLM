@@ -40,8 +40,8 @@ kubectl apply -f deploy/k8s/configmap.yaml -f deploy/k8s/job.yaml
 | `--num-replicas` | `30` | Number of iterations |
 | `--mem-pool-size` | `32GB` | sllm-store memory pool |
 | `--benchmark-type` | `random` | Test type (random/cached) |
-| `--storage-path` | `/models` | Model storage directory |
-| `--results-path` | `/results` | Results output directory |
+| `--storage-path` | `./models` | Model storage directory |
+| `--results-path` | `./results` | Results output directory |
 | `--generate-plots` | `false` | Generate visualizations |
 
 ## Directory Structure
@@ -61,19 +61,20 @@ benchmarks/
 
 ### Bare Metal
 
-Requires `sllm-store` installed and running:
+Requires `sllm-store` installed. The script handles starting/stopping the server:
 
 ```bash
-# Start sllm-store server (in separate terminal)
-sllm-store start --chunk-size=16MB --mem-pool-size=32GB --num-thread=4 --storage-path=./models
+# Ensure models directory exists
+mkdir -p ./models
 
-# Run benchmark
+# Run benchmark (starts sllm-store automatically)
 ./run-benchmark.sh \
     --model-name facebook/opt-6.7b \
     --benchmark-type random \
-    --num-replicas 30 \
-    --storage-path ./models
+    --num-replicas 30
 ```
+
+Results are saved to `./results/` by default.
 
 ### Docker
 
