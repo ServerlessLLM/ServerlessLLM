@@ -22,7 +22,7 @@ def get_args():
         "--test-name",
         type=str,
         required=True,
-        choices=["random", "single"],
+        choices=["random", "cached"],
         help="Name of the test.",
     )
     parser.add_argument(

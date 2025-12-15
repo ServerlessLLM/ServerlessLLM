@@ -16,6 +16,9 @@ cd benchmarks && ./docker-run.sh
 # Customize with command-line flags
 ./docker-run.sh --model-name meta-llama/Meta-Llama-3-8B --num-replicas 50
 
+# Test cached load (single model, repeated loads)
+./docker-run.sh --model-name facebook/opt-6.7b --benchmark-type cached
+
 # Control GPU allocation (default: 1 GPU)
 ./docker-run.sh --gpu-limit 2                           # Use 2 GPUs
 ./docker-run.sh --gpu-limit "all"                       # Use all GPUs
@@ -50,6 +53,9 @@ See [BENCHMARK.md](BENCHMARK.md) for details.
   - [1. Random Multi-Model Load Test](#1-random-multi-model-load-test)
     - [1.1 Small Models](#11-small-models)
     - [1.2 Large Models](#12-large-models)
+  - [2. Cached Single-Model Load Test](#2-cached-single-model-load-test) **← NEW**
+    - [2.1 Small Models](#21-small-models)
+    - [2.2 Large Models](#22-large-models)
 - [Contact](#contact)
 
 ## Hardware Requirements
@@ -154,6 +160,67 @@ python plot.py --models facebook/opt-66b meta-llama/Meta-Llama-3-70B mistralai/M
 <!-- Here is an example of the output visualization:
 
 ![Random Large Loading Latency](images/random_large_loading_latency.png) -->
+
+### 2. Cached Single-Model Load Test
+
+The cached load test measures the performance of **repeatedly loading the same model**, simulating scenarios where a single popular model is loaded multiple times from storage. This test is more storage-efficient than the random load test, as it only saves one copy of each model format rather than multiple replicas.
+
+**Key Differences from Random Load:**
+- **Storage Efficiency**: Saves only 1 model copy per format (vs. N replicas)
+- **Use Case**: Measures cache/storage performance for repeated loads of the same model
+- **Disk Space**: Requires significantly less disk space, ideal for large models
+
+#### 2.1 Small Models
+
+Start the ServerlessLLM Store server with a 32GB memory pool:
+
+```bash
+sllm-store start --chunk-size=16MB --mem-pool-size=32GB --num-thread=4 --storage-path=./models
+```
+
+In a separate terminal, run the following commands to benchmark the cached loading performance of several small models. We repeat each test 30 times to ensure statistical stability:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 bash benchmark_cached_load.sh facebook/opt-6.7b ./models 5
+CUDA_VISIBLE_DEVICES=0 bash benchmark_cached_load.sh meta-llama/Meta-Llama-3-8B ./models 5
+CUDA_VISIBLE_DEVICES=0 bash benchmark_cached_load.sh mistralai/Mistral-7B-v0.3 ./models 5
+CUDA_VISIBLE_DEVICES=0 bash benchmark_cached_load.sh google/gemma-7b ./models 5
+```
+
+**Note**: The cached test loads the same model 5 times, measuring storage/cache performance without requiring 5 separate model copies on disk.
+
+Plot the results with the following command:
+
+```bash
+python plot.py --models facebook/opt-6.7b meta-llama/Meta-Llama-3-8B mistralai/Mistral-7B-v0.3 google/gemma-7b \
+--test-name cached --num-repeats 5 --results-dir results --output-file images/cached_small_loading_latency.png
+```
+
+#### 2.2 Large Models
+
+Restart the ServerlessLLM Store server with an increased memory pool size to accommodate large models:
+
+```bash
+sllm-store start --chunk-size=16MB --mem-pool-size=140GB --num-thread=4 --storage-path=./models
+```
+
+To benchmark the cached loading performance of several large models, run the following commands. We use 5 repeats to manage disk capacity efficiently while still obtaining meaningful results:
+
+```bash
+bash benchmark_cached_load.sh facebook/opt-66b ./models 5
+bash benchmark_cached_load.sh meta-llama/Meta-Llama-3-70B ./models 5
+bash benchmark_cached_load.sh mistralai/Mixtral-8x7B-v0.1 ./models 5
+bash benchmark_cached_load.sh tiiuae/falcon-40b ./models 5
+```
+
+Plot the results using the following command:
+
+```bash
+python plot.py --models facebook/opt-66b meta-llama/Meta-Llama-3-70B mistralai/Mixtral-8x7B-v0.1 tiiuae/falcon-40b \
+--test-name cached --num-repeats 5 --results-dir results --output-file images/cached_large_loading_latency.png
+```
+
+**Tip**: The cached test is particularly useful for large models where disk space is limited, as it requires only 1 copy per format instead of N replicas.
 
 
 ## Contact

@@ -20,7 +20,7 @@ OPTIONS:
   -r, --results-path PATH      Host results directory (default: ./results)
   -i, --image IMAGE            Docker image to use (default: serverlessllm/sllm:latest)
   -g, --gpu-limit LIMIT        GPU limit: 1, 2, "all", or "device=N" (default: 1)
-  -t, --benchmark-type TYPE    Test type: random|single (default: random)
+  -t, --benchmark-type TYPE    Test type: random|cached (default: random)
       --hf-token TOKEN         Hugging Face token for gated models (or set HF_TOKEN env var)
       --mount-hf-cache         Mount ~/.cache/huggingface into container
       --generate-plots         Generate visualization plots

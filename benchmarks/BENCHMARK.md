@@ -72,7 +72,7 @@ kubectl cp sllm-benchmark-xxxxx:/results ./results
 | `--num-replicas` | `-n` | `30` | Number of iterations |
 | `--mem-pool-size` | `-p` | `32GB` | sllm-store memory pool |
 | `--gpu-limit` | `-g` | `1` | GPU allocation (1, 2, "all", or "device=X") |
-| `--benchmark-type` | `-t` | `random` | Test type (random/single) |
+| `--benchmark-type` | `-t` | `random` | Test type (random/cached) |
 | `--storage-path` | `-s` | `/mnt/nvme` | Host storage directory |
 | `--results-path` | `-r` | `./results` | Host results directory |
 | `--image` | `-i` | `serverlessllm/sllm:latest` | Docker image to use |

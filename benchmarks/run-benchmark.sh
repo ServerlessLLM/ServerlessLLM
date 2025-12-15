@@ -18,7 +18,7 @@ OPTIONS:
   -p, --mem-pool-size SIZE     Memory pool size (default: 32GB)
   -s, --storage-path PATH      Model storage directory (default: /models)
   -r, --results-path PATH      Results output directory (default: /results)
-  -t, --benchmark-type TYPE    Test type: random|single (default: random)
+  -t, --benchmark-type TYPE    Test type: random|cached (default: random)
       --generate-plots         Generate visualization plots
       --keep-alive             Keep container running after completion
   -h, --help                   Show this help message

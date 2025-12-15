@@ -65,7 +65,7 @@ def get_args():
         "--benchmark-type",
         type=str,
         required=True,
-        choices=["random", "single"],
+        choices=["random", "cached"],
         help="Name of the test.",
     )
     return parser.parse_args()
@@ -95,8 +95,13 @@ def main():
 
     if benchmark_type == "random":
         loading_order = torch.randperm(num_replicas)
-    elif benchmark_type == "single":
+    elif benchmark_type == "cached":
+        # For cached: do warmup load first, then measure num_replicas loads
         loading_order = [0] * num_replicas
+        # Perform warmup load (not measured)
+        print(f"Performing warmup load for cached benchmark...")
+        _ = measure(model_name, model_format, model_dir, [0])
+        print(f"Warmup complete. Now measuring {num_replicas} cached loads...")
     else:
         raise ValueError(f"Unknown benchmark type {benchmark_type}")
 
