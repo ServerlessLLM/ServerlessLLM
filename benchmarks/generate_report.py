@@ -16,7 +16,7 @@ def load_results(
     """Load benchmark results from JSON files."""
     results = {}
 
-    for format_type in ["sllm", "safetensors", "torch"]:
+    for format_type in ["sllm", "safetensors"]:
         filename = (
             f"{model_name}_{format_type}_{num_replicas}_{benchmark_type}.json"
         )
@@ -92,7 +92,6 @@ def generate_text_report(
 
     sllm_stats = stats.get("sllm", {})
     safetensors_stats = stats.get("safetensors", {})
-    torch_stats = stats.get("torch", {})
 
     if sllm_stats:
         report.append(
@@ -112,15 +111,6 @@ def generate_text_report(
             f"{safetensors_stats['std_loading_time']:<10.3f}"
         )
 
-    if torch_stats:
-        report.append(
-            f"{'Torch':<15} "
-            f"{torch_stats['avg_loading_time']:<12.3f} "
-            f"{torch_stats['min_loading_time']:<12.3f} "
-            f"{torch_stats['max_loading_time']:<12.3f} "
-            f"{torch_stats['std_loading_time']:<10.3f}"
-        )
-
     report.append("-" * 60)
 
     # Speedup calculation
@@ -136,7 +126,6 @@ def generate_text_report(
     if (
         sllm_stats.get("avg_throughput", 0) > 0
         or safetensors_stats.get("avg_throughput", 0) > 0
-        or torch_stats.get("avg_throughput", 0) > 0
     ):
         report.append("Inference Performance:")
         report.append("-" * 60)
@@ -147,10 +136,6 @@ def generate_text_report(
         if safetensors_stats.get("avg_throughput", 0) > 0:
             report.append(
                 f"SafeTensors Avg Throughput: {safetensors_stats['avg_throughput']:.2f} tokens/s"
-            )
-        if torch_stats.get("avg_throughput", 0) > 0:
-            report.append(
-                f"Torch Avg Throughput: {torch_stats['avg_throughput']:.2f} tokens/s"
             )
         report.append("")
 

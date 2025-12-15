@@ -114,14 +114,12 @@ Loading Time Comparison:
 Format          Avg (s)      Min (s)      Max (s)      Std Dev
 SLLM            1.234        1.120        1.450        0.082
 SafeTensors     3.456        3.201        3.789        0.156
-Torch           2.875        2.502        3.201        0.234
 
 SLLM Speedup: 2.80x faster than SafeTensors
 
 Inference Performance:
 SLLM Avg Throughput: 72.47 tokens/s
 SafeTensors Avg Throughput: 70.78 tokens/s
-Torch Avg Throughput: 71.23 tokens/s
 ```
 
 ### Files Generated
@@ -135,10 +133,10 @@ Torch Avg Throughput: 71.23 tokens/s
 
 1. ✅ Auto-detects NVMe storage (if detection script mounted)
 2. ✅ Starts sllm-store server in background
-3. ✅ Downloads model in three formats (sllm + safetensors + torch)
+3. ✅ Downloads model in both formats (sllm + safetensors)
 4. ✅ Runs loading benchmarks with random access pattern
 5. ✅ Tests inference performance for all formats
-6. ✅ Generates three-way comparison report
+6. ✅ Generates comparison report
 7. ✅ Saves all results to mounted volume
 
 ## Troubleshooting
@@ -209,7 +207,7 @@ docker exec -it <container> bash
 - **Memory**: 32GB+ RAM (depends on model size and memory pool)
 - **Storage**: NVMe SSD recommended
   - opt-1.3b: ~10GB per format (~30GB total for 3 formats)
-  - opt-6.7b: ~30GB per format (~90GB total for 3 formats)
-  - opt-13b: ~50GB per format (~150GB total for 3 formats)
+  - opt-6.7b: ~30GB per format (~60GB total for 2 formats)
+  - opt-13b: ~50GB per format (~100GB total for 2 formats)
 - **Python**: 3.10+ (included in image)
-- **Disk Space**: 3x model size (for three formats: sllm, safetensors, torch)
+- **Disk Space**: 2x model size (for both formats: sllm, safetensors)

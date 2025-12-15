@@ -230,7 +230,7 @@ run_format_benchmark() {
 }
 
 # Run each format in separate subprocess (GPU memory freed on subprocess exit)
-for MODEL_FORMAT in safetensors sllm torch; do
+for MODEL_FORMAT in safetensors sllm; do
     ( run_format_benchmark "$MODEL_FORMAT" )
     log "Format $MODEL_FORMAT completed, GPU memory released"
     sleep 5

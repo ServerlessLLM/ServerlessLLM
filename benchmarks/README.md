@@ -39,7 +39,7 @@ kubectl apply -f k8s/benchmark-configmap.yaml
 kubectl apply -f k8s/benchmark-job.yaml
 ```
 
-**Three-way comparison**: Benchmarks now compare **SLLM**, **SafeTensors**, and **Torch** (PyTorch native) formats automatically.
+**Two-way comparison**: Benchmarks compare **SLLM** and **SafeTensors** formats automatically.
 
 See [BENCHMARK.md](BENCHMARK.md) for details.
 
@@ -121,7 +121,7 @@ CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh mistralai/Mistral-7B-v0.3 .
 CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh google/gemma-7b ./models 30
 ```
 
-**Note**: The benchmark script now tests three formats (SLLM, SafeTensors, and Torch) automatically, providing a comprehensive comparison of model loading performance.
+**Note**: The benchmark script tests both SLLM and SafeTensors formats automatically, providing a comprehensive comparison of model loading performance.
 
 Plot the results with the following command, saving the output for review and documentation:
 

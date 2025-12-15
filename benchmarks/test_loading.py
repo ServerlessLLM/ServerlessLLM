@@ -40,7 +40,7 @@ def get_args():
         "--model-format",
         type=str,
         required=True,
-        choices=["sllm", "safetensors", "torch"],
+        choices=["sllm", "safetensors"],
         help="Format to save the model in",
     )
     parser.add_argument(

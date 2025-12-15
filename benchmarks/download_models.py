@@ -39,7 +39,7 @@ def get_args():
         "--save-format",
         type=str,
         required=True,
-        choices=["sllm", "safetensors", "torch"],
+        choices=["sllm", "safetensors"],
         help="Format to save the model in",
     )
     parser.add_argument(
@@ -88,12 +88,6 @@ def main():
         for i in tqdm(range(replicas)):
             model_dir = os.path.join(save_dir, f"{model_name}_safetensors_{i}")
             model.save_pretrained(model_dir)
-            tokenizer.save_pretrained(model_dir)
-    elif save_format == "torch":
-        print(f"Saving {replicas} torch models to {save_dir}")
-        for i in tqdm(range(replicas)):
-            model_dir = os.path.join(save_dir, f"{model_name}_torch_{i}")
-            model.save_pretrained(model_dir, safe_serialization=False)
             tokenizer.save_pretrained(model_dir)
     else:
         raise ValueError(f"Invalid save format {save_format}")

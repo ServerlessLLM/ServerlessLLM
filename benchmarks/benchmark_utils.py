@@ -123,18 +123,6 @@ def measure(
                 device_map="auto",
             )
             end_time = time.time()
-        elif model_format == "torch":
-            model_path = os.path.join(
-                model_dir, f"{model_name}_torch_{model_idx}"
-            )
-            start_time = time.time()
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                torch_dtype=torch.float16,
-                device_map="auto",
-                use_safetensors=False,
-            )
-            end_time = time.time()
         model_record["loading_time"] = end_time - start_time
 
         # Inference
