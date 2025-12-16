@@ -10,4 +10,8 @@ Architecture      |Models        |Example HF Models   |vLLM |Transformers
 ------------------|--------------|--------------------|-----|-------------
 `OPTForCausalLM`  |OPT, OPT-IML  |`facebook/opt-6.7b` |✅   |✅
 
+## Vision Language Models
 
+| Architecture                         | Models | Example HF Models            | vLLM | Transformers |
+|--------------------------------------|--------|------------------------------|------|--------------|
+| `Qwen2VLForConditionalGeneration`    | Qwen2VL | `Qwen/Qwen2-VL-2B-Instruct` | ✅    | ✅            |

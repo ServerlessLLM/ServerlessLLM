@@ -4,12 +4,14 @@ import pathlib
 
 import pytest
 import torch
-from transformers import AutoModelForCausalLM
+import transformers
 
 from sllm_store.transformers import load_model, save_model
 
 with open("tests/inference_test/supported_models.json") as fh:
-    models = list(json.load(fh).keys())
+    _SUPPORTED_MODELS = json.load(fh)
+
+models = list(_SUPPORTED_MODELS.keys())
 
 
 @pytest.fixture(scope="session", params=models, ids=models)
@@ -24,10 +26,19 @@ def storage_path(tmp_path_factory):
 
 
 def store_and_compare(model_name, storage_path):
+    model_cfg = _SUPPORTED_MODELS.get(model_name, {})
+    hf_model_class = model_cfg.get("hf_model_class", "AutoModelForCausalLM")
+    try:
+        hf_model_cls = getattr(transformers, hf_model_class)
+    except AttributeError as exc:
+        raise ValueError(
+            f"Unknown hf_model_class '{hf_model_class}' for {model_name}"
+        ) from exc
+
     try:
         os.makedirs(storage_path, exist_ok=True)
         cache_dir = storage_path / model_name
-        hf_model = AutoModelForCausalLM.from_pretrained(
+        hf_model = hf_model_cls.from_pretrained(
             model_name, torch_dtype=torch.float16, trust_remote_code=True
         )
         save_model(hf_model, str(cache_dir))
@@ -38,6 +49,7 @@ def store_and_compare(model_name, storage_path):
             device_map="auto",
             torch_dtype=torch.float16,
             fully_parallel=True,
+            hf_model_class=hf_model_class,
         )
 
         for name, param in test_model.named_parameters():
