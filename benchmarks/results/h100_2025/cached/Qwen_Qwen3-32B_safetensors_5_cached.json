@@ -1,0 +1,37 @@
+[
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 12.550911664962769,
+        "end_to_end_time": 2.841555118560791,
+        "throughput": 21.115198367290226,
+        "output_text": "The quick brown fox jumps over the lazy dog. Can you count how many letters are in this sentence, excluding spaces and punctuation? Also, can you determine how many times each letter appears? Let's put your reasoning skills to the test!\n\nOkay, so I need to figure out two things here."
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 12.590926170349121,
+        "end_to_end_time": 2.8195533752441406,
+        "throughput": 21.279966014051674,
+        "output_text": "The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 12.407240629196167,
+        "end_to_end_time": 2.877061605453491,
+        "throughput": 20.85461078979663,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox is quick and brown. The lazy dog is lazy and not quick. The fox jumps over the dog many times a day. The dog does not mind the fox. The fox and the dog are friends. The fox is quick,"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 12.399647235870361,
+        "end_to_end_time": 2.863346815109253,
+        "throughput": 20.95449970761249,
+        "output_text": "The quick brown fox jumps over the lazy dog. Can you count how many letters are in this sentence, excluding the periods? Let's break it down step by step.\nSure, let's go through the process of counting the letters in the sentence \"The quick brown fox jumps over the lazy dog.\""
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 12.381666421890259,
+        "end_to_end_time": 2.8501226902008057,
+        "throughput": 21.05172531915554,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx boar jumps over the learning pygmy. The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx boar jumps over the learning pyg"
+    }
+]

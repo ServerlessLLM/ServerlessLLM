@@ -1,0 +1,37 @@
+[
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 1.5084402561187744,
+        "end_to_end_time": 2.780595302581787,
+        "throughput": 21.578113127174568,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 1.2070646286010742,
+        "end_to_end_time": 2.73756742477417,
+        "throughput": 21.917268395663196,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 1.1651248931884766,
+        "end_to_end_time": 2.702395439147949,
+        "throughput": 22.202524149803065,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 1.1736304759979248,
+        "end_to_end_time": 2.7044296264648438,
+        "throughput": 22.18582410607236,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 1.209834098815918,
+        "end_to_end_time": 2.742818593978882,
+        "throughput": 21.87530744166377,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    }
+]
