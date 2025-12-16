@@ -129,38 +129,72 @@ if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
     pip install -q seaborn matplotlib pandas sentencepiece 2>&1 | tee -a "$LOG_FILE" || true
 fi
 
-# Start sllm-store in background
-log "Starting sllm-store server..."
-sllm-store start \
-    --storage-path "$STORAGE_PATH" \
-    --mem-pool-size "$MEM_POOL_SIZE" \
-    --chunk-size 16MB \
-    --num-thread 4 \
-    > "${RESULTS_PATH}/sllm-store.log" 2>&1 &
+# Global variable for sllm-store PID
+SLLM_STORE_PID=""
 
-SLLM_STORE_PID=$!
-log "sllm-store started (PID: $SLLM_STORE_PID)"
+# Function to start sllm-store
+start_sllm_store() {
+    log "Starting sllm-store server..."
+    sllm-store start \
+        --storage-path "$STORAGE_PATH" \
+        --mem-pool-size "$MEM_POOL_SIZE" \
+        --chunk-size 16MB \
+        --num-thread 4 \
+        > "${RESULTS_PATH}/sllm-store.log" 2>&1 &
 
-# Wait for sllm-store to be ready
-log "Waiting for sllm-store to be ready..."
-sleep 10
+    SLLM_STORE_PID=$!
+    log "sllm-store started (PID: $SLLM_STORE_PID)"
 
-# Check if sllm-store is running
-if ! kill -0 $SLLM_STORE_PID 2>/dev/null; then
-    log "ERROR: sllm-store failed to start"
-    cat "${RESULTS_PATH}/sllm-store.log"
+    # Wait for sllm-store to be ready (up to 300 seconds)
+    log "Waiting for sllm-store to be ready (pinning $MEM_POOL_SIZE memory)..."
+    local elapsed=0
+    local timeout=300
+    local interval=2
+
+    while [ $elapsed -lt $timeout ]; do
+        # Check if process is still running
+        if ! kill -0 $SLLM_STORE_PID 2>/dev/null; then
+            log "ERROR: sllm-store process died during startup"
+            cat "${RESULTS_PATH}/sllm-store.log"
+            exit 1
+        fi
+
+        # Check if sllm-store is ready by looking for success message in log
+        if grep -q "Starting gRPC server on" "${RESULTS_PATH}/sllm-store.log" 2>/dev/null; then
+            log "sllm-store is ready (took ${elapsed}s)"
+            return 0
+        fi
+
+        sleep $interval
+        elapsed=$((elapsed + interval))
+
+        # Log progress every 30 seconds
+        if [ $((elapsed % 30)) -eq 0 ]; then
+            log "Still waiting for sllm-store... (${elapsed}s elapsed)"
+        fi
+    done
+
+    # Timeout reached
+    log "ERROR: sllm-store failed to become ready within ${timeout}s"
+    log "Last log output:"
+    tail -50 "${RESULTS_PATH}/sllm-store.log"
     exit 1
-fi
-log "sllm-store is ready"
+}
 
-# Function to cleanup on exit
-cleanup() {
-    log "Cleaning up..."
+# Function to stop sllm-store
+stop_sllm_store() {
     if [ -n "$SLLM_STORE_PID" ] && kill -0 $SLLM_STORE_PID 2>/dev/null; then
         log "Stopping sllm-store (PID: $SLLM_STORE_PID)"
         kill $SLLM_STORE_PID || true
         wait $SLLM_STORE_PID 2>/dev/null || true
+        SLLM_STORE_PID=""
     fi
+}
+
+# Function to cleanup on exit
+cleanup() {
+    log "Cleaning up..."
+    stop_sllm_store
 }
 
 trap cleanup EXIT INT TERM
@@ -178,12 +212,25 @@ run_format_benchmark() {
     local MODEL_FORMAT=$1
     log "=== Testing $MODEL_FORMAT format ==="
 
-    log "Downloading $NUM_REPLICAS replicas..."
+    # Start sllm-store only for sllm format (saves memory for safetensors benchmark)
+    if [ "$MODEL_FORMAT" = "sllm" ]; then
+        start_sllm_store
+    fi
+
+    # For cached tests, only need 1 replica (loaded repeatedly)
+    local DOWNLOAD_REPLICAS=$NUM_REPLICAS
+    if [ "$BENCHMARK_TYPE" = "cached" ]; then
+        DOWNLOAD_REPLICAS=1
+        log "Cached test: downloading 1 replica (will be loaded $NUM_REPLICAS times)..."
+    else
+        log "Downloading $NUM_REPLICAS replicas..."
+    fi
+
     python3 download_models.py \
         --model-name "$MODEL_NAME" \
         --save-format "$MODEL_FORMAT" \
         --save-dir "$STORAGE_PATH" \
-        --num-replicas "$NUM_REPLICAS" \
+        --num-replicas "$DOWNLOAD_REPLICAS" \
         2>&1 | tee -a "$LOG_FILE"
 
     log "Running benchmark..."
@@ -198,6 +245,11 @@ run_format_benchmark() {
 
     log "Cleaning storage..."
     rm -rf "${STORAGE_PATH:?}"/* || true
+
+    # Stop sllm-store after sllm format benchmark (frees memory)
+    if [ "$MODEL_FORMAT" = "sllm" ]; then
+        stop_sllm_store
+    fi
 }
 
 # Run each format in separate subprocess (GPU memory freed on subprocess exit)
