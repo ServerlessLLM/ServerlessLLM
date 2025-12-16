@@ -1,7 +1,7 @@
 # ServerlessLLM Store
 
 <p align="center">
-  <strong>Load PyTorch/Transformers models 5-10x faster than SafeTensors</strong>
+  <strong>Load PyTorch/Transformers models 6-10x faster than SOTA checkpoint loaders</strong>
 </p>
 
 <p align="center">
@@ -14,13 +14,56 @@
 
 ## ⚡ Performance
 
-**ServerlessLLM Store loads models 5-10x faster** through custom binary format, O_DIRECT I/O, and parallel loading.
+**ServerlessLLM Store loads models 6-10x faster** through custom binary format, O_DIRECT I/O, and parallel loading.
 
-| Model | Size | PyTorch | SafeTensors | ServerlessLLM Store | Speedup |
-|-------|------|---------|-------------|---------------------|---------|
-| DeepSeek-OCR | 6.67GB | TBD | TBD | TBD | **~7x** |
-| GPT-oss | 13.8GB | TBD | TBD | TBD | **~7x** |
-| Qwen3-Next | 163GB | TBD | TBD | TBD | **~8x** |
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Scenario</th>
+      <th>SafeTensors</th>
+      <th>ServerlessLLM Store</th>
+      <th>Speedup</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2">Qwen/Qwen3-32B</td>
+      <td>Random</td>
+      <td>20.6s</td>
+      <td>3.2s</td>
+      <td><strong>6.40x</strong></td>
+    </tr>
+    <tr>
+      <td>Cached</td>
+      <td>12.5s</td>
+      <td>1.3s</td>
+      <td><strong>9.95x</strong></td>
+    </tr>
+    <tr>
+      <td rowspan="2">DeepSeek-R1-Distill-Qwen-32B</td>
+      <td>Random</td>
+      <td>19.1s</td>
+      <td>3.2s</td>
+      <td><strong>5.93x</strong></td>
+    </tr>
+    <tr>
+      <td>Cached</td>
+      <td>10.2s</td>
+      <td>1.2s</td>
+      <td><strong>8.58x</strong></td>
+    </tr>
+    <tr>
+      <td>Llama-3.1-8B-Instruct</td>
+      <td>Random</td>
+      <td>4.4s</td>
+      <td>0.7s</td>
+      <td><strong>6.54x</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+*Results obtained on NVIDIA H100 GPUs with NVMe SSD. "Random" simulates serverless multi-model serving; "Cached" shows repeated loading of the same model.*
 
 ---
 
@@ -35,7 +78,7 @@
 2. **Pinned Memory Pool**: Pre-allocated CUDA pinned memory for DMA-accelerated GPU transfers (2-3x speedup)
 3. **Parallel Multi-Threading**: 4-8 I/O threads loading chunks simultaneously (2-4x speedup)
 
-**Result:** 5-10x faster loading enables practical serverless LLM deployment with fast model switching.
+**Result:** 6-10x faster loading enables practical serverless LLM deployment with fast model switching.
 
 ---
 
@@ -49,24 +92,8 @@ pip install serverless-llm-store
 
 ### 1. Convert a Model
 
-```python
-from sllm_store.transformers import save_model
-from transformers import AutoModelForCausalLM
-
-# Load HuggingFace model
-model = AutoModelForCausalLM.from_pretrained('facebook/opt-1.3b')
-
-# Convert to fast format
-save_model(model, './models/facebook/opt-1.3b')
-```
-
-**This creates:**
-```
-models/facebook/opt-1.3b/
-├── tensor.data_0       # Binary chunks (10GB max each)
-├── tensor.data_1
-├── tensor_index.json   # Metadata: offsets, shapes, dtypes
-└── config.json         # Model config
+```bash
+sllm-store save --model Qwen/Qwen3-0.6B --backend transformers
 ```
 
 ### 2. Start Store Server
@@ -83,14 +110,14 @@ sllm-store start \
 - `--mem-pool-size`: Pinned memory pool size (must be ≥ largest model)
 - `--num-threads`: I/O threads for parallel loading (4-8 recommended)
 
-### 3. Load Model 5-10x Faster
+### 3. Load Model 6-10x Faster
 
 ```python
 from sllm_store.transformers import load_model
 
-# Load model (5-10x faster than from_pretrained!)
+# Load model (6-10x faster than from_pretrained!)
 model = load_model(
-    "facebook/opt-1.3b",
+    "Qwen/Qwen3-0.6B",
     device_map="auto",
     torch_dtype="float16"
 )
@@ -100,44 +127,32 @@ inputs = tokenizer("Hello world", return_tensors="pt")
 output = model.generate(**inputs)
 ```
 
-**That's it!** Model loads in seconds instead of minutes.
+**That's it!** Model loads in a second!
 
 ---
 
 ## 🔧 Advanced Usage
 
-ServerlessLLM Store supports multi-GPU loading, vLLM integration, LoRA adapters, and standalone PyTorch usage.
+ServerlessLLM Store supports quantization, vLLM integration, LoRA adapters, and standalone PyTorch usage.
 
 **For detailed guides:**
-- **[Multi-GPU & Device Placement](https://serverlessllm.github.io/docs/store/quickstart#multi-gpu)** - Automatic sharding across GPUs
-- **[vLLM Integration](https://serverlessllm.github.io/docs/store/vllm_integration)** - High-performance inference backend
-- **[LoRA Adapters](https://serverlessllm.github.io/docs/store/quickstart#lora)** - Fast loading of fine-tuned adapters
-- **[PyTorch Only](https://serverlessllm.github.io/docs/store/api#pytorch-api)** - Use without Transformers library
-- **[API Reference](https://serverlessllm.github.io/docs/store/api)** - Full API documentation
+- **[Quantization](https://serverlessllm.github.io/docs/store/quantization)** - Quantize models during loading
+- **[vLLM Integration](https://serverlessllm.github.io/docs/store/quickstart#usage-with-vllm)** - Use with vLLM
+- **[LoRA Adapters](https://serverlessllm.github.io/docs/store/quickstart#usage-examples-1a)** - Fast loading of fine-tuned adapters
+- **[CLI API Reference](https://serverlessllm.github.io/docs/api/sllm-store-cli)** - CLI API documentation
 
 ---
 
 ## 💻 Supported Hardware
 
-**NVIDIA GPUs:** CUDA 11.8+ (V100, A100, H100, RTX 3060+)
-**AMD GPUs:** ROCm 6.2.0+ (MI100, MI200 series) - [Setup Guide](https://serverlessllm.github.io/docs/store/rocm_quickstart)
-**Storage:** NVMe SSD recommended (3GB/s+ sequential read)
+**NVIDIA GPUs:** Compute capability 7.0+ (V100, A100, H100, RTX 3060+)
+**AMD GPUs:** ROCm 6.2+ (MI100, MI200 series) - Experimental
 
 ---
 
 ## 🤝 Part of ServerlessLLM
 
 ServerlessLLM Store is the storage layer of [ServerlessLLM](../README.md), enabling fast model switching for multi-LLM serving. Use standalone for fast loading, or integrate with ServerlessLLM for full serverless deployment with storage-aware scheduling, live migration, and auto-scaling.
-
----
-
-## 📖 Documentation
-
-- **[Quick Start Guide](https://serverlessllm.github.io/docs/store/quickstart)** - Complete tutorial
-- **[ROCm Guide](https://serverlessllm.github.io/docs/store/rocm_quickstart)** - AMD GPU setup
-- **[vLLM Integration](https://serverlessllm.github.io/docs/store/vllm_integration)** - Use with vLLM
-- **[API Reference](https://serverlessllm.github.io/docs/store/api)** - Full API docs
-- **[Troubleshooting](https://serverlessllm.github.io/docs/store/troubleshooting)** - Common issues and solutions
 
 ---
 

@@ -28,49 +28,78 @@
 
 ## ⚡ Performance
 
-<p align="center">
+<!-- <p align="center">
   <img src="./docs/images/benchmark_loading_speed.png" alt="Loading Speed Comparison" width="80%">
-</p>
+</p> -->
 
-**ServerlessLLM loads models 5-10x faster than SafeTensors/PyTorch**, enabling true serverless LLM deployment where multiple models share GPU resources efficiently.
+**ServerlessLLM loads models 6-10x faster than SafeTensors**, enabling true serverless deployment where multiple models efficiently share GPU resources.
 
-| Model | Size | PyTorch | SafeTensors | ServerlessLLM | Speedup |
-|-------|------|-------------|---------------|---------------|---------|
-| DeepSeek-OCR | 6.67GB | TBD | TBD | TBD | **~7x** |
-| GPT-oss | 13.8GB | TBD | TBD | TBD | **~7x** |
-| Qwen3-Next | 163GB | TBD | TBD | TBD | **~8x** |
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Scenario</th>
+      <th>SafeTensors</th>
+      <th>ServerlessLLM</th>
+      <th>Speedup</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2">Qwen/Qwen3-32B</td>
+      <td>Random</td>
+      <td>20.6s</td>
+      <td>3.2s</td>
+      <td><strong>6.40x</strong></td>
+    </tr>
+    <tr>
+      <td>Cached</td>
+      <td>12.5s</td>
+      <td>1.3s</td>
+      <td><strong>9.95x</strong></td>
+    </tr>
+    <tr>
+      <td rowspan="2">DeepSeek-R1-Distill-Qwen-32B</td>
+      <td>Random</td>
+      <td>19.1s</td>
+      <td>3.2s</td>
+      <td><strong>5.93x</strong></td>
+    </tr>
+    <tr>
+      <td>Cached</td>
+      <td>10.2s</td>
+      <td>1.2s</td>
+      <td><strong>8.58x</strong></td>
+    </tr>
+    <tr>
+      <td>Llama-3.1-8B-Instruct</td>
+      <td>Random</td>
+      <td>4.4s</td>
+      <td>0.7s</td>
+      <td><strong>6.54x</strong></td>
+    </tr>
+  </tbody>
+</table>
 
-*Detailed benchmark results coming soon. Tested on NVIDIA A100 GPU with NVMe SSD.*
-
----
-
-## 🎬 See It in Action
-
-<p align="center">
-  <img src="./docs/images/demo_quickstart.gif" alt="ServerlessLLM Quick Start Demo" width="90%">
-</p>
-
-<p align="center">
-  <em>From zero to serving in 90 seconds: docker compose up → deploy model → query with OpenAI API</em>
-</p>
-
----
+*Results obtained on NVIDIA H100 GPUs with NVMe SSD. "Random" simulates serverless multi-model serving; "Cached" shows repeated loading of the same model.*
 
 ## What is ServerlessLLM?
 
-ServerlessLLM is a fast, low-cost system for deploying multiple LLMs on shared GPUs. Three core innovations make this possible:
+ServerlessLLM is a fast, low-cost system for deploying multiple AI models on shared GPUs, with three core innovations:
 
-1. **⚡ Ultra-Fast Checkpoint Loading**: Custom storage format with O_DIRECT I/O loads models 5-10x faster than standard methods
-2. **🔄 GPU Multiplexing**: Multiple models share GPUs with intelligent scheduling and live migration
-3. **🎯 Unified Inference + Fine-Tuning**: First system to seamlessly integrate LLM serving with LoRA fine-tuning on shared resources
+1. **⚡ Ultra-Fast Checkpoint Loading**: Custom storage format with O_DIRECT I/O loads models 6-10x faster than state-of-the-art checkpoint loaders
+2. **🔄 GPU Multiplexing**: Multiple models share GPUs with fast switching and intelligent scheduling
+3. **🎯 Unified Inference + Fine-Tuning**: Seamlessly integrates LLM serving with LoRA fine-tuning on shared resources
 
-**Result:** Serve 10 models with 1 GPU, fine-tune on-demand, and serve base + 100s of LoRA adapters. Save 40-60% on infrastructure costs.
+**Result:** Serve 10 models on 1 GPU, fine-tune on-demand, and serve a base model + 100s of LoRA adapters.
 
 ---
 
 ## 🚀 Quick Start (90 Seconds)
 
 ### Start ServerlessLLM Cluster
+
+> **Don't have Docker?** Jump to [Use the Fast Loader in Your Code](#-use-the-fast-loader-in-your-code) for a Docker-free example.
 
 ```bash
 # Download the docker-compose.yml file
@@ -101,13 +130,13 @@ curl http://127.0.0.1:8343/v1/chat/completions \
   }'
 ```
 
-**That's it!** Your model is now serving requests with OpenAI-compatible API.
+**That's it!** Your model is now serving requests with an OpenAI-compatible API.
 
 ---
 
 ## 💡 Use the Fast Loader in Your Code
 
-ServerlessLLM Store can be used standalone to speed up model loading in any PyTorch/Transformers project.
+Use ServerlessLLM Store standalone to speed up torch-based model loading.
 
 ### Install
 
@@ -117,33 +146,30 @@ pip install serverless-llm-store
 
 ### Convert a Model
 
-```python
-from sllm_store.transformers import save_model
-from transformers import AutoModelForCausalLM
-
-# Load and convert model
-model = AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-0.6B')
-save_model(model, './models/Qwen/Qwen3-0.6B')
+```bash
+sllm-store save --model Qwen/Qwen3-0.6B --backend transformers
 ```
 
-### Load 5-10x Faster
+### Start the Store Server
 
 ```bash
 # Start the store server first
 sllm-store start --storage-path ./models --mem-pool-size 4GB
 ```
 
+### Load it 6-10x Faster in Your Python Code
+
 ```python
 from sllm_store.transformers import load_model
 
-# Load model (5-10x faster than from_pretrained!)
+# Load model (6-10x faster than from_pretrained!)
 model = load_model(
     "Qwen/Qwen3-0.6B",
     device_map="auto",
     torch_dtype="float16"
 )
 
-# Use as normal PyTorch/Transformers model
+# Use as a normal PyTorch/Transformers model
 output = model.generate(**inputs)
 ```
 
@@ -155,26 +181,11 @@ output = model.generate(**inputs)
 
 ---
 
-## 🏗️ Architecture
-
-<p align="center">
-  <img src="./blogs/serverless-llm-architecture/images/sllm-store.jpg" alt="ServerlessLLM Architecture" width="90%">
-</p>
-
-**Key Features:**
-- **Storage-Aware Scheduling**: Places models near their checkpoints for fastest loading
-- **Live Migration**: Move running models between GPUs without dropping requests
-- **Auto-Scaling**: Scale instances up/down based on traffic
-- **Multi-Backend**: vLLM, HuggingFace Transformers, LoRA fine-tuning
-
----
-
-## 🎯 Features & Examples
+## 🎯 Key Features
 
 ### ⚡ Ultra-Fast Model Loading
-- **5-10x faster** than SafeTensors and PyTorch checkpoint loaders
-- Custom O_DIRECT I/O format optimized for sequential reads
-- Parallel loading with pinned memory pools
+- **6-10x faster** than the SafeTensors checkpoint loader
+- Supports both NVIDIA and AMD GPUs
 - Works with vLLM, Transformers, and custom models
 
 **📖 Docs:** [Fast Loading Guide](https://serverlessllm.github.io/docs/store/quickstart) | [ROCm Guide](https://serverlessllm.github.io/docs/store/rocm_quickstart)
@@ -187,80 +198,41 @@ output = model.generate(**inputs)
 - Auto-scale instances per model (scale to zero when idle)
 - Live migration for zero-downtime resource optimization
 
-**📖 Docs:** [Deployment Guide](https://serverlessllm.github.io/docs/deployment)
-
-**💡 Example:** Multi-Node Cluster
-```bash
-# See examples/storage_aware_scheduling
-docker compose up -d  # Starts 2-worker cluster with intelligent placement
-```
+**📖 Docs:** [Deployment Guide](https://serverlessllm.github.io/docs/getting_started)
 
 ---
 
-### 🎯 Unified Inference + Fine-Tuning
-- **First system** to integrate LLM serving with serverless fine-tuning
-- Submit LoRA fine-tuning jobs via OpenAI-compatible API
-- Automatic resource scheduling for training jobs
-- Serve base model + 100s of LoRA adapters efficiently
-- Fine-tuned adapters auto-deploy for inference
+### 🎯 Unified Inference + LoRA Fine-Tuning
+- Integrates LLM serving with serverless LoRA fine-tuning
+- Deploys fine-tuned adapters for inference on-demand
+- Serves a base model + 100s of LoRA adapters efficiently
 
-**📖 Docs:** [Fine-Tuning Guide](https://serverlessllm.github.io/docs/fine_tuning)
-
-**💡 Example:** Submit LoRA Fine-Tuning Job
-```bash
-curl $LLM_SERVER_URL/v1/fine-tuning/jobs \
-  -d '{
-    "model": "facebook/opt-125m",
-    "backend": "peft_lora",
-    "dataset": "fka/awesome-chatgpt-prompts",
-    "lora_config": {"r": 4, "lora_alpha": 32}
-  }'
-```
+**📖 Docs:** [Fine-Tuning Guide](https://serverlessllm.github.io/docs/features/peft_lora_fine_tuning)
 
 ---
 
 ### 🔍 Embedding Models for RAG
 - Deploy embedding models alongside LLMs
-- OpenAI-compatible `/v1/embeddings` endpoint
-- Efficient batching and caching
+- Provides an OpenAI-compatible `/v1/embeddings` endpoint
 
-**💡 Example:** Deploy Embedding Model
-```bash
-sllm deploy sentence-transformers/all-MiniLM-L12-v2 \
-  --backend transformers \
-  --num-gpus 0.5
-
-curl $LLM_SERVER_URL/v1/embeddings \
-  -d '{"model": "sentence-transformers/all-MiniLM-L12-v2", "input": ["text"]}'
-```
+**💡 Example:** [RAG Example](https://github.com/ServerlessLLM/ServerlessLLM/tree/main/examples/embedding)
 
 ---
 
 ### 🚀 Production-Ready
 - **OpenAI-compatible API** (drop-in replacement)
-- Docker and Kubernetes (coming soon) deployment
+- Docker and Kubernetes deployment
 - Multi-node clusters with distributed scheduling
-- Request tracing, health checks, and graceful shutdown
 
-**📖 Docs:** [Deployment Guide](https://serverlessllm.github.io/docs/deployment) | [API Reference](https://serverlessllm.github.io/docs/api)
+**📖 Docs:** [Deployment Guide](https://serverlessllm.github.io/docs/developer/supporting_a_new_hardware) | [API Reference](https://serverlessllm.github.io/docs/api/intro)
 
 ---
 
 ### 💻 Supported Hardware
-- **NVIDIA GPUs**: CUDA 11.8+ (A100, H100, RTX series)
+- **NVIDIA GPUs**: Compute capability 7.0+ (V100, A100, H100, RTX 3060+)
 - **AMD GPUs**: ROCm 6.2+ (MI100, MI200 series) - Experimental
 
 **More Examples:** [./examples/](./examples/)
-
----
-
-## 📖 Documentation
-
-- **[Getting Started Guide](https://serverlessllm.github.io/docs/getting_started)** - Complete setup tutorial
-- **[Fast Loading Guide](https://serverlessllm.github.io/docs/store/quickstart)** - Use sllm-store standalone
-- **[CLI Reference](https://serverlessllm.github.io/docs/cli)** - All commands
-- **[API Reference](https://serverlessllm.github.io/docs/api)** - Python APIs
-- **[Deployment Guide](https://serverlessllm.github.io/docs/deployment)** - Kubernetes, multi-node
 
 ---
 
@@ -271,7 +243,7 @@ curl $LLM_SERVER_URL/v1/embeddings \
 - **WeChat**: [QR Code](./docs/images/wechat.png) - 中文支持
 - **Contributing**: See [CONTRIBUTING.md](./CONTRIBUTING.md)
 
-Maintained by 10+ contributors worldwide. Community contributions welcome!
+Maintained by 10+ contributors worldwide. Community contributions are welcome!
 
 ---
 
