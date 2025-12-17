@@ -62,6 +62,8 @@ spec:
       # Option 1: emptyDir (default, uses node storage)
       - name: model-storage
         emptyDir:
+          # WARNING: The default 500Gi size limit may exceed available node storage in many clusters.
+          # Adjust this value based on your model size and the storage available on your nodes.
           sizeLimit: 500Gi
 
       # Option 2: hostPath (if allowed, better for NVMe)
