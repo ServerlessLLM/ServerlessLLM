@@ -97,7 +97,11 @@ def print_statistics(sllm_results, safetensors_results):
         safetensors_std = np.std(safetensors_times)
 
         # Compute speedup
-        speedup = safetensors_avg / sllm_avg
+        if sllm_avg > 0:
+            speedup = safetensors_avg / sllm_avg
+        else:
+            print(f"Warning: SLLM average loading time is zero for model {model_name}. Speedup is set to infinity.")
+            speedup = float('inf')
 
         # Display model name
         display_name = model_name.replace("_", "/")
