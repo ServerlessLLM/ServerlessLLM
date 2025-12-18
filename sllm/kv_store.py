@@ -1028,8 +1028,17 @@ class RedisStore:
         return None
 
     async def get_queue_length(self, model_name: str, backend: str) -> int:
-        key = self._get_task_queue_key(model_name, backend)
-        return await self._execute_with_retry(self.client.llen, key)
+        """Get total demand: buffer + in-flight requests from load balancer."""
+        buffer_key = f"lb_buffer:{model_name}:{backend}"
+        inflight_key = f"lb_inflight:{model_name}:{backend}"
+
+        buffer = await self._execute_with_retry(self.client.get, buffer_key)
+        inflight = await self._execute_with_retry(self.client.get, inflight_key)
+
+        buffer_count = int(buffer) if buffer else 0
+        inflight_count = int(inflight) if inflight else 0
+
+        return buffer_count + inflight_count  # Total demand
 
     async def acquire_deletion_lock(
         self, model_name: str, backend: str, timeout: int = 300

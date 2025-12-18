@@ -22,12 +22,14 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
+import aiohttp
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from sllm.dispatcher import Dispatcher
 from sllm.kv_store import RedisStore
+from sllm.lb_manager import LoadBalancerManager
 from sllm.logger import init_logger
 from sllm.model_manager import ModelManager
 from sllm.worker_manager import WorkerManager
@@ -52,7 +54,17 @@ def create_app(
         app.state.dispatcher = dispatcher
         app.state.redis_store = worker_manager.store
 
+        # Initialize load balancer manager
+        app.state.lb_manager = LoadBalancerManager(worker_manager.store)
+
+        # Initialize HTTP session for forwarding requests
+        app.state.http_session = aiohttp.ClientSession()
+
         yield
+
+        # Cleanup
+        await app.state.http_session.close()
+        await app.state.lb_manager.shutdown_all()
 
     app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
 
@@ -92,7 +104,14 @@ def create_app(
         try:
             await request.app.state.model_manager.register(body)
             model_name = body.get("model")
-            backend = body.get("backend", "unknown")
+            backend = body.get("backend", "vllm")
+
+            # Start load balancer for this model
+            lb_config = body.get("lb_config", {})
+            await request.app.state.lb_manager.start_lb(
+                model_name, backend, lb_config
+            )
+
             return {
                 "message": f"Model {model_name}:{backend} registered successfully"
             }
@@ -163,11 +182,21 @@ def create_app(
 
             elif backend:
                 logger.info(f"Deleting model '{model}:{backend}'")
+                # Stop load balancer first
+                await request.app.state.lb_manager.stop_lb(model, backend)
                 await model_manager.delete(model, backend)
                 return {"status": f"deleted model {model}:{backend}"}
 
             else:
                 logger.info(f"Deleting all backends for model '{model}'")
+                # Stop all load balancers for this model
+                all_models = await model_manager.get_all_models()
+                for m in all_models:
+                    if m.get("model") == model:
+                        backend_to_delete = m.get("backend")
+                        await request.app.state.lb_manager.stop_lb(
+                            model, backend_to_delete
+                        )
                 await model_manager.delete(model, "all")
                 return {"status": f"deleted all backends for model {model}"}
 
@@ -252,72 +281,48 @@ def create_app(
                 detail=f"Model '{model_identifier}' not found or not registered.",
             )
 
-        if body.get("task_id") is None:
-            if action == "generate":
-                task_id = f"chatcmpl-{uuid.uuid4()}"
-            elif action == "completions":
-                task_id = f"cmpl-{uuid.uuid4()}"
-            elif action == "encode":
-                task_id = f"embedding-{uuid.uuid4()}"
-            elif action == "fine-tuning":
-                task_id = f"ftjob-{uuid.uuid4()}"
-            else:
-                task_id = f"task-{uuid.uuid4()}"
-        else:
-            task_id = body["task_id"]
-
-        payload = body.copy()
-        payload["model"] = model
-
-        task_package = {
-            "task_id": task_id,
-            "action": action,
-            "payload": payload,
-        }
-
-        store: RedisStore = request.app.state.redis_store
-
-        logger.info(f"Processing request with ID: {task_id}")
-
-        await store.set_request_status(task_id, "QUEUED")
-
-        result_queue = asyncio.Queue()
-
-        async def _result_listener(task_id: str):
-            try:
-                async for message in store.subscribe_to_result(
-                    task_id, timeout=INFERENCE_REQUEST_TIMEOUT + 5
-                ):
-                    await result_queue.put(message)
-                    break
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                logger.error(
-                    f"Error in result listener for task {task_id}: {e}"
-                )
-                await result_queue.put(
-                    {"status": "error", "message": "Result listener failed."}
-                )
-
-        listener_task = asyncio.create_task(_result_listener(task_id))
-
-        await store.enqueue_task(model, backend, task_package)
-
-        try:
-            result = await asyncio.wait_for(
-                result_queue.get(), timeout=INFERENCE_REQUEST_TIMEOUT
+        # Get load balancer endpoint for this model
+        lb_endpoint = await request.app.state.lb_manager.get_lb_endpoint(
+            model, backend
+        )
+        if not lb_endpoint:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No load balancer available for model '{model}:{backend}'",
             )
-            await store.delete_request_status(task_id)
-            return JSONResponse(content=result)
+
+        # Map action to endpoint
+        endpoint_map = {
+            "generate": "/v1/chat/completions",
+            "completions": "/v1/completions",
+            "encode": "/v1/embeddings",
+            "fine-tuning": "/fine-tuning",
+        }
+        endpoint = endpoint_map.get(action, "/v1/chat/completions")
+        url = f"http://{lb_endpoint}{endpoint}"
+
+        logger.info(f"Forwarding {action} request to LB at {url}")
+
+        # Forward request to load balancer
+        try:
+            async with request.app.state.http_session.post(
+                url,
+                json=body,
+                timeout=aiohttp.ClientTimeout(total=INFERENCE_REQUEST_TIMEOUT),
+            ) as resp:
+                result = await resp.json()
+                return JSONResponse(content=result, status_code=resp.status)
         except asyncio.TimeoutError:
-            await store.delete_request_status(task_id)
             raise HTTPException(
                 status_code=408,
-                detail="Request timed out waiting for inference result.",
+                detail="Request timed out",
             )
-        finally:
-            listener_task.cancel()
+        except Exception as e:
+            logger.error(f"Failed to forward request to load balancer: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to communicate with load balancer: {str(e)}",
+            )
 
     @app.post("/v1/chat/completions")
     async def chat_completions_handler(request: Request):
