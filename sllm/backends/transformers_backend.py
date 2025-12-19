@@ -574,3 +574,17 @@ class TransformersBackend(SllmBackend):
             )
             self.past_key_values = output.past_key_values
             self.current_tokens = output.sequences
+
+    def start_instance(self) -> None:
+        """Start the backend instance. This is handled by init_backend for Transformers."""
+        logger.debug(
+            f"start_instance called for {self.model_name} (no-op for Transformers)"
+        )
+        pass
+
+    async def fine_tuning(self, request_data: Dict[str, Any]):
+        """Fine-tune the model. Not implemented for Transformers backend."""
+        logger.warning(f"fine_tuning not implemented for TransformersBackend")
+        raise NotImplementedError(
+            "Fine-tuning is not supported for Transformers backend"
+        )

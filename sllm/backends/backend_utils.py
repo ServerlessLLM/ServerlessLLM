@@ -26,6 +26,7 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional
 
 import aiohttp
+from pydantic import BaseModel
 
 from sllm.logger import init_logger
 
