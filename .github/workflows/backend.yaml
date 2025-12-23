@@ -45,6 +45,7 @@ jobs:
                   cd sllm_store && \
                   rm -rf build && \
                   pip install . && \
+                  ./vllm_patch/remove_patch.sh 2>/dev/null || true && \
                   ./vllm_patch/patch.sh
 
             - name: Install ServerlessLLM
