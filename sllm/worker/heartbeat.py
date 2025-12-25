@@ -46,7 +46,7 @@ async def run_heartbeat_loop(
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                # Check if we received node_id via /confirmation endpoint
+                # Check if we received node_id via /workers/confirmation endpoint
                 if not current_node_id:
                     stored_node_id = getattr(app_state, "node_id", None)
                     if stored_node_id:
@@ -67,7 +67,7 @@ async def run_heartbeat_loop(
                 if current_node_id:
                     payload["node_id"] = current_node_id
 
-                heartbeat_url = f"{head_node_url}/heartbeat"
+                heartbeat_url = f"{head_node_url}/workers/heartbeat"
                 async with session.post(
                     heartbeat_url, json=payload
                 ) as response:

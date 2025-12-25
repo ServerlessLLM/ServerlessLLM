@@ -71,7 +71,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type"],
         max_age=86400,
     )
@@ -87,7 +87,7 @@ def create_app(
     async def health_check():
         return {"status": "ok"}
 
-    @app.post("/register")
+    @app.post("/models")
     async def register_handler(request: Request):
         try:
             body = await request.json()
@@ -139,21 +139,20 @@ def create_app(
                 detail="Model registration failed due to internal error",
             )
 
-    @app.post("/update")
-    async def update_handler(request: Request):
+    @app.put("/models/{model_id}")
+    async def update_handler(model_id: str, request: Request):
         try:
             body = await request.json()
-            model = body.get("model")
             backend = body.get("backend")
 
-            if not all([model, backend]):
+            if not backend:
                 raise HTTPException(
                     status_code=400,
-                    detail="Missing 'model' or 'backend' in request body.",
+                    detail="Missing 'backend' in request body.",
                 )
 
-            await request.app.state.model_manager.update(model, backend, body)
-            return {"status": f"updated model {model}:{backend}"}
+            await request.app.state.model_manager.update(model_id, backend, body)
+            return {"status": f"updated model {model_id}:{backend}"}
 
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
@@ -161,57 +160,66 @@ def create_app(
             logger.error(f"Error updating model: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.post("/delete")
-    async def delete_model_handler(request: Request):
+    @app.delete("/models/{model_id}")
+    async def delete_model_handler(
+        model_id: str, request: Request, backend: str = None
+    ):
         try:
-            body = await request.json()
-            model = body.get("model")
-            if not model:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Missing 'model' in request body.",
-                )
-
-            backend = body.get("backend", None)
-            lora_adapters = body.get("lora_adapters", None)
             model_manager = request.app.state.model_manager
 
-            if lora_adapters:
-                await model_manager.delete(model, "transformers", lora_adapters)
-                return {"status": f"deleted LoRA adapters from {model}"}
-
-            elif backend:
-                logger.info(f"Deleting model '{model}:{backend}'")
-                # Stop load balancer first
-                await request.app.state.lb_manager.stop_lb(model, backend)
-                await model_manager.delete(model, backend)
-                return {"status": f"deleted model {model}:{backend}"}
-
+            if backend:
+                logger.info(f"Deleting model '{model_id}:{backend}'")
+                await request.app.state.lb_manager.stop_lb(model_id, backend)
+                await model_manager.delete(model_id, backend)
+                return {"status": f"deleted model {model_id}:{backend}"}
             else:
-                logger.info(f"Deleting all backends for model '{model}'")
-                # Stop all load balancers for this model
+                logger.info(f"Deleting all backends for model '{model_id}'")
                 all_models = await model_manager.get_all_models()
                 for m in all_models:
-                    if m.get("model") == model:
+                    if m.get("model") == model_id:
                         backend_to_delete = m.get("backend")
                         await request.app.state.lb_manager.stop_lb(
-                            model, backend_to_delete
+                            model_id, backend_to_delete
                         )
-                await model_manager.delete(model, "all")
-                return {"status": f"deleted all backends for model {model}"}
+                await model_manager.delete(model_id, "all")
+                return {"status": f"deleted all backends for model {model_id}"}
 
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
             logger.error(
-                f"Error during delete operation for '{model}': {e}",
+                f"Error during delete operation for '{model_id}': {e}",
                 exc_info=True,
             )
             raise HTTPException(
                 status_code=500, detail="An internal server error occurred."
             )
 
-    @app.post("/heartbeat")
+    @app.delete("/models/{model_id}/adapters")
+    async def delete_adapters_handler(model_id: str, request: Request):
+        try:
+            body = await request.json()
+            lora_adapters = body.get("lora_adapters")
+            if not lora_adapters:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Missing 'lora_adapters' in request body.",
+                )
+            model_manager = request.app.state.model_manager
+            await model_manager.delete(model_id, "transformers", lora_adapters)
+            return {"status": f"deleted LoRA adapters from {model_id}"}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            logger.error(
+                f"Error deleting adapters for '{model_id}': {e}",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500, detail="An internal server error occurred."
+            )
+
+    @app.post("/workers/heartbeat")
     async def handle_heartbeat(request: Request):
         try:
             payload = await request.json()

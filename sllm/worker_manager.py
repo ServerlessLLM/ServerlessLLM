@@ -27,7 +27,7 @@ import aiohttp
 
 from sllm.kv_store import RedisStore
 from sllm.logger import init_logger
-from sllm.utils import generate_name, post_json_with_retry
+from sllm.utils import delete_with_retry, generate_name, post_json_with_retry
 
 logger = init_logger(__name__)
 
@@ -317,7 +317,7 @@ class WorkerManager:
             model_name, backend, worker["node_id"]
         )
 
-        url = f"http://{node_ip}:8001/start_instance"
+        url = f"http://{node_ip}:8001/instances"
         try:
             await post_json_with_retry(
                 session=self.http_session,
@@ -349,13 +349,11 @@ class WorkerManager:
             )
             return False
 
-        url = f"http://{node_ip}:8001/stop_instance"
-        payload = {"instance_id": instance_id}
+        url = f"http://{node_ip}:8001/instances/{instance_id}"
         try:
-            await post_json_with_retry(
+            await delete_with_retry(
                 session=self.http_session,
                 url=url,
-                payload=payload,
                 max_retries=3,
                 timeout=120.0,
             )
@@ -824,7 +822,7 @@ class WorkerManager:
         self, worker_ip: str, worker_port: int, node_id: str
     ) -> None:
         try:
-            confirmation_url = f"http://{worker_ip}:{worker_port}/confirmation"
+            confirmation_url = f"http://{worker_ip}:{worker_port}/workers/confirmation"
             payload = {"node_id": node_id}
 
             await post_json_with_retry(
@@ -1019,7 +1017,7 @@ class WorkerManager:
         node_id: str,
         instances_on_device: Dict[str, List[str]],
     ) -> int:
-        start_instance_url = f"http://{worker_ip}:8001/start_instance"
+        start_instance_url = f"http://{worker_ip}:8001/instances"
         restarted_count = 0
 
         for model_identifier, instance_list in instances_on_device.items():

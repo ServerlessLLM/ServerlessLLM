@@ -94,7 +94,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
             ),
         }
 
-    @app.post("/confirmation")
+    @app.post("/workers/confirmation")
     async def confirmation_handler(request: Request):
         """Handle confirmation from WorkerManager with node_id assignment."""
         try:
@@ -113,7 +113,7 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
                 status_code=500, detail=f"Confirmation failed: {str(e)}"
             )
 
-    @app.post("/start_instance")
+    @app.post("/instances")
     async def start_instance_api(request: Request):
         payload = await request.json()
         model_config = payload.get("model_config")
@@ -138,13 +138,8 @@ def create_worker_app(instance_manager: InstanceManager) -> FastAPI:
 
         return response
 
-    @app.post("/stop_instance")
-    async def stop_instance_api(request: Request):
-        payload = await request.json()
-        instance_id = payload.get("instance_id")
-        if not instance_id:
-            raise HTTPException(status_code=400, detail="Missing instance_id")
-
+    @app.delete("/instances/{instance_id}")
+    async def stop_instance_api(instance_id: str):
         success = await instance_manager.stop_instance(instance_id)
         if not success:
             raise HTTPException(

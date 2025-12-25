@@ -354,7 +354,7 @@ def deploy_model(
         config_data.setdefault("backend_config", {})["precision"] = precision
 
     base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
-    url = f"{base_url.rstrip('/')}/register"
+    url = f"{base_url.rstrip('/')}/models"
     headers = {"Content-Type": "application/json"}
 
     try:
@@ -389,45 +389,42 @@ def delete_model(models, backend=None, lora_adapters=None):
         return
 
     for model in models:
-        url = f"{base_url.rstrip('/')}/delete"
-        data = {"model": model}
-
-        # Add backend to request if specified
-        if backend is not None:
-            data["backend"] = backend
-
-        # Robust lora_adapters parsing (same as deploy)
-        if lora_adapters is not None:
-            # Accept: demo-lora1 demo-lora2 OR demo-lora1=path ...
-            if isinstance(lora_adapters, dict):
-                adapters = lora_adapters
-            else:
-                # flatten and split
-                if isinstance(lora_adapters, str):
-                    items = lora_adapters.replace(",", " ").split()
-                elif isinstance(lora_adapters, (list, tuple)):
-                    items = []
-                    for item in lora_adapters:
-                        items.extend(item.replace(",", " ").split())
-                else:
-                    items = [str(lora_adapters)]
-                # If all items have '=', parse as dict; else, treat as list
-                if all("=" in module for module in items if module.strip()):
-                    adapters = {}
-                    for module in items:
-                        module = module.strip()
-                        if not module:
-                            continue
-                        name, path = module.split("=", 1)
-                        adapters[name] = path
-                else:
-                    # Only adapter names
-                    adapters = [
-                        module.strip() for module in items if module.strip()
-                    ]
-            data["lora_adapters"] = adapters
         try:
-            response = requests.post(url, headers=headers, json=data)
+            if lora_adapters is not None:
+                url = f"{base_url.rstrip('/')}/models/{model}/adapters"
+                if isinstance(lora_adapters, dict):
+                    adapters = lora_adapters
+                else:
+                    if isinstance(lora_adapters, str):
+                        items = lora_adapters.replace(",", " ").split()
+                    elif isinstance(lora_adapters, (list, tuple)):
+                        items = []
+                        for item in lora_adapters:
+                            items.extend(item.replace(",", " ").split())
+                    else:
+                        items = [str(lora_adapters)]
+                    if all("=" in module for module in items if module.strip()):
+                        adapters = {}
+                        for module in items:
+                            module = module.strip()
+                            if not module:
+                                continue
+                            name, path = module.split("=", 1)
+                            adapters[name] = path
+                    else:
+                        adapters = [
+                            module.strip() for module in items if module.strip()
+                        ]
+                response = requests.delete(
+                    url, headers=headers, json={"lora_adapters": adapters}
+                )
+            else:
+                url = f"{base_url.rstrip('/')}/models/{model}"
+                params = {}
+                if backend is not None:
+                    params["backend"] = backend
+                response = requests.delete(url, headers=headers, params=params)
+
             if response.status_code == 200:
                 print(
                     f"[✅ SUCCESS] Delete request for '{model}' sent successfully."
