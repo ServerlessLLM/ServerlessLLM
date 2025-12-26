@@ -1,31 +1,36 @@
 # ---------------------------------------------------------------------------- #
-#  serverlessllm                                                               #
-#  copyright (c) serverlessllm team 2024                                       #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
 #                                                                              #
-#  licensed under the apache license, version 2.0 (the "license");             #
-#  you may not use this file except in compliance with the license.            #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
 #                                                                              #
-#  you may obtain a copy of the license at                                     #
+#  You may obtain a copy of the License at                                     #
 #                                                                              #
-#                  http://www.apache.org/licenses/license-2.0                  #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
 #                                                                              #
-#  unless required by applicable law or agreed to in writing, software         #
-#  distributed under the license is distributed on an "as is" basis,           #
-#  without warranties or conditions of any kind, either express or implied.    #
-#  see the license for the specific language governing permissions and         #
-#  limitations under the license.                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
+"""
+In-process Load Balancer for ServerlessLLM v1-beta.
+
+Per-model load balancer with:
+- Round-robin endpoint selection
+- Cold-start request buffering
+- Passive health checking (remove endpoint on failure)
+- Direct metric access (no Redis)
+"""
 
 import asyncio
-import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import aiohttp
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
 
-from sllm.kv_store import RedisStore
 from sllm.logger import init_logger
 
 logger = init_logger(__name__)
@@ -33,238 +38,371 @@ logger = init_logger(__name__)
 
 @dataclass
 class LBConfig:
+    """Load balancer configuration."""
+
     max_buffer_size: int = 10
     cold_start_timeout: float = 120.0
+    request_timeout: float = 300.0
+    retry_failed_endpoint: bool = True
 
 
 @dataclass
-class InstanceInfo:
-    host: str
-    port: int
-    instance_id: str
+class BufferedRequest:
+    """A request waiting in the cold-start buffer."""
+
+    payload: Dict[str, Any]
+    action: str
+    path: str
+    future: asyncio.Future
 
 
-class LoadBalancerService:
-    """Per-model load balancer with cold-start buffer and concurrency tracking."""
+class LoadBalancer:
+    """
+    Per-model in-process load balancer.
 
-    def __init__(
-        self,
-        model: str,
-        backend: str,
-        store: RedisStore,
-        config: LBConfig,
-        port: int,
-    ):
-        self.model = model
-        self.backend = backend
-        self.model_identifier = f"{model}:{backend}"
-        self.store = store
-        self.config = config
-        self.port = port
+    Responsibilities:
+    - Round-robin endpoint selection
+    - Cold-start request buffering (when no endpoints available)
+    - Passive health checking (remove endpoint on request failure)
+    - Metrics exposure for autoscaler
 
-        # Cold start buffer
-        self.cold_start_buffer: asyncio.Queue = asyncio.Queue(
-            maxsize=config.max_buffer_size
+    Endpoint management is done externally by the Reconciler via
+    add_endpoint() and remove_endpoint() methods.
+    """
+
+    def __init__(self, model_id: str, config: Optional[LBConfig] = None):
+        """
+        Initialize load balancer for a model.
+
+        Args:
+            model_id: Model identifier (e.g., "meta-llama/Llama-3.1-8B:vllm")
+            config: Load balancer configuration
+        """
+        self.model_id = model_id
+        self.config = config or LBConfig()
+
+        # Endpoint management
+        self._endpoints: Set[str] = set()  # Set of "ip:port" strings
+        self._endpoints_list: List[str] = []  # For round-robin indexing
+        self._endpoints_lock = asyncio.Lock()
+        self._round_robin_idx = 0
+
+        # Cold-start buffer
+        self._buffer: asyncio.Queue[BufferedRequest] = asyncio.Queue(
+            maxsize=self.config.max_buffer_size
         )
 
-        # Concurrency tracking (same as Knative's concurrency metric)
-        self.in_flight_count = 0
-        self.round_robin_counter = 0
+        # Concurrency tracking
+        self._in_flight_count = 0
+        self._in_flight_lock = asyncio.Lock()
 
-        # HTTP session for forwarding
-        self.session: Optional[aiohttp.ClientSession] = None
+        # HTTP session (created lazily)
+        self._session: Optional[aiohttp.ClientSession] = None
 
-        self.app = FastAPI(title=f"LB: {model}:{backend}")
-        self._setup_routes()
+        # Background tasks
+        self._drain_task: Optional[asyncio.Task] = None
+        self._shutdown = False
 
-    def _setup_routes(self):
-        @self.app.on_event("startup")
-        async def startup():
-            self.session = aiohttp.ClientSession()
-            asyncio.create_task(self._buffer_drain_loop())
-            logger.info(
-                f"Load Balancer started for {self.model_identifier} on port {self.port}"
-            )
+        logger.info(f"LoadBalancer created for {model_id}")
 
-        @self.app.on_event("shutdown")
-        async def shutdown():
-            if self.session:
-                await self.session.close()
-            logger.info(f"Load Balancer shutdown for {self.model_identifier}")
+    async def start(self):
+        """Start the load balancer background tasks."""
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        if self._drain_task is None:
+            self._drain_task = asyncio.create_task(self._buffer_drain_loop())
+        logger.info(f"LoadBalancer started for {self.model_id}")
 
-        @self.app.get("/health")
-        async def health():
-            return {
-                "status": "ok",
-                "model": self.model_identifier,
-                "buffer_length": self.cold_start_buffer.qsize(),
-                "in_flight_count": self.in_flight_count,
-            }
+    async def stop(self):
+        """Stop the load balancer and clean up resources."""
+        self._shutdown = True
 
-        @self.app.post("/v1/chat/completions")
-        async def chat_completions(request: Request):
-            return await self._handle_request(request, "generate")
+        if self._drain_task:
+            self._drain_task.cancel()
+            try:
+                await self._drain_task
+            except asyncio.CancelledError:
+                pass
+            self._drain_task = None
 
-        @self.app.post("/v1/completions")
-        async def completions(request: Request):
-            return await self._handle_request(request, "completions")
+        if self._session:
+            await self._session.close()
+            self._session = None
 
-        @self.app.post("/v1/embeddings")
-        async def embeddings(request: Request):
-            return await self._handle_request(request, "encode")
+        logger.info(f"LoadBalancer stopped for {self.model_id}")
 
-    async def _handle_request(self, request: Request, action: str):
-        payload = await request.json()
-        instances = await self._get_available_instances()
+    # -------------------------------------------------------------------------
+    # Endpoint Management (called by Reconciler)
+    # -------------------------------------------------------------------------
 
-        if instances:
+    async def add_endpoint(self, endpoint: str):
+        """Add an endpoint to the load balancer."""
+        async with self._endpoints_lock:
+            if endpoint not in self._endpoints:
+                self._endpoints.add(endpoint)
+                self._endpoints_list = list(self._endpoints)
+                logger.info(
+                    f"[{self.model_id}] Added endpoint {endpoint} "
+                    f"(total: {len(self._endpoints)})"
+                )
+
+    async def remove_endpoint(self, endpoint: str):
+        """Remove an endpoint from the load balancer."""
+        async with self._endpoints_lock:
+            if endpoint in self._endpoints:
+                self._endpoints.discard(endpoint)
+                self._endpoints_list = list(self._endpoints)
+                logger.info(
+                    f"[{self.model_id}] Removed endpoint {endpoint} "
+                    f"(total: {len(self._endpoints)})"
+                )
+
+    def has_endpoint(self, endpoint: str) -> bool:
+        """Check if an endpoint is registered."""
+        return endpoint in self._endpoints
+
+    @property
+    def endpoint_count(self) -> int:
+        """Number of registered endpoints."""
+        return len(self._endpoints)
+
+    def get_endpoints(self) -> List[str]:
+        """Get a copy of all registered endpoints."""
+        return list(self._endpoints)
+
+    # -------------------------------------------------------------------------
+    # Metrics (accessed by Autoscaler)
+    # -------------------------------------------------------------------------
+
+    @property
+    def buffer_length(self) -> int:
+        """Number of requests waiting in the cold-start buffer."""
+        return self._buffer.qsize()
+
+    @property
+    def in_flight_count(self) -> int:
+        """Number of requests currently being processed."""
+        return self._in_flight_count
+
+    @property
+    def total_demand(self) -> int:
+        """Total demand = buffer + in-flight."""
+        return self.buffer_length + self.in_flight_count
+
+    # -------------------------------------------------------------------------
+    # Request Handling
+    # -------------------------------------------------------------------------
+
+    async def forward(
+        self,
+        payload: Dict[str, Any],
+        path: str = "/v1/chat/completions",
+    ) -> Dict[str, Any]:
+        """
+        Forward a request to an available endpoint.
+
+        If no endpoints are available, the request is buffered until one
+        becomes available or the cold-start timeout is reached.
+
+        Args:
+            payload: Request payload (JSON body)
+            path: API path (e.g., "/v1/chat/completions")
+
+        Returns:
+            Response from the backend
+
+        Raises:
+            Exception: On timeout or forwarding failure
+        """
+        # Ensure session exists
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+
+        # Try to get an endpoint
+        endpoint = await self._select_endpoint()
+
+        if endpoint:
             # Warm path: forward immediately
-            instance = self._select_instance(instances)
-            result = await self._forward_to_instance(instance, payload, action)
-            return JSONResponse(content=result)
+            return await self._forward_to_endpoint(endpoint, payload, path)
 
         # Cold path: buffer and wait
-        result = await self._buffer_and_wait(payload, action)
-        return JSONResponse(content=result)
+        return await self._buffer_and_wait(payload, path)
 
-    async def _get_available_instances(self) -> List[InstanceInfo]:
-        """Query worker heartbeats for running instances."""
-        workers = await self.store.get_all_workers()
-        instances = []
-        for worker in workers:
-            instances_on_device = worker.get("instances_on_device", {})
-            if isinstance(instances_on_device, str):
-                try:
-                    instances_on_device = json.loads(instances_on_device)
-                except (json.JSONDecodeError, TypeError):
-                    instances_on_device = {}
-            model_instances = instances_on_device.get(self.model_identifier, {})
-            if isinstance(model_instances, dict):
-                for instance_id, info in model_instances.items():
-                    if info.get("status") == "running":
-                        instances.append(
-                            InstanceInfo(
-                                host=worker["node_ip"],
-                                port=info["port"],
-                                instance_id=instance_id,
-                            )
-                        )
-        return instances
+    async def _select_endpoint(self) -> Optional[str]:
+        """Select an endpoint using round-robin."""
+        async with self._endpoints_lock:
+            if not self._endpoints_list:
+                return None
 
-    def _select_instance(self, instances: List[InstanceInfo]) -> InstanceInfo:
-        """Round-robin selection."""
-        idx = self.round_robin_counter % len(instances)
-        self.round_robin_counter += 1
-        return instances[idx]
+            idx = self._round_robin_idx % len(self._endpoints_list)
+            self._round_robin_idx += 1
+            return self._endpoints_list[idx]
 
-    async def _forward_to_instance(
-        self, instance: InstanceInfo, payload: dict, action: str
-    ) -> dict:
-        """Forward request and track concurrency."""
-        endpoint_map = {
-            "generate": "/v1/chat/completions",
-            "completions": "/v1/completions",
-            "encode": "/v1/embeddings",
-        }
-        url = f"http://{instance.host}:{instance.port}{endpoint_map[action]}"
+    async def _forward_to_endpoint(
+        self,
+        endpoint: str,
+        payload: Dict[str, Any],
+        path: str,
+    ) -> Dict[str, Any]:
+        """Forward request to a specific endpoint."""
+        url = f"http://{endpoint}{path}"
 
-        self.in_flight_count += 1
-        await self._update_metrics()
+        async with self._in_flight_lock:
+            self._in_flight_count += 1
 
         try:
-            async with self.session.post(
-                url, json=payload, timeout=aiohttp.ClientTimeout(total=300)
+            async with self._session.post(
+                url,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(
+                    total=self.config.request_timeout
+                ),
             ) as resp:
                 result = await resp.json()
-                if resp.status != 200:
-                    logger.warning(
-                        f"Worker returned non-200 status: {resp.status} for {url}"
-                    )
-                return result
-        except Exception as e:
-            logger.error(
-                f"Failed to forward request to {instance.instance_id} at {url}: {e}"
-            )
-            raise HTTPException(
-                502, f"Failed to forward request to worker: {str(e)}"
-            )
-        finally:
-            self.in_flight_count -= 1
-            await self._update_metrics()
 
-    async def _buffer_and_wait(self, payload: dict, action: str) -> dict:
-        """Buffer request during cold start."""
-        response_future: asyncio.Future = asyncio.Future()
+                if resp.status >= 500:
+                    logger.warning(
+                        f"[{self.model_id}] Endpoint {endpoint} returned "
+                        f"status {resp.status}"
+                    )
+                    # Don't remove endpoint on 5xx - might be temporary
+
+                return result
+
+        except aiohttp.ClientError as e:
+            logger.error(f"[{self.model_id}] Request to {endpoint} failed: {e}")
+            # Passive health: remove failed endpoint
+            await self.remove_endpoint(endpoint)
+
+            # Retry on another endpoint if available
+            if self.config.retry_failed_endpoint:
+                other_endpoint = await self._select_endpoint()
+                if other_endpoint:
+                    logger.info(
+                        f"[{self.model_id}] Retrying on endpoint {other_endpoint}"
+                    )
+                    return await self._forward_to_endpoint(
+                        other_endpoint, payload, path
+                    )
+
+            raise Exception(f"Failed to forward request: {e}")
+
+        except asyncio.TimeoutError:
+            logger.error(f"[{self.model_id}] Request to {endpoint} timed out")
+            raise Exception(
+                f"Request timeout after {self.config.request_timeout}s"
+            )
+
+        finally:
+            async with self._in_flight_lock:
+                self._in_flight_count -= 1
+
+    async def _buffer_and_wait(
+        self,
+        payload: Dict[str, Any],
+        path: str,
+    ) -> Dict[str, Any]:
+        """Buffer request during cold start and wait for result."""
+        future: asyncio.Future = asyncio.get_event_loop().create_future()
+        request = BufferedRequest(
+            payload=payload,
+            action="forward",
+            path=path,
+            future=future,
+        )
 
         try:
-            self.cold_start_buffer.put_nowait(
-                (payload, action, response_future)
-            )
+            self._buffer.put_nowait(request)
             logger.info(
-                f"Buffered request for {self.model_identifier} (buffer size: {self.cold_start_buffer.qsize()})"
+                f"[{self.model_id}] Buffered request "
+                f"(buffer size: {self._buffer.qsize()})"
             )
         except asyncio.QueueFull:
-            logger.warning(
-                f"Buffer full for {self.model_identifier}, rejecting request"
-            )
-            raise HTTPException(503, "Service overloaded, try again later")
-
-        await self._update_metrics()
+            logger.warning(f"[{self.model_id}] Buffer full, rejecting request")
+            raise Exception("Service overloaded - buffer full")
 
         try:
             return await asyncio.wait_for(
-                response_future, timeout=self.config.cold_start_timeout
+                future, timeout=self.config.cold_start_timeout
             )
         except asyncio.TimeoutError:
             logger.error(
-                f"Cold start timeout for {self.model_identifier} after {self.config.cold_start_timeout}s"
+                f"[{self.model_id}] Cold start timeout after "
+                f"{self.config.cold_start_timeout}s"
             )
-            raise HTTPException(
-                504, "Cold start timeout - instance did not become available"
+            raise Exception(
+                f"Cold start timeout - no instance available after "
+                f"{self.config.cold_start_timeout}s"
             )
-
-    async def _update_metrics(self):
-        """Push metrics to Redis for autoscaler."""
-        buffer_key = f"lb_buffer:{self.model}:{self.backend}"
-        inflight_key = f"lb_inflight:{self.model}:{self.backend}"
-
-        try:
-            await self.store.client.set(
-                buffer_key, self.cold_start_buffer.qsize(), ex=60
-            )
-            await self.store.client.set(
-                inflight_key, self.in_flight_count, ex=60
-            )
-        except Exception as e:
-            logger.warning(f"Failed to update metrics in Redis: {e}")
 
     async def _buffer_drain_loop(self):
-        """Background: drain buffer when instances become available."""
-        while True:
+        """Background task to drain buffer when endpoints become available."""
+        logger.debug(f"[{self.model_id}] Buffer drain loop started")
+
+        while not self._shutdown:
             try:
-                if not self.cold_start_buffer.empty():
-                    instances = await self._get_available_instances()
-                    if instances:
+                if not self._buffer.empty():
+                    endpoint = await self._select_endpoint()
+                    if endpoint:
                         try:
-                            payload, action, future = (
-                                self.cold_start_buffer.get_nowait()
-                            )
-                            instance = self._select_instance(instances)
+                            request = self._buffer.get_nowait()
                             logger.info(
-                                f"Draining buffered request for {self.model_identifier} to {instance.instance_id}"
+                                f"[{self.model_id}] Draining buffered request "
+                                f"to {endpoint}"
                             )
                             try:
-                                result = await self._forward_to_instance(
-                                    instance, payload, action
+                                result = await self._forward_to_endpoint(
+                                    endpoint, request.payload, request.path
                                 )
-                                if not future.done():
-                                    future.set_result(result)
+                                if not request.future.done():
+                                    request.future.set_result(result)
                             except Exception as e:
-                                if not future.done():
-                                    future.set_exception(e)
+                                if not request.future.done():
+                                    request.future.set_exception(e)
                         except asyncio.QueueEmpty:
                             pass
+
                 await asyncio.sleep(0.1)
+
+            except asyncio.CancelledError:
+                break
             except Exception as e:
-                logger.error(f"Error in buffer drain loop: {e}")
+                logger.error(f"[{self.model_id}] Error in drain loop: {e}")
                 await asyncio.sleep(1)
+
+        logger.debug(f"[{self.model_id}] Buffer drain loop stopped")
+
+    # -------------------------------------------------------------------------
+    # Draining for Shutdown
+    # -------------------------------------------------------------------------
+
+    async def drain(self, timeout: float = 30.0):
+        """
+        Drain all pending requests before shutdown.
+
+        Waits for in-flight requests to complete and buffers to empty.
+        """
+        logger.info(f"[{self.model_id}] Draining load balancer...")
+
+        start_time = asyncio.get_event_loop().time()
+        while (self._in_flight_count > 0 or not self._buffer.empty()) and (
+            asyncio.get_event_loop().time() - start_time < timeout
+        ):
+            await asyncio.sleep(0.5)
+
+        if self._in_flight_count > 0 or not self._buffer.empty():
+            logger.warning(
+                f"[{self.model_id}] Drain timeout with "
+                f"{self._in_flight_count} in-flight, "
+                f"{self._buffer.qsize()} buffered"
+            )
+        else:
+            logger.info(f"[{self.model_id}] Drain complete")
+
+    def __repr__(self) -> str:
+        return (
+            f"LoadBalancer(model_id={self.model_id!r}, "
+            f"endpoints={len(self._endpoints)}, "
+            f"buffer={self.buffer_length}, "
+            f"in_flight={self.in_flight_count})"
+        )
