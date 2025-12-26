@@ -67,6 +67,7 @@ RUN cd sllm_store && conda run -n build python setup.py bdist_wheel
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/backends /app/sllm/backends
+COPY sllm/ft_backends /app/sllm/ft_backends
 COPY sllm/cli /app/sllm/cli
 COPY sllm/*.py /app/sllm/
 COPY README.md /app/

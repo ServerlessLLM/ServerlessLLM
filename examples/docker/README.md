@@ -32,7 +32,7 @@ docker compose build
 docker compose up -d
 ```
 
-## Verify Services
+Note: Make sure you have Docker installed on your system and NVIDIA GPUs available. For detailed instructions, refer to the [Docker Quickstart Guide](https://serverlessllm.github.io/docs/getting_started).
 
 ```bash
 # Check pylet head is running

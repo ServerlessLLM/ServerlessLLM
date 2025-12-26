@@ -475,8 +475,8 @@ class TransformersBackend(SllmBackend):
             self.inf_status.delete()
             return response
 
-    async def load_lora_adapter(self, lora_name: str, lora_path: str):
-        async with self.status_lock:
+    def load_lora_adapter(self, lora_name: str, lora_path: str):
+        with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
