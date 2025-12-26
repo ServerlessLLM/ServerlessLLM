@@ -1,5 +1,7 @@
 # ServerlessLLM Docker Compose Quickstart (v1-beta)
 
+> **Full documentation:** See [docs/deployment/docker.md](../../docs/deployment/docker.md)
+
 ## Architecture
 
 ServerlessLLM v1-beta uses Pylet for GPU instance management:
@@ -20,19 +22,27 @@ pylet_head (cluster manager)
 ## Quick Start
 
 ```bash
+cd examples/docker
+
 # Set model folder
-export MODEL_FOLDER=/path/to/models
+export MODEL_FOLDER=$(pwd)/models
+mkdir -p $MODEL_FOLDER
 
 # Optional: Set HuggingFace token for gated models
 export HF_TOKEN=your_token_here
 
+# Clean start (recommended) - removes stale data from previous runs
+docker compose down -v 2>/dev/null
+
 # Build and start
-cd examples/docker
 docker compose build
 docker compose up -d
 ```
 
-Note: Make sure you have Docker installed on your system and NVIDIA GPUs available. For detailed instructions, refer to the [Docker Quickstart Guide](https://serverlessllm.github.io/docs/getting_started).
+> **Important:** Always use `docker compose down -v` before `docker compose up` for a clean start.
+> This removes the SQLite database and prevents issues with stale instance records.
+
+Note: Make sure you have Docker installed on your system and NVIDIA GPUs available.
 
 ```bash
 # Check pylet head is running
@@ -53,6 +63,22 @@ Expected health response:
   "version": "v1-beta",
   "pylet_connected": true
 }
+```
+
+## Prepare Model (Required)
+
+Models must be saved in sllm format before they can be served:
+
+```bash
+# Save model to sllm format (one-time per model)
+docker exec sllm_head bash -c "
+  source /opt/conda/etc/profile.d/conda.sh
+  conda activate worker
+  sllm-store save \
+    --model facebook/opt-125m \
+    --backend vllm \
+    --storage-path /models
+"
 ```
 
 ## Register a Model
@@ -127,9 +153,14 @@ pylet_worker:
 ## Cleanup
 
 ```bash
+# Stop services (keeps data for next run)
 docker compose down
-docker volume rm sllm_data  # Remove persistent database
+
+# Full cleanup (recommended for clean restart)
+docker compose down -v
 ```
+
+> **Tip:** Use `docker compose down -v` to ensure a clean state before restarting.
 
 ## Troubleshooting
 
