@@ -23,21 +23,23 @@ Declarative reconciliation loop that:
 - Queries Pylet for current instances
 - Creates/deletes instances to match desired state
 - Health checks starting instances
-- Updates LB endpoints
+- Writes to model_endpoints table (Router reads from there)
 
-Follows the Kubernetes reconciliation pattern.
+Design (from docs/v1-beta-scalable-router-design.md):
+- Endpoint lifecycle: Add/remove endpoints in model_endpoints table
+- Instance management: Create/delete instances via Pylet
+- Health ownership: Mark endpoints healthy/unhealthy based on Pylet heartbeats
 """
 
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 import aiohttp
 
 from sllm.command_builder import build_sglang_command, build_vllm_command
 from sllm.database import Database, Model
-from sllm.lb_registry import LoadBalancerRegistry
 from sllm.logger import init_logger
 from sllm.pylet_client import InstanceInfo, PyletClient
 from sllm.storage_manager import StorageManager
@@ -54,8 +56,8 @@ STARTUP_TIMEOUT_SECONDS = 300
 class ReconcileState:
     """State of instances for a model."""
 
-    ready: List[InstanceInfo]  # RUNNING and in LB
-    starting: List[InstanceInfo]  # PENDING, ASSIGNED, or RUNNING but not in LB
+    ready: List[InstanceInfo]  # RUNNING and in model_endpoints
+    starting: List[InstanceInfo]  # PENDING, ASSIGNED, or RUNNING but not in DB
     failed: List[InstanceInfo]  # FAILED, COMPLETED, UNKNOWN
 
 
@@ -65,13 +67,15 @@ class Reconciler:
 
     The reconciler continuously ensures that the actual state (instances
     running via Pylet) matches the desired state (desired_replicas in SQLite).
+
+    Writes to model_endpoints table instead of calling LoadBalancer directly.
+    The Router reads from this table on every request.
     """
 
     def __init__(
         self,
         database: Database,
         pylet_client: PyletClient,
-        lb_registry: LoadBalancerRegistry,
         storage_manager: StorageManager,
         storage_path: str = "/models",
     ):
@@ -81,13 +85,11 @@ class Reconciler:
         Args:
             database: Database instance
             pylet_client: Pylet client instance
-            lb_registry: LoadBalancer registry
             storage_manager: StorageManager instance
             storage_path: Path to model storage on workers
         """
         self.database = database
         self.pylet_client = pylet_client
-        self.lb_registry = lb_registry
         self.storage_manager = storage_manager
         self.storage_path = storage_path
 
@@ -165,14 +167,11 @@ class Reconciler:
         # Get current state from Pylet
         instances = await self.pylet_client.get_model_instances(model.id)
 
-        # Get LoadBalancer
-        lb = self.lb_registry.get(model.id)
-        if not lb:
-            logger.warning(f"No LoadBalancer for {model.id}")
-            return
+        # Get endpoints from database
+        db_endpoints = set(self.database.get_model_endpoints(model.id))
 
         # Categorize instances
-        state = self._categorize_instances(instances, lb)
+        state = self._categorize_instances(instances, db_endpoints)
 
         # Log state
         logger.debug(
@@ -182,25 +181,27 @@ class Reconciler:
 
         # 1. Clean up failed instances
         for inst in state.failed:
-            await self._cleanup_instance(inst, lb)
+            await self._cleanup_instance(model.id, inst)
 
         # 2. Health check starting instances
         for inst in list(state.starting):
             if inst.status == "RUNNING":
                 if await self._is_healthy(inst.endpoint):
-                    await lb.add_endpoint(inst.endpoint)
+                    # Add to model_endpoints table
+                    self.database.add_model_endpoint(model.id, inst.endpoint)
                     state.starting.remove(inst)
                     state.ready.append(inst)
                     self._startup_times.pop(inst.instance_id, None)
                     logger.info(
-                        f"[{model.id}] Instance {inst.instance_id} is now ready"
+                        f"[{model.id}] Instance {inst.instance_id} is now ready "
+                        f"at {inst.endpoint}"
                     )
                 elif self._is_startup_timeout(inst.instance_id):
                     # Startup timeout - clean up
                     logger.warning(
                         f"[{model.id}] Instance {inst.instance_id} startup timeout"
                     )
-                    await self._cleanup_instance(inst, lb)
+                    await self._cleanup_instance(model.id, inst)
                     state.starting.remove(inst)
 
         # 3. Scale up if needed
@@ -221,19 +222,19 @@ class Reconciler:
                 model.model_name, state.ready, excess
             )
             for inst in instances_to_remove:
-                await self._remove_instance(inst, lb)
+                await self._remove_instance(model.id, inst)
 
     def _categorize_instances(
         self,
         instances: List[InstanceInfo],
-        lb,
+        db_endpoints: Set[str],
     ) -> ReconcileState:
         """
         Categorize instances into ready, starting, and failed.
 
         Args:
             instances: List of instances from Pylet
-            lb: LoadBalancer for checking endpoints
+            db_endpoints: Set of endpoints in model_endpoints table
 
         Returns:
             ReconcileState with categorized instances
@@ -244,7 +245,7 @@ class Reconciler:
 
         for inst in instances:
             if inst.status == "RUNNING":
-                if lb.has_endpoint(inst.endpoint):
+                if inst.endpoint and inst.endpoint in db_endpoints:
                     ready.append(inst)
                 else:
                     starting.append(inst)
@@ -373,11 +374,11 @@ class Reconciler:
         except Exception as e:
             logger.error(f"[{model.id}] Failed to create instance: {e}")
 
-    async def _cleanup_instance(self, inst: InstanceInfo, lb):
+    async def _cleanup_instance(self, model_id: str, inst: InstanceInfo):
         """Clean up a failed or timed-out instance."""
-        # Remove from LB
+        # Remove from model_endpoints table
         if inst.endpoint:
-            await lb.remove_endpoint(inst.endpoint)
+            self.database.remove_model_endpoint(model_id, inst.endpoint)
 
         # Cancel in Pylet
         try:
@@ -390,19 +391,17 @@ class Reconciler:
 
         logger.info(f"Cleaned up instance {inst.instance_id}")
 
-    async def _remove_instance(self, inst: InstanceInfo, lb):
+    async def _remove_instance(self, model_id: str, inst: InstanceInfo):
         """Remove an instance during scale-down with graceful draining.
 
-        Removes endpoint from LB first (no new requests), waits briefly
-        for in-flight requests to complete, then cancels the instance.
+        Removes endpoint from model_endpoints table first (Router stops
+        sending new requests), waits briefly, then cancels the instance.
         """
-        # Remove from LB first (prevents new requests)
-        if inst.endpoint and lb:
-            await lb.remove_endpoint(inst.endpoint)
+        # Remove from model_endpoints table (Router will stop sending requests)
+        if inst.endpoint:
+            self.database.remove_model_endpoint(model_id, inst.endpoint)
 
             # Wait briefly for in-flight requests to complete
-            # A more sophisticated approach would track per-endpoint
-            # request counts, but this provides basic graceful draining
             await asyncio.sleep(2.0)
 
         # Cancel in Pylet
@@ -453,15 +452,15 @@ class Reconciler:
         instances = await self.pylet_client.get_model_instances(model.id)
 
         if not instances:
-            # All instances gone, can delete from database
+            # All instances gone - remove endpoints and delete from database
+            self.database.remove_model_endpoints(model.id)
             self.database.delete_model(model.id)
             logger.info(f"Completed deletion of {model.id}")
             return
 
         # Cancel remaining instances
-        lb = self.lb_registry.get(model.id)
         for inst in instances:
-            await self._cleanup_instance(inst, lb if lb else None)
+            await self._cleanup_instance(model.id, inst)
 
 
 # Global instance
@@ -476,7 +475,6 @@ def get_reconciler() -> Optional[Reconciler]:
 def init_reconciler(
     database: Database,
     pylet_client: PyletClient,
-    lb_registry: LoadBalancerRegistry,
     storage_manager: StorageManager,
     storage_path: str = "/models",
 ) -> Reconciler:
@@ -485,7 +483,6 @@ def init_reconciler(
     _reconciler = Reconciler(
         database=database,
         pylet_client=pylet_client,
-        lb_registry=lb_registry,
         storage_manager=storage_manager,
         storage_path=storage_path,
     )

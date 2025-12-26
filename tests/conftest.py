@@ -131,33 +131,129 @@ def mock_pylet_client():
 
 
 # ============================================================================ #
-# LoadBalancer Fixtures
+# Router Fixtures
 # ============================================================================ #
 
 
 @pytest.fixture
-def load_balancer():
-    """Create a LoadBalancer instance for testing."""
-    from sllm.load_balancer import LBConfig, LoadBalancer
+def mock_autoscaler():
+    """Create a mock Autoscaler for router tests."""
+    autoscaler = MagicMock()
+    autoscaler.receive_metrics = MagicMock()
+    return autoscaler
 
-    config = LBConfig(
+
+@pytest.fixture
+def mock_http_client():
+    """Create a mock HTTP client for router tests."""
+    client = MagicMock()
+
+    # Create mock response context manager
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_response.json = AsyncMock(return_value={})
+
+    # Setup the async context manager
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+    client.post = MagicMock(return_value=mock_cm)
+    client.close = AsyncMock()
+
+    return client
+
+
+@pytest.fixture
+def router(database, mock_autoscaler, mock_http_client):
+    """Create a Router instance for testing."""
+    from sllm.router import Router, RouterConfig
+
+    config = RouterConfig(
         max_buffer_size=10,
         cold_start_timeout=30.0,
         request_timeout=60.0,
     )
-    lb = LoadBalancer(model_id="test-model:vllm", config=config)
-    return lb
+    router = Router(
+        database=database,
+        autoscaler=mock_autoscaler,
+        config=config,
+    )
+    # Inject mock HTTP client
+    router._session = mock_http_client
+    return router
 
 
 @pytest.fixture
-def lb_registry():
-    """Create a LoadBalancerRegistry instance."""
-    from sllm.lb_registry import LoadBalancerRegistry
+def router_small_buffer(database, mock_autoscaler, mock_http_client):
+    """Create a Router with small buffer for testing buffer full scenarios."""
+    from sllm.router import Router, RouterConfig
 
-    registry = LoadBalancerRegistry()
-    yield registry
-    # Cleanup
-    asyncio.get_event_loop().run_until_complete(registry.shutdown())
+    config = RouterConfig(
+        max_buffer_size=2,  # Small buffer
+        cold_start_timeout=30.0,
+        request_timeout=60.0,
+    )
+    router = Router(
+        database=database,
+        autoscaler=mock_autoscaler,
+        config=config,
+    )
+    router._session = mock_http_client
+    return router
+
+
+@pytest.fixture
+def router_short_timeout(database, mock_autoscaler, mock_http_client):
+    """Create a Router with short timeout for testing timeout scenarios."""
+    from sllm.router import Router, RouterConfig
+
+    config = RouterConfig(
+        max_buffer_size=10,
+        cold_start_timeout=0.1,  # Very short timeout
+        request_timeout=0.1,
+    )
+    router = Router(
+        database=database,
+        autoscaler=mock_autoscaler,
+        config=config,
+    )
+    router._session = mock_http_client
+    return router
+
+
+# ============================================================================ #
+# Autoscaler Fixtures
+# ============================================================================ #
+
+
+@pytest.fixture
+def autoscaler_with_metrics(database):
+    """Create an Autoscaler with receive_metrics support for testing."""
+    from sllm.autoscaler import AutoScaler
+
+    autoscaler = AutoScaler(database=database)
+
+    # Add helper methods for tests
+    def get_metrics(model_id: str):
+        metrics = autoscaler._metrics.get(model_id)
+        if metrics:
+            return {
+                "buffer_len": metrics.buffer_len,
+                "in_flight": metrics.in_flight,
+            }
+        return {"buffer_len": 0, "in_flight": 0}
+
+    def get_total_demand(model_id: str):
+        metrics = autoscaler._metrics.get(model_id)
+        if metrics:
+            return metrics.total_demand
+        return 0
+
+    autoscaler.get_metrics = get_metrics
+    autoscaler.get_total_demand = get_total_demand
+
+    return autoscaler
 
 
 # ============================================================================ #

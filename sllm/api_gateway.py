@@ -21,28 +21,28 @@ API Gateway for ServerlessLLM v1-beta.
 Stateless HTTP router with:
 - OpenAI-compatible inference endpoints
 - Model registration and deletion
-- Direct load balancer calls (in-process)
+- Single global Router for load balancing
 - SQLite for model configuration
 - Pylet for instance information
+
+Design (from docs/v1-beta-scalable-router-design.md):
+- /register, /delete, /status -> Model Manager
+- /v1/* -> Pass raw HTTP request to Router
 """
 
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from sllm.database import Database, Model
-from sllm.lb_registry import (
-    LoadBalancerRegistry,
-    get_lb_registry,
-    init_lb_registry,
-)
-from sllm.load_balancer import LBConfig
+from sllm.autoscaler import AutoScaler
+from sllm.database import Database
 from sllm.logger import init_logger
 from sllm.pylet_client import PyletClient
+from sllm.router import Router, RouterConfig
 
 logger = init_logger(__name__)
 
@@ -55,6 +55,8 @@ origins += ["http://localhost", "http://localhost:3000"]
 def create_app(
     database: Optional[Database] = None,
     pylet_client: Optional[PyletClient] = None,
+    router: Optional[Router] = None,
+    autoscaler: Optional[AutoScaler] = None,
     config: Optional[Any] = None,
 ) -> FastAPI:
     """
@@ -63,6 +65,8 @@ def create_app(
     Args:
         database: SQLite database instance
         pylet_client: Pylet client instance (may be None if Pylet unavailable)
+        router: Global Router instance for request routing
+        autoscaler: AutoScaler instance (for connecting Router to it)
         config: Head configuration
 
     Returns:
@@ -74,47 +78,25 @@ def create_app(
         # Store dependencies in app state
         app.state.database = database
         app.state.pylet_client = pylet_client
+        app.state.router = router
+        app.state.autoscaler = autoscaler
         app.state.config = config
 
-        # Initialize load balancer registry
-        app.state.lb_registry = init_lb_registry()
+        # Connect Router to Autoscaler for metrics push
+        if router and autoscaler:
+            router.set_autoscaler(autoscaler)
 
-        # Restore LBs for existing models and recover running instances
-        if database:
-            for model in database.get_active_models():
-                lb_config = LBConfig()
-                if model.backend_config:
-                    lb_config.cold_start_timeout = model.backend_config.get(
-                        "cold_start_timeout", 120.0
-                    )
-                lb = await app.state.lb_registry.get_or_create(
-                    model.id, lb_config
-                )
-                logger.info(f"Restored LoadBalancer for {model.id}")
-
-                # Query Pylet for existing running instances to recover endpoints
-                if pylet_client:
-                    try:
-                        instances = await pylet_client.get_model_instances(
-                            model.id
-                        )
-                        for inst in instances:
-                            # Only add endpoints for running instances
-                            if inst.status == "RUNNING" and inst.endpoint:
-                                await lb.add_endpoint(inst.endpoint)
-                                logger.info(
-                                    f"Recovered endpoint {inst.endpoint} for {model.id}"
-                                )
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to recover instances for {model.id}: {e}"
-                        )
+        # Start router if provided
+        if router:
+            await router.start()
 
         logger.info("API Gateway started")
         yield
 
         # Cleanup
-        await app.state.lb_registry.shutdown()
+        if router:
+            await router.drain(timeout=10.0)
+            await router.stop()
         logger.info("API Gateway shutdown")
 
     app = FastAPI(
@@ -207,15 +189,6 @@ def create_app(
                 backend_config=backend_config,
             )
 
-            # Create load balancer
-            lb_registry: LoadBalancerRegistry = request.app.state.lb_registry
-            lb_config = LBConfig(
-                cold_start_timeout=backend_config.get(
-                    "cold_start_timeout", 120.0
-                ),
-            )
-            await lb_registry.get_or_create(model_id, lb_config)
-
             logger.info(f"Registered model {model_id}")
 
             return {
@@ -239,7 +212,7 @@ def create_app(
 
         Returns 202 Accepted immediately. The Reconciler will:
         1. Stop all instances via Pylet
-        2. Drain and remove the LoadBalancer
+        2. Remove endpoints from model_endpoints table
         3. Delete the model from the database
         """
         db: Database = request.app.state.database
@@ -265,7 +238,7 @@ def create_app(
             # Mark as deleting and set desired=0
             # The Reconciler will handle the actual cleanup:
             # - Cancel instances in Pylet
-            # - Drain and remove LoadBalancer
+            # - Remove endpoints from model_endpoints table
             # - Delete from database
             db.update_model_status(model_id, "deleting")
             db.update_desired_replicas(model_id, 0)
@@ -323,7 +296,7 @@ def create_app(
         request: Request,
         path: str = "/v1/chat/completions",
     ) -> JSONResponse:
-        """Forward inference request to load balancer."""
+        """Forward inference request to Router."""
         try:
             body = await request.json()
         except Exception as e:
@@ -357,18 +330,17 @@ def create_app(
                 detail=f"Model '{model_id}' not found or not active",
             )
 
-        # Get load balancer
-        lb_registry: LoadBalancerRegistry = request.app.state.lb_registry
-        lb = lb_registry.get(model_id)
-        if not lb:
+        # Get router
+        router: Router = request.app.state.router
+        if not router:
             raise HTTPException(
                 status_code=503,
-                detail=f"Load balancer not available for '{model_id}'",
+                detail="Router not available",
             )
 
-        # Forward to load balancer
+        # Forward to router
         try:
-            result = await lb.forward(body, path)
+            result = await router.handle_request(body, path, model_id=model_id)
             return JSONResponse(content=result)
         except Exception as e:
             logger.error(f"Inference request failed: {e}")
@@ -400,14 +372,15 @@ def create_app(
     async def get_models(request: Request):
         """List all registered models."""
         db: Database = request.app.state.database
-        lb_registry: LoadBalancerRegistry = request.app.state.lb_registry
+        router: Router = request.app.state.router
 
         models = db.get_all_models()
         model_list = []
 
         for model in models:
-            lb = lb_registry.get(model.id)
-            ready_endpoints = lb.endpoint_count if lb else 0
+            ready_endpoints = (
+                router.get_endpoint_count(model.id) if router else 0
+            )
 
             model_list.append(
                 {
@@ -428,7 +401,7 @@ def create_app(
     async def cluster_status(request: Request):
         """Get comprehensive cluster status."""
         db: Database = request.app.state.database
-        lb_registry: LoadBalancerRegistry = request.app.state.lb_registry
+        router: Router = request.app.state.router
         pylet_client: Optional[PyletClient] = request.app.state.pylet_client
 
         # Get models
@@ -436,8 +409,7 @@ def create_app(
         model_status = []
 
         for model in models:
-            lb = lb_registry.get(model.id)
-            endpoints = lb.get_endpoints() if lb else []
+            endpoints = db.get_model_endpoints(model.id)
 
             # Get instances from Pylet if available
             instances = []

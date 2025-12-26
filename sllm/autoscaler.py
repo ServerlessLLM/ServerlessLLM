@@ -18,10 +18,15 @@
 """
 Autoscaler for ServerlessLLM v1-beta.
 
-Reads LB metrics, calculates desired replicas, writes to SQLite.
+Receives metrics pushed from Router, calculates desired replicas, writes to SQLite.
 The Reconciler then acts on the desired state to create/delete instances.
 
-Simplified formula (no limbo tracking - Reconciler handles that):
+Design (from docs/v1-beta-scalable-router-design.md):
+- Receives metrics via receive_metrics(model_id, buffer_len, in_flight)
+- Calculates desired replicas from total demand
+- Writes desired state to models.desired_replicas in SQLite
+
+Simplified formula:
     total_demand = buffer_length + in_flight_count
     desired = ceil(total_demand / target_pending_requests)
     desired = clamp(desired, min_replicas, max_replicas)
@@ -29,10 +34,10 @@ Simplified formula (no limbo tracking - Reconciler handles that):
 
 import asyncio
 import math
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 from sllm.database import Database, Model
-from sllm.lb_registry import LoadBalancerRegistry
 from sllm.logger import init_logger
 
 AUTOSCALER_INTERVAL_SECONDS = 3
@@ -40,35 +45,73 @@ AUTOSCALER_INTERVAL_SECONDS = 3
 logger = init_logger(__name__)
 
 
+@dataclass
+class ModelMetrics:
+    """Metrics for a model from Router."""
+
+    buffer_len: int = 0
+    in_flight: int = 0
+
+    @property
+    def total_demand(self) -> int:
+        return self.buffer_len + self.in_flight
+
+
 class AutoScaler:
     """
-    Autoscaler that reads LB metrics and updates desired_replicas in SQLite.
+    Autoscaler that receives metrics from Router and updates desired_replicas.
 
     The actual scaling is performed by the Reconciler, which reads the
     desired_replicas and creates/deletes instances accordingly.
     """
 
-    def __init__(
-        self,
-        database: Database,
-        lb_registry: LoadBalancerRegistry,
-    ):
+    def __init__(self, database: Database):
         """
         Initialize the Autoscaler.
 
         Args:
             database: Database instance for reading/writing model config
-            lb_registry: LoadBalancer registry for reading metrics
         """
         self.database = database
-        self.lb_registry = lb_registry
         self.interval = AUTOSCALER_INTERVAL_SECONDS
+
+        # Metrics received from Router (ephemeral, per model)
+        self._metrics: Dict[str, ModelMetrics] = {}
 
         # Track idle time for keep_alive_seconds
         self._model_idle_times: Dict[str, int] = {}
 
         # Shutdown flag
         self._shutdown = asyncio.Event()
+
+    def receive_metrics(
+        self,
+        model_id: str,
+        buffer_len: int,
+        in_flight: int,
+    ):
+        """
+        Receive metrics pushed from Router.
+
+        Called by Router on every state change (request start/end, buffer).
+        This updates the cached metrics which are used by the scaling loop.
+
+        Args:
+            model_id: Model identifier
+            buffer_len: Number of requests in cold-start buffer
+            in_flight: Number of active requests being processed
+        """
+        if model_id not in self._metrics:
+            self._metrics[model_id] = ModelMetrics()
+
+        metrics = self._metrics[model_id]
+        metrics.buffer_len = buffer_len
+        metrics.in_flight = in_flight
+
+        logger.debug(
+            f"[{model_id}] Received metrics: "
+            f"buffer={buffer_len}, in_flight={in_flight}"
+        )
 
     async def run(self):
         """Main autoscaler loop."""
@@ -120,16 +163,17 @@ class AutoScaler:
         Args:
             model: Model to scale
         """
-        # Get load balancer
-        lb = self.lb_registry.get(model.id)
-        if not lb:
-            logger.debug(f"No LB for {model.id}, skipping")
-            return
-
-        # Calculate total demand
-        buffer_length = lb.buffer_length
-        in_flight_count = lb.in_flight_count
-        total_demand = buffer_length + in_flight_count
+        # Get metrics from cache (pushed by Router)
+        metrics = self._metrics.get(model.id)
+        if not metrics:
+            # No metrics received yet - use zero demand
+            total_demand = 0
+            buffer_length = 0
+            in_flight_count = 0
+        else:
+            total_demand = metrics.total_demand
+            buffer_length = metrics.buffer_len
+            in_flight_count = metrics.in_flight
 
         # Calculate desired replicas
         if total_demand > 0:
@@ -182,11 +226,8 @@ def get_autoscaler() -> Optional[AutoScaler]:
     return _autoscaler
 
 
-def init_autoscaler(
-    database: Database,
-    lb_registry: LoadBalancerRegistry,
-) -> AutoScaler:
+def init_autoscaler(database: Database) -> AutoScaler:
     """Initialize the global Autoscaler instance."""
     global _autoscaler
-    _autoscaler = AutoScaler(database=database, lb_registry=lb_registry)
+    _autoscaler = AutoScaler(database=database)
     return _autoscaler

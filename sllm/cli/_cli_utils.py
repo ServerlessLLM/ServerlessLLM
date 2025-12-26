@@ -128,9 +128,9 @@ async def _run_head_node_v1beta():
     from sllm.api_gateway import create_app as create_head_app
     from sllm.autoscaler import init_autoscaler
     from sllm.database import init_database
-    from sllm.lb_registry import get_lb_registry
     from sllm.pylet_client import init_pylet_client
     from sllm.reconciler import init_reconciler
+    from sllm.router import init_router
     from sllm.storage_manager import init_storage_manager
 
     # Initialize SQLite database
@@ -149,16 +149,25 @@ async def _run_head_node_v1beta():
             "Starting without Pylet - some features will be unavailable"
         )
 
-    # Create API Gateway app (this also initializes the lb_registry)
+    # Initialize Router (single global instance)
+    router = init_router(database=db)
+    logger.info("Router initialized")
+
+    # Initialize Autoscaler
+    autoscaler = init_autoscaler(database=db)
+    logger.info("Autoscaler initialized")
+
+    # Connect Router to Autoscaler for metrics push
+    router.set_autoscaler(autoscaler)
+
+    # Create API Gateway app
     app = create_head_app(
         database=db,
         pylet_client=pylet_client,
+        router=router,
+        autoscaler=autoscaler,
         config=config,
     )
-
-    # Get the LB registry from app state (initialized by create_app)
-    # We need to wait for app lifespan to run, so we'll get it from app.state later
-    # For now, use the global registry
 
     # Configure uvicorn server
     uvicorn_config = Config(
@@ -167,7 +176,6 @@ async def _run_head_node_v1beta():
     uvicorn_server = Server(uvicorn_config)
 
     # Initialize background components
-    autoscaler = None
     reconciler = None
     storage_manager = None
     background_tasks = []
@@ -186,17 +194,13 @@ async def _run_head_node_v1beta():
         await storage_manager.recover_from_db()
         logger.info("StorageManager initialized")
 
-    # Start HTTP server first (so LB registry is initialized)
+    # Start Router
+    await router.start()
+
+    # Start HTTP server
     server_task = asyncio.create_task(uvicorn_server.serve())
 
-    # Give the server a moment to start and initialize the LB registry
-    await asyncio.sleep(0.5)
-
-    # Now initialize autoscaler and reconciler with the LB registry
-    lb_registry = get_lb_registry()
-
-    # Initialize Autoscaler
-    autoscaler = init_autoscaler(database=db, lb_registry=lb_registry)
+    # Start Autoscaler
     autoscaler_task = asyncio.create_task(autoscaler.run())
     background_tasks.append(autoscaler_task)
     logger.info("Autoscaler started")
@@ -206,7 +210,6 @@ async def _run_head_node_v1beta():
         reconciler = init_reconciler(
             database=db,
             pylet_client=pylet_client,
-            lb_registry=lb_registry,
             storage_manager=storage_manager,
             storage_path=config.storage_path,
         )
@@ -241,9 +244,10 @@ async def _run_head_node_v1beta():
         uvicorn_server.should_exit = True
         await asyncio.sleep(1)
 
-        # Shutdown LB registry
-        if lb_registry:
-            await lb_registry.shutdown()
+        # Shutdown Router
+        if router:
+            await router.drain(timeout=10.0)
+            await router.stop()
 
         # Close database connection
         db.close()
