@@ -28,7 +28,9 @@ class TestStartCommand(unittest.TestCase):
         self,
         mock_start_worker,
     ):
-        result = self.runner.invoke(cli, ["start", "worker", "--head-node-url", "http://127.0.0.1:8343"])
+        result = self.runner.invoke(
+            cli, ["start", "worker", "--head-node-url", "http://127.0.0.1:8343"]
+        )
         self.assertEqual(result.exit_code, 0)
         mock_start_worker.assert_called_once_with(
             host="0.0.0.0", port=8001, head_node_url="http://127.0.0.1:8343"
@@ -84,16 +86,16 @@ class TestStartCommand(unittest.TestCase):
     #         mock_controller
     #     )
     #     mock_ray_remote.return_value = mock_controller_cls
-    # 
+    #
     #     # Mock the app creation
     #     mock_app = mock.Mock()
     #     mock_create_app.return_value = mock_app
-    # 
+    #
     #     result = self.runner.invoke(
     #         cli, ["start", "--enable-storage-aware", "--enable-migration"]
     #     )
     #     self.assertEqual(result.exit_code, 0)
-    # 
+    #
     #     # Verify controller was created with the right options
     #     expected_config = {
     #         "enable_storage_aware": True,
@@ -107,7 +109,7 @@ class TestStartCommand(unittest.TestCase):
         # Test that both head and worker subcommands exist
         result_head = self.runner.invoke(cli, ["start", "head", "--help"])
         self.assertEqual(result_head.exit_code, 0)
-        
+
         result_worker = self.runner.invoke(cli, ["start", "worker", "--help"])
         self.assertEqual(result_worker.exit_code, 0)
 

@@ -83,7 +83,7 @@ class AutoScaler:
         auto_scaling_config = model_data.get("auto_scaling_config", {})
         min_instances = auto_scaling_config.get("min_instances", 0)
         max_instances = auto_scaling_config.get("max_instances", 1)
-        target_ongoing_requests = auto_scaling_config.get(
+        target_pending_requests = auto_scaling_config.get(
             "target", self.queue_threshold
         )
         keep_alive = auto_scaling_config.get("keep_alive", 0)
@@ -91,28 +91,19 @@ class AutoScaler:
         current_instances = await self._count_running_instances(
             model_identifier
         )
-        queue_length = await self.store.get_queue_length(model_name, backend)
+        demand = await self.store.get_queue_length(model_name, backend)
         limbo_up, limbo_down = await self.store.get_limbo_counters(
             model_name, backend
         )
 
-        needed = min_instances
+        if demand > 0:
+            desired = math.ceil(demand / target_pending_requests)
+        else:
+            desired = min_instances
 
-        if queue_length > 0:
-            queue_based_instances = math.ceil(
-                queue_length / target_ongoing_requests
-            )
-            needed = max(needed, queue_based_instances)
-
-        final_needed = max(min_instances, min(needed, max_instances))
-
-        effective_current = current_instances
-        if final_needed > current_instances:
-            effective_current += limbo_up
-        elif final_needed < current_instances:
-            effective_current -= limbo_down
-
-        instance_delta = final_needed - effective_current
+        desired = max(min_instances, min(desired, max_instances))
+        effective_capacity = current_instances + limbo_up - limbo_down
+        instance_delta = desired - effective_capacity
 
         if instance_delta < 0:
             idle_time = self.model_idle_times.get(model_identifier, 0)
@@ -133,8 +124,9 @@ class AutoScaler:
         if instance_delta != 0:
             logger.info(
                 f"Model '{model_identifier}': "
-                f"current={current_instances}, queue={queue_length}, limbo_up={limbo_up}, limbo_down={limbo_down} -> "
-                f"needed={final_needed} (min:{min_instances}, max:{max_instances}). "
+                f"current={current_instances}, demand={demand}, "
+                f"limbo_up={limbo_up}, limbo_down={limbo_down} -> "
+                f"desired={desired}, effective_capacity={effective_capacity}. "
                 f"Decision: change by {instance_delta}."
             )
             await self.store.client.set(decision_key, instance_delta, ex=60)
