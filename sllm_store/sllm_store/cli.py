@@ -129,23 +129,6 @@ class VllmModelDownloader:
 logger = init_logger(__name__)
 
 
-def check_vllm():
-    """Simple check if ServerlessLLM patch is applied."""
-    try:
-        # Check if the LoadFormat enum has SERVERLESS_LLM
-        from vllm.config import LoadFormat
-
-        if not hasattr(LoadFormat, "SERVERLESS_LLM"):
-            return False
-
-        # Check if ExecutorBase has the save method
-        from vllm.executor.executor_base import ExecutorBase
-
-        return hasattr(ExecutorBase, "save_serverless_llm_state")
-    except ImportError:
-        return False
-
-
 @click.group()
 def cli():
     """sllm-store CLI"""
@@ -252,12 +235,6 @@ def save(
 
     try:
         if backend == "vllm":
-            if not check_vllm():
-                logger.error(
-                    "vLLM is not patched. Please run "
-                    "`./sllm_store/vllm_patch/patch.sh` first."
-                )
-                sys.exit(1)
             downloader = VllmModelDownloader()
             downloader.download_vllm_model(
                 model_name,
@@ -364,12 +341,6 @@ def load(
         if backend == "vllm":
             from vllm import LLM
 
-            if not check_vllm():
-                logger.error(
-                    "vLLM is not patched. Please run "
-                    "`./sllm_store/vllm_patch/patch.sh` first."
-                )
-                sys.exit(1)
             model_full_path = os.path.join(storage_path, model_name)
             llm = LLM(
                 model=model_full_path,

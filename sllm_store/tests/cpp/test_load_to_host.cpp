@@ -18,7 +18,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
-#include <filesystem>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -32,11 +32,30 @@
 #include "checkpoint_store.h"
 #endif
 
+// Use shell commands instead of std::filesystem to avoid symbol conflicts
+// with PyTorch's libtorch.so which exports incompatible std::filesystem symbols
+void CreateDirectories(const std::string& path) {
+  std::string cmd = "mkdir -p \"" + path + "\"";
+  std::system(cmd.c_str());
+}
+
+void RemoveAll(const std::string& path) {
+  std::string cmd = "rm -rf \"" + path + "\"";
+  std::system(cmd.c_str());
+}
+
+std::string GetParentPath(const std::string& path) {
+  size_t pos = path.find_last_of('/');
+  if (pos == std::string::npos) {
+    return ".";
+  }
+  return path.substr(0, pos);
+}
+
 bool WriteBytesToFile(const std::string& file_path,
                       const std::vector<uint8_t>& data) {
   // Ensure the directory exists
-  std::filesystem::create_directories(
-      std::filesystem::path(file_path).parent_path());
+  CreateDirectories(GetParentPath(file_path));
 
   std::ofstream file(file_path, std::ios::binary);
   if (!file) {
@@ -69,7 +88,7 @@ class CheckpointStoreTest : public ::testing::TestWithParam<std::string> {
   void TearDown() override {
     delete storage;
     // Cleanup test files
-    std::filesystem::remove_all(storage_path);
+    RemoveAll(storage_path);
   }
 };
 
