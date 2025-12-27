@@ -330,8 +330,6 @@ def quantize(
                 param,
                 name,
                 final_device,
-                state_dict,
-                unexpected_keys=[],
             )
 
         else:
