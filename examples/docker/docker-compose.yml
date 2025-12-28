@@ -15,18 +15,72 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
+#
+# ServerlessLLM v1-beta Docker Compose
+#
+# Architecture:
+#   pylet_head (cluster manager) -> pylet_worker (GPU) -> vLLM/sllm-store instances
+#   sllm_head (control plane) connects to pylet_head for instance management
+#
+# Usage:
+#   export MODEL_FOLDER=/path/to/models
+#   docker compose up -d
+#
 services:
-  # Redis for coordination and task queuing
-  redis:
-    image: redis:7-alpine
-    container_name: sllm-redis
+  # Pylet Head Node (cluster manager)
+  # Manages workers and schedules GPU instances
+  pylet_head:
+    image: python:3.10-slim
+    container_name: pylet_head
+    command: >
+      sh -c "
+        pip install pylet httpx &&
+        pylet start
+      "
     ports:
-      - "6380:6379"
-    command: redis-server --appendonly yes
+      - "8000:8000"
     networks:
       - sllm_network
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import httpx; httpx.get('http://localhost:8000/workers').raise_for_status()"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
-  # Head Node
+  # Pylet Worker Node (GPU)
+  # Registers with pylet_head and executes vLLM/sllm-store instances
+  pylet_worker:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    image: serverlessllm/sllm:latest
+    container_name: pylet_worker
+    environment:
+      - MODE=PYLET_WORKER
+      - PYLET_HEAD=pylet_head:8000
+      - GPU_UNITS=2
+      - STORAGE_PATH=/models
+      - HF_TOKEN=${HF_TOKEN}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: ["gpu"]
+              device_ids: ["0", "1"]
+    ports:
+      - "8080-8179:8080-8179"  # vLLM instance ports
+    depends_on:
+      pylet_head:
+        condition: service_healthy
+    networks:
+      - sllm_network
+    volumes:
+      - ${MODEL_FOLDER}:/models
+
+  # SLLM Head Node (control plane)
+  # API Gateway, Load Balancers, Reconciler, Autoscaler
   sllm_head:
     build:
       context: ../../
@@ -34,48 +88,28 @@ services:
     image: serverlessllm/sllm:latest
     container_name: sllm_head
     environment:
-      - MODEL_FOLDER=${MODEL_FOLDER}
       - MODE=HEAD
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - PYLET_ENDPOINT=http://pylet_head:8000
+      - STORAGE_PATH=/models
+      - SLLM_DATABASE_PATH=/var/lib/sllm/state.db
       - HF_TOKEN=${HF_TOKEN}
     ports:
       - "8343:8343"
     depends_on:
-      - redis
+      pylet_head:
+        condition: service_healthy
+      pylet_worker:
+        condition: service_started
     networks:
       - sllm_network
     volumes:
       - ${MODEL_FOLDER}:/models
-
-  # Worker Node 0
-  sllm_worker_0:
-    build:
-      context: ../../
-      dockerfile: Dockerfile
-    image: serverlessllm/sllm:latest
-    container_name: sllm_worker_0
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: ["gpu"]
-              device_ids: ["0"]
-    environment:
-      - WORKER_ID=0
-      - STORAGE_PATH=/models
-      - MODE=WORKER
-      - HF_TOKEN=${HF_TOKEN}
-    ports:
-      - "8000-8299:8000-8299"  # Backend instance ports
-    networks:
-      - sllm_network
-    volumes:
-      - ${MODEL_FOLDER}:/models
-    command: ["--mem-pool-size", "40GB", "--registration-required", "true"]
+      - sllm_data:/var/lib/sllm
 
 networks:
   sllm_network:
     driver: bridge
     name: sllm
+
+volumes:
+  sllm_data:

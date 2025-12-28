@@ -21,25 +21,40 @@ import os
 import socket
 import subprocess
 import sys
+from dataclasses import dataclass
+from typing import Optional
 
 import click
 import requests
 import uvicorn
 from uvicorn import Config, Server
 
-from sllm.api_gateway import create_app as create_head_app
-from sllm.autoscaler import AutoScaler
-from sllm.dispatcher import Dispatcher
-from sllm.kv_store import RedisStore
 from sllm.logger import init_logger
-from sllm.model_manager import ModelManager
-from sllm.worker.api import create_worker_app
-from sllm.worker.heartbeat import run_heartbeat_loop
-from sllm.worker.instance_manager import InstanceManager
-from sllm.worker.utils import benchmark_static_hardware
-from sllm.worker_manager import WorkerManager
 
 logger = init_logger(__name__)
+
+
+@dataclass
+class HeadConfig:
+    """Configuration for v1-beta head node."""
+
+    host: str = "0.0.0.0"
+    port: int = 8343
+    pylet_endpoint: str = "http://localhost:8000"
+    database_path: str = "/var/lib/sllm/state.db"
+    storage_path: str = "/models"
+
+
+# Global config instance
+_head_config: Optional[HeadConfig] = None
+
+
+def get_head_config() -> HeadConfig:
+    """Get the global head config instance."""
+    global _head_config
+    if _head_config is None:
+        _head_config = HeadConfig()
+    return _head_config
 
 
 def get_advertise_ip() -> str:
@@ -70,131 +85,174 @@ def get_advertise_ip() -> str:
 
 # ----------------------------- START COMMAND ----------------------------- #
 def start_head(
-    host="0.0.0.0",
-    port=8343,
-    redis_host=None,
-    redis_port=None,
+    host: str = "0.0.0.0",
+    port: int = 8343,
+    pylet_endpoint: str = "http://localhost:8000",
+    database_path: str = "/var/lib/sllm/state.db",
+    storage_path: str = "/models",
 ):
-    """Start the SLLM head node (control plane)."""
-    # Use environment variables if not explicitly provided
-    if redis_host is None:
-        redis_host = os.environ.get("REDIS_HOST", "redis")
-    if redis_port is None:
-        redis_port = int(os.environ.get("REDIS_PORT", "6379"))
+    """Start the SLLM head node (control plane) - v1-beta with Pylet."""
+    global _head_config
+    _head_config = HeadConfig(
+        host=host,
+        port=port,
+        pylet_endpoint=pylet_endpoint,
+        database_path=database_path,
+        storage_path=storage_path,
+    )
 
-    logger.info(f"Using Redis host {redis_host}")
-    logger.info(f"Using Redis port {redis_port}")
+    logger.info("=" * 60)
+    logger.info("ServerlessLLM v1-beta Head Node")
+    logger.info("=" * 60)
+    logger.info(f"Pylet endpoint: {pylet_endpoint}")
+    logger.info(f"Database path: {database_path}")
+    logger.info(f"Storage path: {storage_path}")
+    logger.info("=" * 60)
 
     try:
-        asyncio.run(_run_head_node(host, port, redis_host, redis_port))
+        asyncio.run(_run_head_node_v1beta())
     except KeyboardInterrupt:
         pass
     except Exception as e:
+        logger.exception("Failed to start head node")
         click.echo(f"Failed to start head node: {e}")
         sys.exit(1)
 
 
-async def _run_head_node(host, port, redis_host, redis_port):
-    """Async implementation of head node startup."""
-    logger.info("Starting head node...")
+async def _run_head_node_v1beta():
+    """Async implementation of v1-beta head node startup."""
+    config = get_head_config()
+    logger.info("Starting head node (v1-beta)...")
 
-    store = RedisStore(host=redis_host, port=redis_port)
-    await store.initialize_store(reset_on_start=True, full_reset=True)
-    model_manager = ModelManager(store)
-    worker_manager = WorkerManager(store, config={"prune_interval": 15})
-    autoscaler = AutoScaler(store=store)
-    dispatcher = Dispatcher(store)
+    # Import v1-beta components
+    from sllm.api_gateway import create_app as create_head_app
+    from sllm.autoscaler import init_autoscaler
+    from sllm.database import init_database
+    from sllm.pylet_client import init_pylet_client
+    from sllm.reconciler import init_reconciler
+    from sllm.router import init_router
+    from sllm.storage_manager import init_storage_manager
 
+    # Initialize SQLite database
+    logger.info(f"Initializing database at {config.database_path}")
+    db = init_database(config.database_path)
+
+    # Initialize Pylet client
+    logger.info(f"Connecting to Pylet at {config.pylet_endpoint}")
+    pylet_client = None
+    try:
+        pylet_client = await init_pylet_client(config.pylet_endpoint)
+        logger.info("Connected to Pylet successfully")
+    except Exception as e:
+        logger.warning(f"Failed to connect to Pylet: {e}")
+        logger.warning(
+            "Starting without Pylet - some features will be unavailable"
+        )
+
+    # Initialize Router (single global instance)
+    router = init_router(database=db)
+    logger.info("Router initialized")
+
+    # Initialize Autoscaler
+    autoscaler = init_autoscaler(database=db)
+    logger.info("Autoscaler initialized")
+
+    # Connect Router to Autoscaler for metrics push
+    router.set_autoscaler(autoscaler)
+
+    # Create API Gateway app
     app = create_head_app(
-        worker_manager=worker_manager,
-        model_manager=model_manager,
-        dispatcher=dispatcher,
+        database=db,
+        pylet_client=pylet_client,
+        router=router,
+        autoscaler=autoscaler,
+        config=config,
     )
 
-    uvicorn_config = Config(app, host=host, port=port, log_level="info")
+    # Configure uvicorn server
+    uvicorn_config = Config(
+        app, host=config.host, port=config.port, log_level="info"
+    )
     uvicorn_server = Server(uvicorn_config)
 
-    worker_manager.start()
-    model_manager.start()
-    dispatcher.start()
-    autoscaler_task = asyncio.create_task(autoscaler.run_scaling_loop())
-    dispatcher_task = asyncio.create_task(dispatcher.run_consumer_loop())
+    # Initialize background components
+    reconciler = None
+    storage_manager = None
+    background_tasks = []
+
+    if pylet_client:
+        # Initialize StorageManager
+        # Use advertise IP (not bind address) for external accessibility
+        advertise_ip = get_advertise_ip()
+        head_url = f"http://{advertise_ip}:{config.port}"
+        storage_manager = init_storage_manager(
+            database=db,
+            pylet_client=pylet_client,
+            storage_path=config.storage_path,
+            head_url=head_url,
+        )
+        await storage_manager.recover_from_db()
+        logger.info("StorageManager initialized")
+
+    # Start Router
+    await router.start()
+
+    # Start HTTP server
     server_task = asyncio.create_task(uvicorn_server.serve())
 
+    # Start Autoscaler
+    autoscaler_task = asyncio.create_task(autoscaler.run())
+    background_tasks.append(autoscaler_task)
+    logger.info("Autoscaler started")
+
+    # Initialize Reconciler (only if Pylet is available)
+    if pylet_client and storage_manager:
+        reconciler = init_reconciler(
+            database=db,
+            pylet_client=pylet_client,
+            storage_manager=storage_manager,
+            storage_path=config.storage_path,
+        )
+        await reconciler.start()
+        reconciler_task = asyncio.create_task(reconciler.run())
+        background_tasks.append(reconciler_task)
+        logger.info("Reconciler started")
+
     try:
-        logger.info("Head node services started.")
-        await asyncio.gather(autoscaler_task, dispatcher_task, server_task)
+        logger.info(f"Head node started on {config.host}:{config.port}")
+        logger.info("Head node services started (v1-beta).")
+        await server_task
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Shutdown signal received.")
     finally:
         logger.info("Shutting down head node...")
-        autoscaler.shutdown()
-        await dispatcher.shutdown()
-        await worker_manager.shutdown()
-        await model_manager.shutdown()
+
+        # Shutdown components
+        if autoscaler:
+            autoscaler.shutdown()
+        if reconciler:
+            await reconciler.stop()
+
+        # Cancel background tasks
+        for task in background_tasks:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
         uvicorn_server.should_exit = True
-        await asyncio.sleep(2)
-        await store.close()
+        await asyncio.sleep(1)
+
+        # Shutdown Router
+        if router:
+            await router.drain(timeout=10.0)
+            await router.stop()
+
+        # Close database connection
+        db.close()
+
         logger.info("Head node shutdown complete.")
-
-
-# ----------------------------- START WORKER ----------------------------- #
-def start_worker(host, port, head_node_url):
-    """Start the SLLM worker node."""
-    if not head_node_url:
-        click.echo("Error: --head-node-url is required for worker mode")
-        sys.exit(1)
-
-    try:
-        asyncio.run(_run_worker_node(host, port, head_node_url))
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        click.echo(f"Failed to start worker node: {e}")
-        sys.exit(1)
-
-
-async def _run_worker_node(host, port, head_node_url):
-    """Async implementation of worker node startup."""
-    logger.info("Starting worker node...")
-
-    # Separate bind address from advertise address
-    advertise_ip = get_advertise_ip()
-    logger.info(
-        f"Worker binding to {host}:{port}, advertising as {advertise_ip}:{port}"
-    )
-
-    static_hardware_info = benchmark_static_hardware()
-    instance_manager = InstanceManager(node_ip=advertise_ip)
-    worker_app = create_worker_app(instance_manager)
-    uvicorn_config = Config(worker_app, host=host, port=port, log_level="info")
-    uvicorn_server = Server(uvicorn_config)
-
-    server_task = asyncio.create_task(uvicorn_server.serve())
-    heartbeat_task = asyncio.create_task(
-        run_heartbeat_loop(
-            instance_manager=instance_manager,
-            head_node_url=head_node_url,
-            node_ip=advertise_ip,
-            static_hardware_info=static_hardware_info,
-            app_state=worker_app.state,
-            worker_port=port,
-        )
-    )
-
-    try:
-        logger.info(f"Worker node started on {host}:{port}.")
-        await asyncio.gather(server_task, heartbeat_task)
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        logger.info("Shutdown signal received.")
-    finally:
-        logger.info("Shutting down worker node...")
-        server_task.cancel()
-        heartbeat_task.cancel()
-        await asyncio.gather(
-            server_task, heartbeat_task, return_exceptions=True
-        )
-        logger.info("Worker node shutdown complete.")
 
 
 # ----------------------------- DEPLOY COMMAND ----------------------------- #

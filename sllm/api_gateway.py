@@ -1,72 +1,109 @@
 # ---------------------------------------------------------------------------- #
-#  serverlessllm                                                               #
-#  copyright (c) serverlessllm team 2024                                       #
+#  ServerlessLLM                                                               #
+#  Copyright (c) ServerlessLLM Team 2024                                       #
 #                                                                              #
-#  licensed under the apache license, version 2.0 (the "license");             #
-#  you may not use this file except in compliance with the license.            #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
 #                                                                              #
-#  you may obtain a copy of the license at                                     #
+#  You may obtain a copy of the License at                                     #
 #                                                                              #
-#                  http://www.apache.org/licenses/license-2.0                  #
+#                  http://www.apache.org/licenses/LICENSE-2.0                  #
 #                                                                              #
-#  unless required by applicable law or agreed to in writing, software         #
-#  distributed under the license is distributed on an "as is" basis,           #
-#  without warranties or conditions of any kind, either express or implied.    #
-#  see the license for the specific language governing permissions and         #
-#  limitations under the license.                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-import asyncio
-import json
-import os
-import uuid
-from contextlib import asynccontextmanager
-from typing import Any, Dict
+"""
+API Gateway for ServerlessLLM v1-beta.
 
-import aiohttp
-from fastapi import FastAPI, HTTPException, Request, Response
+Stateless HTTP router with:
+- OpenAI-compatible inference endpoints
+- Model registration and deletion
+- Single global Router for load balancing
+- SQLite for model configuration
+- Pylet for instance information
+
+Design (from docs/v1-beta-scalable-router-design.md):
+- /register, /delete, /status -> Model Manager
+- /v1/* -> Pass raw HTTP request to Router
+"""
+
+import os
+from contextlib import asynccontextmanager
+from typing import Any, Optional
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from sllm.dispatcher import Dispatcher
-from sllm.kv_store import RedisStore
-from sllm.lb_manager import LoadBalancerManager
+from sllm.autoscaler import AutoScaler
+from sllm.database import Database
 from sllm.logger import init_logger
-from sllm.model_manager import ModelManager
-from sllm.worker_manager import WorkerManager
-
-INFERENCE_REQUEST_TIMEOUT = 300  # 5 minutes for VLLM cold starts
+from sllm.pylet_client import PyletClient
+from sllm.router import Router, RouterConfig
 
 logger = init_logger(__name__)
+
+# CORS origins
 origins_env = os.getenv("ALLOWED_ORIGINS", "")
 origins = [origin for origin in origins_env.split(",") if origin]
 origins += ["http://localhost", "http://localhost:3000"]
 
 
 def create_app(
-    worker_manager: WorkerManager,
-    model_manager: ModelManager,
-    dispatcher: Dispatcher,
+    database: Optional[Database] = None,
+    pylet_client: Optional[PyletClient] = None,
+    router: Optional[Router] = None,
+    autoscaler: Optional[AutoScaler] = None,
+    config: Optional[Any] = None,
 ) -> FastAPI:
+    """
+    Create the SLLM API Gateway FastAPI application.
+
+    Args:
+        database: SQLite database instance
+        pylet_client: Pylet client instance (may be None if Pylet unavailable)
+        router: Global Router instance for request routing
+        autoscaler: AutoScaler instance (for connecting Router to it)
+        config: Head configuration
+
+    Returns:
+        FastAPI application
+    """
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.worker_manager = worker_manager
-        app.state.model_manager = model_manager
-        app.state.dispatcher = dispatcher
-        app.state.redis_store = worker_manager.store
+        # Store dependencies in app state
+        app.state.database = database
+        app.state.pylet_client = pylet_client
+        app.state.router = router
+        app.state.autoscaler = autoscaler
+        app.state.config = config
 
-        # Initialize load balancer manager
-        app.state.lb_manager = LoadBalancerManager(worker_manager.store)
+        # Connect Router to Autoscaler for metrics push
+        if router and autoscaler:
+            router.set_autoscaler(autoscaler)
 
-        # Initialize HTTP session for forwarding requests
-        app.state.http_session = aiohttp.ClientSession()
+        # Start router if provided
+        if router:
+            await router.start()
 
+        logger.info("API Gateway started")
         yield
 
         # Cleanup
-        await app.state.http_session.close()
-        await app.state.lb_manager.shutdown_all()
+        if router:
+            await router.drain(timeout=10.0)
+            await router.stop()
+        logger.info("API Gateway shutdown")
 
-    app = FastAPI(lifespan=lifespan, title="SLLM API Gateway")
+    app = FastAPI(
+        lifespan=lifespan,
+        title="ServerlessLLM API Gateway",
+        version="1.0.0-beta",
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -83,12 +120,30 @@ def create_app(
             status_code=500, content={"error": {"message": str(exc)}}
         )
 
+    # -------------------------------------------------------------------------
+    # Health Endpoints
+    # -------------------------------------------------------------------------
+
     @app.get("/health")
-    async def health_check():
-        return {"status": "ok"}
+    async def health_check(request: Request):
+        """Health check endpoint."""
+        pylet_healthy = False
+        if request.app.state.pylet_client:
+            pylet_healthy = await request.app.state.pylet_client.is_healthy()
+
+        return {
+            "status": "ok",
+            "version": "v1-beta",
+            "pylet_connected": pylet_healthy,
+        }
+
+    # -------------------------------------------------------------------------
+    # Model Management Endpoints
+    # -------------------------------------------------------------------------
 
     @app.post("/models")
     async def register_handler(request: Request):
+        """Register a new model."""
         try:
             body = await request.json()
         except Exception as e:
@@ -96,146 +151,151 @@ def create_app(
                 status_code=400, detail=f"Invalid JSON payload: {str(e)}"
             )
 
-        if not body.get("model"):
+        model_name = body.get("model")
+        if not model_name:
             raise HTTPException(
                 status_code=400, detail="Missing required field: model"
             )
 
-        try:
-            await request.app.state.model_manager.register(body)
-            model_name = body.get("model")
-            backend = body.get("backend", "vllm")
+        backend = body.get("backend", "vllm")
+        model_id = f"{model_name}:{backend}"
 
-            # Start load balancer for this model
-            lb_config = body.get("lb_config", {})
-            await request.app.state.lb_manager.start_lb(
-                model_name, backend, lb_config
+        # Check if already exists
+        db: Database = request.app.state.database
+        if db.get_model(model_id):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Model {model_id} is already registered",
             )
+
+        # Parse configuration
+        backend_config = body.get("backend_config", {})
+        auto_scaling_config = body.get("auto_scaling_config", {})
+
+        try:
+            # Create model in database
+            model = db.create_model(
+                model_id=model_id,
+                model_name=model_name,
+                backend=backend,
+                min_replicas=auto_scaling_config.get("min_instances", 0),
+                max_replicas=auto_scaling_config.get("max_instances", 1),
+                target_pending_requests=auto_scaling_config.get(
+                    "target_ongoing_requests", 5
+                ),
+                keep_alive_seconds=auto_scaling_config.get(
+                    "keep_alive_seconds", 0
+                ),
+                backend_config=backend_config,
+            )
+
+            logger.info(f"Registered model {model_id}")
 
             return {
-                "message": f"Model {model_name}:{backend} registered successfully"
+                "model_id": model_id,
+                "status": "active",
+                "message": f"Model {model_id} registered successfully",
             }
+
         except ValueError as e:
-            error_msg = str(e)
-            if "already registered" in error_msg:
-                raise HTTPException(
-                    status_code=409,
-                    detail=error_msg,
-                )
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Model registration validation failed: {error_msg}",
-                )
-        except KeyError as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Model registration validation failed: {str(e)}",
-            )
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            logger.error(f"Cannot register model: {e}", exc_info=True)
+            logger.error(f"Failed to register model: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail="Model registration failed due to internal error",
             )
 
-    @app.put("/models/{model_id}")
-    async def update_handler(model_id: str, request: Request):
+    @app.delete("/delete/{model_id:path}")
+    async def delete_model_handler(model_id: str, request: Request):
+        """Delete a model.
+
+        Returns 202 Accepted immediately. The Reconciler will:
+        1. Stop all instances via Pylet
+        2. Remove endpoints from model_endpoints table
+        3. Delete the model from the database
+        """
+        db: Database = request.app.state.database
+
+        model = db.get_model(model_id)
+        if not model:
+            raise HTTPException(
+                status_code=404, detail=f"Model {model_id} not found"
+            )
+
+        if model.status == "deleting":
+            # Already deleting
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "status": "deleting",
+                    "model_id": model_id,
+                    "message": "Deletion already in progress",
+                },
+            )
+
         try:
-            body = await request.json()
-            backend = body.get("backend")
+            # Mark as deleting and set desired=0
+            # The Reconciler will handle the actual cleanup:
+            # - Cancel instances in Pylet
+            # - Remove endpoints from model_endpoints table
+            # - Delete from database
+            db.update_model_status(model_id, "deleting")
+            db.update_desired_replicas(model_id, 0)
 
-            if not backend:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Missing 'backend' in request body.",
-                )
+            logger.info(f"Model {model_id} marked for deletion")
 
-            await request.app.state.model_manager.update(model_id, backend, body)
-            return {"status": f"updated model {model_id}:{backend}"}
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "status": "deleting",
+                    "model_id": model_id,
+                    "message": "Deletion in progress. Instances will be stopped by reconciler.",
+                },
+            )
 
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except Exception as e:
-            logger.error(f"Error updating model: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @app.delete("/models/{model_id}")
-    async def delete_model_handler(
-        model_id: str, request: Request, backend: str = None
-    ):
-        try:
-            model_manager = request.app.state.model_manager
-
-            if backend:
-                logger.info(f"Deleting model '{model_id}:{backend}'")
-                await request.app.state.lb_manager.stop_lb(model_id, backend)
-                await model_manager.delete(model_id, backend)
-                return {"status": f"deleted model {model_id}:{backend}"}
-            else:
-                logger.info(f"Deleting all backends for model '{model_id}'")
-                all_models = await model_manager.get_all_models()
-                for m in all_models:
-                    if m.get("model") == model_id:
-                        backend_to_delete = m.get("backend")
-                        await request.app.state.lb_manager.stop_lb(
-                            model_id, backend_to_delete
-                        )
-                await model_manager.delete(model_id, "all")
-                return {"status": f"deleted all backends for model {model_id}"}
-
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
             logger.error(
-                f"Error during delete operation for '{model_id}': {e}",
+                f"Failed to mark model {model_id} for deletion: {e}",
                 exc_info=True,
             )
-            raise HTTPException(
-                status_code=500, detail="An internal server error occurred."
-            )
-
-    @app.delete("/models/{model_id}/adapters")
-    async def delete_adapters_handler(model_id: str, request: Request):
-        try:
-            body = await request.json()
-            lora_adapters = body.get("lora_adapters")
-            if not lora_adapters:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Missing 'lora_adapters' in request body.",
-                )
-            model_manager = request.app.state.model_manager
-            await model_manager.delete(model_id, "transformers", lora_adapters)
-            return {"status": f"deleted LoRA adapters from {model_id}"}
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except Exception as e:
-            logger.error(
-                f"Error deleting adapters for '{model_id}': {e}",
-                exc_info=True,
-            )
-            raise HTTPException(
-                status_code=500, detail="An internal server error occurred."
-            )
-
-    @app.post("/workers/heartbeat")
-    async def handle_heartbeat(request: Request):
-        try:
-            payload = await request.json()
-            await request.app.state.worker_manager.process_heartbeat(payload)
-            return {
-                "status": "ok",
-                "message": "Heartbeat received and processed.",
-            }
-        except Exception as e:
-            logger.error(f"Failed to process heartbeat: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500,
-                detail="An internal error occurred while processing the heartbeat.",
+                detail=f"Failed to delete model: {str(e)}",
             )
 
-    async def inference_handler(request: Request, action: str) -> Response:
+    @app.post("/delete")
+    async def delete_model_post_handler(request: Request):
+        """Delete a model (POST variant for backward compatibility)."""
+        try:
+            body = await request.json()
+            model = body.get("model")
+            if not model:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Missing 'model' in request body.",
+                )
+
+            backend = body.get("backend", "vllm")
+            model_id = f"{model}:{backend}"
+
+            # Delegate to DELETE handler
+            return await delete_model_handler(model_id, request)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error in delete: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # -------------------------------------------------------------------------
+    # Inference Endpoints
+    # -------------------------------------------------------------------------
+    async def inference_handler(
+        request: Request,
+        path: str = "/v1/chat/completions",
+    ) -> JSONResponse:
+        """Forward inference request to Router."""
         try:
             body = await request.json()
         except Exception as e:
@@ -251,156 +311,232 @@ def create_app(
                 detail="Request body must include a 'model' field",
             )
 
-        explicit_backend = body.get("backend")
-
+        # Parse model:backend format
         if ":" in model_identifier:
-            model, backend = model_identifier.split(":", 1)
-            if explicit_backend and explicit_backend != backend:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Backend mismatch: model specifies '{backend}' but request body specifies '{explicit_backend}'",
-                )
+            model_name, backend = model_identifier.rsplit(":", 1)
+            model_id = model_identifier
         else:
-            model = model_identifier
-            backend = explicit_backend
+            model_name = model_identifier
+            backend = body.get("backend", "vllm")
+            model_id = f"{model_name}:{backend}"
 
-            if not backend:
-                all_models = (
-                    await request.app.state.model_manager.get_all_models()
-                )
-                available_backends = [
-                    m.get("backend")
-                    for m in all_models
-                    if m.get("model") == model
-                    and m.get("status") != "excommunicado"
-                ]
-
-                if not available_backends:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"No available backends found for model '{model}'",
-                    )
-
-                backend = available_backends[0]
-
-        if not await request.app.state.model_manager.get_model(model, backend):
+        # Verify model exists
+        db: Database = request.app.state.database
+        model = db.get_model(model_id)
+        if not model or model.status != "active":
             raise HTTPException(
                 status_code=404,
-                detail=f"Model '{model_identifier}' not found or not registered.",
+                detail=f"Model '{model_id}' not found or not active",
             )
 
-        # Get load balancer endpoint for this model
-        lb_endpoint = await request.app.state.lb_manager.get_lb_endpoint(
-            model, backend
-        )
-        if not lb_endpoint:
+        # Get router
+        router: Router = request.app.state.router
+        if not router:
             raise HTTPException(
-                status_code=404,
-                detail=f"No load balancer available for model '{model}:{backend}'",
+                status_code=503,
+                detail="Router not available",
             )
 
-        # Map action to endpoint
-        endpoint_map = {
-            "generate": "/v1/chat/completions",
-            "completions": "/v1/completions",
-            "encode": "/v1/embeddings",
-            "fine-tuning": "/fine-tuning",
-        }
-        endpoint = endpoint_map.get(action, "/v1/chat/completions")
-        url = f"http://{lb_endpoint}{endpoint}"
-
-        logger.info(f"Forwarding {action} request to LB at {url}")
-
-        # Forward request to load balancer
+        # Forward to router
         try:
-            async with request.app.state.http_session.post(
-                url,
-                json=body,
-                timeout=aiohttp.ClientTimeout(total=INFERENCE_REQUEST_TIMEOUT),
-            ) as resp:
-                result = await resp.json()
-                return JSONResponse(content=result, status_code=resp.status)
-        except asyncio.TimeoutError:
-            raise HTTPException(
-                status_code=408,
-                detail="Request timed out",
-            )
+            result = await router.handle_request(body, path, model_id=model_id)
+            return JSONResponse(content=result)
         except Exception as e:
-            logger.error(f"Failed to forward request to load balancer: {e}")
+            logger.error(f"Inference request failed: {e}")
             raise HTTPException(
                 status_code=502,
-                detail=f"Failed to communicate with load balancer: {str(e)}",
+                detail=str(e),
             )
 
     @app.post("/v1/chat/completions")
     async def chat_completions_handler(request: Request):
-        return await inference_handler(request, "generate")
+        """OpenAI-compatible chat completions."""
+        return await inference_handler(request, "/v1/chat/completions")
 
     @app.post("/v1/completions")
     async def completions_handler(request: Request):
-        return await inference_handler(request, "completions")
+        """OpenAI-compatible completions."""
+        return await inference_handler(request, "/v1/completions")
 
     @app.post("/v1/embeddings")
     async def embeddings_handler(request: Request):
-        return await inference_handler(request, "encode")
+        """OpenAI-compatible embeddings."""
+        return await inference_handler(request, "/v1/embeddings")
 
-    @app.post("/fine-tuning")
-    async def fine_tuning_handler(request: Request):
-        return await inference_handler(request, "fine-tuning")
+    # -------------------------------------------------------------------------
+    # Status Endpoints
+    # -------------------------------------------------------------------------
 
     @app.get("/v1/models")
     async def get_models(request: Request):
-        try:
-            store: RedisStore = request.app.state.redis_store
-            model_statuses = await store.get_all_models()
-            return model_statuses
-        except Exception as e:
-            logger.error(f"Error retrieving models: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to retrieve models from the store.",
+        """List all registered models."""
+        db: Database = request.app.state.database
+        router: Router = request.app.state.router
+
+        models = db.get_all_models()
+        model_list = []
+
+        for model in models:
+            ready_endpoints = (
+                router.get_endpoint_count(model.id) if router else 0
             )
 
-    @app.get("/v1/status/{request_id}")
-    async def get_request_status(request_id: str, request: Request):
-        try:
-            store: RedisStore = request.app.state.redis_store
-            status = await store.get_request_status(request_id)
+            model_list.append(
+                {
+                    "id": model.id,
+                    "model": model.model_name,
+                    "backend": model.backend,
+                    "status": model.status,
+                    "desired_replicas": model.desired_replicas,
+                    "ready_replicas": ready_endpoints,
+                    "min_replicas": model.min_replicas,
+                    "max_replicas": model.max_replicas,
+                }
+            )
 
-            if status is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Request {request_id} not found or has expired",
+        return {"object": "list", "models": model_list}
+
+    @app.get("/status")
+    async def cluster_status(request: Request):
+        """Get comprehensive cluster status."""
+        db: Database = request.app.state.database
+        router: Router = request.app.state.router
+        pylet_client: Optional[PyletClient] = request.app.state.pylet_client
+
+        # Get models
+        models = db.get_all_models()
+        model_status = []
+
+        for model in models:
+            endpoints = db.get_model_endpoints(model.id)
+
+            # Get instances from Pylet if available
+            instances = []
+            if pylet_client:
+                try:
+                    pylet_instances = await pylet_client.get_model_instances(
+                        model.id
+                    )
+                    instances = [
+                        {
+                            "id": inst.instance_id,
+                            "node": inst.node,
+                            "endpoint": inst.endpoint,
+                            "status": inst.status.lower(),
+                        }
+                        for inst in pylet_instances
+                    ]
+                except Exception as e:
+                    logger.warning(f"Failed to get instances from Pylet: {e}")
+
+            model_status.append(
+                {
+                    "id": model.id,
+                    "status": model.status,
+                    "desired_replicas": model.desired_replicas,
+                    "ready_replicas": len(endpoints),
+                    "starting_replicas": len(
+                        [
+                            i
+                            for i in instances
+                            if i["status"] in ("pending", "assigned")
+                        ]
+                    ),
+                    "instances": instances,
+                }
+            )
+
+        # Get nodes from Pylet
+        nodes = []
+        if pylet_client:
+            try:
+                workers = await pylet_client.list_workers()
+                for worker in workers:
+                    node_storage = db.get_node_storage(worker.worker_id)
+                    nodes.append(
+                        {
+                            "name": worker.worker_id,
+                            "host": worker.host,
+                            "status": worker.status.lower(),
+                            "total_gpus": worker.total_gpus,
+                            "available_gpus": worker.available_gpus,
+                            "sllm_store_endpoint": (
+                                node_storage.sllm_store_endpoint
+                                if node_storage
+                                else None
+                            ),
+                            "cached_models": (
+                                node_storage.cached_models
+                                if node_storage
+                                else []
+                            ),
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to get workers from Pylet: {e}")
+
+        return {
+            "models": model_status,
+            "nodes": nodes,
+        }
+
+    # -------------------------------------------------------------------------
+    # Internal Endpoints (for sllm-store)
+    # -------------------------------------------------------------------------
+
+    @app.post("/internal/storage-report")
+    async def storage_report_handler(request: Request):
+        """Receive storage report from sllm-store.
+
+        Updates both the in-memory StorageManager cache (for fast placement)
+        and the SQLite database (for persistence).
+        """
+        try:
+            body = await request.json()
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid JSON: {str(e)}"
+            )
+
+        node_name = body.get("node_name")
+        if not node_name:
+            raise HTTPException(status_code=400, detail="Missing 'node_name'")
+
+        # Try to use StorageManager for in-memory cache + DB update
+        storage_manager = getattr(request.app.state, "storage_manager", None)
+        if storage_manager:
+            try:
+                from sllm.storage_manager import StorageReport
+
+                report = StorageReport(
+                    node_name=node_name,
+                    sllm_store_endpoint=body.get("sllm_store_endpoint"),
+                    cached_models=body.get("cached_models", []),
                 )
-
-            return {"request_id": request_id, "status": status}
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error retrieving request status: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to retrieve request status.",
+                await storage_manager.handle_storage_report(report)
+            except Exception as e:
+                logger.warning(f"StorageManager update failed: {e}")
+                # Fall back to direct DB update
+                db: Database = request.app.state.database
+                db.upsert_node_storage(
+                    node_name=node_name,
+                    sllm_store_endpoint=body.get("sllm_store_endpoint"),
+                    cached_models=body.get("cached_models", []),
+                )
+        else:
+            # No StorageManager, direct DB update
+            db: Database = request.app.state.database
+            db.upsert_node_storage(
+                node_name=node_name,
+                sllm_store_endpoint=body.get("sllm_store_endpoint"),
+                cached_models=body.get("cached_models", []),
             )
 
-    @app.get("/v1/workers")
-    async def get_workers(request: Request):
-        try:
-            store: RedisStore = request.app.state.redis_store
-            all_workers = await store.get_all_workers()
+        logger.debug(
+            f"Received storage report from {node_name}: "
+            f"{len(body.get('cached_models', []))} models cached"
+        )
 
-            sanitized_workers = []
-            for worker in all_workers:
-                sanitized_worker = worker.copy()
-                sanitized_worker.pop("node_ip", None)
-                sanitized_workers.append(sanitized_worker)
-
-            return {"object": "list", "data": sanitized_workers}
-        except Exception as e:
-            logger.error(f"Error retrieving workers: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to retrieve workers from the store.",
-            )
+        return {"status": "ok"}
 
     return app

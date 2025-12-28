@@ -67,25 +67,21 @@ RUN cd sllm_store && conda run -n build python setup.py bdist_wheel
 COPY requirements.txt requirements-worker.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/backends /app/sllm/backends
+COPY sllm/ft_backends /app/sllm/ft_backends
 COPY sllm/cli /app/sllm/cli
-COPY sllm/worker /app/sllm/worker
 COPY sllm/*.py /app/sllm/
 COPY README.md /app/
 RUN conda run -n build python setup.py bdist_wheel
 
 FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
-# Set environment for HTTP-based architecture
+# Set environment for v1-beta architecture
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     STORAGE_PATH=/models \
     HEAD_HOST=0.0.0.0 \
-    HEAD_PORT=8343\
-    REDIS_HOST=redis \
-    REDIS_PORT=6379\
-    WORKER_HOST=0.0.0.0 \
-    WORKER_PORT=8001
+    HEAD_PORT=8343
 
 # Install additional runtime dependencies
 RUN apt-get update -y && \
@@ -107,10 +103,10 @@ RUN conda run -n head pip install -U pip && \
 COPY requirements.txt /app/
 COPY requirements-worker.txt /app/
 
-# Install head node dependencies (API gateway, Redis client)
+# Install head node dependencies (API gateway, Pylet client, SQLite)
 RUN conda run -n head pip install -r /app/requirements.txt
 
-# Install worker node dependencies (ML inference, HTTP client)
+# Install worker node dependencies (vLLM, sllm-store, Pylet)
 RUN conda run -n worker pip install -r /app/requirements-worker.txt
 
 # Copy vLLM patch for worker (if needed)
@@ -140,14 +136,14 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Expose ports
 # Head node: 8343 (API Gateway)
-# Worker node: 8001 (Worker API)
-# Backend instances: 8000-8299 (vLLM: 8000-8099, Transformers: 8100-8199, Other: 8200-8299)
-EXPOSE 8343 8001 8000-8299
+# Pylet head: 8000 (cluster manager)
+# vLLM instances: 8080-8179 (spawned by Pylet)
+EXPOSE 8343 8000 8080-8179
 
 # Labels for container identification
-LABEL org.opencontainers.image.title="ServerlessLLM HTTP" \
-      org.opencontainers.image.description="HTTP-based distributed LLM serving platform" \
-      org.opencontainers.image.version="2.0" \
+LABEL org.opencontainers.image.title="ServerlessLLM v1-beta" \
+      org.opencontainers.image.description="Pylet-based distributed LLM serving platform" \
+      org.opencontainers.image.version="1.0.0-beta" \
       org.opencontainers.image.vendor="ServerlessLLM Team" \
       org.opencontainers.image.licenses="Apache-2.0"
 

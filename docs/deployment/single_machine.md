@@ -92,7 +92,7 @@ To install ServerlessLLM from source, follow these steps:
 
 ### vLLM Patch
 
-To use vLLM with ServerlessLLM, you must apply a patch. The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` within the ServerlessLLM repository. This patch has been tested with vLLM version `0.9.0.1`.
+To use vLLM with ServerlessLLM, you must apply a patch. The patch file is located at `sllm_store/vllm_patch/sllm_load.patch` within the ServerlessLLM repository. This patch has been tested with vLLM version `0.11.2`.
 
 Apply the patch using the following script:
 
@@ -182,7 +182,7 @@ conda activate sllm
 sllm deploy --model facebook/opt-1.3b
 ```
 
-This command downloads the specified model from Hugging Face Hub. To load a model from a local path, you can use a `config.json` file. Refer to the [CLI API documentation](../../api/cli.md#example-configuration-file-configjson) for details.
+This command downloads the specified model from Hugging Face Hub. To load a model from a local path, you can use a `config.json` file. Refer to the [CLI API documentation](../api/cli.md#example-configuration-file-configjson) for details.
 
 ### 5. Query the Model
 
