@@ -205,8 +205,7 @@ def create_app(
                 status_code=500,
                 detail="Model registration failed due to internal error",
             )
-
-    @app.delete("/delete/{model_id:path}")
+    @app.delete("/models/{model_id:path}")
     async def delete_model_handler(model_id: str, request: Request):
         """Delete a model.
 
@@ -263,30 +262,6 @@ def create_app(
                 status_code=500,
                 detail=f"Failed to delete model: {str(e)}",
             )
-
-    @app.post("/delete")
-    async def delete_model_post_handler(request: Request):
-        """Delete a model (POST variant for backward compatibility)."""
-        try:
-            body = await request.json()
-            model = body.get("model")
-            if not model:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Missing 'model' in request body.",
-                )
-
-            backend = body.get("backend", "vllm")
-            model_id = f"{model}:{backend}"
-
-            # Delegate to DELETE handler
-            return await delete_model_handler(model_id, request)
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error in delete: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
 
     # -------------------------------------------------------------------------
     # Inference Endpoints
