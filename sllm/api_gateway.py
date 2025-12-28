@@ -205,6 +205,7 @@ def create_app(
                 status_code=500,
                 detail="Model registration failed due to internal error",
             )
+
     @app.delete("/models/{model_id:path}")
     async def delete_model_handler(model_id: str, request: Request):
         """Delete a model.

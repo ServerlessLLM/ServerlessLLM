@@ -22,7 +22,7 @@ import socket
 import subprocess
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from typing import Dict, List, Optional, Union
 
 import click
 import requests
@@ -55,6 +55,51 @@ def get_head_config() -> HeadConfig:
     if _head_config is None:
         _head_config = HeadConfig()
     return _head_config
+
+
+def parse_lora_adapters(
+    lora_adapters,
+) -> Optional[Union[Dict[str, str], List[str]]]:
+    """Parse LoRA adapters from various input formats.
+
+    Accepts:
+    - dict: returned as-is
+    - str: "name1=path1 name2=path2" or "name1=path1,name2=path2"
+    - list/tuple: each item parsed as above
+    - None: returns None
+
+    Returns:
+    - Dict[str, str] if all items have name=path format
+    - List[str] if items are just names (for deletion)
+    - None if input is None
+    """
+    if lora_adapters is None:
+        return None
+    if isinstance(lora_adapters, dict):
+        return lora_adapters
+
+    # Normalize to list of strings
+    if isinstance(lora_adapters, str):
+        items = lora_adapters.replace(",", " ").split()
+    elif isinstance(lora_adapters, (list, tuple)):
+        items = []
+        for item in lora_adapters:
+            items.extend(str(item).replace(",", " ").split())
+    else:
+        items = [str(lora_adapters)]
+
+    items = [m.strip() for m in items if m.strip()]
+
+    if not items:
+        return None
+
+    # If all items have "=", return dict; otherwise return list
+    if all("=" in item for item in items):
+        return {
+            name: path for item in items for name, path in [item.split("=", 1)]
+        }
+    else:
+        return items
 
 
 def get_advertise_ip() -> str:
@@ -377,33 +422,16 @@ def deploy_model(
     if max_instances is not None:
         config_data["auto_scaling_config"]["max_instances"] = max_instances
     if lora_adapters:
-        # Only parse if not already a dict
-        if isinstance(lora_adapters, dict):
-            adapters_dict = lora_adapters
-        else:
-            adapters_dict = {}
-            if isinstance(lora_adapters, str):
-                items = lora_adapters.replace(",", " ").split()
-            elif isinstance(lora_adapters, (list, tuple)):
-                items = []
-                for item in lora_adapters:
-                    items.extend(item.replace(",", " ").split())
-            else:
-                items = [str(lora_adapters)]
-            for module in items:
-                module = module.strip()
-                if not module:
-                    continue
-                if "=" not in module:
-                    print(
-                        f"[ERROR] Invalid LoRA module format: {module}. Expected <name>=<path>."
-                    )
-                    sys.exit(1)
-                name, path = module.split("=", 1)
-                adapters_dict[name] = path
-        config_data.setdefault("backend_config", {})["lora_adapters"] = (
-            adapters_dict
-        )
+        adapters_dict = parse_lora_adapters(lora_adapters)
+        if adapters_dict is not None:
+            if isinstance(adapters_dict, list):
+                print(
+                    "[ERROR] LoRA adapters must be in <name>=<path> format for deploy."
+                )
+                sys.exit(1)
+            config_data.setdefault("backend_config", {})["lora_adapters"] = (
+                adapters_dict
+            )
     if enable_lora is not None:
         config_data.setdefault("backend_config", {})["enable_lora"] = (
             enable_lora
@@ -450,29 +478,7 @@ def delete_model(models, backend=None, lora_adapters=None):
         try:
             if lora_adapters is not None:
                 url = f"{base_url.rstrip('/')}/models/{model}/adapters"
-                if isinstance(lora_adapters, dict):
-                    adapters = lora_adapters
-                else:
-                    if isinstance(lora_adapters, str):
-                        items = lora_adapters.replace(",", " ").split()
-                    elif isinstance(lora_adapters, (list, tuple)):
-                        items = []
-                        for item in lora_adapters:
-                            items.extend(item.replace(",", " ").split())
-                    else:
-                        items = [str(lora_adapters)]
-                    if all("=" in module for module in items if module.strip()):
-                        adapters = {}
-                        for module in items:
-                            module = module.strip()
-                            if not module:
-                                continue
-                            name, path = module.split("=", 1)
-                            adapters[name] = path
-                    else:
-                        adapters = [
-                            module.strip() for module in items if module.strip()
-                        ]
+                adapters = parse_lora_adapters(lora_adapters)
                 response = requests.delete(
                     url, headers=headers, json={"lora_adapters": adapters}
                 )
