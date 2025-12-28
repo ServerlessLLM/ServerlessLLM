@@ -927,3 +927,57 @@ async def get_with_retry(
         timeout=timeout,
         **kwargs,
     )
+
+
+async def delete_with_retry(
+    session: aiohttp.ClientSession,
+    url: str,
+    max_retries: int = 3,
+    timeout: float = 30.0,
+    **kwargs,
+) -> Dict[str, Any]:
+    """
+    DELETE request with retry logic and return JSON response.
+
+    Args:
+        session: aiohttp ClientSession
+        url: Request URL
+        max_retries: Maximum number of retry attempts
+        timeout: Request timeout in seconds
+        **kwargs: Additional arguments passed to session.request()
+
+    Returns:
+        Parsed JSON response as dict
+
+    Raises:
+        Exception: If all retries are exhausted
+    """
+    last_exception = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            timeout_obj = aiohttp.ClientTimeout(total=timeout)
+            kwargs.setdefault("timeout", timeout_obj)
+
+            async with session.request("DELETE", url, **kwargs) as response:
+                if response.status >= 500:
+                    raise aiohttp.ClientResponseError(
+                        request_info=response.request_info,
+                        history=response.history,
+                        status=response.status,
+                        message=f"Server error: {response.status}",
+                    )
+                return await response.json()
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            last_exception = e
+
+            if attempt == max_retries:
+                break
+
+            delay = min(1.0 * (2**attempt), 10.0)
+            await asyncio.sleep(delay)
+
+    raise Exception(
+        f"HTTP DELETE to {url} failed after {max_retries + 1} attempts: {last_exception}"
+    )

@@ -107,6 +107,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     register_url = (
-        os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343") + "/register"
+        os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343") + "/models"
     )
     main(args.num_models, register_url)

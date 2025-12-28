@@ -108,7 +108,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type"],
         max_age=86400,
     )
@@ -141,7 +141,7 @@ def create_app(
     # Model Management Endpoints
     # -------------------------------------------------------------------------
 
-    @app.post("/register")
+    @app.post("/models")
     async def register_handler(request: Request):
         """Register a new model."""
         try:
@@ -291,7 +291,6 @@ def create_app(
     # -------------------------------------------------------------------------
     # Inference Endpoints
     # -------------------------------------------------------------------------
-
     async def inference_handler(
         request: Request,
         path: str = "/v1/chat/completions",

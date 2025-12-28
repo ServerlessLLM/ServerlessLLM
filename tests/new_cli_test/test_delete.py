@@ -12,10 +12,10 @@ class TestDeleteCommand(unittest.TestCase):
     def setUp(self):
         self.runner = CliRunner()
 
-    @mock.patch("sllm.cli._cli_utils.requests.post")
-    def test_delete_success(self, mock_post):
-        mock_post.return_value.status_code = 200
-        mock_post.return_value.text = "OK"
+    @mock.patch("sllm.cli._cli_utils.requests.delete")
+    def test_delete_success(self, mock_delete):
+        mock_delete.return_value.status_code = 200
+        mock_delete.return_value.text = "OK"
 
         result = self.runner.invoke(cli, ["delete", "foo", "bar"])
         self.assertEqual(result.exit_code, 0)
@@ -28,26 +28,26 @@ class TestDeleteCommand(unittest.TestCase):
             result.output,
         )
 
-        self.assertEqual(mock_post.call_count, 2)
+        self.assertEqual(mock_delete.call_count, 2)
 
         expected_calls = [
             mock.call(
-                "http://127.0.0.1:8343/delete",
+                "http://127.0.0.1:8343/models/foo",
                 headers={"Content-Type": "application/json"},
-                json={"model": "foo"},
+                params={},
             ),
             mock.call(
-                "http://127.0.0.1:8343/delete",
+                "http://127.0.0.1:8343/models/bar",
                 headers={"Content-Type": "application/json"},
-                json={"model": "bar"},
+                params={},
             ),
         ]
-        mock_post.assert_has_calls(expected_calls, any_order=False)
+        mock_delete.assert_has_calls(expected_calls, any_order=False)
 
-    @mock.patch("sllm.cli._cli_utils.requests.post")
-    def test_delete_failure(self, mock_post):
-        mock_post.return_value.status_code = 404
-        mock_post.return_value.text = "Not Found"
+    @mock.patch("sllm.cli._cli_utils.requests.delete")
+    def test_delete_failure(self, mock_delete):
+        mock_delete.return_value.status_code = 404
+        mock_delete.return_value.text = "Not Found"
 
         result = self.runner.invoke(cli, ["delete", "nonexistent"])
         self.assertEqual(result.exit_code, 0)
@@ -56,10 +56,10 @@ class TestDeleteCommand(unittest.TestCase):
             result.output,
         )
 
-        mock_post.assert_called_once_with(
-            "http://127.0.0.1:8343/delete",
+        mock_delete.assert_called_once_with(
+            "http://127.0.0.1:8343/models/nonexistent",
             headers={"Content-Type": "application/json"},
-            json={"model": "nonexistent"},
+            params={},
         )
 
     def test_delete_no_models(self):
