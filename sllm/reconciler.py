@@ -38,7 +38,7 @@ from typing import Dict, List, Optional, Set
 
 import aiohttp
 
-from sllm.command_builder import build_sglang_command, build_vllm_command
+from sllm.command_builder import build_instance_command
 from sllm.database import Database, Model
 from sllm.logger import init_logger
 from sllm.pylet_client import InstanceInfo, PyletClient
@@ -336,11 +336,8 @@ class Reconciler:
             logger.warning(f"[{model.id}] Not enough GPUs on {node}")
             return
 
-        # Build command
-        if model.backend == "sglang":
-            command = build_sglang_command(model, self.storage_path)
-        else:
-            command = build_vllm_command(model, self.storage_path)
+        # Build command and get venv path
+        command, venv_path = build_instance_command(model, self.storage_path)
 
         # Create instance via Pylet
         try:
@@ -364,6 +361,7 @@ class Reconciler:
                     "STORAGE_PATH": self.storage_path,
                     "SLLM_STORE_ENDPOINT": store_endpoint,
                 },
+                venv=venv_path,
             )
 
             logger.info(

@@ -50,11 +50,12 @@ def read_readme() -> str:
 
 
 install_requires = fetch_requirements("requirements.txt")
-install_requires_worker = fetch_requirements("requirements-worker.txt")
+install_requires_vllm = fetch_requirements("requirements-vllm.txt")
 
 extras = {}
-extras["test"] = install_requires_worker + ["pytest", "pytest-asyncio"]
-extras["worker"] = install_requires_worker
+extras["test"] = install_requires_vllm + ["pytest", "pytest-asyncio"]
+extras["worker"] = install_requires_vllm
+extras["vllm"] = install_requires_vllm
 
 sys.path.append(Path.cwd().as_posix())
 

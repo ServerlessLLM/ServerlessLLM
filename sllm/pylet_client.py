@@ -152,6 +152,7 @@ class PyletClient:
         exclusive: bool = True,
         labels: Optional[Dict[str, str]] = None,
         env: Optional[Dict[str, str]] = None,
+        venv: Optional[str] = None,
     ) -> InstanceInfo:
         """
         Submit a new instance to Pylet.
@@ -165,6 +166,7 @@ class PyletClient:
             exclusive: If False, don't block GPU pool (for sllm-store)
             labels: Custom metadata for filtering
             env: Environment variables
+            venv: Path to virtualenv for running the command (pylet 0.4.0+)
 
         Returns:
             InstanceInfo with instance_id and initial state
@@ -186,6 +188,8 @@ class PyletClient:
             kwargs["gpu"] = gpu
         if gpu_indices is not None:
             kwargs["gpu_indices"] = gpu_indices
+        if venv is not None:
+            kwargs["venv"] = venv
 
         # pylet has synchronous API - wrap in thread
         instance = await self._with_retry(
@@ -201,7 +205,7 @@ class PyletClient:
 
         try:
             instance = await self._with_retry(
-                lambda id: asyncio.to_thread(pylet.get, id), instance_id
+                lambda id: asyncio.to_thread(pylet.get, id=id), instance_id
             )
             return self._to_instance_info(instance)
         except Exception:
@@ -268,7 +272,7 @@ class PyletClient:
         """Cancel an instance."""
         await self._ensure_initialized()
 
-        instance = await asyncio.to_thread(pylet.get, instance_id)
+        instance = await asyncio.to_thread(pylet.get, id=instance_id)
         await asyncio.to_thread(instance.cancel)
         logger.info(f"Cancelled instance {instance_id}")
 
@@ -282,7 +286,7 @@ class PyletClient:
         """
         await self._ensure_initialized()
 
-        instance = await asyncio.to_thread(pylet.get, instance_id)
+        instance = await asyncio.to_thread(pylet.get, id=instance_id)
         await asyncio.to_thread(instance.wait_running, timeout=timeout)
         return self._to_instance_info(instance)
 

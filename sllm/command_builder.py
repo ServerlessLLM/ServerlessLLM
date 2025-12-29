@@ -19,13 +19,24 @@
 Command builders for ServerlessLLM v1-beta.
 
 Builds shell commands for starting vLLM and SGLang inference backends
-via Pylet submission.
+via Pylet submission. Each builder returns (command, venv_path) tuple
+for use with Pylet's --venv parameter.
 """
+
+import os
+from typing import Tuple
 
 from sllm.database import Model
 
+# Venv paths for different backends (used with Pylet --venv parameter)
+VENV_VLLM = os.environ.get("SLLM_VENV_VLLM", "/opt/venvs/vllm")
+VENV_SGLANG = os.environ.get("SLLM_VENV_SGLANG", "/opt/venvs/sglang")
+VENV_TRANSFORMERS = os.environ.get("SLLM_VENV_TRANSFORMERS", "/opt/venvs/vllm")
 
-def build_vllm_command(model: Model, storage_path: str = "/models") -> str:
+
+def build_vllm_command(
+    model: Model, storage_path: str = "/models"
+) -> Tuple[str, str]:
     """
     Build vLLM serve command for Pylet submission.
 
@@ -34,7 +45,7 @@ def build_vllm_command(model: Model, storage_path: str = "/models") -> str:
         storage_path: Path to model storage
 
     Returns:
-        Shell command string
+        Tuple of (shell command string, venv path)
     """
     config = model.backend_config or {}
     tp = config.get("tensor_parallel_size", 1)
@@ -78,10 +89,12 @@ def build_vllm_command(model: Model, storage_path: str = "/models") -> str:
         elif isinstance(extra_args, str):
             cmd_parts.append(extra_args)
 
-    return " ".join(cmd_parts)
+    return " ".join(cmd_parts), VENV_VLLM
 
 
-def build_sglang_command(model: Model, storage_path: str = "/models") -> str:
+def build_sglang_command(
+    model: Model, storage_path: str = "/models"
+) -> Tuple[str, str]:
     """
     Build SGLang serve command for Pylet submission.
 
@@ -90,7 +103,7 @@ def build_sglang_command(model: Model, storage_path: str = "/models") -> str:
         storage_path: Path to model storage
 
     Returns:
-        Shell command string
+        Tuple of (shell command string, venv path)
     """
     config = model.backend_config or {}
     tp = config.get("tensor_parallel_size", 1)
@@ -129,12 +142,12 @@ def build_sglang_command(model: Model, storage_path: str = "/models") -> str:
         elif isinstance(extra_args, str):
             cmd_parts.append(extra_args)
 
-    return " ".join(cmd_parts)
+    return " ".join(cmd_parts), VENV_SGLANG
 
 
 def build_transformers_command(
     model: Model, storage_path: str = "/models"
-) -> str:
+) -> Tuple[str, str]:
     """
     Build Transformers backend command for Pylet submission.
 
@@ -143,7 +156,7 @@ def build_transformers_command(
         storage_path: Path to model storage
 
     Returns:
-        Shell command string
+        Tuple of (shell command string, venv path)
     """
     config = model.backend_config or {}
     dtype = config.get("dtype", "float16")
@@ -163,7 +176,7 @@ def build_transformers_command(
         f"--device-map {device_map}",
     ]
 
-    return " ".join(cmd_parts)
+    return " ".join(cmd_parts), VENV_TRANSFORMERS
 
 
 def get_command_builder(backend: str):
@@ -174,7 +187,7 @@ def get_command_builder(backend: str):
         backend: Backend type ("vllm", "sglang", "transformers")
 
     Returns:
-        Command builder function
+        Command builder function that returns (command, venv_path) tuple
     """
     builders = {
         "vllm": build_vllm_command,
@@ -187,3 +200,22 @@ def get_command_builder(backend: str):
         raise ValueError(f"Unknown backend: {backend}")
 
     return builder
+
+
+def build_instance_command(
+    model: Model, storage_path: str = "/models"
+) -> Tuple[str, str]:
+    """
+    Build command for a model instance.
+
+    Convenience function that selects the right builder based on backend.
+
+    Args:
+        model: Model configuration from database
+        storage_path: Path to model storage
+
+    Returns:
+        Tuple of (command, venv_path)
+    """
+    builder = get_command_builder(model.backend)
+    return builder(model, storage_path)

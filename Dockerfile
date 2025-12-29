@@ -64,7 +64,7 @@ RUN cd sllm_store && conda run -n build python setup.py bdist_wheel
 
 
 # Copy only dependencies and build config first (for caching)
-COPY requirements.txt requirements-worker.txt /app/
+COPY requirements.txt requirements-vllm.txt /app/
 COPY pyproject.toml setup.py py.typed /app/
 COPY sllm/backends /app/sllm/backends
 COPY sllm/ft_backends /app/sllm/ft_backends
@@ -101,13 +101,22 @@ RUN conda run -n head pip install -U pip && \
 
 # Copy and install updated requirements (no Ray dependencies)
 COPY requirements.txt /app/
-COPY requirements-worker.txt /app/
+COPY requirements-vllm.txt /app/
 
 # Install head node dependencies (API gateway, Pylet client, SQLite)
 RUN conda run -n head pip install -r /app/requirements.txt
 
-# Install worker node dependencies (vLLM, sllm-store, Pylet)
-RUN conda run -n worker pip install -r /app/requirements-worker.txt
+# Create venvs for pylet worker architecture (minimal pylet + separate vLLM)
+RUN python -m venv /opt/venvs/pylet && \
+    /opt/venvs/pylet/bin/pip install -U pip && \
+    /opt/venvs/pylet/bin/pip install pylet>=0.4.0
+
+RUN python -m venv /opt/venvs/vllm && \
+    /opt/venvs/vllm/bin/pip install -U pip && \
+    /opt/venvs/vllm/bin/pip install -r /app/requirements-vllm.txt
+
+# Install worker node dependencies in conda env (for compatibility)
+RUN conda run -n worker pip install -r /app/requirements-vllm.txt
 
 # Copy vLLM patch for worker (if needed)
 COPY sllm_store/vllm_patch /app/vllm_patch
@@ -123,8 +132,13 @@ RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
 RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
     conda run -n worker pip install /app/dist/*.whl
 
-# Apply vLLM patch in worker environment
+# Install sllm packages in venvs
+RUN /opt/venvs/vllm/bin/pip install /app/sllm_store/dist/*.whl && \
+    /opt/venvs/vllm/bin/pip install /app/dist/*.whl
+
+# Apply vLLM patch in worker environment and vllm venv
 RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
+RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /app && ./vllm_patch/patch.sh"
 
 # Copy the entrypoint
 COPY entrypoint.sh .

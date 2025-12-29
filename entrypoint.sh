@@ -75,8 +75,8 @@ initialize_head_node() {
 
 # PYLET_WORKER mode: Run Pylet worker (for GPU nodes)
 initialize_pylet_worker() {
-  # Use worker conda env (has vLLM installed)
-  conda activate worker
+  # Use minimal pylet venv (pylet spawns processes in separate venvs)
+  source /opt/venvs/pylet/bin/activate
 
   PYLET_HEAD="${PYLET_HEAD:-$DEFAULT_PYLET_HEAD}"
   GPU_UNITS="${GPU_UNITS:-$DEFAULT_GPU_UNITS}"
