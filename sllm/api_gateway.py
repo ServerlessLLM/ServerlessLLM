@@ -108,7 +108,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type"],
         max_age=86400,
     )
@@ -141,7 +141,7 @@ def create_app(
     # Model Management Endpoints
     # -------------------------------------------------------------------------
 
-    @app.post("/register")
+    @app.post("/models")
     async def register_handler(request: Request):
         """Register a new model."""
         try:
@@ -206,7 +206,7 @@ def create_app(
                 detail="Model registration failed due to internal error",
             )
 
-    @app.delete("/delete/{model_id:path}")
+    @app.delete("/models/{model_id:path}")
     async def delete_model_handler(model_id: str, request: Request):
         """Delete a model.
 
@@ -264,34 +264,9 @@ def create_app(
                 detail=f"Failed to delete model: {str(e)}",
             )
 
-    @app.post("/delete")
-    async def delete_model_post_handler(request: Request):
-        """Delete a model (POST variant for backward compatibility)."""
-        try:
-            body = await request.json()
-            model = body.get("model")
-            if not model:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Missing 'model' in request body.",
-                )
-
-            backend = body.get("backend", "vllm")
-            model_id = f"{model}:{backend}"
-
-            # Delegate to DELETE handler
-            return await delete_model_handler(model_id, request)
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Error in delete: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
-
     # -------------------------------------------------------------------------
     # Inference Endpoints
     # -------------------------------------------------------------------------
-
     async def inference_handler(
         request: Request,
         path: str = "/v1/chat/completions",

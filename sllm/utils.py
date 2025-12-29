@@ -210,7 +210,6 @@ POSITIONS = [
     "custom",
     "tactical",
     "strategic",
-    "covert",
     "stealth",
     "shadow",
     "ghost",
@@ -617,7 +616,6 @@ NAMES = [
     "pepper",
     "happy",
     "may",
-    "ned",
     "michelle",
     "flash",
     "gwen",
@@ -836,43 +834,39 @@ async def http_request_with_retry(
     )
 
 
-async def post_json_with_retry(
+async def _request_json_with_retry(
     session: aiohttp.ClientSession,
+    method: str,
     url: str,
-    payload: Dict[str, Any],
     max_retries: int = 3,
     timeout: float = 30.0,
     **kwargs,
 ) -> Dict[str, Any]:
     """
-    POST JSON payload with retry logic and return JSON response.
+    Internal helper for HTTP requests that return JSON with retry logic.
 
     Args:
         session: aiohttp ClientSession
+        method: HTTP method (GET, POST, DELETE, etc.)
         url: Request URL
-        payload: JSON payload to send
         max_retries: Maximum number of retry attempts
         timeout: Request timeout in seconds
-        **kwargs: Additional arguments passed to http_request_with_retry()
+        **kwargs: Additional arguments passed to session.request()
 
     Returns:
         Parsed JSON response as dict
 
     Raises:
         Exception: If all retries are exhausted
-        ValueError: If response is not valid JSON
     """
-    kwargs.setdefault("json", payload)
-
     last_exception = None
 
     for attempt in range(max_retries + 1):
         try:
             timeout_obj = aiohttp.ClientTimeout(total=timeout)
             kwargs.setdefault("timeout", timeout_obj)
-            kwargs.setdefault("json", payload)
 
-            async with session.request("POST", url, **kwargs) as response:
+            async with session.request(method, url, **kwargs) as response:
                 if response.status >= 500:
                     raise aiohttp.ClientResponseError(
                         request_info=response.request_info,
@@ -892,7 +886,38 @@ async def post_json_with_retry(
             await asyncio.sleep(delay)
 
     raise Exception(
-        f"HTTP request to {url} failed after {max_retries + 1} attempts: {last_exception}"
+        f"HTTP {method} to {url} failed after {max_retries + 1} attempts: {last_exception}"
+    )
+
+
+async def post_json_with_retry(
+    session: aiohttp.ClientSession,
+    url: str,
+    payload: Dict[str, Any],
+    max_retries: int = 3,
+    timeout: float = 30.0,
+    **kwargs,
+) -> Dict[str, Any]:
+    """
+    POST JSON payload with retry logic and return JSON response.
+
+    Args:
+        session: aiohttp ClientSession
+        url: Request URL
+        payload: JSON payload to send
+        max_retries: Maximum number of retry attempts
+        timeout: Request timeout in seconds
+        **kwargs: Additional arguments passed to _request_json_with_retry()
+
+    Returns:
+        Parsed JSON response as dict
+
+    Raises:
+        Exception: If all retries are exhausted
+    """
+    kwargs.setdefault("json", payload)
+    return await _request_json_with_retry(
+        session, "POST", url, max_retries, timeout, **kwargs
     )
 
 
@@ -926,4 +951,32 @@ async def get_with_retry(
         max_retries=max_retries,
         timeout=timeout,
         **kwargs,
+    )
+
+
+async def delete_with_retry(
+    session: aiohttp.ClientSession,
+    url: str,
+    max_retries: int = 3,
+    timeout: float = 30.0,
+    **kwargs,
+) -> Dict[str, Any]:
+    """
+    DELETE request with retry logic and return JSON response.
+
+    Args:
+        session: aiohttp ClientSession
+        url: Request URL
+        max_retries: Maximum number of retry attempts
+        timeout: Request timeout in seconds
+        **kwargs: Additional arguments passed to _request_json_with_retry()
+
+    Returns:
+        Parsed JSON response as dict
+
+    Raises:
+        Exception: If all retries are exhausted
+    """
+    return await _request_json_with_retry(
+        session, "DELETE", url, max_retries, timeout, **kwargs
     )

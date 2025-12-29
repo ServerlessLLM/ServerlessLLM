@@ -23,6 +23,7 @@ import click
 from sllm.cli._cli_utils import (
     delete_model,
     deploy_model,
+    parse_lora_adapters,
     show_status,
     start_head,
 )
@@ -85,27 +86,12 @@ def deploy(
     Either --model or a config file with a model specified is required.
     Command line options override values from the config file.
     """
-    # ...existing code...
-    adapters_dict = None
-    if lora_adapters:
-        adapters_dict = {}
-        # If it's a string, split by comma or space
-        if isinstance(lora_adapters, str):
-            items = lora_adapters.replace(",", " ").split()
-        elif isinstance(lora_adapters, (list, tuple)):
-            items = []
-            for item in lora_adapters:
-                items.extend(item.replace(",", " ").split())
-        else:
-            items = [str(lora_adapters)]
-        for module in items:
-            if "=" not in module:
-                click.echo(
-                    f"[ERROR] Invalid LoRA module format: {module}. Expected <name>=<path>."
-                )
-                continue
-            name, path = module.split("=", 1)
-            adapters_dict[name] = path
+    adapters_dict = parse_lora_adapters(lora_adapters)
+    if adapters_dict is not None and isinstance(adapters_dict, list):
+        click.echo(
+            "[ERROR] LoRA adapters must be in <name>=<path> format for deploy."
+        )
+        return
 
     deploy_model(
         model=model,
