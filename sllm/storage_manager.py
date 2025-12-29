@@ -95,6 +95,83 @@ class StorageManager:
 
         logger.info(f"Recovered storage info for {len(node_storages)} nodes")
 
+    async def initialize(self) -> bool:
+        """
+        Initialize sllm-store on all online worker nodes.
+
+        This should be called during head node startup to ensure all workers
+        have sllm-store running before accepting requests. Starting sllm-store
+        is expensive, so doing it eagerly avoids cold-start latency.
+
+        Returns:
+            True if all workers initialized successfully, False otherwise
+        """
+        logger.info("Initializing sllm-store on all worker nodes...")
+
+        # Get all online workers
+        workers = await self.pylet_client.get_online_workers()
+        if not workers:
+            logger.warning("No online workers found during initialization")
+            return True  # Not a failure - workers may join later
+
+        logger.info(f"Found {len(workers)} online workers, starting sllm-store")
+
+        # Start sllm-store on all workers in parallel
+        tasks = []
+        for worker in workers:
+            task = asyncio.create_task(
+                self._init_store_on_worker(worker),
+                name=f"init-store-{worker.worker_id}",
+            )
+            tasks.append(task)
+
+        # Wait for all to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Count successes and failures
+        success_count = 0
+        failure_count = 0
+        for worker, result in zip(workers, results):
+            if isinstance(result, Exception):
+                logger.error(
+                    f"Failed to init sllm-store on {worker.worker_id}: {result}"
+                )
+                failure_count += 1
+            elif result:
+                success_count += 1
+            else:
+                failure_count += 1
+
+        logger.info(
+            f"sllm-store initialization complete: "
+            f"{success_count} succeeded, {failure_count} failed"
+        )
+
+        return failure_count == 0
+
+    async def _init_store_on_worker(self, worker: WorkerInfo) -> bool:
+        """
+        Initialize sllm-store on a single worker.
+
+        Args:
+            worker: Worker info
+
+        Returns:
+            True if successful
+        """
+        node_name = worker.worker_id
+        try:
+            endpoint = await self.ensure_store_on_node(node_name)
+            if endpoint:
+                logger.info(f"sllm-store ready on {node_name} at {endpoint}")
+                return True
+            else:
+                logger.error(f"sllm-store failed to start on {node_name}")
+                return False
+        except Exception as e:
+            logger.error(f"Error initializing sllm-store on {node_name}: {e}")
+            return False
+
     # -------------------------------------------------------------------------
     # sllm-store Lifecycle
     # -------------------------------------------------------------------------

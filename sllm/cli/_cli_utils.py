@@ -239,6 +239,17 @@ async def _run_head_node_v1beta():
         await storage_manager.recover_from_db()
         logger.info("StorageManager initialized")
 
+        # Start sllm-store on all worker nodes (expensive, do it eagerly)
+        logger.info("Starting sllm-store on all worker nodes...")
+        init_success = await storage_manager.initialize()
+        if init_success:
+            logger.info("All sllm-store instances ready")
+        else:
+            logger.warning(
+                "Some sllm-store instances failed to start. "
+                "Model loading may be slower on affected nodes."
+            )
+
     # Start Router
     await router.start()
 
