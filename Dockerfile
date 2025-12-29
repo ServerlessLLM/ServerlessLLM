@@ -92,52 +92,51 @@ RUN apt-get update -y && \
 # Set the working directory
 WORKDIR /app
 
-# Create conda environments optimized for HTTP architecture
+# Create conda environment for head node only
 RUN conda create -n head python=3.10 -y && \
-    conda create -n worker python=3.10 -y
+    conda run -n head pip install -U pip
 
-RUN conda run -n head pip install -U pip && \
-    conda run -n worker pip install -U pip
-
-# Copy and install updated requirements (no Ray dependencies)
+# Copy requirements
 COPY requirements.txt /app/
 COPY requirements-vllm.txt /app/
+COPY sllm_store/requirements.txt /app/requirements-sllm-store.txt
 
-# Install head node dependencies (API gateway, Pylet client, SQLite)
+# Install head node dependencies
 RUN conda run -n head pip install -r /app/requirements.txt
 
-# Create venvs for pylet worker architecture (minimal pylet + separate vLLM)
+# Create venvs for pylet worker architecture
+# - pylet venv: minimal (~50MB) - just pylet for spawning processes
+# - sllm-store venv: sllm-store with its dependencies (no vLLM)
+# - vllm venv: vLLM inference backend
 RUN python -m venv /opt/venvs/pylet && \
     /opt/venvs/pylet/bin/pip install -U pip && \
     /opt/venvs/pylet/bin/pip install pylet>=0.4.0
+
+RUN python -m venv /opt/venvs/sllm-store && \
+    /opt/venvs/sllm-store/bin/pip install -U pip && \
+    /opt/venvs/sllm-store/bin/pip install -r /app/requirements-sllm-store.txt
 
 RUN python -m venv /opt/venvs/vllm && \
     /opt/venvs/vllm/bin/pip install -U pip && \
     /opt/venvs/vllm/bin/pip install -r /app/requirements-vllm.txt
 
-# Install worker node dependencies in conda env (for compatibility)
-RUN conda run -n worker pip install -r /app/requirements-vllm.txt
-
-# Copy vLLM patch for worker (if needed)
+# Copy vLLM patch
 COPY sllm_store/vllm_patch /app/vllm_patch
 
 # Copy the built wheels from the builder
 COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
 
-# Install ServerlessLLM packages in both environments
+# Install ServerlessLLM packages
 RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
     conda run -n head pip install /app/dist/*.whl
 
-RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
-    conda run -n worker pip install /app/dist/*.whl
+RUN /opt/venvs/sllm-store/bin/pip install /app/sllm_store/dist/*.whl
 
-# Install sllm packages in venvs
 RUN /opt/venvs/vllm/bin/pip install /app/sllm_store/dist/*.whl && \
     /opt/venvs/vllm/bin/pip install /app/dist/*.whl
 
-# Apply vLLM patch in worker environment and vllm venv
-RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
+# Apply vLLM patch in vllm venv
 RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /app && ./vllm_patch/patch.sh"
 
 # Copy the entrypoint

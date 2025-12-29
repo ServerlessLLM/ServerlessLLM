@@ -31,6 +31,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
 
+from sllm.command_builder import VENV_SLLM_STORE
 from sllm.database import Database, NodeStorage
 from sllm.logger import init_logger
 from sllm.pylet_client import InstanceInfo, PyletClient, WorkerInfo
@@ -152,6 +153,7 @@ class StorageManager:
                     "STORAGE_PATH": self.storage_path,
                     "SLLM_HEAD_URL": self.head_url,
                 },
+                venv=VENV_SLLM_STORE,
             )
 
             # Wait for it to be running
