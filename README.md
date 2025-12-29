@@ -110,24 +110,15 @@ export MODEL_FOLDER=/path/to/models
 
 # Launch cluster (head node + worker with GPU)
 docker compose up -d
+
+# Wait for the cluster to be ready
+docker logs -f sllm_head
 ```
 
 ### Deploy a Model
 
 ```bash
-docker exec sllm_head sllm deploy Qwen/Qwen3-0.6B --backend transformers
-```
-
-### Query the Model
-
-```bash
-curl http://127.0.0.1:8343/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen/Qwen3-0.6B",
-    "messages": [{"role": "user", "content": "What is ServerlessLLM?"}],
-    "temperature": 0.7
-  }'
+docker exec sllm_head /opt/conda/envs/head/bin/sllm deploy --model Qwen/Qwen3-0.6B --backend transformers
 ```
 
 **That's it!** Your model is now serving requests with an OpenAI-compatible API.
