@@ -77,6 +77,16 @@ class VllmModelDownloader:
             )
             model_path = os.path.join(storage_path, model_name)
             model_executer = llm_writer.llm_engine.engine_core  # For engine V1
+
+            # Check if vLLM patch is applied
+            if not hasattr(model_executer, "save_serverless_llm_state"):
+                raise RuntimeError(
+                    "vLLM patch is not applied. The 'save_serverless_llm_state' "  # noqa: E501
+                    "method is missing from the vLLM engine. Please patch the "
+                    "installed vLLM with the patch from "
+                    "https://github.com/ServerlessLLM/ServerlessLLM/blob/main/sllm_store/vllm_patch/sllm_load.patch"
+                )
+
             # save the models in the ServerlessLLM format
             model_executer.save_serverless_llm_state(
                 path=model_path, pattern=pattern, max_size=max_size
@@ -119,31 +129,16 @@ class VllmModelDownloader:
                 _run_writer(input_dir, model_name)
         except Exception as e:
             print(f"An error occurred while saving the model: {e}")
-            # remove the output dir
-            shutil.rmtree(os.path.join(storage_path, model_name))
+            # remove the output dir only if it exists
+            output_path = os.path.join(storage_path, model_name)
+            if os.path.exists(output_path):
+                shutil.rmtree(output_path)
             raise RuntimeError(
                 f"Failed to save {model_name} for vllm backend: {e}"
             ) from e
 
 
 logger = init_logger(__name__)
-
-
-def check_vllm():
-    """Simple check if ServerlessLLM patch is applied."""
-    try:
-        # Check if the LoadFormat enum has SERVERLESS_LLM
-        from vllm.config import LoadFormat
-
-        if not hasattr(LoadFormat, "SERVERLESS_LLM"):
-            return False
-
-        # Check if ExecutorBase has the save method
-        from vllm.executor.executor_base import ExecutorBase
-
-        return hasattr(ExecutorBase, "save_serverless_llm_state")
-    except ImportError:
-        return False
 
 
 @click.group()
@@ -252,12 +247,6 @@ def save(
 
     try:
         if backend == "vllm":
-            if not check_vllm():
-                logger.error(
-                    "vLLM is not patched. Please run "
-                    "`./sllm_store/vllm_patch/patch.sh` first."
-                )
-                sys.exit(1)
             downloader = VllmModelDownloader()
             downloader.download_vllm_model(
                 model_name,
@@ -364,12 +353,6 @@ def load(
         if backend == "vllm":
             from vllm import LLM
 
-            if not check_vllm():
-                logger.error(
-                    "vLLM is not patched. Please run "
-                    "`./sllm_store/vllm_patch/patch.sh` first."
-                )
-                sys.exit(1)
             model_full_path = os.path.join(storage_path, model_name)
             llm = LLM(
                 model=model_full_path,
