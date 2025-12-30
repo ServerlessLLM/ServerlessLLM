@@ -110,12 +110,15 @@ export MODEL_FOLDER=/path/to/models
 
 # Launch cluster (head node + worker with GPU)
 docker compose up -d
+
+# Wait for the cluster to be ready
+docker logs -f sllm_head
 ```
 
 ### Deploy a Model
 
 ```bash
-docker exec sllm_head sllm deploy Qwen/Qwen3-0.6B --backend transformers
+docker exec sllm_head /opt/conda/envs/head/bin/sllm deploy --model Qwen/Qwen3-0.6B --backend transformers
 ```
 
 ### Query the Model
