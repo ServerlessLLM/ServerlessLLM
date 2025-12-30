@@ -422,32 +422,6 @@ class StorageManager:
 
         return best_node
 
-    async def select_gpu_indices(
-        self,
-        node_name: str,
-        gpu_count: int,
-    ) -> Optional[List[int]]:
-        """
-        Select GPU indices on a node for an instance.
-
-        Args:
-            node_name: Worker node ID
-            gpu_count: Number of GPUs required
-
-        Returns:
-            List of GPU indices or None if not enough available
-        """
-        worker = await self.pylet_client.get_worker(node_name)
-        if not worker:
-            return None
-
-        available = worker.available_gpu_indices
-        if len(available) < gpu_count:
-            return None
-
-        # Select first N available GPUs
-        return available[:gpu_count]
-
     # -------------------------------------------------------------------------
     # Utilities
     # -------------------------------------------------------------------------

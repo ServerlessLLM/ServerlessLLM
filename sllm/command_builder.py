@@ -36,12 +36,9 @@ def build_vllm_command(
     dtype = config.get("dtype")
     trust_remote_code = config.get("trust_remote_code", False)
 
-    model_path = f"{storage_path}/vllm/{model.model_name}"
-
     cmd_parts = [
         "vllm serve",
-        model_path,
-        "--load-format serverless_llm",
+        model.model_name,
         f"--served-model-name {model.model_name}",
         "--port $PORT",
         "--host 0.0.0.0",

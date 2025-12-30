@@ -330,16 +330,11 @@ class Reconciler:
             logger.warning(f"[{model.id}] Failed to start sllm-store on {node}")
             return
 
-        # Select GPU indices
-        gpu_indices = await self.storage_manager.select_gpu_indices(node, tp)
-        if not gpu_indices:
-            logger.warning(f"[{model.id}] Not enough GPUs on {node}")
-            return
-
         # Build command and get venv path
         command, venv_path = build_instance_command(model, self.storage_path)
 
         # Create instance via Pylet
+        # Use gpu=N to let Pylet auto-allocate GPUs instead of selecting specific indices
         try:
             import uuid
 
@@ -350,7 +345,7 @@ class Reconciler:
                 command=command,
                 name=instance_name,
                 target_worker=node,
-                gpu_indices=gpu_indices,
+                gpu=tp,  # Let Pylet auto-allocate N GPUs
                 exclusive=True,
                 labels={
                     "model_id": model.id,
@@ -366,7 +361,7 @@ class Reconciler:
 
             logger.info(
                 f"[{model.id}] Created instance {instance.instance_id} "
-                f"on {node} with GPUs {gpu_indices}"
+                f"on {node} (requested {tp} GPUs)"
             )
 
         except Exception as e:
