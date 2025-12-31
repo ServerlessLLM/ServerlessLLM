@@ -144,7 +144,7 @@ Thus, for fist-time users, you have to load the model from other backends and th
 
 1. Download the model from HuggingFace and save it in the ServerlessLLM format:
 ``` bash
-python3 examples/sllm_store/save_vllm_model.py --model-name facebook/opt-1.3b --storage-path $PWD/models --tensor-parallel-size 1
+python3 sllm_store/examples/save_vllm_model.py --model-name facebook/opt-1.3b --storage-path $PWD/models --tensor-parallel-size 1
 
 ```
 
@@ -203,16 +203,22 @@ ServerlessLLM Store provides a model manager and two key functions:
 ## Usage Examples
 
 1. Convert an adapter to ServerlessLLM format and save it to a local path:
-```
+```python
 from sllm_store.transformers import save_lora
-
-# TODO: Load an adapter from HuggingFace model hub.
-<!-- import torch
+from peft import PeftModel
 from transformers import AutoModelForCausalLM
-model = AutoModelForCausalLM.from_pretrained('facebook/opt-1.3b', torch_dtype=torch.float16) -->
+import torch
+
+# Load the base model
+base_model = AutoModelForCausalLM.from_pretrained(
+    'facebook/opt-1.3b', torch_dtype=torch.float16
+)
+
+# Load a LoRA adapter from HuggingFace model hub
+model = PeftModel.from_pretrained(base_model, 'your-adapter-name')
 
 # Replace './models' with your local path.
-save_lora(adapter, './models/facebook/opt-1.3b')
+save_lora(model, './models/your-adapter-name')
 ```
 
 2. Launch the checkpoint store server in a separate process:
@@ -222,14 +228,15 @@ sllm-store start --storage-path $PWD/models --mem-pool-size 4GB
 ```
 
 3. Load the adapter on your model and make inference:
-```
+```python
 import time
 import torch
 from sllm_store.transformers import load_model, load_lora
 
+start = time.time()
 model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path="./models/", fully_parallel=True)
 
-model = load_lora("facebook/opt-1.3b", adapter_name="demo_lora", adapter_path="ft_facebook/opt-1.3b_adapter1", device_map="auto", torch_dtype=torch.float16, storage_path="./models/")
+model = load_lora(model, adapter_name="demo_lora", adapter_path="your-adapter-name", device_map="auto", torch_dtype=torch.float16, storage_path="./models/")
 
 # Please note the loading time depends on the base model size and the hardware bandwidth.
 print(f"Model loading time: {time.time() - start:.2f}s")

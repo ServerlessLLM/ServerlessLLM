@@ -100,3 +100,72 @@ model_mixed_precision = AutoModelForCausalLM.from_pretrained(
 
 For further information, consult the [HuggingFace Documentation for BitsAndBytes](https://huggingface.co/docs/transformers/main/en/quantization/bitsandbytes).
 
+## Using Quantization with ServerlessLLM Store
+
+ServerlessLLM Store's `load_model` function supports quantization via the `quantization_config` parameter. This allows you to load models with reduced precision directly from the optimized ServerlessLLM format.
+
+### Python API
+
+```python
+import torch
+from transformers import BitsAndBytesConfig
+from sllm_store.transformers import load_model
+
+# Configure 8-bit quantization
+quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+
+# Load model with quantization from ServerlessLLM format
+model = load_model(
+    "facebook/opt-1.3b",
+    device_map="auto",
+    torch_dtype=torch.float16,
+    storage_path="./models/",
+    fully_parallel=True,
+    quantization_config=quantization_config,
+)
+```
+
+For 4-bit NF4 quantization:
+
+```python
+import torch
+from transformers import BitsAndBytesConfig
+from sllm_store.transformers import load_model
+
+# Configure 4-bit NF4 quantization
+quantization_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4"
+)
+
+# Load model with quantization
+model = load_model(
+    "facebook/opt-1.3b",
+    device_map="auto",
+    torch_dtype=torch.float16,
+    storage_path="./models/",
+    fully_parallel=True,
+    quantization_config=quantization_config,
+)
+```
+
+### CLI Usage
+
+The `sllm-store load` command supports the `--precision` option for loading quantized models:
+
+```bash
+# Load with 8-bit quantization
+sllm-store load --model facebook/opt-1.3b --backend transformers --precision int8 --storage-path ./models
+
+# Load with 4-bit FP4 quantization
+sllm-store load --model facebook/opt-1.3b --backend transformers --precision fp4 --storage-path ./models
+
+# Load with 4-bit NF4 quantization
+sllm-store load --model facebook/opt-1.3b --backend transformers --precision nf4 --storage-path ./models
+```
+
+Available precision options:
+- `int8`: 8-bit quantization
+- `fp4`: 4-bit floating point quantization
+- `nf4`: 4-bit NormalFloat quantization (recommended for 4-bit)
+

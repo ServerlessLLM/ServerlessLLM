@@ -56,10 +56,11 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  delete   Delete deployed models by name.
-  deploy   Deploy a model using a config file or model name.
-  start    Start the head node of the SLLM cluster.
-  status   Show all deployed models.
+  delete  Delete deployments, or remove only the LoRA adapters.
+  deploy  Deploy a model using a config file or model name.
+  logs    View instance logs.
+  start   Start the SLLM head node (control plane).
+  status  Show cluster status.
 ```
 
 ---
@@ -69,15 +70,16 @@ Commands:
 ### 1. Start the Cluster
 
 ```bash
-sllm start
+sllm start --pylet-endpoint http://localhost:8000
 ```
 **Example output:**
 ```text
-[ℹ] Starting services using docker-compose.yml...
-[+] Running 3/3
- ✔ sllm_api         Started
- ✔ sllm_worker_0    Started
- ✔ sllm_worker_1    Started
+INFO:     ServerlessLLM v1-beta Head Node
+INFO:     Pylet endpoint: http://localhost:8000
+INFO:     Database path: /var/lib/sllm/state.db
+INFO:     Storage path: /models
+INFO:     Starting head node (v1-beta)...
+INFO:     Head node started on 0.0.0.0:8343
 ```
 
 ---
@@ -85,11 +87,12 @@ sllm start
 ### 2. Deploy a Model
 
 ```bash
-sllm deploy --model facebook/opt-1.3b
+sllm deploy --model facebook/opt-1.3b --backend vllm
 ```
 **Example output:**
 ```text
-[✓] Successfully deployed model: facebook/opt-1.3b with 1 GPU(s).
+Deployment created: facebook/opt-1.3b:vllm
+  View status: sllm status facebook/opt-1.3b:vllm
 ```
 
 ---
@@ -101,8 +104,8 @@ sllm status
 ```
 **Example output:**
 ```text
-[✓] Deployed Models:
-- facebook/opt-1.3b
+DEPLOYMENT              STATUS  REPLICAS
+facebook/opt-1.3b:vllm  READY   1/1
 ```
 
 ---
@@ -110,11 +113,11 @@ sllm status
 ### 4. Delete a Model
 
 ```bash
-sllm delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b --backend vllm
 ```
 **Example output:**
 ```text
-[✓] Deleted model: facebook/opt-1.3b
+[SUCCESS] Deployment 'facebook/opt-1.3b:vllm' deletion initiated.
 ```
 
 ---
@@ -123,11 +126,30 @@ sllm delete facebook/opt-1.3b
 
 ### sllm start
 
-Start the head node of the SLLM cluster. This command initializes Docker services (or other configured backends) that manage the API and worker nodes.
+Start the SLLM head node (control plane). In v1-beta, this initializes the API Gateway, Router, Autoscaler, and Reconciler components that work with Pylet for cluster management.
 
 **Usage:**
 ```bash
+sllm start [OPTIONS]
+```
+
+**Options:**
+- `--host <ip_address>`
+  Host IP for the API Gateway (default: `0.0.0.0`).
+- `--port <port>`
+  Port for the API Gateway (default: `8343`).
+- `--pylet-endpoint <url>`
+  Pylet head endpoint URL (default: `http://localhost:8000` or `PYLET_ENDPOINT` env var).
+- `--database-path <path>`
+  SQLite database path (default: `/var/lib/sllm/state.db` or `SLLM_DATABASE_PATH` env var).
+- `--storage-path <path>`
+  Model storage path (default: `/models` or `STORAGE_PATH` env var).
+
+**Examples:**
+```bash
 sllm start
+sllm start --port 8080
+sllm start --pylet-endpoint http://pylet-head:8000 --storage-path /data/models
 ```
 
 ---
@@ -147,22 +169,29 @@ sllm deploy [OPTIONS]
 - `--config <config_path>`
   Path to the JSON configuration file.
 - `--backend <backend_name>`
-  Overwrite the backend in the configuration.
+  Backend framework (e.g., `vllm`, `transformers`, `sglang`).
 - `--num-gpus <number>`
   Number of GPUs to allocate.
 - `--target <number>`
-  Target concurrency.
+  Target number of requests per second.
 - `--min-instances <number>`
   Minimum number of instances.
 - `--max-instances <number>`
   Maximum number of instances.
+- `--enable-lora`
+  Enable LoRA support for the model.
+- `--lora-adapters <adapters>`
+  List of LoRA adapters in `name=path` format (e.g., `"adapter1=/path/to/adapter1 adapter2=/path/to/adapter2"`).
+- `--precision <precision>`
+  Model precision for quantization (e.g., `int8`, `fp4`, `nf4`).
 
 **Examples:**
 ```bash
-sllm deploy --model facebook/opt-1.3b
+sllm deploy --model facebook/opt-1.3b --backend vllm
 sllm deploy --config /path/to/config.json
 sllm deploy --model facebook/opt-1.3b --backend transformers
-sllm deploy --model facebook/opt-1.3b --num-gpus 2 --target 5 --min-instances 1 --max-instances 5
+sllm deploy --model facebook/opt-1.3b --backend vllm --num-gpus 2 --target 5 --min-instances 1 --max-instances 5
+sllm deploy --model facebook/opt-1.3b --backend vllm --enable-lora --lora-adapters "adapter1=/path/to/adapter1"
 ```
 
 #### Example Configuration File (`config.json`)
@@ -265,42 +294,111 @@ Below is a description of all the fields in config.json.
 
 ### sllm delete
 
-Delete deployed models by name.
+Delete deployments, or remove only the LoRA adapters from a deployment.
 
 **Usage:**
 ```bash
-sllm delete [MODELS...]
+sllm delete [MODELS...] --backend <backend_name> [OPTIONS]
 ```
+
 **Arguments:**
 - `MODELS...`
   One or more space-separated model names to delete.
 
-**Example:**
+**Options:**
+- `--backend <backend_name>` (required)
+  Backend framework (e.g., `vllm`, `sglang`). Required to identify the deployment.
+- `--lora-adapters <adapters>`
+  LoRA adapters to delete (instead of deleting the entire deployment).
+
+**Examples:**
 ```bash
-sllm delete facebook/opt-1.3b facebook/opt-2.7b meta/llama2
+sllm delete facebook/opt-1.3b --backend vllm
+sllm delete facebook/opt-1.3b facebook/opt-2.7b --backend vllm
+sllm delete facebook/opt-1.3b --backend vllm --lora-adapters "adapter1 adapter2"
 ```
+
 **Example output:**
 ```text
-[✓] Deleted model: facebook/opt-1.3b
-[✓] Deleted model: facebook/opt-2.7b
-[✓] Deleted model: meta/llama2
+[SUCCESS] Deployment 'facebook/opt-1.3b:vllm' deletion initiated.
+[SUCCESS] Deployment 'facebook/opt-2.7b:vllm' deletion initiated.
 ```
 
 ---
 
 ### sllm status
 
-Check the current status of all deployed models. This command displays the list of models currently running in the ServerlessLLM cluster, including their state, GPU usage, and endpoint.
+Show cluster status. Without arguments, shows all deployments. With a deployment ID, shows detailed information for that deployment including instances. With `--nodes`, shows cluster nodes.
 
 **Usage:**
 ```bash
-sllm status
+sllm status [DEPLOYMENT_ID] [OPTIONS]
 ```
-**Example output:**
+
+**Arguments:**
+- `DEPLOYMENT_ID` (optional)
+  Deployment ID to show detailed info for (e.g., `facebook/opt-1.3b:vllm`).
+
+**Options:**
+- `--nodes`
+  Show cluster nodes instead of deployments.
+
+**Examples:**
+```bash
+sllm status
+sllm status facebook/opt-1.3b:vllm
+sllm status --nodes
+```
+
+**Example output (all deployments):**
 ```text
-[✓] Deployed Models:
-- facebook/opt-1.3b    Running
-- meta/llama2          Running
+DEPLOYMENT              STATUS  REPLICAS
+facebook/opt-1.3b:vllm  READY   1/1
+meta/llama2:vllm        READY   2/2
+```
+
+**Example output (single deployment):**
+```text
+Deployment: facebook/opt-1.3b:vllm
+Status:     READY
+Replicas:   1/1
+
+Instances:
+  ID                    NODE      ENDPOINT                  STATUS
+  opt-1.3b-abc123       worker-0  http://10.0.0.2:8000      RUNNING
+```
+
+**Example output (nodes):**
+```text
+NODE      STATUS  GPUS
+worker-0  READY   2/4
+worker-1  READY   4/4
+```
+
+---
+
+### sllm logs
+
+View logs for a specific instance. Use the instance ID from `sllm status <deployment_id>` output.
+
+**Usage:**
+```bash
+sllm logs INSTANCE_ID [OPTIONS]
+```
+
+**Arguments:**
+- `INSTANCE_ID` (required)
+  The instance ID to view logs for.
+
+**Options:**
+- `-f`, `--follow`
+  Follow log output (similar to `tail -f`).
+
+**Examples:**
+```bash
+sllm logs opt-1.3b-abc123
+sllm logs opt-1.3b-abc123 -f
+```
 
 ---
 
@@ -309,15 +407,3 @@ sllm status
 - All commands should be run as `sllm ...` after installation.
 - For advanced configuration, refer to the [Example Configuration File](#example-configuration-file-configjson) section.
 - For more details, see the official documentation and guides linked above.
-
-
-
-#### Example
-```bash
-sllm status
-```
-
-#### Example
-```bash
-sllm-cli status
-```

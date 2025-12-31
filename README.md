@@ -118,7 +118,7 @@ docker logs -f sllm_head
 ### Deploy a Model
 
 ```bash
-docker exec sllm_head sllm deploy --model Qwen/Qwen3-0.6B --backend transformers
+docker exec sllm_head sllm deploy --model Qwen/Qwen3-0.6B --backend vllm
 ```
 
 ### Query the Model
@@ -128,6 +128,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen3-0.6B",
+    "backend": "vllm",
     "messages": [{"role": "user", "content": "What is ServerlessLLM?"}],
     "temperature": 0.7
   }'

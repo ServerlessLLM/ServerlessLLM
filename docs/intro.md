@@ -9,6 +9,8 @@ sidebar_position: 0
 
 ServerlessLLM is a **fast** and **easy-to-use** serving system designed for **affordable** multi-LLM serving, also known as LLM-as-a-Service. ServerlessLLM is ideal for environments with multiple LLMs that need to be served on limited GPU resources, as it enables efficient dynamic loading of LLMs onto GPUs. By elastically scaling model instances and multiplexing GPUs, ServerlessLLM can significantly reduce costs compared to traditional GPU-dedicated serving systems while still providing low-latency (Time-to-First-Token, TTFT) LLM completions.
 
+**v1-beta Architecture:** ServerlessLLM uses a worker-less architecture where [Pylet](https://github.com/serverlessllm/pylet) manages vanilla vLLM/SGLang inference instances directly. The SLLM head node handles routing, autoscaling, and reconciliation while Pylet serves as the cluster manager for GPU allocation and instance lifecycle.
+
 ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 * NVIDIA GPUs: Compute Capability 7.0+ (e.g, V100, A100, RTX A6000, GeForce RTX 3060)
 * AMD GPUs: ROCm 6.2.0+ (tested on MI100s and MI200s)
@@ -18,6 +20,7 @@ ServerlessLLM now supports NVIDIA and AMD GPUs, including following hardware:
 ### Getting Started
 
 - [Quickstart](./getting_started.md)
+- [Docker Deployment](./deployment/docker.md)
 - [Single Machine Deployment (From Scratch)](./deployment/single_machine.md)
 - [Multi-machine Deployment](./deployment/multi_machine.md)
 - [SLURM Cluster Deployment](./deployment/slurm_cluster.md)

@@ -76,7 +76,7 @@ sllm-store start [OPTIONS]
   - Number of threads to use for I/O operations and chunk handling.
 
 - `--chunk-size <chunk_size>`
-  - Size of individual memory chunks used for caching model data (e.g., 64MiB, 512KB). Must include unit suffix.
+  - Size of individual memory chunks used for caching model data (e.g., 32MB, 64MB). Must include unit suffix. Default: 32MB.
 
 - `--mem-pool-size <mem_pool_size>`
   - Total memory pool size to allocate for the in-memory cache (e.g., 4GiB, 2GB). Must include unit suffix.
@@ -84,8 +84,8 @@ sllm-store start [OPTIONS]
 - `--disk-size <disk_size>`
   - (Currently unused) Would set the maximum size sllm-store can occupy in disk cache.
 
-- `--registration-required`
-  - If specified, models must be registered with the server before loading.
+- `--registration-required <true|false>`
+  - If set to true, models must be registered with the server before loading. Default: false.
 
 #### Examples
 
@@ -111,19 +111,19 @@ sllm-store start --num-thread 16 --chunk-size 128MB --mem-pool-size 8GB
 
 Run with access control enabled:
 ``` bash
-sllm-store start --registration-required True
+sllm-store start --registration-required true
 ```
 
 Full example for production-style setup:
 ``` bash
 sllm-store start \
   --host 0.0.0.0 \
-  --port 8000 \
+  --port 8073 \
   --storage-path /data/models \
   --num-thread 8 \
   --chunk-size 64MB \
   --mem-pool-size 16GB \
-  --registration-required True
+  --registration-required true
 ```
 
 ## sllm-store save
@@ -146,11 +146,8 @@ sllm-store save [OPTIONS]
 - `--backend <backend_name>`
   - Select a backend for the model to be converted to `ServerlessLLM format` from. Supported backends are `vllm` and `transformers`.
 
-- `--adapter`
-  - Enable LoRA adapter support. Overwrite `adapter`, which is by default set to False. Only `transformers` backend is supported.
-
 - `--adapter-name <adapter_name>`
-  - Adapter name to save. Must be a Hugging Face pretrained LoRA adapter name.
+  - Adapter name to save. Must be a Hugging Face pretrained LoRA adapter name. Only `transformers` backend is supported.
 
 - `--tensor-parallel-size <tensor_parallel_size>`
   - Number of GPUs you want to use. Only `vllm` backend is supported.
@@ -179,7 +176,7 @@ sllm-store save --model facebook/opt-1.3b --backend vllm --tensor-parallel-size 
 
 Save a transformers model with a LoRA adapter:
 ```bash
-sllm-store save --model facebook/opt-1.3b --backend transformers --adapter --adapter-name crumb/FLAN-OPT-1.3b-LoRA
+sllm-store save --model facebook/opt-1.3b --backend transformers --adapter-name crumb/FLAN-OPT-1.3b-LoRA
 ```
 
 ## sllm-store load
@@ -201,11 +198,8 @@ sllm-store load [OPTIONS]
 - `--backend <backend_name>`
   - Select a backend for the model to be converted to `ServerlessLLM format` from. Supported backends are `vllm` and `transformers`.
 
-- `--adapter`
-  - Enable LoRA adapter support for the transformers backend. Overwrite `adapter` in the default configuration (`transformers` backend only).
-
 - `--adapter-name <adapter_name>`
-  - Adapter name to save. Must be a Hugging Face pretrained LoRA adapter name.
+  - Adapter name to load. Must be a Hugging Face pretrained LoRA adapter name (`transformers` backend only).
 
 - `--precision <precision>`
   - Precision to use when loading the model (`transformers` backend only). For more info on quantization in ServerlessLLM, visit [here](../store/quantization.md).
@@ -226,7 +220,7 @@ sllm-store load --model facebook/opt-1.3b --backend transformers --precision int
 
 Load a transformers model with a LoRA adapter:
 ``` bash
-sllm-store load --model facebook/opt-1.3b --backend transformers --adapter --adapter-name crumb/FLAN-OPT-1.3b-LoRA
+sllm-store load --model facebook/opt-1.3b --backend transformers --adapter-name crumb/FLAN-OPT-1.3b-LoRA
 ```
 
 #### Note: loading vLLM models

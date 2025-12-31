@@ -2,6 +2,10 @@
 sidebar_position: 1
 ---
 
+:::warning
+**Note: Live migration is not yet implemented in v1-beta. This documentation describes the v1-alpha feature.**
+:::
+
 # Live Migration of Inference Instances
 
 This example illustrates the live migration of inference instances in a ServerlessLLM cluster by constructing a scenario where two models are deployed to the cluster. Model `Qwen2.5-3B` is stored on both nodes, while model `Qwen2.5-1.5B` is only stored on node 0 (e.g., due to being less popular). This example will show a locality-contention scenario where `Qwen2.5-3B` is being served on node 0 but `Qwen2.5-1.5B` is requested to be served on the same node for optimal locality. We will find that:
@@ -85,6 +89,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "Qwen/Qwen2.5-3B-Instruct",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Could you share a story of the history of Computer Science?"}
@@ -98,6 +103,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -152,6 +158,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "Qwen/Qwen2.5-3B-Instruct",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "Could you share a story of the history of Computer Science?"}
@@ -165,6 +172,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
