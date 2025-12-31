@@ -100,7 +100,7 @@ def mock_pylet_client():
             name="test-model-abc12345",
             status="PENDING",
             endpoint=None,
-            labels={"model_id": "test-model:vllm", "type": "inference"},
+            labels={"deployment_id": "test-model:vllm", "type": "inference"},
         )
     )
     client.cancel_instance = AsyncMock()
@@ -110,10 +110,10 @@ def mock_pylet_client():
             name="test-model-abc12345",
             status="RUNNING",
             endpoint="192.168.1.10:8080",
-            labels={"model_id": "test-model:vllm", "type": "inference"},
+            labels={"deployment_id": "test-model:vllm", "type": "inference"},
         )
     )
-    client.get_model_instances = AsyncMock(return_value=[])
+    client.get_deployment_instances = AsyncMock(return_value=[])
     client.get_store_instances = AsyncMock(return_value=[])
     client.list_workers = AsyncMock(
         return_value=[
@@ -235,8 +235,8 @@ def autoscaler_with_metrics(database):
     autoscaler = AutoScaler(database=database)
 
     # Add helper methods for tests
-    def get_metrics(model_id: str):
-        metrics = autoscaler._metrics.get(model_id)
+    def get_metrics(deployment_id: str):
+        metrics = autoscaler._metrics.get(deployment_id)
         if metrics:
             return {
                 "buffer_len": metrics.buffer_len,
@@ -244,8 +244,8 @@ def autoscaler_with_metrics(database):
             }
         return {"buffer_len": 0, "in_flight": 0}
 
-    def get_total_demand(model_id: str):
-        metrics = autoscaler._metrics.get(model_id)
+    def get_total_demand(deployment_id: str):
+        metrics = autoscaler._metrics.get(deployment_id)
         if metrics:
             return metrics.total_demand
         return 0
@@ -275,15 +275,14 @@ def storage_manager(database, mock_pylet_client):
 
 
 # ============================================================================ #
-# Sample Model Data
+# Sample Deployment Data
 # ============================================================================ #
 
 
 @pytest.fixture
-def sample_model_data():
-    """Sample model registration data."""
+def sample_deployment_data():
+    """Sample deployment registration data."""
     return {
-        "model_id": "facebook/opt-125m:vllm",
         "model_name": "facebook/opt-125m",
         "backend": "vllm",
         "backend_config": {
@@ -298,7 +297,20 @@ def sample_model_data():
 
 
 @pytest.fixture
-def sample_model(database, sample_model_data):
-    """Create a sample model in the database."""
-    model = database.create_model(**sample_model_data)
-    return model
+def sample_deployment(database, sample_deployment_data):
+    """Create a sample deployment in the database."""
+    deployment = database.create_deployment(**sample_deployment_data)
+    return deployment
+
+
+# Aliases for backward compatibility with existing tests
+@pytest.fixture
+def sample_model_data(sample_deployment_data):
+    """Alias for sample_deployment_data."""
+    return sample_deployment_data
+
+
+@pytest.fixture
+def sample_model(sample_deployment):
+    """Alias for sample_deployment."""
+    return sample_deployment

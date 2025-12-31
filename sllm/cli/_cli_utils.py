@@ -451,14 +451,16 @@ def deploy_model(
         config_data.setdefault("backend_config", {})["precision"] = precision
 
     base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
-    url = f"{base_url.rstrip('/')}/models"
+    url = f"{base_url.rstrip('/')}/deployments"
     headers = {"Content-Type": "application/json"}
 
     try:
         response = requests.post(url, headers=headers, json=config_data)
         if response.status_code == 200:
+            backend_used = config_data.get("backend", "vllm")
             print(
-                f"[✅ SUCCESS] Model '{config_data['model']}' deployed successfully."
+                f"[✅ SUCCESS] Model '{config_data['model']}' deployed "
+                f"with backend '{backend_used}'."
             )
         else:
             print(
@@ -471,7 +473,14 @@ def deploy_model(
 
 
 # ----------------------------- DELETE COMMAND ----------------------------- #
-def delete_model(models, backend=None, lora_adapters=None):
+def delete_deployment(models, backend, lora_adapters=None):
+    """Delete deployments or LoRA adapters.
+
+    Args:
+        models: List of model names
+        backend: Backend framework (required)
+        lora_adapters: Optional list of LoRA adapters to delete
+    """
     if not models:
         print("[⚠️ WARNING] No model names provided for deletion.")
         return
@@ -481,40 +490,55 @@ def delete_model(models, backend=None, lora_adapters=None):
 
     if lora_adapters is not None and len(models) > 1:
         print(
-            "[❌ ERROR] You can only delete one model when using --lora-adapters."
+            "[❌ ERROR] You can only delete one deployment when using "
+            "--lora-adapters."
         )
         return
 
     for model in models:
+        # Construct deployment_id from model and backend
+        deployment_id = f"{model}:{backend}"
+
         try:
             if lora_adapters is not None:
-                url = f"{base_url.rstrip('/')}/models/{model}/adapters"
+                url = (
+                    f"{base_url.rstrip('/')}/deployments/{deployment_id}"
+                    "/adapters"
+                )
                 adapters = parse_lora_adapters(lora_adapters)
                 response = requests.delete(
                     url, headers=headers, json={"lora_adapters": adapters}
                 )
             else:
-                url = f"{base_url.rstrip('/')}/models/{model}"
-                params = {}
-                if backend is not None:
-                    params["backend"] = backend
-                response = requests.delete(url, headers=headers, params=params)
+                url = f"{base_url.rstrip('/')}/deployments/{deployment_id}"
+                response = requests.delete(url, headers=headers)
 
-            if response.status_code == 200:
-                print(
-                    f"[✅ SUCCESS] Delete request for '{model}' sent successfully."
-                )
+            if response.status_code in (200, 202):
+                if lora_adapters is not None:
+                    print(
+                        f"[✅ SUCCESS] LoRA adapters for deployment "
+                        f"'{deployment_id}' deleted successfully."
+                    )
+                else:
+                    print(
+                        f"[✅ SUCCESS] Deployment '{deployment_id}' "
+                        "deletion initiated."
+                    )
             else:
                 print(
-                    f"[❌ ERROR] Failed to delete '{model}'. Status: {response.status_code}, Response: {response.text}"
+                    f"[❌ ERROR] Failed to delete deployment '{deployment_id}'. "
+                    f"Status: {response.status_code}, Response: {response.text}"
                 )
         except Exception as e:
-            print(f"[EXCEPTION] Failed to delete '{model}': {str(e)}")
+            print(
+                f"[EXCEPTION] Failed to delete deployment '{deployment_id}': "
+                f"{str(e)}"
+            )
 
 
 # ----------------------------- STATUS COMMAND ----------------------------- #
 def show_status():
-    """Query the information of registered models."""
+    """Query the information of registered deployments."""
     endpoint = "/v1/models"
     base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
     url = base_url.rstrip("/") + endpoint
@@ -525,16 +549,17 @@ def show_status():
         if response.status_code == 200:
             try:
                 data = response.json()
-                models = data.get("models", [])
-                if models:
-                    print("Model status retrieved successfully:")
-                    for model in models:
-                        if isinstance(model, dict) and "id" in model:
-                            print(f"- {model['id']}")
+                # Support both "data" (new) and "models" (legacy) keys
+                deployments = data.get("data", data.get("models", []))
+                if deployments:
+                    print("Deployment status retrieved successfully:")
+                    for deployment in deployments:
+                        if isinstance(deployment, dict) and "id" in deployment:
+                            print(f"- {deployment['id']}")
                         else:
-                            print(f"- {model}")
+                            print(f"- {deployment}")
                 else:
-                    print("No models currently deployed.")
+                    print("No deployments currently registered.")
             except ValueError:
                 print("[❌ ERROR] Invalid JSON received from server.")
         else:

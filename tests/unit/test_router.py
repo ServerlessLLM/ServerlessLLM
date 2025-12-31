@@ -18,22 +18,20 @@
 """
 Tests for the global Router component.
 
-These tests follow TDD principles - written before the Router implementation.
 The Router replaces per-model LoadBalancers with a single global router that:
 - Reads endpoints from SQLite (every request)
 - Uses round-robin load balancing across endpoints
 - Buffers requests during cold-start (ephemeral state)
 - Pushes metrics directly to autoscaler
+
+Terminology:
+- deployment_id: Unique identifier for a deployment (format: "{model_name}:{backend}")
 """
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# These imports will fail until Router is implemented
-# from sllm.router import Router, RouterConfig
-
 
 # ============================================================================ #
 # RouterConfig Tests
@@ -123,32 +121,34 @@ class TestEndpointReading:
 
     def test_get_endpoints_returns_healthy_only(self, router, database):
         """Test that only healthy endpoints are returned."""
-        model_id = "test-model:vllm"
+        deployment_id = "test-model:vllm"
 
         # Add endpoints with different statuses
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
-        database.add_model_endpoint(model_id, "192.168.1.11:8080")
-        database.mark_endpoint_unhealthy(model_id, "192.168.1.11:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.11:8080")
+        database.mark_endpoint_unhealthy(deployment_id, "192.168.1.11:8080")
 
-        endpoints = database.get_model_endpoints(model_id)
+        endpoints = database.get_deployment_endpoints(deployment_id)
 
         assert len(endpoints) == 1
         assert "192.168.1.10:8080" in endpoints
         assert "192.168.1.11:8080" not in endpoints
 
-    def test_get_endpoints_empty_for_unknown_model(self, router, database):
-        """Test that unknown model returns empty list."""
-        endpoints = database.get_model_endpoints("unknown-model:vllm")
+    def test_get_endpoints_empty_for_unknown_deployment(self, router, database):
+        """Test that unknown deployment returns empty list."""
+        endpoints = database.get_deployment_endpoints("unknown-model:vllm")
 
         assert endpoints == []
 
-    def test_get_endpoints_multiple_models_isolated(self, router, database):
-        """Test that endpoints are isolated per model."""
-        database.add_model_endpoint("model-a:vllm", "192.168.1.10:8080")
-        database.add_model_endpoint("model-b:vllm", "192.168.1.20:8080")
+    def test_get_endpoints_multiple_deployments_isolated(
+        self, router, database
+    ):
+        """Test that endpoints are isolated per deployment."""
+        database.add_deployment_endpoint("model-a:vllm", "192.168.1.10:8080")
+        database.add_deployment_endpoint("model-b:vllm", "192.168.1.20:8080")
 
-        endpoints_a = database.get_model_endpoints("model-a:vllm")
-        endpoints_b = database.get_model_endpoints("model-b:vllm")
+        endpoints_a = database.get_deployment_endpoints("model-a:vllm")
+        endpoints_b = database.get_deployment_endpoints("model-b:vllm")
 
         assert endpoints_a == ["192.168.1.10:8080"]
         assert endpoints_b == ["192.168.1.20:8080"]
@@ -165,26 +165,26 @@ class TestRoundRobinLoadBalancing:
     @pytest.mark.asyncio
     async def test_round_robin_single_endpoint(self, router, database):
         """Test round-robin with single endpoint."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         # Should always return the same endpoint
         for _ in range(5):
-            endpoint = router._select_endpoint(model_id)
+            endpoint = router._select_endpoint(deployment_id)
             assert endpoint == "192.168.1.10:8080"
 
     @pytest.mark.asyncio
     async def test_round_robin_multiple_endpoints(self, router, database):
         """Test round-robin cycles through endpoints."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
-        database.add_model_endpoint(model_id, "192.168.1.11:8080")
-        database.add_model_endpoint(model_id, "192.168.1.12:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.11:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.12:8080")
 
         # Collect selected endpoints
         selected = []
         for _ in range(6):
-            endpoint = router._select_endpoint(model_id)
+            endpoint = router._select_endpoint(deployment_id)
             selected.append(endpoint)
 
         # Should cycle through all endpoints twice
@@ -193,11 +193,11 @@ class TestRoundRobinLoadBalancing:
         assert selected.count(selected[0]) == 2  # Each used twice
 
     @pytest.mark.asyncio
-    async def test_round_robin_per_model_isolation(self, router, database):
-        """Test that round-robin indices are isolated per model."""
-        database.add_model_endpoint("model-a:vllm", "192.168.1.10:8080")
-        database.add_model_endpoint("model-a:vllm", "192.168.1.11:8080")
-        database.add_model_endpoint("model-b:vllm", "192.168.1.20:8080")
+    async def test_round_robin_per_deployment_isolation(self, router, database):
+        """Test that round-robin indices are isolated per deployment."""
+        database.add_deployment_endpoint("model-a:vllm", "192.168.1.10:8080")
+        database.add_deployment_endpoint("model-a:vllm", "192.168.1.11:8080")
+        database.add_deployment_endpoint("model-b:vllm", "192.168.1.20:8080")
 
         # Select from model-a twice
         router._select_endpoint("model-a:vllm")
@@ -227,9 +227,9 @@ class TestColdStartBuffering:
     @pytest.mark.asyncio
     async def test_buffer_request_when_no_endpoints(self, router, database):
         """Test that requests are buffered when no endpoints available."""
-        model_id = "test-model:vllm"
+        deployment_id = "test-model:vllm"
         payload = {
-            "model": model_id,
+            "model": deployment_id,
             "messages": [{"role": "user", "content": "Hi"}],
         }
 
@@ -237,7 +237,11 @@ class TestColdStartBuffering:
         async def forward_with_timeout():
             try:
                 await asyncio.wait_for(
-                    router.handle_request(payload, "/v1/chat/completions"),
+                    router.handle_request(
+                        payload,
+                        "/v1/chat/completions",
+                        deployment_id=deployment_id,
+                    ),
                     timeout=0.2,
                 )
             except asyncio.TimeoutError:
@@ -247,7 +251,7 @@ class TestColdStartBuffering:
         result = await forward_with_timeout()
         assert result == "buffered"
         assert (
-            router.get_buffer_length(model_id) >= 0
+            router.get_buffer_length(deployment_id) >= 0
         )  # May have been cleaned up
 
     @pytest.mark.asyncio
@@ -255,9 +259,9 @@ class TestColdStartBuffering:
         self, router, database, mock_http_client
     ):
         """Test that buffer drains when endpoint becomes available."""
-        model_id = "test-model:vllm"
+        deployment_id = "test-model:vllm"
         payload = {
-            "model": model_id,
+            "model": deployment_id,
             "messages": [{"role": "user", "content": "Hi"}],
         }
 
@@ -271,14 +275,16 @@ class TestColdStartBuffering:
 
         # Start request in background
         task = asyncio.create_task(
-            router.handle_request(payload, "/v1/chat/completions")
+            router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         )
 
         # Wait a bit for buffering
         await asyncio.sleep(0.05)
 
         # Add endpoint - should trigger drain
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         # Wait for completion
         try:
@@ -290,9 +296,9 @@ class TestColdStartBuffering:
     @pytest.mark.asyncio
     async def test_buffer_full_returns_503(self, router_small_buffer, database):
         """Test that buffer full returns 503 error."""
-        model_id = "test-model:vllm"
+        deployment_id = "test-model:vllm"
         payload = {
-            "model": model_id,
+            "model": deployment_id,
             "messages": [{"role": "user", "content": "Hi"}],
         }
 
@@ -301,7 +307,9 @@ class TestColdStartBuffering:
         for _ in range(5):  # More than buffer size
             task = asyncio.create_task(
                 router_small_buffer.handle_request(
-                    payload, "/v1/chat/completions"
+                    payload,
+                    "/v1/chat/completions",
+                    deployment_id=deployment_id,
                 )
             )
             tasks.append(task)
@@ -321,15 +329,15 @@ class TestColdStartBuffering:
     @pytest.mark.asyncio
     async def test_buffer_timeout_returns_503(self, router_short_timeout):
         """Test that buffer timeout returns 503 error."""
-        model_id = "test-model:vllm"
+        deployment_id = "test-model:vllm"
         payload = {
-            "model": model_id,
+            "model": deployment_id,
             "messages": [{"role": "user", "content": "Hi"}],
         }
 
         with pytest.raises(Exception) as exc_info:
             await router_short_timeout.handle_request(
-                payload, "/v1/chat/completions"
+                payload, "/v1/chat/completions", deployment_id=deployment_id
             )
 
         assert "timeout" in str(exc_info.value).lower() or "503" in str(
@@ -348,15 +356,17 @@ class TestMetricsPush:
     @pytest.mark.asyncio
     async def test_push_metrics_on_buffer_change(self, router, mock_autoscaler):
         """Test that metrics are pushed when buffer changes."""
-        model_id = "test-model:vllm"
+        deployment_id = "test-model:vllm"
         payload = {
-            "model": model_id,
+            "model": deployment_id,
             "messages": [{"role": "user", "content": "Hi"}],
         }
 
         # Start request (will buffer)
         task = asyncio.create_task(
-            router.handle_request(payload, "/v1/chat/completions")
+            router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         )
 
         # Wait for buffering
@@ -377,25 +387,27 @@ class TestMetricsPush:
             pass
 
     @pytest.mark.asyncio
-    async def test_push_metrics_includes_model_id(
+    async def test_push_metrics_includes_deployment_id(
         self, router, mock_autoscaler
     ):
-        """Test that pushed metrics include model_id."""
-        model_id = "test-model:vllm"
-        payload = {"model": model_id, "messages": []}
+        """Test that pushed metrics include deployment_id."""
+        deployment_id = "test-model:vllm"
+        payload = {"model": deployment_id, "messages": []}
 
         task = asyncio.create_task(
-            router.handle_request(payload, "/v1/chat/completions")
+            router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         )
         await asyncio.sleep(0.05)
 
-        # Check metrics call includes model_id
+        # Check metrics call includes deployment_id
         calls = mock_autoscaler.receive_metrics.call_args_list
         if calls:
             call_kwargs = calls[-1].kwargs if calls[-1].kwargs else {}
             call_args = calls[-1].args if calls[-1].args else ()
-            # Model ID should be in args or kwargs
-            assert model_id in str(call_args) + str(call_kwargs)
+            # Deployment ID should be in args or kwargs
+            assert deployment_id in str(call_args) + str(call_kwargs)
 
         task.cancel()
         try:
@@ -408,8 +420,8 @@ class TestMetricsPush:
         self, router, database, mock_autoscaler, mock_http_client
     ):
         """Test that metrics are pushed when in-flight count changes."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         # Configure mock to delay response
         async def slow_response():
@@ -421,11 +433,13 @@ class TestMetricsPush:
             slow_response
         )
 
-        payload = {"model": model_id, "messages": []}
+        payload = {"model": deployment_id, "messages": []}
 
         # Start request
         task = asyncio.create_task(
-            router.handle_request(payload, "/v1/chat/completions")
+            router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         )
 
         # Wait for request to start
@@ -458,8 +472,8 @@ class TestRequestForwarding:
         self, router, database, mock_http_client
     ):
         """Test successful request forwarding."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         expected_response = {"choices": [{"message": {"content": "Hello!"}}]}
         mock_http_client.post.return_value.__aenter__.return_value.status = 200
@@ -468,10 +482,12 @@ class TestRequestForwarding:
         )
 
         payload = {
-            "model": model_id,
+            "model": deployment_id,
             "messages": [{"role": "user", "content": "Hi"}],
         }
-        result = await router.handle_request(payload, "/v1/chat/completions")
+        result = await router.handle_request(
+            payload, "/v1/chat/completions", deployment_id=deployment_id
+        )
 
         assert result == expected_response
 
@@ -480,16 +496,18 @@ class TestRequestForwarding:
         self, router, database, mock_http_client
     ):
         """Test that correct URL is constructed for forwarding."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         mock_http_client.post.return_value.__aenter__.return_value.status = 200
         mock_http_client.post.return_value.__aenter__.return_value.json = (
             AsyncMock(return_value={})
         )
 
-        payload = {"model": model_id, "messages": []}
-        await router.handle_request(payload, "/v1/chat/completions")
+        payload = {"model": deployment_id, "messages": []}
+        await router.handle_request(
+            payload, "/v1/chat/completions", deployment_id=deployment_id
+        )
 
         # Check the URL passed to post
         call_args = mock_http_client.post.call_args
@@ -501,8 +519,8 @@ class TestRequestForwarding:
         self, router, database, mock_http_client
     ):
         """Test that payload is passed correctly to backend."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         mock_http_client.post.return_value.__aenter__.return_value.status = 200
         mock_http_client.post.return_value.__aenter__.return_value.json = (
@@ -510,11 +528,13 @@ class TestRequestForwarding:
         )
 
         payload = {
-            "model": model_id,
+            "model": deployment_id,
             "messages": [{"role": "user", "content": "Hello"}],
             "max_tokens": 100,
         }
-        await router.handle_request(payload, "/v1/chat/completions")
+        await router.handle_request(
+            payload, "/v1/chat/completions", deployment_id=deployment_id
+        )
 
         # Check payload was passed
         call_args = mock_http_client.post.call_args
@@ -525,30 +545,28 @@ class TestRequestForwarding:
 
 
 # ============================================================================ #
-# Model ID Extraction Tests
+# Deployment ID Validation Tests
 # ============================================================================ #
 
 
-class TestModelIdExtraction:
-    """Tests for extracting model ID from request."""
+class TestDeploymentIdValidation:
+    """Tests for deployment_id parameter validation."""
 
-    def test_extract_model_id_from_body(self, router):
-        """Test extracting model ID from request body."""
-        payload = {"model": "test-model:vllm", "messages": []}
-        model_id = router._extract_model_id(payload)
-        assert model_id == "test-model:vllm"
-
-    def test_extract_model_id_missing_raises_error(self, router):
-        """Test that missing model ID raises error."""
+    @pytest.mark.asyncio
+    async def test_missing_deployment_id_raises_error(self, router):
+        """Test that missing deployment_id raises error."""
         payload = {"messages": []}
         with pytest.raises(ValueError):
-            router._extract_model_id(payload)
+            await router.handle_request(payload, "/v1/chat/completions")
 
-    def test_extract_model_id_empty_raises_error(self, router):
-        """Test that empty model ID raises error."""
-        payload = {"model": "", "messages": []}
+    @pytest.mark.asyncio
+    async def test_none_deployment_id_raises_error(self, router):
+        """Test that None deployment_id raises error."""
+        payload = {"messages": []}
         with pytest.raises(ValueError):
-            router._extract_model_id(payload)
+            await router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=None
+            )
 
 
 # ============================================================================ #
@@ -564,8 +582,8 @@ class TestInFlightTracking:
         self, router, database, mock_http_client
     ):
         """Test that in-flight count increments when request starts."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         # Configure mock to delay
         async def slow_json():
@@ -577,16 +595,18 @@ class TestInFlightTracking:
             slow_json
         )
 
-        payload = {"model": model_id, "messages": []}
+        payload = {"model": deployment_id, "messages": []}
         task = asyncio.create_task(
-            router.handle_request(payload, "/v1/chat/completions")
+            router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         )
 
         # Wait for request to start
         await asyncio.sleep(0.05)
 
         # Check in-flight count
-        assert router.get_in_flight_count(model_id) >= 1
+        assert router.get_in_flight_count(deployment_id) >= 1
 
         task.cancel()
         try:
@@ -599,56 +619,62 @@ class TestInFlightTracking:
         self, router, database, mock_http_client
     ):
         """Test that in-flight count decrements when request completes."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         mock_http_client.post.return_value.__aenter__.return_value.status = 200
         mock_http_client.post.return_value.__aenter__.return_value.json = (
             AsyncMock(return_value={})
         )
 
-        payload = {"model": model_id, "messages": []}
-        await router.handle_request(payload, "/v1/chat/completions")
+        payload = {"model": deployment_id, "messages": []}
+        await router.handle_request(
+            payload, "/v1/chat/completions", deployment_id=deployment_id
+        )
 
         # After completion, in-flight should be 0
-        assert router.get_in_flight_count(model_id) == 0
+        assert router.get_in_flight_count(deployment_id) == 0
 
     @pytest.mark.asyncio
     async def test_in_flight_decrements_on_request_error(
         self, router, database, mock_http_client
     ):
         """Test that in-flight count decrements even on error."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         # Configure mock to raise error
         mock_http_client.post.return_value.__aenter__.side_effect = Exception(
             "Connection failed"
         )
 
-        payload = {"model": model_id, "messages": []}
+        payload = {"model": deployment_id, "messages": []}
         try:
-            await router.handle_request(payload, "/v1/chat/completions")
+            await router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         except Exception:
             pass
 
         # After error, in-flight should be 0
-        assert router.get_in_flight_count(model_id) == 0
+        assert router.get_in_flight_count(deployment_id) == 0
 
 
 # ============================================================================ #
-# Multiple Models Tests
+# Multiple Deployments Tests
 # ============================================================================ #
 
 
-class TestMultipleModels:
-    """Tests for handling multiple models with global router."""
+class TestMultipleDeployments:
+    """Tests for handling multiple deployments with global router."""
 
     @pytest.mark.asyncio
-    async def test_multiple_models_isolated_endpoints(self, router, database):
-        """Test that endpoints are isolated per model."""
-        database.add_model_endpoint("model-a:vllm", "192.168.1.10:8080")
-        database.add_model_endpoint("model-b:vllm", "192.168.1.20:8080")
+    async def test_multiple_deployments_isolated_endpoints(
+        self, router, database
+    ):
+        """Test that endpoints are isolated per deployment."""
+        database.add_deployment_endpoint("model-a:vllm", "192.168.1.10:8080")
+        database.add_deployment_endpoint("model-b:vllm", "192.168.1.20:8080")
 
         endpoint_a = router._select_endpoint("model-a:vllm")
         endpoint_b = router._select_endpoint("model-b:vllm")
@@ -657,17 +683,21 @@ class TestMultipleModels:
         assert endpoint_b == "192.168.1.20:8080"
 
     @pytest.mark.asyncio
-    async def test_multiple_models_isolated_buffers(self, router):
-        """Test that buffers are isolated per model."""
-        # Buffer requests for different models
+    async def test_multiple_deployments_isolated_buffers(self, router):
+        """Test that buffers are isolated per deployment."""
+        # Buffer requests for different deployments
         payload_a = {"model": "model-a:vllm", "messages": []}
         payload_b = {"model": "model-b:vllm", "messages": []}
 
         task_a = asyncio.create_task(
-            router.handle_request(payload_a, "/v1/chat/completions")
+            router.handle_request(
+                payload_a, "/v1/chat/completions", deployment_id="model-a:vllm"
+            )
         )
         task_b = asyncio.create_task(
-            router.handle_request(payload_b, "/v1/chat/completions")
+            router.handle_request(
+                payload_b, "/v1/chat/completions", deployment_id="model-b:vllm"
+            )
         )
 
         await asyncio.sleep(0.05)
@@ -688,12 +718,12 @@ class TestMultipleModels:
             pass
 
     @pytest.mark.asyncio
-    async def test_multiple_models_isolated_in_flight(
+    async def test_multiple_deployments_isolated_in_flight(
         self, router, database, mock_http_client
     ):
-        """Test that in-flight counts are isolated per model."""
-        database.add_model_endpoint("model-a:vllm", "192.168.1.10:8080")
-        database.add_model_endpoint("model-b:vllm", "192.168.1.20:8080")
+        """Test that in-flight counts are isolated per deployment."""
+        database.add_deployment_endpoint("model-a:vllm", "192.168.1.10:8080")
+        database.add_deployment_endpoint("model-b:vllm", "192.168.1.20:8080")
 
         async def slow_json():
             await asyncio.sleep(0.2)
@@ -706,7 +736,9 @@ class TestMultipleModels:
 
         payload_a = {"model": "model-a:vllm", "messages": []}
         task_a = asyncio.create_task(
-            router.handle_request(payload_a, "/v1/chat/completions")
+            router.handle_request(
+                payload_a, "/v1/chat/completions", deployment_id="model-a:vllm"
+            )
         )
 
         await asyncio.sleep(0.05)
@@ -735,8 +767,8 @@ class TestRouterDrain:
         self, router, database, mock_http_client
     ):
         """Test that drain waits for in-flight requests."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         async def slow_json():
             await asyncio.sleep(0.1)
@@ -747,9 +779,11 @@ class TestRouterDrain:
             slow_json
         )
 
-        payload = {"model": model_id, "messages": []}
+        payload = {"model": deployment_id, "messages": []}
         task = asyncio.create_task(
-            router.handle_request(payload, "/v1/chat/completions")
+            router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         )
 
         await asyncio.sleep(0.02)
@@ -763,8 +797,8 @@ class TestRouterDrain:
     @pytest.mark.asyncio
     async def test_drain_timeout(self, router, database, mock_http_client):
         """Test that drain times out correctly."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         async def very_slow_json():
             await asyncio.sleep(10)  # Very slow
@@ -775,9 +809,11 @@ class TestRouterDrain:
             very_slow_json
         )
 
-        payload = {"model": model_id, "messages": []}
+        payload = {"model": deployment_id, "messages": []}
         task = asyncio.create_task(
-            router.handle_request(payload, "/v1/chat/completions")
+            router.handle_request(
+                payload, "/v1/chat/completions", deployment_id=deployment_id
+            )
         )
 
         await asyncio.sleep(0.02)
@@ -807,16 +843,18 @@ class TestErrorHandling:
         self, router, database, mock_http_client
     ):
         """Test that backend 5xx is returned as error."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
 
         mock_http_client.post.return_value.__aenter__.return_value.status = 500
         mock_http_client.post.return_value.__aenter__.return_value.json = (
             AsyncMock(return_value={"error": "Internal server error"})
         )
 
-        payload = {"model": model_id, "messages": []}
-        result = await router.handle_request(payload, "/v1/chat/completions")
+        payload = {"model": deployment_id, "messages": []}
+        result = await router.handle_request(
+            payload, "/v1/chat/completions", deployment_id=deployment_id
+        )
 
         # Should return the error response (not raise)
         assert "error" in result
@@ -826,9 +864,9 @@ class TestErrorHandling:
         self, router, database, mock_http_client
     ):
         """Test that connection error tries next endpoint."""
-        model_id = "test-model:vllm"
-        database.add_model_endpoint(model_id, "192.168.1.10:8080")
-        database.add_model_endpoint(model_id, "192.168.1.11:8080")
+        deployment_id = "test-model:vllm"
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.11:8080")
 
         # First call fails, second succeeds
         call_count = 0
@@ -845,13 +883,13 @@ class TestErrorHandling:
 
         mock_http_client.post = MagicMock(side_effect=mock_post)
 
-        payload = {"model": model_id, "messages": []}
+        payload = {"model": deployment_id, "messages": []}
 
         # This test depends on retry implementation
         # For now, just verify the router handles the error
         try:
             result = await router.handle_request(
-                payload, "/v1/chat/completions"
+                payload, "/v1/chat/completions", deployment_id=deployment_id
             )
             assert result.get("success") is True
         except Exception:

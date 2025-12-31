@@ -20,6 +20,9 @@ Tests for the Autoscaler component.
 
 These tests cover both the existing autoscaler functionality and the new
 receive_metrics method used by the Router.
+
+Terminology:
+- deployment_id: Unique identifier for a deployment (format: "{model_name}:{backend}")
 """
 
 import asyncio
@@ -28,7 +31,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # ============================================================================ #
-# Autoscaler receive_metrics Tests (New - for Router integration)
+# Autoscaler receive_metrics Tests (for Router integration)
 # ============================================================================ #
 
 
@@ -40,7 +43,7 @@ class TestAutoscalerReceiveMetrics:
     ):
         """Test that receive_metrics stores buffer length."""
         autoscaler_with_metrics.receive_metrics(
-            model_id="test-model:vllm",
+            deployment_id="test-model:vllm",
             buffer_len=5,
             in_flight=0,
         )
@@ -51,7 +54,7 @@ class TestAutoscalerReceiveMetrics:
     def test_receive_metrics_stores_in_flight(self, autoscaler_with_metrics):
         """Test that receive_metrics stores in-flight count."""
         autoscaler_with_metrics.receive_metrics(
-            model_id="test-model:vllm",
+            deployment_id="test-model:vllm",
             buffer_len=0,
             in_flight=3,
         )
@@ -62,12 +65,12 @@ class TestAutoscalerReceiveMetrics:
     def test_receive_metrics_updates_existing(self, autoscaler_with_metrics):
         """Test that receive_metrics updates existing metrics."""
         autoscaler_with_metrics.receive_metrics(
-            model_id="test-model:vllm",
+            deployment_id="test-model:vllm",
             buffer_len=5,
             in_flight=2,
         )
         autoscaler_with_metrics.receive_metrics(
-            model_id="test-model:vllm",
+            deployment_id="test-model:vllm",
             buffer_len=3,
             in_flight=4,
         )
@@ -76,15 +79,17 @@ class TestAutoscalerReceiveMetrics:
         assert metrics["buffer_len"] == 3
         assert metrics["in_flight"] == 4
 
-    def test_receive_metrics_isolated_per_model(self, autoscaler_with_metrics):
-        """Test that metrics are isolated per model."""
+    def test_receive_metrics_isolated_per_deployment(
+        self, autoscaler_with_metrics
+    ):
+        """Test that metrics are isolated per deployment."""
         autoscaler_with_metrics.receive_metrics(
-            model_id="model-a:vllm",
+            deployment_id="model-a:vllm",
             buffer_len=5,
             in_flight=2,
         )
         autoscaler_with_metrics.receive_metrics(
-            model_id="model-b:vllm",
+            deployment_id="model-b:vllm",
             buffer_len=10,
             in_flight=0,
         )
@@ -100,7 +105,7 @@ class TestAutoscalerReceiveMetrics:
     ):
         """Test that total demand calculation uses pushed metrics."""
         autoscaler_with_metrics.receive_metrics(
-            model_id="test-model:vllm",
+            deployment_id="test-model:vllm",
             buffer_len=5,
             in_flight=3,
         )
@@ -110,10 +115,10 @@ class TestAutoscalerReceiveMetrics:
         )
         assert total_demand == 8  # 5 + 3
 
-    def test_get_total_demand_unknown_model_returns_zero(
+    def test_get_total_demand_unknown_deployment_returns_zero(
         self, autoscaler_with_metrics
     ):
-        """Test that unknown model returns zero demand."""
+        """Test that unknown deployment returns zero demand."""
         total_demand = autoscaler_with_metrics.get_total_demand("unknown:vllm")
         assert total_demand == 0
 
@@ -128,62 +133,64 @@ class TestAutoscalerScaling:
 
     @pytest.mark.asyncio
     async def test_scale_up_when_demand_increases(
-        self, autoscaler_with_metrics, database, sample_model
+        self, autoscaler_with_metrics, database, sample_deployment
     ):
         """Test that autoscaler scales up when demand increases."""
         # Push metrics indicating demand
         autoscaler_with_metrics.receive_metrics(
-            model_id=sample_model.id,
+            deployment_id=sample_deployment.id,
             buffer_len=15,
             in_flight=5,
         )
 
         # Run one scaling cycle
-        await autoscaler_with_metrics._scale_model(sample_model)
+        await autoscaler_with_metrics._scale_deployment(sample_deployment)
 
         # Check desired replicas was updated
-        updated_model = database.get_model(sample_model.id)
-        assert updated_model.desired_replicas > 0
+        updated_deployment = database.get_deployment_by_id(sample_deployment.id)
+        assert updated_deployment.desired_replicas > 0
 
     @pytest.mark.asyncio
     async def test_scale_down_when_no_demand(
-        self, autoscaler_with_metrics, database, sample_model
+        self, autoscaler_with_metrics, database, sample_deployment
     ):
         """Test that autoscaler scales down when no demand."""
         # First scale up
-        database.update_desired_replicas(sample_model.id, 2)
+        database.update_desired_replicas(sample_deployment.id, 2)
 
         # Push zero metrics
         autoscaler_with_metrics.receive_metrics(
-            model_id=sample_model.id,
+            deployment_id=sample_deployment.id,
             buffer_len=0,
             in_flight=0,
         )
 
         # Disable keep_alive for this test
         database._get_connection().execute(
-            "UPDATE models SET keep_alive_seconds = 0 WHERE id = ?",
-            (sample_model.id,),
+            "UPDATE deployments SET keep_alive_seconds = 0 WHERE id = ?",
+            (sample_deployment.id,),
         )
 
-        # Refresh model
-        sample_model = database.get_model(sample_model.id)
+        # Refresh deployment
+        sample_deployment = database.get_deployment_by_id(sample_deployment.id)
 
         # Run scaling cycle
-        await autoscaler_with_metrics._scale_model(sample_model)
+        await autoscaler_with_metrics._scale_deployment(sample_deployment)
 
         # Check desired replicas was reduced
-        updated_model = database.get_model(sample_model.id)
-        assert updated_model.desired_replicas == sample_model.min_replicas
+        updated_deployment = database.get_deployment_by_id(sample_deployment.id)
+        assert (
+            updated_deployment.desired_replicas
+            == sample_deployment.min_replicas
+        )
 
     @pytest.mark.asyncio
     async def test_respects_min_replicas(
         self, autoscaler_with_metrics, database
     ):
         """Test that autoscaler respects min_replicas."""
-        # Create model with min_replicas=1
-        model = database.create_model(
-            model_id="min-replica-test:vllm",
+        # Create deployment with min_replicas=1
+        deployment = database.create_deployment(
             model_name="min-replica-test",
             backend="vllm",
             min_replicas=1,
@@ -192,26 +199,25 @@ class TestAutoscalerScaling:
 
         # Push zero demand
         autoscaler_with_metrics.receive_metrics(
-            model_id=model.id,
+            deployment_id=deployment.id,
             buffer_len=0,
             in_flight=0,
         )
 
         # Run scaling
-        await autoscaler_with_metrics._scale_model(model)
+        await autoscaler_with_metrics._scale_deployment(deployment)
 
         # Should not go below min_replicas
-        updated_model = database.get_model(model.id)
-        assert updated_model.desired_replicas >= 1
+        updated_deployment = database.get_deployment_by_id(deployment.id)
+        assert updated_deployment.desired_replicas >= 1
 
     @pytest.mark.asyncio
     async def test_respects_max_replicas(
         self, autoscaler_with_metrics, database
     ):
         """Test that autoscaler respects max_replicas."""
-        # Create model with max_replicas=2
-        model = database.create_model(
-            model_id="max-replica-test:vllm",
+        # Create deployment with max_replicas=2
+        deployment = database.create_deployment(
             model_name="max-replica-test",
             backend="vllm",
             min_replicas=0,
@@ -221,17 +227,17 @@ class TestAutoscalerScaling:
 
         # Push high demand
         autoscaler_with_metrics.receive_metrics(
-            model_id=model.id,
+            deployment_id=deployment.id,
             buffer_len=100,
             in_flight=50,
         )
 
         # Run scaling
-        await autoscaler_with_metrics._scale_model(model)
+        await autoscaler_with_metrics._scale_deployment(deployment)
 
         # Should not exceed max_replicas
-        updated_model = database.get_model(model.id)
-        assert updated_model.desired_replicas <= 2
+        updated_deployment = database.get_deployment_by_id(deployment.id)
+        assert updated_deployment.desired_replicas <= 2
 
 
 # ============================================================================ #
@@ -247,30 +253,29 @@ class TestAutoscalerKeepAlive:
         self, autoscaler_with_metrics, database
     ):
         """Test that keep_alive prevents immediate scale down."""
-        # Create model with keep_alive
-        model = database.create_model(
-            model_id="keepalive-test:vllm",
+        # Create deployment with keep_alive
+        deployment = database.create_deployment(
             model_name="keepalive-test",
             backend="vllm",
             min_replicas=0,
             max_replicas=2,
             keep_alive_seconds=60,
         )
-        database.update_desired_replicas(model.id, 1)
+        database.update_desired_replicas(deployment.id, 1)
 
         # Push zero demand
         autoscaler_with_metrics.receive_metrics(
-            model_id=model.id,
+            deployment_id=deployment.id,
             buffer_len=0,
             in_flight=0,
         )
 
-        # Refresh model
-        model = database.get_model(model.id)
+        # Refresh deployment
+        deployment = database.get_deployment_by_id(deployment.id)
 
         # Run scaling - should NOT scale down due to keep_alive
-        await autoscaler_with_metrics._scale_model(model)
+        await autoscaler_with_metrics._scale_deployment(deployment)
 
         # Should still have 1 replica
-        updated_model = database.get_model(model.id)
-        assert updated_model.desired_replicas == 1
+        updated_deployment = database.get_deployment_by_id(deployment.id)
+        assert updated_deployment.desired_replicas == 1

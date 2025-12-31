@@ -18,8 +18,13 @@
 """
 SQLite database layer for ServerlessLLM v1-beta.
 
-Single source of truth for model configuration and node storage info.
+Single source of truth for deployment configuration and node storage info.
 Instance state is owned by Pylet - we only query it, never duplicate.
+
+Terminology:
+- Deployment: A (model_name, backend) pair - the basic scheduling unit
+- deployment_id: Unique identifier for a deployment (format: "{model_name}:{backend}")
+- model_name: HuggingFace model name (e.g., "meta-llama/Llama-3.1-8B")
 """
 
 import json
@@ -35,15 +40,19 @@ from sllm.logger import init_logger
 logger = init_logger(__name__)
 
 # Schema version for migrations
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass
-class Model:
-    """Model configuration and scaling state."""
+class Deployment:
+    """Deployment configuration and scaling state.
 
-    id: str  # "meta-llama/Llama-3.1-8B:vllm"
-    model_name: str  # "meta-llama/Llama-3.1-8B"
+    A deployment represents a (model_name, backend) pair - the basic
+    scheduling and control unit in ServerlessLLM.
+    """
+
+    id: str  # deployment_id: "meta-llama/Llama-3.1-8B:vllm"
+    model_name: str  # HuggingFace model: "meta-llama/Llama-3.1-8B"
     backend: str  # "vllm" or "sglang"
     status: str  # "active", "deleting"
     desired_replicas: int
@@ -54,6 +63,14 @@ class Model:
     backend_config: Optional[Dict]
     created_at: str
     updated_at: str
+
+    @staticmethod
+    def make_id(model_name: str, backend: str) -> str:
+        """Generate deployment_id from model_name and backend.
+
+        This is the single source of truth for deployment ID format.
+        """
+        return f"{model_name}:{backend}"
 
 
 @dataclass
@@ -122,10 +139,16 @@ class Database:
 
     def _migrate(self, conn: sqlite3.Connection, from_version: int):
         """Run migrations from from_version to SCHEMA_VERSION."""
-        if from_version < 1:
-            self._migrate_v1(conn)
-        if from_version < 2:
-            self._migrate_v2(conn)
+        # v3 is a breaking change - fail if old schema exists
+        if from_version > 0 and from_version < 3:
+            raise RuntimeError(
+                f"Database schema v{from_version} is incompatible with v3. "
+                f"Please delete {self.db_path} and restart. "
+                "This is expected during v1-beta development."
+            )
+
+        if from_version < 3:
+            self._migrate_v3(conn)
 
         # Update schema version
         conn.execute("DELETE FROM schema_version")
@@ -135,11 +158,11 @@ class Database:
         )
         logger.info(f"Database migrated to schema version {SCHEMA_VERSION}")
 
-    def _migrate_v1(self, conn: sqlite3.Connection):
-        """Create initial v1 schema."""
-        # Models table - model configuration and scaling state
+    def _migrate_v3(self, conn: sqlite3.Connection):
+        """Create v3 schema with deployment terminology."""
+        # Deployments table - deployment configuration and scaling state
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS models (
+            CREATE TABLE IF NOT EXISTS deployments (
                 id TEXT PRIMARY KEY,
                 model_name TEXT NOT NULL,
                 backend TEXT NOT NULL,
@@ -157,8 +180,8 @@ class Database:
 
         # Index for status queries
         conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_models_status
-            ON models(status)
+            CREATE INDEX IF NOT EXISTS idx_deployments_status
+            ON deployments(status)
         """)
 
         # Node storage table - cache info from sllm-store
@@ -171,35 +194,30 @@ class Database:
             )
         """)
 
-        logger.info("Created v1 schema tables")
-
-    def _migrate_v2(self, conn: sqlite3.Connection):
-        """Add model_endpoints table for router."""
-        # Model endpoints table - tracks healthy endpoints for each model
+        # Deployment endpoints table - tracks healthy endpoints per deployment
         conn.execute("""
-            CREATE TABLE IF NOT EXISTS model_endpoints (
-                model_id TEXT NOT NULL,
+            CREATE TABLE IF NOT EXISTS deployment_endpoints (
+                deployment_id TEXT NOT NULL,
                 endpoint TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'healthy',
                 added_at TEXT NOT NULL,
-                PRIMARY KEY (model_id, endpoint)
+                PRIMARY KEY (deployment_id, endpoint)
             )
         """)
 
         conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_model_endpoints_model_id
-            ON model_endpoints(model_id)
+            CREATE INDEX IF NOT EXISTS idx_deployment_endpoints_deployment_id
+            ON deployment_endpoints(deployment_id)
         """)
 
-        logger.info("Created v2 schema: model_endpoints table")
+        logger.info("Created v3 schema with deployment terminology")
 
     # -------------------------------------------------------------------------
-    # Model CRUD Operations
+    # Deployment CRUD Operations
     # -------------------------------------------------------------------------
 
-    def create_model(
+    def create_deployment(
         self,
-        model_id: str,
         model_name: str,
         backend: str,
         min_replicas: int = 0,
@@ -207,10 +225,11 @@ class Database:
         target_pending_requests: int = 5,
         keep_alive_seconds: int = 0,
         backend_config: Optional[Dict] = None,
-    ) -> Model:
-        """Create a new model entry."""
+    ) -> Deployment:
+        """Create a new deployment entry."""
         conn = self._get_connection()
         now = datetime.now(timezone.utc).isoformat()
+        deployment_id = Deployment.make_id(model_name, backend)
 
         backend_config_json = (
             json.dumps(backend_config) if backend_config else None
@@ -219,14 +238,14 @@ class Database:
         try:
             conn.execute(
                 """
-                INSERT INTO models (
+                INSERT INTO deployments (
                     id, model_name, backend, status, desired_replicas,
                     min_replicas, max_replicas, target_pending_requests,
                     keep_alive_seconds, backend_config, created_at, updated_at
                 ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    model_id,
+                    deployment_id,
                     model_name,
                     backend,
                     min_replicas,  # desired starts at min
@@ -240,89 +259,100 @@ class Database:
                 ),
             )
         except sqlite3.IntegrityError:
-            raise ValueError(f"Model {model_id} already exists")
+            raise ValueError(f"Deployment {deployment_id} already exists")
 
-        logger.info(f"Created model {model_id}")
-        return self.get_model(model_id)
+        logger.info(f"Created deployment {deployment_id}")
+        return self.get_deployment(model_name, backend)
 
-    def get_model(self, model_id: str) -> Optional[Model]:
-        """Get a model by ID."""
+    def get_deployment(
+        self, model_name: str, backend: str
+    ) -> Optional[Deployment]:
+        """Get a deployment by model_name and backend."""
+        deployment_id = Deployment.make_id(model_name, backend)
+        return self.get_deployment_by_id(deployment_id)
+
+    def get_deployment_by_id(self, deployment_id: str) -> Optional[Deployment]:
+        """Get a deployment by its ID."""
         conn = self._get_connection()
         row = conn.execute(
-            "SELECT * FROM models WHERE id = ?", (model_id,)
+            "SELECT * FROM deployments WHERE id = ?", (deployment_id,)
         ).fetchone()
 
         if not row:
             return None
 
-        return self._row_to_model(row)
+        return self._row_to_deployment(row)
 
-    def get_all_models(self) -> List[Model]:
-        """Get all models."""
+    def get_all_deployments(self) -> List[Deployment]:
+        """Get all deployments."""
         conn = self._get_connection()
-        rows = conn.execute("SELECT * FROM models").fetchall()
-        return [self._row_to_model(row) for row in rows]
+        rows = conn.execute("SELECT * FROM deployments").fetchall()
+        return [self._row_to_deployment(row) for row in rows]
 
-    def get_active_models(self) -> List[Model]:
-        """Get all active (non-deleting) models."""
+    def get_active_deployments(self) -> List[Deployment]:
+        """Get all active (non-deleting) deployments."""
         conn = self._get_connection()
         rows = conn.execute(
-            "SELECT * FROM models WHERE status = 'active'"
+            "SELECT * FROM deployments WHERE status = 'active'"
         ).fetchall()
-        return [self._row_to_model(row) for row in rows]
+        return [self._row_to_deployment(row) for row in rows]
 
-    def update_desired_replicas(self, model_id: str, desired: int) -> bool:
-        """Update desired_replicas for a model. Returns True if updated."""
+    def update_desired_replicas(self, deployment_id: str, desired: int) -> bool:
+        """Update desired_replicas for a deployment. Returns True if updated."""
         conn = self._get_connection()
         now = datetime.now(timezone.utc).isoformat()
 
         cursor = conn.execute(
             """
-            UPDATE models
+            UPDATE deployments
             SET desired_replicas = ?, updated_at = ?
             WHERE id = ? AND status = 'active'
             """,
-            (desired, now, model_id),
+            (desired, now, deployment_id),
         )
 
         return cursor.rowcount > 0
 
-    def update_model_status(self, model_id: str, status: str) -> bool:
-        """Update model status. Returns True if updated."""
+    def update_deployment_status(self, deployment_id: str, status: str) -> bool:
+        """Update deployment status. Returns True if updated."""
         conn = self._get_connection()
         now = datetime.now(timezone.utc).isoformat()
 
         cursor = conn.execute(
             """
-            UPDATE models
+            UPDATE deployments
             SET status = ?, updated_at = ?
             WHERE id = ?
             """,
-            (status, now, model_id),
+            (status, now, deployment_id),
         )
 
         if cursor.rowcount > 0:
-            logger.info(f"Model {model_id} status changed to {status}")
+            logger.info(
+                f"Deployment {deployment_id} status changed to {status}"
+            )
             return True
         return False
 
-    def delete_model(self, model_id: str) -> bool:
-        """Delete a model. Returns True if deleted."""
+    def delete_deployment(self, deployment_id: str) -> bool:
+        """Delete a deployment. Returns True if deleted."""
         conn = self._get_connection()
-        cursor = conn.execute("DELETE FROM models WHERE id = ?", (model_id,))
+        cursor = conn.execute(
+            "DELETE FROM deployments WHERE id = ?", (deployment_id,)
+        )
 
         if cursor.rowcount > 0:
-            logger.info(f"Deleted model {model_id}")
+            logger.info(f"Deleted deployment {deployment_id}")
             return True
         return False
 
-    def _row_to_model(self, row: sqlite3.Row) -> Model:
-        """Convert a database row to a Model object."""
+    def _row_to_deployment(self, row: sqlite3.Row) -> Deployment:
+        """Convert a database row to a Deployment object."""
         backend_config = None
         if row["backend_config"]:
             backend_config = json.loads(row["backend_config"])
 
-        return Model(
+        return Deployment(
             id=row["id"],
             model_name=row["model_name"],
             backend=row["backend"],
@@ -425,67 +455,75 @@ class Database:
         )
 
     # -------------------------------------------------------------------------
-    # Model Endpoints Operations (for Router)
+    # Deployment Endpoints Operations (for Router)
     # -------------------------------------------------------------------------
 
-    def get_model_endpoints(self, model_id: str) -> List[str]:
-        """Get healthy endpoints for a model. Called by Router."""
+    def get_deployment_endpoints(self, deployment_id: str) -> List[str]:
+        """Get healthy endpoints for a deployment. Called by Router."""
         conn = self._get_connection()
         rows = conn.execute(
-            "SELECT endpoint FROM model_endpoints "
-            "WHERE model_id = ? AND status = 'healthy'",
-            (model_id,),
+            "SELECT endpoint FROM deployment_endpoints "
+            "WHERE deployment_id = ? AND status = 'healthy'",
+            (deployment_id,),
         ).fetchall()
         return [row[0] for row in rows]
 
-    def add_model_endpoint(self, model_id: str, endpoint: str):
+    def add_deployment_endpoint(self, deployment_id: str, endpoint: str):
         """Add endpoint. Called by Reconciler."""
         conn = self._get_connection()
         now = datetime.now(timezone.utc).isoformat()
         conn.execute(
-            "INSERT OR REPLACE INTO model_endpoints "
-            "(model_id, endpoint, status, added_at) VALUES (?, ?, 'healthy', ?)",
-            (model_id, endpoint, now),
+            "INSERT OR REPLACE INTO deployment_endpoints "
+            "(deployment_id, endpoint, status, added_at) "
+            "VALUES (?, ?, 'healthy', ?)",
+            (deployment_id, endpoint, now),
         )
-        logger.debug(f"Added endpoint {endpoint} for {model_id}")
+        logger.debug(f"Added endpoint {endpoint} for {deployment_id}")
 
-    def remove_model_endpoint(self, model_id: str, endpoint: str):
+    def remove_deployment_endpoint(self, deployment_id: str, endpoint: str):
         """Remove endpoint. Called by Reconciler."""
         conn = self._get_connection()
         cursor = conn.execute(
-            "DELETE FROM model_endpoints WHERE model_id = ? AND endpoint = ?",
-            (model_id, endpoint),
+            "DELETE FROM deployment_endpoints "
+            "WHERE deployment_id = ? AND endpoint = ?",
+            (deployment_id, endpoint),
         )
         if cursor.rowcount > 0:
-            logger.debug(f"Removed endpoint {endpoint} for {model_id}")
+            logger.debug(f"Removed endpoint {endpoint} for {deployment_id}")
 
-    def mark_endpoint_unhealthy(self, model_id: str, endpoint: str):
+    def mark_endpoint_unhealthy(self, deployment_id: str, endpoint: str):
         """Mark endpoint unhealthy. Called by Reconciler."""
         conn = self._get_connection()
         conn.execute(
-            "UPDATE model_endpoints SET status = 'unhealthy' "
-            "WHERE model_id = ? AND endpoint = ?",
-            (model_id, endpoint),
+            "UPDATE deployment_endpoints SET status = 'unhealthy' "
+            "WHERE deployment_id = ? AND endpoint = ?",
+            (deployment_id, endpoint),
         )
-        logger.debug(f"Marked endpoint {endpoint} unhealthy for {model_id}")
+        logger.debug(
+            f"Marked endpoint {endpoint} unhealthy for {deployment_id}"
+        )
 
-    def remove_model_endpoints(self, model_id: str):
-        """Remove all endpoints for a model. Called during model deletion."""
+    def remove_deployment_endpoints(self, deployment_id: str):
+        """Remove all endpoints for a deployment. Called during deletion."""
         conn = self._get_connection()
         cursor = conn.execute(
-            "DELETE FROM model_endpoints WHERE model_id = ?",
-            (model_id,),
+            "DELETE FROM deployment_endpoints WHERE deployment_id = ?",
+            (deployment_id,),
         )
         if cursor.rowcount > 0:
-            logger.debug(f"Removed {cursor.rowcount} endpoints for {model_id}")
+            logger.debug(
+                f"Removed {cursor.rowcount} endpoints for {deployment_id}"
+            )
 
-    def get_all_endpoints_for_model(self, model_id: str) -> List[dict]:
-        """Get all endpoints (including unhealthy) for a model."""
+    def get_all_endpoints_for_deployment(
+        self, deployment_id: str
+    ) -> List[dict]:
+        """Get all endpoints (including unhealthy) for a deployment."""
         conn = self._get_connection()
         rows = conn.execute(
-            "SELECT endpoint, status, added_at FROM model_endpoints "
-            "WHERE model_id = ?",
-            (model_id,),
+            "SELECT endpoint, status, added_at FROM deployment_endpoints "
+            "WHERE deployment_id = ?",
+            (deployment_id,),
         ).fetchall()
         return [
             {"endpoint": row[0], "status": row[1], "added_at": row[2]}
@@ -493,24 +531,24 @@ class Database:
         ]
 
     def get_all_healthy_endpoints(self) -> Dict[str, List[str]]:
-        """Get all healthy endpoints grouped by model ID."""
+        """Get all healthy endpoints grouped by deployment ID."""
         conn = self._get_connection()
         rows = conn.execute(
-            "SELECT model_id, endpoint FROM model_endpoints "
+            "SELECT deployment_id, endpoint FROM deployment_endpoints "
             "WHERE status = 'healthy'"
         ).fetchall()
 
         result: Dict[str, List[str]] = {}
         for row in rows:
-            model_id, endpoint = row[0], row[1]
-            if model_id not in result:
-                result[model_id] = []
-            result[model_id].append(endpoint)
+            deployment_id, endpoint = row[0], row[1]
+            if deployment_id not in result:
+                result[deployment_id] = []
+            result[deployment_id].append(endpoint)
         return result
 
-    def delete_model_endpoints(self, model_id: str):
-        """Alias for remove_model_endpoints (for test compatibility)."""
-        return self.remove_model_endpoints(model_id)
+    def delete_deployment_endpoints(self, deployment_id: str):
+        """Alias for remove_deployment_endpoints (for test compatibility)."""
+        return self.remove_deployment_endpoints(deployment_id)
 
     # -------------------------------------------------------------------------
     # Utility Methods
@@ -525,9 +563,9 @@ class Database:
     def reset(self):
         """Reset database - delete all data. Use with caution!"""
         conn = self._get_connection()
-        conn.execute("DELETE FROM models")
+        conn.execute("DELETE FROM deployments")
         conn.execute("DELETE FROM node_storage")
-        conn.execute("DELETE FROM model_endpoints")
+        conn.execute("DELETE FROM deployment_endpoints")
         logger.warning("Database reset - all data deleted")
 
 

@@ -21,7 +21,7 @@ from typing import Optional
 import click
 
 from sllm.cli._cli_utils import (
-    delete_model,
+    delete_deployment,
     deploy_model,
     parse_lora_adapters,
     show_status,
@@ -111,12 +111,13 @@ def deploy(
 @click.argument("models", nargs=-1)
 @click.option(
     "--backend",
-    help="Backend framework (e.g., vllm, transformers). Use 'all' to delete all backends. If not specified, deletes all backends for the model.",
+    required=True,
+    help="Backend framework (e.g., vllm, sglang). Required to identify the deployment.",
 )
 @click.option("--lora-adapters", help="LoRA adapters to delete.")
 def delete(models, backend, lora_adapters):
-    """Delete deployed models, or remove only the LoRA adapters."""
-    delete_model(
+    """Delete deployments, or remove only the LoRA adapters."""
+    delete_deployment(
         models,
         backend=backend,
         lora_adapters=lora_adapters if lora_adapters else None,
@@ -201,7 +202,7 @@ def head(
 
 @cli.command()
 def status():
-    """Show all deployed models."""
+    """Show all deployments."""
     show_status()
 
 

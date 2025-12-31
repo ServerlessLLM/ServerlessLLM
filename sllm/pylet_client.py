@@ -61,9 +61,9 @@ class InstanceInfo:
     failure_reason: Optional[str]
 
     @property
-    def model_id(self) -> Optional[str]:
-        """Get model_id from labels."""
-        return self.labels.get("model_id")
+    def deployment_id(self) -> Optional[str]:
+        """Get deployment_id from labels."""
+        return self.labels.get("deployment_id")
 
     @property
     def node(self) -> Optional[str]:
@@ -233,7 +233,7 @@ class PyletClient:
         List instances with optional filtering.
 
         Args:
-            label: Single label filter (e.g., "model_id:llama-3.1-8b")
+            label: Single label filter (e.g., "deployment_id:llama-3.1-8b:vllm")
             labels: Multiple label filters
             status: Status filter (e.g., "RUNNING")
 
@@ -294,16 +294,18 @@ class PyletClient:
     # SLLM-Specific Helpers
     # -------------------------------------------------------------------------
 
-    async def get_model_instances(self, model_id: str) -> List[InstanceInfo]:
-        """Get all instances for a model."""
-        return await self.list_instances(label=f"model_id:{model_id}")
-
-    async def get_running_model_instances(
-        self, model_id: str
+    async def get_deployment_instances(
+        self, deployment_id: str
     ) -> List[InstanceInfo]:
-        """Get running instances for a model."""
+        """Get all instances for a deployment."""
+        return await self.list_instances(label=f"deployment_id:{deployment_id}")
+
+    async def get_running_deployment_instances(
+        self, deployment_id: str
+    ) -> List[InstanceInfo]:
+        """Get running instances for a deployment."""
         return await self.list_instances(
-            label=f"model_id:{model_id}",
+            label=f"deployment_id:{deployment_id}",
             status="RUNNING",
         )
 

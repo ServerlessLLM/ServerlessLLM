@@ -23,12 +23,16 @@ Declarative reconciliation loop that:
 - Queries Pylet for current instances
 - Creates/deletes instances to match desired state
 - Health checks starting instances
-- Writes to model_endpoints table (Router reads from there)
+- Writes to deployment_endpoints table (Router reads from there)
 
 Design (from docs/v1-beta-scalable-router-design.md):
-- Endpoint lifecycle: Add/remove endpoints in model_endpoints table
+- Endpoint lifecycle: Add/remove endpoints in deployment_endpoints table
 - Instance management: Create/delete instances via Pylet
 - Health ownership: Mark endpoints healthy/unhealthy based on Pylet heartbeats
+
+Terminology:
+- Deployment: A (model_name, backend) pair - the basic scheduling unit
+- deployment_id: Unique identifier (format: "{model_name}:{backend}")
 """
 
 import asyncio
@@ -39,7 +43,7 @@ from typing import Dict, List, Optional, Set
 import aiohttp
 
 from sllm.command_builder import build_instance_command
-from sllm.database import Database, Model
+from sllm.database import Database, Deployment
 from sllm.logger import init_logger
 from sllm.pylet_client import InstanceInfo, PyletClient
 from sllm.storage_manager import StorageManager
@@ -54,22 +58,22 @@ STARTUP_TIMEOUT_SECONDS = 300
 
 @dataclass
 class ReconcileState:
-    """State of instances for a model."""
+    """State of instances for a deployment."""
 
-    ready: List[InstanceInfo]  # RUNNING and in model_endpoints
+    ready: List[InstanceInfo]  # RUNNING and in deployment_endpoints
     starting: List[InstanceInfo]  # PENDING, ASSIGNED, or RUNNING but not in DB
     failed: List[InstanceInfo]  # FAILED, COMPLETED, UNKNOWN
 
 
 class Reconciler:
     """
-    Declarative reconciliation loop for model instances.
+    Declarative reconciliation loop for deployment instances.
 
     The reconciler continuously ensures that the actual state (instances
     running via Pylet) matches the desired state (desired_replicas in SQLite).
 
-    Writes to model_endpoints table instead of calling LoadBalancer directly.
-    The Router reads from this table on every request.
+    Writes to deployment_endpoints table instead of calling LoadBalancer
+    directly. The Router reads from this table on every request.
     """
 
     def __init__(
@@ -132,76 +136,85 @@ class Reconciler:
         logger.info("Reconciler loop stopped")
 
     async def _reconcile_all(self):
-        """Reconcile all active models."""
-        models = self.database.get_active_models()
+        """Reconcile all active deployments."""
+        deployments = self.database.get_active_deployments()
 
-        for model in models:
+        for deployment in deployments:
             try:
-                await self._reconcile_model(model)
+                await self._reconcile_deployment(deployment)
             except Exception as e:
                 logger.error(
-                    f"Error reconciling {model.id}: {e}", exc_info=True
+                    f"Error reconciling {deployment.id}: {e}", exc_info=True
                 )
 
-        # Also clean up models marked for deletion
-        deleting_models = [
-            m for m in self.database.get_all_models() if m.status == "deleting"
+        # Also clean up deployments marked for deletion
+        deleting_deployments = [
+            d
+            for d in self.database.get_all_deployments()
+            if d.status == "deleting"
         ]
-        for model in deleting_models:
+        for deployment in deleting_deployments:
             try:
-                await self._cleanup_deleting_model(model)
+                await self._cleanup_deleting_deployment(deployment)
             except Exception as e:
                 logger.error(
-                    f"Error cleaning up {model.id}: {e}", exc_info=True
+                    f"Error cleaning up {deployment.id}: {e}", exc_info=True
                 )
 
-    async def _reconcile_model(self, model: Model):
+    async def _reconcile_deployment(self, deployment: Deployment):
         """
-        Reconcile a single model.
+        Reconcile a single deployment.
 
         Args:
-            model: Model to reconcile
+            deployment: Deployment to reconcile
         """
-        desired = model.desired_replicas
+        desired = deployment.desired_replicas
 
         # Get current state from Pylet
-        instances = await self.pylet_client.get_model_instances(model.id)
+        instances = await self.pylet_client.get_deployment_instances(
+            deployment.id
+        )
 
         # Get endpoints from database
-        db_endpoints = set(self.database.get_model_endpoints(model.id))
+        db_endpoints = set(
+            self.database.get_deployment_endpoints(deployment.id)
+        )
 
         # Categorize instances
         state = self._categorize_instances(instances, db_endpoints)
 
         # Log state
         logger.debug(
-            f"[{model.id}] desired={desired}, ready={len(state.ready)}, "
+            f"[{deployment.id}] desired={desired}, ready={len(state.ready)}, "
             f"starting={len(state.starting)}, failed={len(state.failed)}"
         )
 
         # 1. Clean up failed instances
         for inst in state.failed:
-            await self._cleanup_instance(model.id, inst)
+            await self._cleanup_instance(deployment.id, inst)
 
         # 2. Health check starting instances
         for inst in list(state.starting):
             if inst.status == "RUNNING":
                 if await self._is_healthy(inst.endpoint):
-                    # Add to model_endpoints table
-                    self.database.add_model_endpoint(model.id, inst.endpoint)
+                    # Add to deployment_endpoints table
+                    self.database.add_deployment_endpoint(
+                        deployment.id, inst.endpoint
+                    )
                     state.starting.remove(inst)
                     state.ready.append(inst)
                     self._startup_times.pop(inst.instance_id, None)
                     logger.info(
-                        f"[{model.id}] Instance {inst.instance_id} is now ready "
-                        f"at {inst.endpoint}"
+                        f"[{deployment.id}] Instance {inst.instance_id} is now "
+                        f"ready at {inst.endpoint}"
                     )
                 elif self._is_startup_timeout(inst.instance_id):
                     # Startup timeout - clean up
                     logger.warning(
-                        f"[{model.id}] Instance {inst.instance_id} startup timeout"
+                        f"[{deployment.id}] Instance {inst.instance_id} "
+                        f"startup timeout"
                     )
-                    await self._cleanup_instance(model.id, inst)
+                    await self._cleanup_instance(deployment.id, inst)
                     state.starting.remove(inst)
 
         # 3. Scale up if needed
@@ -209,20 +222,26 @@ class Reconciler:
         need = desired - current_or_starting
 
         if need > 0:
-            logger.info(f"[{model.id}] Scaling up: need {need} more instances")
+            logger.info(
+                f"[{deployment.id}] Scaling up: need {need} more instances"
+            )
             for _ in range(need):
-                await self._create_instance(model, state.ready + state.starting)
+                await self._create_instance(
+                    deployment, state.ready + state.starting
+                )
 
         # 4. Scale down if needed (only from ready, not starting)
         excess = len(state.ready) - desired
         if excess > 0 and len(state.starting) == 0:
-            logger.info(f"[{model.id}] Scaling down: {excess} excess instances")
+            logger.info(
+                f"[{deployment.id}] Scaling down: {excess} excess instances"
+            )
             # Prefer to remove instances NOT on nodes with cached models
             instances_to_remove = self._select_instances_to_remove(
-                model.model_name, state.ready, excess
+                deployment.model_name, state.ready, excess
             )
             for inst in instances_to_remove:
-                await self._remove_instance(model.id, inst)
+                await self._remove_instance(deployment.id, inst)
 
     def _categorize_instances(
         self,
@@ -234,7 +253,7 @@ class Reconciler:
 
         Args:
             instances: List of instances from Pylet
-            db_endpoints: Set of endpoints in model_endpoints table
+            db_endpoints: Set of endpoints in deployment_endpoints table
 
         Returns:
             ReconcileState with categorized instances
@@ -304,43 +323,49 @@ class Reconciler:
 
     async def _create_instance(
         self,
-        model: Model,
+        deployment: Deployment,
         existing: List[InstanceInfo],
     ):
         """
-        Create a new instance for a model.
+        Create a new instance for a deployment.
 
         Args:
-            model: Model to create instance for
+            deployment: Deployment to create instance for
             existing: Existing instances for storage-aware placement
         """
         # Get backend config
-        backend_config = model.backend_config or {}
+        backend_config = deployment.backend_config or {}
         tp = backend_config.get("tensor_parallel_size", 1)
 
         # Select best node
         node = await self.storage_manager.select_best_node(
-            model.model_name, tp, existing
+            deployment.model_name, tp, existing
         )
         if not node:
-            logger.warning(f"[{model.id}] No suitable node for new instance")
+            logger.warning(
+                f"[{deployment.id}] No suitable node for new instance"
+            )
             return
 
         # Ensure sllm-store is running on node
         store_endpoint = await self.storage_manager.ensure_store_on_node(node)
         if not store_endpoint:
-            logger.warning(f"[{model.id}] Failed to start sllm-store on {node}")
+            logger.warning(
+                f"[{deployment.id}] Failed to start sllm-store on {node}"
+            )
             return
 
         # Build command and get venv path
-        command, venv_path = build_instance_command(model, self.storage_path)
+        command, venv_path = build_instance_command(
+            deployment, self.storage_path
+        )
 
         # Create instance via Pylet
-        # Use gpu=N to let Pylet auto-allocate GPUs instead of selecting specific indices
+        # Use gpu=N to let Pylet auto-allocate GPUs
         try:
             import uuid
 
-            safe_model = model.model_name.replace("/", "-")
+            safe_model = deployment.model_name.replace("/", "-")
             instance_name = f"{safe_model}-{uuid.uuid4().hex[:8]}"
 
             instance = await self.pylet_client.submit(
@@ -350,7 +375,7 @@ class Reconciler:
                 gpu=tp,  # Let Pylet auto-allocate N GPUs
                 exclusive=True,
                 labels={
-                    "model_id": model.id,
+                    "deployment_id": deployment.id,
                     "type": "inference",
                     "node": node,
                 },
@@ -362,18 +387,20 @@ class Reconciler:
             )
 
             logger.info(
-                f"[{model.id}] Created instance {instance.instance_id} "
+                f"[{deployment.id}] Created instance {instance.instance_id} "
                 f"on {node} (requested {tp} GPUs)"
             )
 
         except Exception as e:
-            logger.error(f"[{model.id}] Failed to create instance: {e}")
+            logger.error(f"[{deployment.id}] Failed to create instance: {e}")
 
-    async def _cleanup_instance(self, model_id: str, inst: InstanceInfo):
+    async def _cleanup_instance(self, deployment_id: str, inst: InstanceInfo):
         """Clean up a failed or timed-out instance."""
-        # Remove from model_endpoints table
+        # Remove from deployment_endpoints table
         if inst.endpoint:
-            self.database.remove_model_endpoint(model_id, inst.endpoint)
+            self.database.remove_deployment_endpoint(
+                deployment_id, inst.endpoint
+            )
 
         # Cancel in Pylet
         try:
@@ -386,15 +413,17 @@ class Reconciler:
 
         logger.info(f"Cleaned up instance {inst.instance_id}")
 
-    async def _remove_instance(self, model_id: str, inst: InstanceInfo):
+    async def _remove_instance(self, deployment_id: str, inst: InstanceInfo):
         """Remove an instance during scale-down with graceful draining.
 
-        Removes endpoint from model_endpoints table first (Router stops
+        Removes endpoint from deployment_endpoints table first (Router stops
         sending new requests), waits briefly, then cancels the instance.
         """
-        # Remove from model_endpoints table (Router will stop sending requests)
+        # Remove from deployment_endpoints table (Router stops sending requests)
         if inst.endpoint:
-            self.database.remove_model_endpoint(model_id, inst.endpoint)
+            self.database.remove_deployment_endpoint(
+                deployment_id, inst.endpoint
+            )
 
             # Wait briefly for in-flight requests to complete
             await asyncio.sleep(2.0)
@@ -442,20 +471,22 @@ class Reconciler:
 
         return sorted_instances[:count]
 
-    async def _cleanup_deleting_model(self, model: Model):
-        """Clean up a model marked for deletion."""
-        instances = await self.pylet_client.get_model_instances(model.id)
+    async def _cleanup_deleting_deployment(self, deployment: Deployment):
+        """Clean up a deployment marked for deletion."""
+        instances = await self.pylet_client.get_deployment_instances(
+            deployment.id
+        )
 
         if not instances:
             # All instances gone - remove endpoints and delete from database
-            self.database.remove_model_endpoints(model.id)
-            self.database.delete_model(model.id)
-            logger.info(f"Completed deletion of {model.id}")
+            self.database.remove_deployment_endpoints(deployment.id)
+            self.database.delete_deployment(deployment.id)
+            logger.info(f"Completed deletion of {deployment.id}")
             return
 
         # Cancel remaining instances
         for inst in instances:
-            await self._cleanup_instance(model.id, inst)
+            await self._cleanup_instance(deployment.id, inst)
 
 
 # Global instance

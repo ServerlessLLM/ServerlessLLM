@@ -20,14 +20,15 @@ API Gateway for ServerlessLLM v1-beta.
 
 Stateless HTTP router with:
 - OpenAI-compatible inference endpoints
-- Model registration and deletion
+- Deployment registration and deletion
 - Single global Router for load balancing
-- SQLite for model configuration
+- SQLite for deployment configuration
 - Pylet for instance information
 
-Design (from docs/v1-beta-scalable-router-design.md):
-- /register, /delete, /status -> Model Manager
-- /v1/* -> Pass raw HTTP request to Router
+Terminology:
+- Deployment: A (model_name, backend) pair - the basic scheduling unit
+- deployment_id: Unique identifier (format: "{model_name}:{backend}")
+- model_name: HuggingFace model name (what users specify in requests)
 """
 
 import os
@@ -39,7 +40,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from sllm.autoscaler import AutoScaler
-from sllm.database import Database
+from sllm.database import Database, Deployment
 from sllm.logger import init_logger
 from sllm.pylet_client import PyletClient
 from sllm.router import Router, RouterConfig
@@ -138,12 +139,12 @@ def create_app(
         }
 
     # -------------------------------------------------------------------------
-    # Model Management Endpoints
+    # Deployment Management Endpoints
     # -------------------------------------------------------------------------
 
-    @app.post("/models")
+    @app.post("/deployments")
     async def register_handler(request: Request):
-        """Register a new model."""
+        """Register a new deployment."""
         try:
             body = await request.json()
         except Exception as e:
@@ -158,14 +159,14 @@ def create_app(
             )
 
         backend = body.get("backend", "vllm")
-        model_id = f"{model_name}:{backend}"
+        deployment_id = Deployment.make_id(model_name, backend)
 
         # Check if already exists
         db: Database = request.app.state.database
-        if db.get_model(model_id):
+        if db.get_deployment(model_name, backend):
             raise HTTPException(
                 status_code=409,
-                detail=f"Model {model_id} is already registered",
+                detail=f"Deployment {deployment_id} is already registered",
             )
 
         # Parse configuration
@@ -173,9 +174,8 @@ def create_app(
         auto_scaling_config = body.get("auto_scaling_config", {})
 
         try:
-            # Create model in database
-            model = db.create_model(
-                model_id=model_id,
+            # Create deployment in database
+            deployment = db.create_deployment(
                 model_name=model_name,
                 backend=backend,
                 min_replicas=auto_scaling_config.get("min_instances", 0),
@@ -189,47 +189,47 @@ def create_app(
                 backend_config=backend_config,
             )
 
-            logger.info(f"Registered model {model_id}")
+            logger.info(f"Registered deployment {deployment_id}")
 
             return {
-                "model_id": model_id,
+                "deployment_id": deployment_id,
                 "status": "active",
-                "message": f"Model {model_id} registered successfully",
+                "message": f"Deployment {deployment_id} registered successfully",
             }
 
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            logger.error(f"Failed to register model: {e}", exc_info=True)
+            logger.error(f"Failed to register deployment: {e}", exc_info=True)
             raise HTTPException(
                 status_code=500,
-                detail="Model registration failed due to internal error",
+                detail="Deployment registration failed due to internal error",
             )
 
-    @app.delete("/models/{model_id:path}")
-    async def delete_model_handler(model_id: str, request: Request):
-        """Delete a model.
+    @app.delete("/deployments/{deployment_id:path}")
+    async def delete_deployment_handler(deployment_id: str, request: Request):
+        """Delete a deployment.
 
         Returns 202 Accepted immediately. The Reconciler will:
         1. Stop all instances via Pylet
-        2. Remove endpoints from model_endpoints table
-        3. Delete the model from the database
+        2. Remove endpoints from deployment_endpoints table
+        3. Delete the deployment from the database
         """
         db: Database = request.app.state.database
 
-        model = db.get_model(model_id)
-        if not model:
+        deployment = db.get_deployment_by_id(deployment_id)
+        if not deployment:
             raise HTTPException(
-                status_code=404, detail=f"Model {model_id} not found"
+                status_code=404, detail=f"Deployment {deployment_id} not found"
             )
 
-        if model.status == "deleting":
+        if deployment.status == "deleting":
             # Already deleting
             return JSONResponse(
                 status_code=202,
                 content={
                     "status": "deleting",
-                    "model_id": model_id,
+                    "deployment_id": deployment_id,
                     "message": "Deletion already in progress",
                 },
             )
@@ -238,30 +238,30 @@ def create_app(
             # Mark as deleting and set desired=0
             # The Reconciler will handle the actual cleanup:
             # - Cancel instances in Pylet
-            # - Remove endpoints from model_endpoints table
+            # - Remove endpoints from deployment_endpoints table
             # - Delete from database
-            db.update_model_status(model_id, "deleting")
-            db.update_desired_replicas(model_id, 0)
+            db.update_deployment_status(deployment_id, "deleting")
+            db.update_desired_replicas(deployment_id, 0)
 
-            logger.info(f"Model {model_id} marked for deletion")
+            logger.info(f"Deployment {deployment_id} marked for deletion")
 
             return JSONResponse(
                 status_code=202,
                 content={
                     "status": "deleting",
-                    "model_id": model_id,
+                    "deployment_id": deployment_id,
                     "message": "Deletion in progress. Instances will be stopped by reconciler.",
                 },
             )
 
         except Exception as e:
             logger.error(
-                f"Failed to mark model {model_id} for deletion: {e}",
+                f"Failed to mark deployment {deployment_id} for deletion: {e}",
                 exc_info=True,
             )
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to delete model: {str(e)}",
+                detail=f"Failed to delete deployment: {str(e)}",
             )
 
     # -------------------------------------------------------------------------
@@ -280,29 +280,24 @@ def create_app(
                 status_code=400, detail="Invalid JSON in request body"
             )
 
-        model_identifier = body.get("model")
-        if not model_identifier:
+        model_name = body.get("model")
+        if not model_name:
             raise HTTPException(
                 status_code=400,
                 detail="Request body must include a 'model' field",
             )
 
-        # Parse model:backend format
-        if ":" in model_identifier:
-            model_name, backend = model_identifier.rsplit(":", 1)
-            model_id = model_identifier
-        else:
-            model_name = model_identifier
-            backend = body.get("backend", "vllm")
-            model_id = f"{model_name}:{backend}"
+        # Pop backend field (non-standard, remove before forwarding)
+        backend = body.pop("backend", "vllm")
+        deployment_id = Deployment.make_id(model_name, backend)
 
-        # Verify model exists
+        # Verify deployment exists
         db: Database = request.app.state.database
-        model = db.get_model(model_id)
-        if not model or model.status != "active":
+        deployment = db.get_deployment(model_name, backend)
+        if not deployment or deployment.status != "active":
             raise HTTPException(
                 status_code=404,
-                detail=f"Model '{model_id}' not found or not active",
+                detail=f"Deployment '{deployment_id}' not found or not active",
             )
 
         # Get router
@@ -315,7 +310,9 @@ def create_app(
 
         # Forward to router
         try:
-            result = await router.handle_request(body, path, model_id=model_id)
+            result = await router.handle_request(
+                body, path, deployment_id=deployment_id
+            )
             return JSONResponse(content=result)
         except Exception as e:
             logger.error(f"Inference request failed: {e}")
@@ -344,33 +341,33 @@ def create_app(
     # -------------------------------------------------------------------------
 
     @app.get("/v1/models")
-    async def get_models(request: Request):
-        """List all registered models."""
+    async def get_deployments(request: Request):
+        """List all registered deployments (OpenAI-compatible endpoint)."""
         db: Database = request.app.state.database
         router: Router = request.app.state.router
 
-        models = db.get_all_models()
-        model_list = []
+        deployments = db.get_all_deployments()
+        deployment_list = []
 
-        for model in models:
+        for deployment in deployments:
             ready_endpoints = (
-                router.get_endpoint_count(model.id) if router else 0
+                router.get_endpoint_count(deployment.id) if router else 0
             )
 
-            model_list.append(
+            deployment_list.append(
                 {
-                    "id": model.id,
-                    "model": model.model_name,
-                    "backend": model.backend,
-                    "status": model.status,
-                    "desired_replicas": model.desired_replicas,
+                    "id": deployment.id,
+                    "model": deployment.model_name,
+                    "backend": deployment.backend,
+                    "status": deployment.status,
+                    "desired_replicas": deployment.desired_replicas,
                     "ready_replicas": ready_endpoints,
-                    "min_replicas": model.min_replicas,
-                    "max_replicas": model.max_replicas,
+                    "min_replicas": deployment.min_replicas,
+                    "max_replicas": deployment.max_replicas,
                 }
             )
 
-        return {"object": "list", "models": model_list}
+        return {"object": "list", "data": deployment_list}
 
     @app.get("/status")
     async def cluster_status(request: Request):
@@ -379,19 +376,21 @@ def create_app(
         router: Router = request.app.state.router
         pylet_client: Optional[PyletClient] = request.app.state.pylet_client
 
-        # Get models
-        models = db.get_all_models()
-        model_status = []
+        # Get deployments
+        deployments = db.get_all_deployments()
+        deployment_status = []
 
-        for model in models:
-            endpoints = db.get_model_endpoints(model.id)
+        for deployment in deployments:
+            endpoints = db.get_deployment_endpoints(deployment.id)
 
             # Get instances from Pylet if available
             instances = []
             if pylet_client:
                 try:
-                    pylet_instances = await pylet_client.get_model_instances(
-                        model.id
+                    pylet_instances = (
+                        await pylet_client.get_deployment_instances(
+                            deployment.id
+                        )
                     )
                     instances = [
                         {
@@ -405,11 +404,11 @@ def create_app(
                 except Exception as e:
                     logger.warning(f"Failed to get instances from Pylet: {e}")
 
-            model_status.append(
+            deployment_status.append(
                 {
-                    "id": model.id,
-                    "status": model.status,
-                    "desired_replicas": model.desired_replicas,
+                    "id": deployment.id,
+                    "status": deployment.status,
+                    "desired_replicas": deployment.desired_replicas,
                     "ready_replicas": len(endpoints),
                     "starting_replicas": len(
                         [
@@ -452,7 +451,7 @@ def create_app(
                 logger.warning(f"Failed to get workers from Pylet: {e}")
 
         return {
-            "models": model_status,
+            "deployments": deployment_status,
             "nodes": nodes,
         }
 

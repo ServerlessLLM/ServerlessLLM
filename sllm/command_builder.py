@@ -19,7 +19,7 @@
 
 from typing import Tuple
 
-from sllm.database import Model
+from sllm.database import Deployment
 
 VENV_VLLM = "/opt/venvs/vllm"
 VENV_SGLANG = "/opt/venvs/sglang"
@@ -27,10 +27,10 @@ VENV_SLLM_STORE = "/opt/venvs/sllm-store"
 
 
 def build_vllm_command(
-    model: Model, storage_path: str = "/models"
+    deployment: Deployment, storage_path: str = "/models"
 ) -> Tuple[str, str]:
     """Build vLLM serve command for Pylet submission."""
-    config = model.backend_config or {}
+    config = deployment.backend_config or {}
     tp = config.get("tensor_parallel_size", 1)
     max_model_len = config.get("max_model_len")
     gpu_memory_utilization = config.get("gpu_memory_utilization")
@@ -39,8 +39,8 @@ def build_vllm_command(
 
     cmd_parts = [
         "vllm serve",
-        model.model_name,
-        f"--served-model-name {model.model_name}",
+        deployment.model_name,
+        f"--served-model-name {deployment.model_name}",
         "--port $PORT",
         "--host 0.0.0.0",
         f"--tensor-parallel-size {tp}",
@@ -69,16 +69,16 @@ def build_vllm_command(
 
 
 def build_sglang_command(
-    model: Model, storage_path: str = "/models"
+    deployment: Deployment, storage_path: str = "/models"
 ) -> Tuple[str, str]:
     """Build SGLang launch_server command for Pylet submission."""
-    config = model.backend_config or {}
+    config = deployment.backend_config or {}
     tp = config.get("tensor_parallel_size", 1)
 
     cmd_parts = [
         "python -m sglang.launch_server",
-        f"--model-path {model.model_name}",
-        f"--served-model-name {model.model_name}",
+        f"--model-path {deployment.model_name}",
+        f"--served-model-name {deployment.model_name}",
         "--port $PORT",
         "--host 0.0.0.0",
         f"--tp {tp}",
@@ -112,10 +112,10 @@ BUILDERS = {
 
 
 def build_instance_command(
-    model: Model, storage_path: str = "/models"
+    deployment: Deployment, storage_path: str = "/models"
 ) -> Tuple[str, str]:
-    """Build command for a model instance."""
-    builder = BUILDERS.get(model.backend)
+    """Build command for a deployment instance."""
+    builder = BUILDERS.get(deployment.backend)
     if not builder:
-        raise ValueError(f"Unknown backend: {model.backend}")
-    return builder(model, storage_path)
+        raise ValueError(f"Unknown backend: {deployment.backend}")
+    return builder(deployment, storage_path)
