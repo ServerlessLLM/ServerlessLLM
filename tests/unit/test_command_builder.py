@@ -22,8 +22,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from sllm.command_builder import (
+    VENV_SGLANG,
     VENV_VLLM,
     build_instance_command,
+    build_sglang_command,
     build_vllm_command,
 )
 from sllm.database import Model
@@ -139,8 +141,103 @@ class TestBuildVllmCommand:
         assert "vllm serve" in cmd
 
 
+class TestBuildSglangCommand:
+    """Tests for SGLang command builder."""
+
+    @pytest.fixture
+    def sglang_model(self):
+        """Create a mock SGLang model."""
+        model = MagicMock(spec=Model)
+        model.model_name = "meta-llama/Llama-3.1-8B"
+        model.backend = "sglang"
+        model.backend_config = {
+            "tensor_parallel_size": 2,
+            "mem_fraction_static": 0.8,
+            "dtype": "float16",
+        }
+        return model
+
+    def test_basic_command(self, sglang_model):
+        """Test basic SGLang command generation."""
+        cmd, venv = build_sglang_command(sglang_model)
+
+        assert "python -m sglang.launch_server" in cmd
+        assert "--model-path meta-llama/Llama-3.1-8B" in cmd
+        assert "--served-model-name meta-llama/Llama-3.1-8B" in cmd
+        assert "--port $PORT" in cmd
+        assert "--host 0.0.0.0" in cmd
+        assert venv == VENV_SGLANG
+
+    def test_tensor_parallel_size(self, sglang_model):
+        """Test tensor parallel size in command (uses --tp shorthand)."""
+        cmd, _ = build_sglang_command(sglang_model)
+
+        assert "--tp 2" in cmd
+
+    def test_mem_fraction_static(self, sglang_model):
+        """Test memory fraction static in command."""
+        cmd, _ = build_sglang_command(sglang_model)
+
+        assert "--mem-fraction-static 0.8" in cmd
+
+    def test_dtype(self, sglang_model):
+        """Test dtype in command."""
+        cmd, _ = build_sglang_command(sglang_model)
+
+        assert "--dtype float16" in cmd
+
+    def test_trust_remote_code(self, sglang_model):
+        """Test trust remote code flag."""
+        sglang_model.backend_config["trust_remote_code"] = True
+        cmd, _ = build_sglang_command(sglang_model)
+
+        assert "--trust-remote-code" in cmd
+
+    def test_extra_args_list(self, sglang_model):
+        """Test extra args as list."""
+        sglang_model.backend_config["extra_args"] = [
+            "--chunked-prefill-size",
+            "8192",
+        ]
+        cmd, _ = build_sglang_command(sglang_model)
+
+        assert "--chunked-prefill-size" in cmd
+        assert "8192" in cmd
+
+    def test_extra_args_string(self, sglang_model):
+        """Test extra args as string."""
+        sglang_model.backend_config["extra_args"] = "--disable-radix-cache"
+        cmd, _ = build_sglang_command(sglang_model)
+
+        assert "--disable-radix-cache" in cmd
+
+    def test_minimal_config(self):
+        """Test with minimal backend config."""
+        model = MagicMock(spec=Model)
+        model.model_name = "test-model"
+        model.backend = "sglang"
+        model.backend_config = {}
+
+        cmd, _ = build_sglang_command(model)
+
+        assert "python -m sglang.launch_server" in cmd
+        assert "--tp 1" in cmd  # Default
+        assert "--mem-fraction-static" not in cmd  # Not set
+
+    def test_none_backend_config(self):
+        """Test with None backend config."""
+        model = MagicMock(spec=Model)
+        model.model_name = "test-model"
+        model.backend = "sglang"
+        model.backend_config = None
+
+        cmd, _ = build_sglang_command(model)
+
+        assert "python -m sglang.launch_server" in cmd
+
+
 class TestBuildInstanceCommand:
-    """Tests for build_instance_command convenience function."""
+    """Tests for build_instance_command dispatcher."""
 
     def test_vllm_backend(self):
         """Test build_instance_command with vLLM backend."""
@@ -153,6 +250,18 @@ class TestBuildInstanceCommand:
 
         assert "vllm serve" in cmd
         assert venv == VENV_VLLM
+
+    def test_sglang_backend(self):
+        """Test build_instance_command with SGLang backend."""
+        model = MagicMock(spec=Model)
+        model.model_name = "test-model"
+        model.backend = "sglang"
+        model.backend_config = {}
+
+        cmd, venv = build_instance_command(model)
+
+        assert "sglang.launch_server" in cmd
+        assert venv == VENV_SGLANG
 
     def test_unknown_backend(self):
         """Test build_instance_command with unknown backend."""

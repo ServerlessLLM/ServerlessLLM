@@ -30,12 +30,9 @@ DEFAULT_PYLET_HEAD="pylet_head:8000"
 DEFAULT_GPU_UNITS="1"
 DEFAULT_LOG_LEVEL="INFO"
 
-# Source conda
-source /opt/conda/etc/profile.d/conda.sh
-
 # HEAD mode: Run SLLM control plane (v1-beta)
 initialize_head_node() {
-  conda activate head
+  source /opt/venvs/head/bin/activate
 
   HEAD_HOST="${HEAD_HOST:-$DEFAULT_HEAD_HOST}"
   HEAD_PORT="${HEAD_PORT:-$DEFAULT_HEAD_PORT}"

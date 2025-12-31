@@ -261,8 +261,10 @@ class Reconciler:
                         timezone.utc
                     )
             else:
-                # FAILED, COMPLETED, UNKNOWN, CANCELLED
-                failed.append(inst)
+                # FAILED, COMPLETED, UNKNOWN need cleanup
+                # CANCELLED is expected (we requested it during scale-down) - skip
+                if inst.status != "CANCELLED":
+                    failed.append(inst)
 
         return ReconcileState(ready=ready, starting=starting, failed=failed)
 

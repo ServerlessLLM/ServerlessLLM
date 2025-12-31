@@ -118,7 +118,7 @@ docker logs -f sllm_head
 ### Deploy a Model
 
 ```bash
-docker exec sllm_head /opt/conda/envs/head/bin/sllm deploy --model Qwen/Qwen3-0.6B --backend transformers
+docker exec sllm_head sllm deploy --model Qwen/Qwen3-0.6B --backend transformers
 ```
 
 ### Query the Model

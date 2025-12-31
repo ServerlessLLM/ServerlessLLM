@@ -31,24 +31,25 @@ RUN echo 'tzdata tzdata/Areas select America' | debconf-set-selections \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl git sudo build-essential cmake ninja-build pkg-config \
     && rm -rf /var/lib/apt/lists/*
-ENV CONDA_DIR=/opt/conda
-RUN curl -fsSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -o /tmp/mf.sh \
-    && bash /tmp/mf.sh -b -p ${CONDA_DIR} \
-    && rm /tmp/mf.sh
-ENV PATH=${CONDA_DIR}/bin:$PATH
-SHELL ["/bin/bash", "-lc"]
-RUN conda create -y -n build python=3.10 pip setuptools wheel \
-    && conda run -n build python -V \
-    && conda run -n build pip -V
+
+# Install uv for fast package management
+ENV UV_LINK_MODE=copy
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Create build venv with uv
+RUN uv venv /opt/build --python 3.10
+ENV VIRTUAL_ENV=/opt/build
+ENV PATH="/opt/build/bin:$PATH"
+
 # Set the working directory
 WORKDIR /app
 
 # Build checkpoint store
 ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.9 9.0"
 COPY sllm_store/requirements-build.txt /app/sllm_store/requirements-build.txt
-RUN cd sllm_store && \
-  conda run -n build python -m pip install -r requirements-build.txt && \
-  conda run -n build python -m pip install setuptools wheel
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install -r /app/sllm_store/requirements-build.txt setuptools wheel
 
 COPY sllm_store/cmake /app/sllm_store/cmake
 COPY sllm_store/CMakeLists.txt /app/sllm_store/CMakeLists.txt
@@ -60,7 +61,7 @@ COPY sllm_store/MANIFEST.in /app/sllm_store/MANIFEST.in
 COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
-RUN cd sllm_store && conda run -n build python setup.py bdist_wheel
+RUN cd sllm_store && python setup.py bdist_wheel
 
 
 # Copy only dependencies and build config first (for caching)
@@ -71,9 +72,14 @@ COPY sllm/ft_backends /app/sllm/ft_backends
 COPY sllm/cli /app/sllm/cli
 COPY sllm/*.py /app/sllm/
 COPY README.md /app/
-RUN conda run -n build python setup.py bdist_wheel
+RUN python setup.py bdist_wheel
 
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
+#################### RUNTIME IMAGE ####################
+# Using nvidia/cuda devel base:
+# - Has nvcc (needed by SGLang's flashinfer JIT during CUDA graph capture)
+# - Each venv installs its own torch version (vLLM/SGLang need 2.9.x)
+# - Cleaner dependency management (no unused pytorch base)
+FROM nvidia/cuda:${CUDA_VERSION}-cudnn8-devel-ubuntu22.04
 
 # Set environment for v1-beta architecture
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -81,44 +87,54 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     STORAGE_PATH=/models \
     HEAD_HOST=0.0.0.0 \
-    HEAD_PORT=8343
+    HEAD_PORT=8343 \
+    UV_LINK_MODE=copy
 
-# Install additional runtime dependencies
+# Install runtime dependencies + uv
 RUN apt-get update -y && \
-    apt-get install -y curl netcat-openbsd gcc g++ && \
+    apt-get install -y curl netcat-openbsd gcc g++ libnuma1 && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 # Set the working directory
 WORKDIR /app
-
-# Create conda environment for head node only
-RUN conda create -n head python=3.10 -y && \
-    conda run -n head pip install -U pip
 
 # Copy requirements
 COPY requirements.txt /app/
 COPY requirements-vllm.txt /app/
 COPY sllm_store/requirements.txt /app/requirements-sllm-store.txt
 
-# Install head node dependencies
-RUN conda run -n head pip install -r /app/requirements.txt
+# Create head venv (no system-site-packages, isolated control plane)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venvs/head --python 3.10 && \
+    uv pip install --python /opt/venvs/head/bin/python -r /app/requirements.txt
 
-# Create venvs for pylet worker architecture
-# - pylet venv: minimal (~50MB) - just pylet for spawning processes
-# - sllm-store venv: sllm-store with its dependencies (no vLLM)
-# - vllm venv: vLLM inference backend
-RUN python -m venv /opt/venvs/pylet && \
-    /opt/venvs/pylet/bin/pip install -U pip && \
-    /opt/venvs/pylet/bin/pip install pylet>=0.4.0
+# Create isolated venvs for pylet worker architecture
+# Each venv has its own dependencies (no system-site-packages)
 
-RUN python -m venv /opt/venvs/sllm-store && \
-    /opt/venvs/sllm-store/bin/pip install -U pip && \
-    /opt/venvs/sllm-store/bin/pip install -r /app/requirements-sllm-store.txt
+# pylet venv: minimal - just pylet for spawning processes
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venvs/pylet --python 3.10 && \
+    uv pip install --python /opt/venvs/pylet/bin/python "pylet>=0.4.0"
 
-RUN python -m venv /opt/venvs/vllm && \
-    /opt/venvs/vllm/bin/pip install -U pip && \
-    /opt/venvs/vllm/bin/pip install -r /app/requirements-vllm.txt
+# sllm-store venv: sllm-store with torch, transformers, grpc
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venvs/sllm-store --python 3.10 && \
+    uv pip install --python /opt/venvs/sllm-store/bin/python \
+        -r /app/requirements-sllm-store.txt
+
+# vllm venv: vLLM inference backend
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venvs/vllm --python 3.10 && \
+    uv pip install --python /opt/venvs/vllm/bin/python \
+        -r /app/requirements-vllm.txt
+
+# sglang venv: SGLang inference backend
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venvs/sglang --python 3.10 && \
+    uv pip install --python /opt/venvs/sglang/bin/python sglang
 
 # Copy vLLM patch
 COPY sllm_store/vllm_patch /app/vllm_patch
@@ -128,13 +144,17 @@ COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
 
 # Install ServerlessLLM packages
-RUN conda run -n head pip install /app/sllm_store/dist/*.whl && \
-    conda run -n head pip install /app/dist/*.whl
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venvs/head/bin/python \
+        /app/sllm_store/dist/*.whl /app/dist/*.whl
 
-RUN /opt/venvs/sllm-store/bin/pip install /app/sllm_store/dist/*.whl
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venvs/sllm-store/bin/python \
+        /app/sllm_store/dist/*.whl
 
-RUN /opt/venvs/vllm/bin/pip install /app/sllm_store/dist/*.whl && \
-    /opt/venvs/vllm/bin/pip install /app/dist/*.whl
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venvs/vllm/bin/python \
+        /app/sllm_store/dist/*.whl /app/dist/*.whl
 
 # Apply vLLM patch in vllm venv
 RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /app && ./vllm_patch/patch.sh"
@@ -142,6 +162,9 @@ RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /app && ./vllm_patch/patc
 # Copy the entrypoint
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
+
+# Add head venv to PATH for sllm CLI
+ENV PATH="/opt/venvs/head/bin:$PATH"
 
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

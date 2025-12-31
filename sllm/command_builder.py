@@ -22,6 +22,7 @@ from typing import Tuple
 from sllm.database import Model
 
 VENV_VLLM = "/opt/venvs/vllm"
+VENV_SGLANG = "/opt/venvs/sglang"
 VENV_SLLM_STORE = "/opt/venvs/sllm-store"
 
 
@@ -67,10 +68,54 @@ def build_vllm_command(
     return " ".join(cmd_parts), VENV_VLLM
 
 
+def build_sglang_command(
+    model: Model, storage_path: str = "/models"
+) -> Tuple[str, str]:
+    """Build SGLang launch_server command for Pylet submission."""
+    config = model.backend_config or {}
+    tp = config.get("tensor_parallel_size", 1)
+
+    cmd_parts = [
+        "python -m sglang.launch_server",
+        f"--model-path {model.model_name}",
+        f"--served-model-name {model.model_name}",
+        "--port $PORT",
+        "--host 0.0.0.0",
+        f"--tp {tp}",
+    ]
+
+    if config.get("mem_fraction_static"):
+        cmd_parts.append(
+            f"--mem-fraction-static {config['mem_fraction_static']}"
+        )
+
+    if config.get("dtype"):
+        cmd_parts.append(f"--dtype {config['dtype']}")
+
+    if config.get("trust_remote_code"):
+        cmd_parts.append("--trust-remote-code")
+
+    extra_args = config.get("extra_args", [])
+    if extra_args:
+        if isinstance(extra_args, list):
+            cmd_parts.extend(extra_args)
+        elif isinstance(extra_args, str):
+            cmd_parts.append(extra_args)
+
+    return " ".join(cmd_parts), VENV_SGLANG
+
+
+BUILDERS = {
+    "vllm": build_vllm_command,
+    "sglang": build_sglang_command,
+}
+
+
 def build_instance_command(
     model: Model, storage_path: str = "/models"
 ) -> Tuple[str, str]:
     """Build command for a model instance."""
-    if model.backend == "vllm":
-        return build_vllm_command(model, storage_path)
-    raise ValueError(f"Unknown backend: {model.backend}")
+    builder = BUILDERS.get(model.backend)
+    if not builder:
+        raise ValueError(f"Unknown backend: {model.backend}")
+    return builder(model, storage_path)
