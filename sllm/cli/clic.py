@@ -16,6 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import os
+import sys
 from typing import Optional
 
 import click
@@ -201,9 +202,66 @@ def head(
 
 
 @cli.command()
-def status():
-    """Show all deployments."""
-    show_status()
+@click.argument("deployment_id", required=False)
+@click.option(
+    "--nodes",
+    is_flag=True,
+    help="Show cluster nodes instead of deployments.",
+)
+def status(deployment_id: Optional[str], nodes: bool):
+    """Show cluster status.
+
+    With no arguments, shows all deployments.
+    With DEPLOYMENT_ID, shows detailed info for that deployment.
+    With --nodes, shows cluster nodes.
+    """
+    show_status(deployment_id=deployment_id, show_nodes=nodes)
+
+
+@cli.command()
+@click.argument("instance_id")
+@click.option("-f", "--follow", is_flag=True, help="Follow log output.")
+def logs(instance_id: str, follow: bool):
+    """View instance logs."""
+    import asyncio
+
+    try:
+        from pylet.client import PyletClient
+    except ImportError:
+        click.echo("Error: pylet not installed.")
+        sys.exit(1)
+
+    endpoint = os.getenv("PYLET_ENDPOINT", "http://localhost:8000")
+
+    async def fetch_logs():
+        client = PyletClient(api_server_url=endpoint)
+        offset = 0
+        try:
+            while True:
+                try:
+                    result = await client.get_logs(
+                        instance_id, offset=offset, limit=10 * 1024 * 1024
+                    )
+                except Exception as e:
+                    click.echo(f"Error: {e}", err=True)
+                    sys.exit(1)
+
+                data = result.get("data", b"")
+                if data:
+                    sys.stdout.buffer.write(data)
+                    sys.stdout.buffer.flush()
+                    offset += len(data)
+
+                if not follow:
+                    break
+
+                await asyncio.sleep(0.5)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            await client.client.aclose()
+
+    asyncio.run(fetch_logs())
 
 
 if __name__ == "__main__":

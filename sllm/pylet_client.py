@@ -24,7 +24,7 @@ Pylet is the source of truth for instance state - we query but never duplicate.
 
 import asyncio
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from sllm.logger import init_logger
 
