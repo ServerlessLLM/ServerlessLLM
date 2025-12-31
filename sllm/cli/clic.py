@@ -125,13 +125,7 @@ def delete(models, backend, lora_adapters):
     )
 
 
-@cli.group()
-def start():
-    """Start SLLM head or worker node."""
-    pass
-
-
-@start.command()
+@cli.command()
 @click.option(
     "--host",
     default="0.0.0.0",
@@ -145,13 +139,13 @@ def start():
     "--pylet-endpoint",
     default=lambda: os.getenv("PYLET_ENDPOINT", "http://localhost:8000"),
     type=str,
-    help="Pylet head endpoint (v1-beta). Default: http://localhost:8000",
+    help="Pylet head endpoint. Default: http://localhost:8000",
 )
 @click.option(
     "--database-path",
     default=lambda: os.getenv("SLLM_DATABASE_PATH", "/var/lib/sllm/state.db"),
     type=str,
-    help="SQLite database path (v1-beta). Default: /var/lib/sllm/state.db",
+    help="SQLite database path. Default: /var/lib/sllm/state.db",
 )
 @click.option(
     "--storage-path",
@@ -159,39 +153,14 @@ def start():
     type=str,
     help="Model storage path. Default: /models",
 )
-@click.option(
-    "--redis-host",
-    default=None,
-    type=str,
-    help="[DEPRECATED] Redis is no longer used in v1-beta.",
-)
-@click.option(
-    "--redis-port",
-    default=None,
-    type=int,
-    help="[DEPRECATED] Redis is no longer used in v1-beta.",
-)
-def head(
+def start(
     host,
     port,
     pylet_endpoint,
     database_path,
     storage_path,
-    redis_host,
-    redis_port,
 ):
-    """Start the head node (control plane).
-
-    v1-beta uses Pylet for instance management and SQLite for state persistence.
-    Redis is no longer required.
-    """
-    # Warn about deprecated options
-    if redis_host is not None or redis_port is not None:
-        click.echo(
-            "[WARNING] --redis-host and --redis-port are deprecated in v1-beta. "
-            "Redis is no longer used. These options will be ignored."
-        )
-
+    """Start the SLLM head node (control plane)."""
     start_head(
         host=host,
         port=port,

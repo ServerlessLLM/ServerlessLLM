@@ -10,7 +10,3 @@ serverless-llm-store
 speedtest-cli==2.1.3
 types-requests==2.31.0.20240125
 uvicorn[standard]==0.23.1
-
-# Deprecated: redis is no longer required in v1-beta
-# Kept for backwards compatibility with v1-alpha
-# redis==6.2.0
