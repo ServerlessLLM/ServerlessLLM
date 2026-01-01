@@ -21,11 +21,11 @@ from typing import Optional
 import click
 
 from sllm.cli._cli_utils import (
-    delete_model,
+    delete_deployment,
     deploy_model,
+    parse_lora_adapters,
     show_status,
     start_head,
-    start_worker,
 )
 
 
@@ -86,27 +86,12 @@ def deploy(
     Either --model or a config file with a model specified is required.
     Command line options override values from the config file.
     """
-    # ...existing code...
-    adapters_dict = None
-    if lora_adapters:
-        adapters_dict = {}
-        # If it's a string, split by comma or space
-        if isinstance(lora_adapters, str):
-            items = lora_adapters.replace(",", " ").split()
-        elif isinstance(lora_adapters, (list, tuple)):
-            items = []
-            for item in lora_adapters:
-                items.extend(item.replace(",", " ").split())
-        else:
-            items = [str(lora_adapters)]
-        for module in items:
-            if "=" not in module:
-                click.echo(
-                    f"[ERROR] Invalid LoRA module format: {module}. Expected <name>=<path>."
-                )
-                continue
-            name, path = module.split("=", 1)
-            adapters_dict[name] = path
+    adapters_dict = parse_lora_adapters(lora_adapters)
+    if adapters_dict is not None and isinstance(adapters_dict, list):
+        click.echo(
+            "[ERROR] LoRA adapters must be in <name>=<path> format for deploy."
+        )
+        return
 
     deploy_model(
         model=model,
@@ -126,12 +111,13 @@ def deploy(
 @click.argument("models", nargs=-1)
 @click.option(
     "--backend",
-    help="Backend framework (e.g., vllm, transformers). Use 'all' to delete all backends. If not specified, deletes all backends for the model.",
+    required=True,
+    help="Backend framework (e.g., vllm, sglang). Required to identify the deployment.",
 )
 @click.option("--lora-adapters", help="LoRA adapters to delete.")
 def delete(models, backend, lora_adapters):
-    """Delete deployed models, or remove only the LoRA adapters."""
-    delete_model(
+    """Delete deployments, or remove only the LoRA adapters."""
+    delete_deployment(
         models,
         backend=backend,
         lora_adapters=lora_adapters if lora_adapters else None,
@@ -155,55 +141,68 @@ def start():
     "--port", default=8343, type=int, help="Port for the API Gateway."
 )
 @click.option(
-    "--redis-host",
-    default="redis",
+    "--pylet-endpoint",
+    default=lambda: os.getenv("PYLET_ENDPOINT", "http://localhost:8000"),
     type=str,
-    help="Hostname of the Redis server.",
+    help="Pylet head endpoint (v1-beta). Default: http://localhost:8000",
 )
 @click.option(
-    "--redis-port", default=6379, type=int, help="Port of the Redis server."
+    "--database-path",
+    default=lambda: os.getenv("SLLM_DATABASE_PATH", "/var/lib/sllm/state.db"),
+    type=str,
+    help="SQLite database path (v1-beta). Default: /var/lib/sllm/state.db",
 )
-def head(host, port, redis_host, redis_port):
-    """Start the head node (control plane)."""
+@click.option(
+    "--storage-path",
+    default=lambda: os.getenv("STORAGE_PATH", "/models"),
+    type=str,
+    help="Model storage path. Default: /models",
+)
+@click.option(
+    "--redis-host",
+    default=None,
+    type=str,
+    help="[DEPRECATED] Redis is no longer used in v1-beta.",
+)
+@click.option(
+    "--redis-port",
+    default=None,
+    type=int,
+    help="[DEPRECATED] Redis is no longer used in v1-beta.",
+)
+def head(
+    host,
+    port,
+    pylet_endpoint,
+    database_path,
+    storage_path,
+    redis_host,
+    redis_port,
+):
+    """Start the head node (control plane).
+
+    v1-beta uses Pylet for instance management and SQLite for state persistence.
+    Redis is no longer required.
+    """
+    # Warn about deprecated options
+    if redis_host is not None or redis_port is not None:
+        click.echo(
+            "[WARNING] --redis-host and --redis-port are deprecated in v1-beta. "
+            "Redis is no longer used. These options will be ignored."
+        )
+
     start_head(
         host=host,
         port=port,
-        redis_host=redis_host,
-        redis_port=redis_port,
-    )
-
-
-@start.command()
-@click.option(
-    "--host",
-    default="0.0.0.0",
-    type=str,
-    help="Host for the worker's API server.",
-)
-@click.option(
-    "--port",
-    default=8001,
-    type=int,
-    help="Port for the worker's API server.",
-)
-@click.option(
-    "--head-node-url",
-    type=str,
-    default=lambda: os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343"),
-    help="Full URL of the head node API Gateway (e.g., http://192.168.1.100:8343).",
-)
-def worker(host, port, head_node_url):
-    """Start a worker node."""
-    start_worker(
-        host=host,
-        port=port,
-        head_node_url=head_node_url,
+        pylet_endpoint=pylet_endpoint,
+        database_path=database_path,
+        storage_path=storage_path,
     )
 
 
 @cli.command()
 def status():
-    """Show all deployed models."""
+    """Show all deployments."""
     show_status()
 
 

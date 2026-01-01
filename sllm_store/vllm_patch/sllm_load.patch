@@ -1,108 +1,34 @@
-diff --git a/vllm/config.py b/vllm/config.py
-index db35c848b..2c39d9a6b 100644
---- a/vllm/config.py
-+++ b/vllm/config.py
-@@ -1586,6 +1586,7 @@ class LoadFormat(str, enum.Enum):
-     RUNAI_STREAMER = "runai_streamer"
-     RUNAI_STREAMER_SHARDED = "runai_streamer_sharded"
-     FASTSAFETENSORS = "fastsafetensors"
-+    SERVERLESS_LLM = "serverless_llm"
- 
- 
- @config
-diff --git a/vllm/executor/executor_base.py b/vllm/executor/executor_base.py
-index 40ca1d299..5771b5d24 100644
---- a/vllm/executor/executor_base.py
-+++ b/vllm/executor/executor_base.py
-@@ -144,7 +144,18 @@ class ExecutorBase(ABC):
-     def stop_remote_worker_execution_loop(self) -> None:
-         """Releases parallel workers from model loop."""
-         return
--
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+        ) -> None:
-+        
-+        self.driver_worker.save_serverless_llm_state(
-+            path=path, pattern=pattern, max_size=max_size
-+        )
-+        
-     def add_lora(self, lora_request: LoRARequest) -> bool:
-         assert lora_request.lora_int_id > 0, "lora_id must be greater than 0."
-         return all(self.collective_rpc("add_lora", args=(lora_request, )))
-diff --git a/vllm/executor/mp_distributed_executor.py b/vllm/executor/mp_distributed_executor.py
-index d1f8c36fb..0d6d94c57 100644
---- a/vllm/executor/mp_distributed_executor.py
-+++ b/vllm/executor/mp_distributed_executor.py
-@@ -132,6 +132,17 @@ class MultiprocessingDistributedExecutor(DistributedExecutorBase):
-         if (worker_monitor := getattr(self, "worker_monitor",
-                                       None)) is not None:
-             worker_monitor.close()
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+        ) -> None:
-+        self._run_workers("save_serverless_llm_state",
-+                         path=path,
-+                         pattern=pattern,
-+                         max_size=max_size)
- 
-     def _driver_execute_model(
-         self, execute_model_req: Optional[ExecuteModelRequest]
-diff --git a/vllm/executor/ray_distributed_executor.py b/vllm/executor/ray_distributed_executor.py
-index 8e67c7a41..01dc4b9cc 100644
---- a/vllm/executor/ray_distributed_executor.py
-+++ b/vllm/executor/ray_distributed_executor.py
-@@ -427,6 +427,17 @@ class RayDistributedExecutor(DistributedExecutorBase):
-                 self.tp_driver_workers.append(worker)
-             else:
-                 self.non_driver_workers.append(worker)
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+        ) -> None:
-+        self._run_workers("save_serverless_llm_state",
-+                         path=path,
-+                         pattern=pattern,
-+                         max_size=max_size)
- 
-     def _driver_execute_model(
-         self, execute_model_req: Optional[ExecuteModelRequest]
 diff --git a/vllm/model_executor/model_loader/__init__.py b/vllm/model_executor/model_loader/__init__.py
-index a443a652d..c1869a54a 100644
+index 301f2d00b..e3aa40da1 100644
 --- a/vllm/model_executor/model_loader/__init__.py
 +++ b/vllm/model_executor/model_loader/__init__.py
-@@ -11,6 +11,7 @@ from vllm.model_executor.model_loader.bitsandbytes_loader import (
- from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
- from vllm.model_executor.model_loader.dummy_loader import DummyModelLoader
- from vllm.model_executor.model_loader.gguf_loader import GGUFModelLoader
+@@ -18,6 +18,7 @@ from vllm.model_executor.model_loader.runai_streamer_loader import (
+ )
+ from vllm.model_executor.model_loader.sharded_state_loader import ShardedStateLoader
+ from vllm.model_executor.model_loader.tensorizer_loader import TensorizerLoader
 +from vllm.model_executor.model_loader.sllm_loader import ServerlessLLMLoader
- from vllm.model_executor.model_loader.runai_streamer_loader import (
-     RunaiModelStreamerLoader)
- from vllm.model_executor.model_loader.sharded_state_loader import (
-@@ -45,6 +46,9 @@ def get_model_loader(load_config: LoadConfig) -> BaseModelLoader:
+ from vllm.model_executor.model_loader.utils import (
+     get_architecture_class_name,
+     get_model_architecture,
+@@ -42,6 +43,7 @@ LoadFormats = Literal[
+     "safetensors",
+     "sharded_state",
+     "tensorizer",
++    "serverless_llm",
+ ]
+ _LOAD_FORMAT_TO_MODEL_LOADER: dict[str, type[BaseModelLoader]] = {
+     "auto": DefaultModelLoader,
+@@ -57,6 +59,7 @@ _LOAD_FORMAT_TO_MODEL_LOADER: dict[str, type[BaseModelLoader]] = {
+     "safetensors": DefaultModelLoader,
+     "sharded_state": ShardedStateLoader,
+     "tensorizer": TensorizerLoader,
++    "serverless_llm": ServerlessLLMLoader,
+ }
  
-     if load_config.load_format == LoadFormat.RUNAI_STREAMER_SHARDED:
-         return ShardedStateLoader(load_config, runai_model_streamer=True)
-+    
-+    if load_config.load_format == LoadFormat.SERVERLESS_LLM:
-+        return ServerlessLLMLoader(load_config)
- 
-     return DefaultModelLoader(load_config)
  
 diff --git a/vllm/model_executor/model_loader/sllm_loader.py b/vllm/model_executor/model_loader/sllm_loader.py
 new file mode 100644
-index 000000000..9bd2fd7f9
+index 000000000..c65b46989
 --- /dev/null
 +++ b/vllm/model_executor/model_loader/sllm_loader.py
 @@ -0,0 +1,150 @@
@@ -115,7 +41,8 @@ index 000000000..9bd2fd7f9
 +from vllm.config import LoadConfig, VllmConfig, ModelConfig
 +from vllm.model_executor.model_loader.base_loader import BaseModelLoader
 +from vllm.model_executor.model_loader.utils import (
-+    initialize_model, set_default_torch_dtype)
++    initialize_model)
++from vllm.utils.torch_utils import set_default_torch_dtype
 +
 +class ServerlessLLMLoader(BaseModelLoader):
 +    # DEFAULT_PATTERN = "model-rank-{rank}-part-{part}.safetensors"
@@ -254,93 +181,116 @@ index 000000000..9bd2fd7f9
 +        save_path = os.path.join(path, f"rank_{rank}")
 +        if not os.path.exists(save_path):
 +            os.makedirs(save_path)
-+            
 +        save_dict(state_dict, save_path)
-\ No newline at end of file
 diff --git a/vllm/v1/engine/core.py b/vllm/v1/engine/core.py
-index 740ba60fe..1071cb71f 100644
+index d49eb752d..87bca1fc7 100644
 --- a/vllm/v1/engine/core.py
 +++ b/vllm/v1/engine/core.py
-@@ -331,6 +331,16 @@ class EngineCore:
-         self.model_executor.save_sharded_state(path=path,
-                                                pattern=pattern,
-                                                max_size=max_size)
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+    ) -> None:
-+        self.model_executor.save_serverless_llm_state(path=path,
-+                                                      pattern=pattern,
-+                                                      max_size=max_size)
- 
-     def collective_rpc(self,
-                        method: Union[str, Callable[..., _R]],
-diff --git a/vllm/v1/engine/core_client.py b/vllm/v1/engine/core_client.py
-index 0d52bc9a6..95adf9af8 100644
---- a/vllm/v1/engine/core_client.py
-+++ b/vllm/v1/engine/core_client.py
-@@ -256,6 +256,14 @@ class InprocClient(EngineCoreClient):
-                            pattern: Optional[str] = None,
-                            max_size: Optional[int] = None) -> None:
-         self.engine_core.save_sharded_state(path, pattern, max_size)
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+    ) -> None:
-+        self.engine_core.save_serverless_llm_state(path, pattern, max_size)
- 
-     def collective_rpc(self,
-                        method: Union[str, Callable[..., _R]],
-@@ -724,6 +732,14 @@ class SyncMPClient(MPClient):
-                            pattern: Optional[str] = None,
-                            max_size: Optional[int] = None) -> None:
-         self.call_utility("save_sharded_state", path, pattern, max_size)
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+        ) -> None:
-+        self.call_utility("save_serverless_llm_state", path, pattern, max_size)
- 
- 
- class AsyncMPClient(MPClient):
-@@ -906,6 +922,15 @@ class AsyncMPClient(MPClient):
-         await self.call_utility_async("save_sharded_state", path, pattern,
-                                       max_size)
- 
-+    async def save_serverless_llm_state_async(
-+                                        self,
-+                                        path: str,
-+                                        pattern: Optional[str] = None,
-+                                        max_size: Optional[int] = None,
-+                                        ) -> None:
-+        await self.call_utility_async("save_serverless_llm_state", path, pattern, 
-+                                      max_size)
-+
-     async def collective_rpc_async(
-             self,
-             method: Union[str, Callable[..., _R]],
-diff --git a/vllm/v1/worker/gpu_model_runner.py b/vllm/v1/worker/gpu_model_runner.py
-index 910c0e80b..d13645e3b 100644
---- a/vllm/v1/worker/gpu_model_runner.py
-+++ b/vllm/v1/worker/gpu_model_runner.py
-@@ -1560,6 +1560,20 @@ class GPUModelRunner(LoRAModelRunnerMixin):
-             tensorizer_config=tensorizer_config,
+@@ -516,6 +516,17 @@ class EngineCore:
+             path=path, pattern=pattern, max_size=max_size
          )
  
 +    def save_serverless_llm_state(
 +        self,
 +        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
++        pattern: str | None = None,
++        max_size: int | None = None,
++        ) -> None:
++
++        self.model_executor.save_serverless_llm_state(
++            path=path, pattern=pattern, max_size=max_size
++        ) 
++
+     def collective_rpc(
+         self,
+         method: str | Callable[..., _R],
+diff --git a/vllm/v1/engine/core_client.py b/vllm/v1/engine/core_client.py
+index 9b440505b..2ba5934ef 100644
+--- a/vllm/v1/engine/core_client.py
++++ b/vllm/v1/engine/core_client.py
+@@ -176,6 +176,14 @@ class EngineCoreClient(ABC):
+     ) -> None:
+         raise NotImplementedError
+ 
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: str | None = None,
++        max_size: int | None = None,
++    ) -> None:
++        self.engine_core.save_serverless_llm_state(path, pattern, max_size)
++
+     def collective_rpc(
+         self,
+         method: str | Callable[..., _R],
+@@ -792,6 +800,14 @@ class SyncMPClient(MPClient):
+     ) -> None:
+         self.call_utility("save_sharded_state", path, pattern, max_size)
+ 
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: str | None = None,
++        max_size: int | None = None,
++        ) -> None:
++        self.call_utility("save_serverless_llm_state", path, pattern, max_size)
++
+ 
+ class AsyncMPClient(MPClient):
+     """Asyncio-compatible client for multi-proc EngineCore."""
+@@ -987,6 +1003,16 @@ class AsyncMPClient(MPClient):
+     ) -> None:
+         await self.call_utility_async("save_sharded_state", path, pattern, max_size)
+ 
++    async def save_serverless_llm_state_async(
++                                        self,
++                                        path: str,
++                                        pattern: str | None = None,
++                                        max_size: int | None = None,
++                                        ) -> None:
++        await self.call_utility_async("save_serverless_llm_state", path, pattern, 
++                                      max_size)
++
++
+     async def collective_rpc_async(
+         self,
+         method: str | Callable[..., _R],
+diff --git a/vllm/v1/executor/abstract.py b/vllm/v1/executor/abstract.py
+index db8303fce..be0c4e034 100644
+--- a/vllm/v1/executor/abstract.py
++++ b/vllm/v1/executor/abstract.py
+@@ -250,6 +250,18 @@ class Executor(ABC):
+             kwargs=dict(path=path, pattern=pattern, max_size=max_size),
+         )
+ 
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: str | None = None,
++        max_size: int | None = None,
++        ) -> None:
++        
++        self.collective_rpc(
++            "save_serverless_llm_state",
++            kwargs=dict(path=path, pattern=pattern, max_size=max_size)
++        )
++
+     @abstractmethod
+     def check_health(self) -> None:
+         """Checks if the executor is healthy. If not, it should raise an
+diff --git a/vllm/v1/worker/gpu_model_runner.py b/vllm/v1/worker/gpu_model_runner.py
+index 156294693..153613c93 100644
+--- a/vllm/v1/worker/gpu_model_runner.py
++++ b/vllm/v1/worker/gpu_model_runner.py
+@@ -3438,6 +3438,20 @@ class GPUModelRunner(
+             model_config=self.model_config,
+         )
+ 
++    def save_serverless_llm_state(
++        self,
++        path: str,
++        pattern: str | None = None,
++        max_size: int | None = None,
 +    ) -> None:
 +        from vllm.model_executor.model_loader import ServerlessLLMLoader
 +        ServerlessLLMLoader.save_model(
@@ -354,19 +304,19 @@ index 910c0e80b..d13645e3b 100644
          self,
          hidden_states: torch.Tensor,
 diff --git a/vllm/v1/worker/gpu_worker.py b/vllm/v1/worker/gpu_worker.py
-index bce5cbb5f..55d65c7d3 100644
+index 52f84ddbf..0776e3f19 100644
 --- a/vllm/v1/worker/gpu_worker.py
 +++ b/vllm/v1/worker/gpu_worker.py
-@@ -325,6 +325,18 @@ class Worker(WorkerBase):
+@@ -851,6 +851,18 @@ class Worker(WorkerBase):
              pattern=pattern,
              max_size=max_size,
          )
-+    
++        
 +    def save_serverless_llm_state(
 +        self,
 +        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
++        pattern: str | None = None,
++        max_size: int | None = None,
 +    ) -> None:
 +        self.model_runner.save_serverless_llm_state(
 +            path,
@@ -376,51 +326,6 @@ index bce5cbb5f..55d65c7d3 100644
  
      def save_tensorized_model(
          self,
-diff --git a/vllm/worker/model_runner.py b/vllm/worker/model_runner.py
-index 8c968faa7..932c943ab 100644
---- a/vllm/worker/model_runner.py
-+++ b/vllm/worker/model_runner.py
-@@ -1236,6 +1236,20 @@ class GPUModelRunnerBase(ModelRunnerBase[TModelInputForGPU]):
-             pattern=pattern,
-             max_size=max_size,
-         )
-+    
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+    ) -> None:
-+        from vllm.model_executor.model_loader import ServerlessLLMLoader
-+        ServerlessLLMLoader.save_model(
-+            self.model,
-+            path,
-+            pattern=pattern,
-+            max_size=max_size,
-+        )
- 
-     def save_tensorized_model(
-         self,
-diff --git a/vllm/worker/worker.py b/vllm/worker/worker.py
-index 6e45b8423..d87e5e9c6 100644
---- a/vllm/worker/worker.py
-+++ b/vllm/worker/worker.py
-@@ -218,6 +218,18 @@ class Worker(LocalOrDistributedWorkerBase):
-             max_size=max_size,
-         )
- 
-+    def save_serverless_llm_state(
-+        self,
-+        path: str,
-+        pattern: Optional[str] = None,
-+        max_size: Optional[int] = None,
-+    ) -> None:
-+        self.model_runner.save_serverless_llm_state(
-+            path,
-+            pattern=pattern,
-+            max_size=max_size,
-+        )
-+
-     def save_tensorized_model(
-         self,
-         tensorizer_config: TensorizerConfig,
+-- 
+2.43.0
+

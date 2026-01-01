@@ -1,8 +1,8 @@
-accelerate==1.7.0
+accelerate>=1.7.0
 bitsandbytes==0.46.0
 click==8.1.7
 grpcio==1.72.1
 grpcio-tools==1.64.0
-peft==0.15.2
-torch==2.7.0
-transformers==4.52.4
+peft>=0.16.0
+torch>=2.7.0
+transformers>=4.52.4

@@ -322,15 +322,14 @@ def quantize(
     for name, param in state_dict.items():
         if param.is_floating_point():
             param = param.to(torch_dtype)
-        if hf_quantizer.check_quantized_param(model, param, name, state_dict):
+        # Use the new param_needs_quantization API (transformers >= 4.52)
+        if hf_quantizer.param_needs_quantization(model, name):
             final_device = param.device
             hf_quantizer.create_quantized_param(
                 model,
                 param,
                 name,
                 final_device,
-                state_dict,
-                unexpected_keys=[],
             )
 
         else:

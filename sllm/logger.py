@@ -30,9 +30,11 @@ correlation_id_var: ContextVar[Optional[str]] = ContextVar(
     "correlation_id", default=None
 )
 worker_id_var: ContextVar[Optional[str]] = ContextVar("worker_id", default=None)
-model_id_var: ContextVar[Optional[str]] = ContextVar("model_id", default=None)
+deployment_id_var: ContextVar[Optional[str]] = ContextVar(
+    "deployment_id", default=None
+)
 
-_FORMAT = "%(levelname)s %(asctime)s %(filename)s:%(lineno)d] [%(correlation_id)s|%(worker_id)s|%(model_id)s] %(message)s"
+_FORMAT = "%(levelname)s %(asctime)s %(filename)s:%(lineno)d] [%(correlation_id)s|%(worker_id)s|%(deployment_id)s] %(message)s"
 _DATE_FORMAT = "%m-%d %H:%M:%S"
 
 
@@ -46,7 +48,7 @@ class StructuredFormatter(logging.Formatter):
         # Add context variables to the record
         record.correlation_id = correlation_id_var.get() or "-"
         record.worker_id = worker_id_var.get() or "-"
-        record.model_id = model_id_var.get() or "-"
+        record.deployment_id = deployment_id_var.get() or "-"
 
         msg = logging.Formatter.format(self, record)
         if record.message != "":
@@ -100,6 +102,6 @@ def set_worker_context(worker_id: str) -> None:
     worker_id_var.set(worker_id)
 
 
-def set_model_context(model_id: str) -> None:
-    """Set model ID for structured logging."""
-    model_id_var.set(model_id)
+def set_deployment_context(deployment_id: str) -> None:
+    """Set deployment ID for structured logging."""
+    deployment_id_var.set(deployment_id)
