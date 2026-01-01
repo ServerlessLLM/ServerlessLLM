@@ -104,7 +104,8 @@ curl http://localhost:8343/register \
 curl http://localhost:8343/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "facebook/opt-125m:vllm",
+    "model": "facebook/opt-125m",
+    "backend": "vllm",
     "messages": [{"role": "user", "content": "Hello!"}],
     "max_tokens": 50
   }'

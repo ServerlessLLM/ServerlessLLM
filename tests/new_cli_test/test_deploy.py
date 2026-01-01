@@ -41,7 +41,9 @@ class TestDeployCommand(unittest.TestCase):
 
         mock_read.side_effect = [default_config, user_config]
         mock_post.return_value.status_code = 200
-        mock_post.return_value.text = "OK"
+        mock_post.return_value.json.return_value = {
+            "deployment_id": "facebook/opt-2.7b:transformers"
+        }
 
         with tempfile.NamedTemporaryFile("w+", suffix=".json") as f:
             json.dump(user_config, f)
@@ -52,10 +54,8 @@ class TestDeployCommand(unittest.TestCase):
             )
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn(
-            "[✅ SUCCESS] Model 'facebook/opt-2.7b' deployed successfully.",
-            result.output,
-        )
+        self.assertIn("Deployment created:", result.output)
+        self.assertIn("facebook/opt-2.7b:transformers", result.output)
 
         request_json = mock_post.call_args[1]["json"]
         self.assertEqual(request_json["model"], "facebook/opt-2.7b")
@@ -101,6 +101,9 @@ class TestDeployCommand(unittest.TestCase):
             "backend_config": {},
         }
         mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "deployment_id": "facebook/opt-1.3b:transformers"
+        }
 
         result = self.runner.invoke(
             cli,
@@ -190,7 +193,7 @@ class TestDeployCommand(unittest.TestCase):
 
         # Should show error message for invalid format
         self.assertIn(
-            "[ERROR] Invalid LoRA module format: invalid-format-no-equals",
+            "[ERROR] LoRA adapters must be in <name>=<path> format",
             result.output,
         )
 

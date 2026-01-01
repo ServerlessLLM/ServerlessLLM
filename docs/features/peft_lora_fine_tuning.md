@@ -3,6 +3,10 @@ sidebar_position: 4
 ---
 # PEFT LoRA Fine-tuning
 
+:::warning
+**Note: Fine-tuning integration is not yet available in v1-beta.** The documentation below is kept as a reference for the upcoming implementation.
+:::
+
 This feature introduces a dedicated fine-tuning backend (`ft_backend`) for handling LoRA (Low-Rank Adaptation) fine-tuning jobs in ServerlessLLM. This implementation provides isolated fine-tuning instances with specialized resource management and lifecycle control.
 
 ## Prerequisites
@@ -21,7 +25,7 @@ Before using the fine-tuning feature, ensure you have:
 docker compose up -d
 ```
 
-This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
+This command will start the Pylet head node and worker nodes defined in the `docker-compose.yml` file.
 
 :::tip
 Use the following command to monitor the logs of the head node:

@@ -16,6 +16,7 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import os
+import sys
 from typing import Optional
 
 import click
@@ -124,13 +125,7 @@ def delete(models, backend, lora_adapters):
     )
 
 
-@cli.group()
-def start():
-    """Start SLLM head or worker node."""
-    pass
-
-
-@start.command()
+@cli.command()
 @click.option(
     "--host",
     default="0.0.0.0",
@@ -144,13 +139,13 @@ def start():
     "--pylet-endpoint",
     default=lambda: os.getenv("PYLET_ENDPOINT", "http://localhost:8000"),
     type=str,
-    help="Pylet head endpoint (v1-beta). Default: http://localhost:8000",
+    help="Pylet head endpoint. Default: http://localhost:8000",
 )
 @click.option(
     "--database-path",
     default=lambda: os.getenv("SLLM_DATABASE_PATH", "/var/lib/sllm/state.db"),
     type=str,
-    help="SQLite database path (v1-beta). Default: /var/lib/sllm/state.db",
+    help="SQLite database path. Default: /var/lib/sllm/state.db",
 )
 @click.option(
     "--storage-path",
@@ -158,39 +153,14 @@ def start():
     type=str,
     help="Model storage path. Default: /models",
 )
-@click.option(
-    "--redis-host",
-    default=None,
-    type=str,
-    help="[DEPRECATED] Redis is no longer used in v1-beta.",
-)
-@click.option(
-    "--redis-port",
-    default=None,
-    type=int,
-    help="[DEPRECATED] Redis is no longer used in v1-beta.",
-)
-def head(
+def start(
     host,
     port,
     pylet_endpoint,
     database_path,
     storage_path,
-    redis_host,
-    redis_port,
 ):
-    """Start the head node (control plane).
-
-    v1-beta uses Pylet for instance management and SQLite for state persistence.
-    Redis is no longer required.
-    """
-    # Warn about deprecated options
-    if redis_host is not None or redis_port is not None:
-        click.echo(
-            "[WARNING] --redis-host and --redis-port are deprecated in v1-beta. "
-            "Redis is no longer used. These options will be ignored."
-        )
-
+    """Start the SLLM head node (control plane)."""
     start_head(
         host=host,
         port=port,
@@ -201,9 +171,66 @@ def head(
 
 
 @cli.command()
-def status():
-    """Show all deployments."""
-    show_status()
+@click.argument("deployment_id", required=False)
+@click.option(
+    "--nodes",
+    is_flag=True,
+    help="Show cluster nodes instead of deployments.",
+)
+def status(deployment_id: Optional[str], nodes: bool):
+    """Show cluster status.
+
+    With no arguments, shows all deployments.
+    With DEPLOYMENT_ID, shows detailed info for that deployment.
+    With --nodes, shows cluster nodes.
+    """
+    show_status(deployment_id=deployment_id, show_nodes=nodes)
+
+
+@cli.command()
+@click.argument("instance_id")
+@click.option("-f", "--follow", is_flag=True, help="Follow log output.")
+def logs(instance_id: str, follow: bool):
+    """View instance logs."""
+    import asyncio
+
+    try:
+        from pylet.client import PyletClient
+    except ImportError:
+        click.echo("Error: pylet not installed.")
+        sys.exit(1)
+
+    endpoint = os.getenv("PYLET_ENDPOINT", "http://localhost:8000")
+
+    async def fetch_logs():
+        client = PyletClient(api_server_url=endpoint)
+        offset = 0
+        try:
+            while True:
+                try:
+                    result = await client.get_logs(
+                        instance_id, offset=offset, limit=10 * 1024 * 1024
+                    )
+                except Exception as e:
+                    click.echo(f"Error: {e}", err=True)
+                    sys.exit(1)
+
+                data = result.get("data", b"")
+                if data:
+                    sys.stdout.buffer.write(data)
+                    sys.stdout.buffer.flush()
+                    offset += len(data)
+
+                if not follow:
+                    break
+
+                await asyncio.sleep(0.5)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            await client.client.aclose()
+
+    asyncio.run(fetch_logs())
 
 
 if __name__ == "__main__":

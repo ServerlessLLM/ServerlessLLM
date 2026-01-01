@@ -73,8 +73,7 @@ Models must be saved in sllm format before they can be served. This is a **one-t
 ```bash
 # Save model to sllm format (run inside container or on host with sllm-store)
 docker exec sllm_head bash -c "
-  source /opt/conda/etc/profile.d/conda.sh
-  conda activate worker
+  source /opt/venvs/sllm-store/bin/activate
   sllm-store save \
     --model facebook/opt-125m \
     --backend vllm \
@@ -89,7 +88,7 @@ This creates the model files at `/models/vllm/facebook/opt-125m`.
 ### 1. Register a Model
 
 ```bash
-curl http://localhost:8343/register \
+curl http://localhost:8343/deployments \
   -H "Content-Type: application/json" \
   -d '{
     "model": "facebook/opt-125m",
@@ -109,7 +108,8 @@ curl http://localhost:8343/register \
 curl http://localhost:8343/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "facebook/opt-125m:vllm",
+    "model": "facebook/opt-125m",
+    "backend": "vllm",
     "messages": [{"role": "user", "content": "Hello!"}],
     "max_tokens": 50
   }'

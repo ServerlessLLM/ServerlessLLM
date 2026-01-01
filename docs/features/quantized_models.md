@@ -2,6 +2,10 @@
 sidebar_position: 3
 ---
 
+:::warning
+**Note: Quantization with the transformers backend is not yet available in v1-beta.** The `transformers` backend is not integrated with the Pylet-based architecture. This documentation is kept as a reference for the upcoming implementation.
+:::
+
 # Quantization
 
 This example demonstrates the use of quantization within the ServerlessLLM framework to optimize model serving. Quantization is a technique used to reduce the memory footprint and computational requirements of a large language model by representing its weights with lower-precision data types, such as 8-bit integers (int8). This example will showcase how to deploy and serve a quantized model in a ServerlessLLM cluster.
@@ -11,7 +15,7 @@ This example demonstrates the use of quantization within the ServerlessLLM frame
 We will use Docker Compose to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the Quickstart Guide before proceeding.
 
 ## Usage
-Start a local Docker-based ray cluster using Docker Compose.
+Start a local Docker-based cluster using Docker Compose.
 
 ## Step 1: Set up the Environment
 
@@ -20,6 +24,7 @@ Create a directory for this example and download the `docker-compose.yml` file.
 ```bash
 mkdir sllm-quantization-example && cd sllm-quantization-example
 curl -O https://raw.githubusercontent.com/ServerlessLLM/ServerlessLLM/main/examples/docker/docker-compose.yml
+```
 
 ## Step 2: Configuration
 
@@ -39,7 +44,7 @@ Start the ServerlessLLM services using Docker Compose:
 docker compose up -d
 ```
 
-This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
+This command will start the Pylet head node and worker nodes defined in the `docker-compose.yml` file.
 
 :::tip
 Use the following command to monitor the logs of the head node:
@@ -115,13 +120,13 @@ Now, create a file named `quantized_deploy_config.json`. This file tells Serverl
 > Note: Quantization currently only supports the "transformers" backend. Support for other backends will come soon.
 
 ## Step 5: Deploy the Quantized Model
-With the configuration files in place, deploy the model using the `sllm-cli`.
+With the configuration files in place, deploy the model using the `sllm` CLI.
 
 ```bash
 conda activate sllm
 export LLM_SERVER_URL=http://127.0.0.1:8343
 
-sllm-cli deploy --config quantized_deploy_config.json
+sllm deploy --config quantized_deploy_config.json
 ```
 
 ## Step 6: Verify the deployment.
@@ -163,7 +168,7 @@ You should receive a successful JSON response from the model.
 Delete the model deployment by running the following command:
 
 ```bash
-sllm-cli delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b --backend transformers
 ```
 
 If you need to stop and remove the containers, you can use the following commands:

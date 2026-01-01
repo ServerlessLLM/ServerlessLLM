@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Single machine (from scratch)
 
-This guide provides instructions for setting up ServerlessLLM from scratch on a single machine. This 'from scratch' approach means you will manually initialize and manage the Ray cluster components. It involves using multiple terminal sessions, each configured with a distinct Conda environment, to run the head and worker processes on the same physical machine, effectively simulating a multi-node deployment locally.
+This guide provides instructions for setting up ServerlessLLM from scratch on a single machine. This 'from scratch' approach means you will manually initialize and manage the Pylet cluster components. It involves using multiple terminal sessions to run the head and worker processes on the same physical machine, effectively simulating a multi-node deployment locally.
 
 :::note
 We strongly recommend using Docker (Compose) as detailed in the [Docker Compose guide](../getting_started.md). Docker provides a smoother and generally easier setup process. Follow this guide only if Docker is not a suitable option for your environment.
@@ -27,23 +27,21 @@ Follow these steps to install ServerlessLLM using pip:
 **Create the head environment:**
 
 ```bash
-# Create and activate a conda environment
-conda create -n sllm python=3.10 -y
-conda activate sllm
+# Create and activate a virtual environment (uv recommended)
+uv venv sllm-head && source sllm-head/bin/activate
 
-# Install ServerlessLLM and its store component
-pip install serverless-llm serverless-llm-store
+# Install ServerlessLLM and Pylet
+uv pip install serverless-llm pylet
 ```
 
 **Create the worker environment:**
 
 ```bash
-# Create and activate a conda environment
-conda create -n sllm-worker python=3.10 -y
-conda activate sllm-worker
+# Create and activate a virtual environment (uv recommended)
+uv venv sllm-worker && source sllm-worker/bin/activate
 
 # Install ServerlessLLM (worker version) and its store component
-pip install "serverless-llm[worker]" serverless-llm-store
+uv pip install "serverless-llm[worker]" serverless-llm-store
 ```
 
 :::note
@@ -62,32 +60,26 @@ To install ServerlessLLM from source, follow these steps:
 
 2.  Create the head environment:
     ```bash
-    # Create and activate a conda environment
-    conda create -n sllm python=3.10 -y
-    conda activate sllm
+    # Create and activate a virtual environment (uv recommended)
+    uv venv sllm-head && source sllm-head/bin/activate
 
-    # Install sllm_store (pip install is recommended for speed)
-    cd sllm_store && rm -rf build
-    pip install .
-    cd ..
-
-    # Install ServerlessLLM
-    pip install .
+    # Install ServerlessLLM and Pylet
+    uv pip install -e .
+    uv pip install pylet
     ```
 
 3.  Create the worker environment:
     ```bash
-    # Create and activate a conda environment
-    conda create -n sllm-worker python=3.10 -y
-    conda activate sllm-worker
+    # Create and activate a virtual environment (uv recommended)
+    uv venv sllm-worker && source sllm-worker/bin/activate
 
-    # Install sllm_store (pip install is recommended for speed)
+    # Install sllm_store
     cd sllm_store && rm -rf build
-    pip install .
+    uv pip install -e .
     cd ..
 
     # Install ServerlessLLM (worker version)
-    pip install ".[worker]"
+    uv pip install -e ".[worker]"
     ```
 
 ### vLLM Patch
@@ -97,7 +89,7 @@ To use vLLM with ServerlessLLM, you must apply a patch. The patch file is locate
 Apply the patch using the following script:
 
 ```bash
-conda activate sllm-worker
+source sllm-worker/bin/activate
 ./sllm_store/vllm_patch/patch.sh
 ```
 
@@ -105,29 +97,33 @@ conda activate sllm-worker
 
 These steps describe how to run ServerlessLLM on your local machine.
 
-### 1. Start a Local Ray Cluster
+### 1. Start a Local Pylet Cluster
 
-First, initiate a local Ray cluster. This cluster will consist of one head node and one worker node (on the same machine).
+First, initiate a local Pylet cluster. This cluster will consist of one head node and one worker node (on the same machine).
 
-**Start the head node:**
+**Start the Pylet head node:**
 
 Open a new terminal and run:
 
 ```bash
-conda activate sllm
-ray start --head --port=6379 --num-cpus=4 --num-gpus=0 \
-  --resources='{"control_node": 1}' --block
+source sllm-head/bin/activate
+pylet start
 ```
 
-**Start the worker node:**
+You can verify the Pylet head is running:
+
+```bash
+curl http://localhost:8000/workers
+```
+
+**Start the Pylet worker node:**
 
 Open another new terminal and run:
 
 ```bash
-conda activate sllm-worker
+source sllm-worker/bin/activate
 export CUDA_VISIBLE_DEVICES=0 # Or your desired GPU ID
-ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 \
-  --resources='{"worker_node": 1, "worker_id_0": 1}' --block
+pylet worker --head http://localhost:8000
 ```
 
 ### 2. Start the ServerlessLLM Store Server
@@ -137,9 +133,9 @@ Next, start the ServerlessLLM Store server. By default, it uses `./models` as th
 Open a new terminal and run:
 
 ```bash
-conda activate sllm-worker
+source sllm-worker/bin/activate
 export CUDA_VISIBLE_DEVICES=0 # Or your desired GPU ID
-sllm-store start
+sllm-store start --storage-path ./models --mem-pool-size 4GB
 ```
 
 Expected output:
@@ -162,14 +158,14 @@ INFO 12-31 17:13:25 server.py:243] Starting gRPC server on 0.0.0.0:8073
 
 Now, start the ServerlessLLM service process using `sllm start`.
 
-
 Open a new terminal and run:
 
 ```bash
-sllm start
+source sllm-head/bin/activate
+sllm start --pylet-endpoint http://localhost:8000
 ```
 
-At this point, you should have four terminals open: one for the Ray head node, one for the Ray worker node, one for the ServerlessLLM Store server, and one for the ServerlessLLM service (started via `sllm start`).
+At this point, you should have four terminals open: one for the Pylet head node, one for the Pylet worker node, one for the ServerlessLLM Store server, and one for the ServerlessLLM service (started via `sllm start`).
 
 ### 4. Deploy a Model
 
@@ -178,8 +174,8 @@ With all services running, you can deploy a model.
 Open a new terminal and run:
 
 ```bash
-conda activate sllm
-sllm deploy --model facebook/opt-1.3b
+source sllm-head/bin/activate
+sllm deploy --model facebook/opt-1.3b --backend vllm
 ```
 
 This command downloads the specified model from Hugging Face Hub. To load a model from a local path, you can use a `config.json` file. Refer to the [CLI API documentation](../api/cli.md#example-configuration-file-configjson) for details.
@@ -193,6 +189,7 @@ curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -211,7 +208,7 @@ Expected output:
 To delete a deployed model, use the following command:
 
 ```bash
-sllm delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b --backend vllm
 ```
 
 This command removes the specified model from the ServerlessLLM server.

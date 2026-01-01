@@ -67,14 +67,14 @@ compute    up        2  down   infinite   JobNode[16-17]
 Only one JobNode is enough.
 
 **`sbatch` Node Selection**
-Let's start a head on the main job node (`JobNode01`) and add the worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs worker (`JobNode02`), for passing the model weights, and the `sllm start` should be started on the main job node (`JobNode01`), finally you can use `sllm` to manage the models on the login node.
+Let's start a Pylet head on the main job node (`JobNode01`) and add the Pylet worker on other job node (`JobNode02`). The head and the worker should be on different job nodes to avoid resource contention. The `sllm-store` should be started on the job node that runs Pylet worker (`JobNode02`), for passing the model weights, and the `sllm start` should be started on the main job node (`JobNode01`), finally you can use `sllm` to manage the models on the login node.
 
 
 Note: `JobNode02` requires GPU, but `JobNode01` does not.
-- **Head**: JobNode01
-- **Worker**: JobNode02
+- **Pylet Head**: JobNode01
+- **Pylet Worker**: JobNode02
 - **sllm-store**: JobNode02
-- **sllm-serve**: JobNode01
+- **SLLM Head**: JobNode01
 - **sllm**: Login Node
 
 ---
@@ -130,22 +130,22 @@ Once multiple windows are created, you can switch between them using:
 `Ctrl + B` → [Number] (Switch to a specific window, e.g., Ctrl + B → 1)
 
 ### Step 4: Run ServerlessLLM on the JobNode
-First find ports that are already occupied. Then pick your favourite number from the remaining ports to replace the following placeholder `<PORT>`. For example: `6379`
+First find ports that are already occupied. Then pick your favourite number from the remaining ports to replace the following placeholder `<PORT>`. For example: `8000`
 
 It should also be said that certain slurm system is a bit slow, **so please be patient and wait for the system to output**.
 
-In the first window, start a local ray cluster with 1 head node and 1 worker node:
+In the first window, start the Pylet head:
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm
-ray start --head --port=<PORT> --num-cpus=4 --num-gpus=0 --resources='{"control_node": 1}' --block
+pylet start --port=<PORT>
 ```
-In the second window, start the worker node:
+In the second window, start the Pylet worker:
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm-worker
 export CUDA_VISIBLE_DEVICES=0
-ray start --address=0.0.0.0:<PORT> --num-cpus=4 --num-gpus=1 --resources='{"worker_node": 1, "worker_id_0": 1}' --block
+pylet worker --head http://127.0.0.1:<PORT>
 ```
 In the third window, start ServerlessLLM Store server:
 ```shell
@@ -154,11 +154,11 @@ conda activate sllm-worker
 export CUDA_VISIBLE_DEVICES=0
 sllm-store start
 ```
-In the 4th window, start ServerlessLLM Serve:
+In the 4th window, start SLLM Head:
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm
-sllm-serve start
+sllm start --pylet-endpoint http://127.0.0.1:<PORT>
 ```
 Everything is set!
 
@@ -167,14 +167,15 @@ In the 5th window, let's deploy a model to the ServerlessLLM server. You can dep
 ```shell
 source /opt/conda/bin/activate
 conda activate sllm
-sllm deploy --model facebook/opt-1.3b --backend transformers
+sllm deploy --model facebook/opt-1.3b --backend vllm
 ```
-This will download the model from HuggingFace transformers. After deploying, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
+This will download the model checkpoint. After deploying, you can query the model by any OpenAI API client. For example, you can use the following Python code to query the model:
 ```shell
 curl http://127.0.0.1:8343/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -189,7 +190,7 @@ Expected output:
 ### Step 5: Clean up
 To delete a deployed model, use the following command:
 ```shell
-sllm delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b --backend vllm
 ```
 This will remove the specified model from the ServerlessLLM server.
 
@@ -197,18 +198,18 @@ In each window, use `Ctrl + c` to stop server and `exit` to exit current `tmux` 
 
 ---
 ## SBATCH
-### Step 1: Start the Head Node
-Since the head node does not require a gpu, you can find a low-computing capacity node to deploy the head node.
-1. **Activate the `sllm` environment and start the head node:**
+### Step 1: Start the Pylet Head Node
+Since the Pylet head node does not require a gpu, you can find a low-computing capacity node to deploy it.
+1. **Activate the `sllm` environment and start the Pylet head node:**
 
-    Here is the example script, named `start_head_node.sh`.
+    Here is the example script, named `start_pylet_head.sh`.
     ```shell
     #!/bin/bash
     #SBATCH --partition=your-partition    # Specify the partition
     #SBATCH --nodelist=JobNode01          # Specify an idle node
-    #SBATCH --job-name=ray-head
-    #SBATCH --output=sllm_head.out
-    #SBATCH --error=sllm_head.err
+    #SBATCH --job-name=pylet-head
+    #SBATCH --output=pylet_head.out
+    #SBATCH --error=pylet_head.err
     #SBATCH --nodes=1
     #SBATCH --ntasks=1
     #SBATCH --cpus-per-task=12
@@ -219,25 +220,23 @@ Since the head node does not require a gpu, you can find a low-computing capacit
     source /opt/conda/bin/activate # make sure conda will be loaded correctly
     conda activate sllm
 
-    ray start --head --port=6379 --num-cpus=12 --num-gpus=0 --resources='{"control_node": 1}' --block
+    pylet start --port=8000
     ```
    - Replace `your-partition`, `JobNode01` and `/path/to/ServerlessLLM`
 
 2. **Submit the script**
 
-    Use ```sbatch start_head_node.sh``` to submit the script to certain idle node.
+    Use ```sbatch start_pylet_head.sh``` to submit the script to certain idle node.
 
 3. **Expected output**
 
-    In `sllm_head.out`, you will see the following output:
+    In `pylet_head.out`, you will see the following output:
 
     ```shell
-    Local node IP: <HEAD_NODE_IP>
-    --------------------
-    Ray runtime started.
-    --------------------
+    INFO:     Started server process [<PID>]
+    INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
     ```
-   **Remember the IP address**, denoted ```<HEAD_NODE_IP>```, you will need it in following steps.
+   **Remember the IP address of the node**, denoted ```<HEAD_NODE_IP>```, you will need it in following steps.
 
 4. **Find an available port for serve**
   - Some HPCs have a firewall that blocks port 8343. You can use `nc -zv <HEAD_NODE_IP> 8343` to check if the port is accessible.
@@ -269,19 +268,19 @@ Since the head node does not require a gpu, you can find a low-computing capacit
    ```
    Remember this `<avail_port>`, you will use it in Step 4
 
-### Step 2: Start the Worker Node & Store
-We will start the worker node and store in the same script. Because the server loads the model weights onto the GPU and uses shared GPU memory to pass the pointer to the client. If you submit another script with ```#SBATCH --gpres=gpu:1```, it will be possibly set to use a different GPU, as specified by different ```CUDA_VISIBLE_DEVICES``` settings. Thus, they cannot pass the model weights.
-1. **Activate the ```sllm-worker``` environment and start the worker node.**
+### Step 2: Start the Pylet Worker & Store
+We will start the Pylet worker and store in the same script. Because the server loads the model weights onto the GPU and uses shared GPU memory to pass the pointer to the client. If you submit another script with ```#SBATCH --gpres=gpu:1```, it will be possibly set to use a different GPU, as specified by different ```CUDA_VISIBLE_DEVICES``` settings. Thus, they cannot pass the model weights.
+1. **Activate the ```sllm-worker``` environment and start the Pylet worker.**
 
-   Here is the example script, named```start_worker_node.sh```.
+   Here is the example script, named```start_pylet_worker.sh```.
    ```shell
    #!/bin/sh
    #SBATCH --partition=your_partition
    #SBATCH --nodelist=JobNode02
    #SBATCH --gres=gpu:a6000:1             # Specify device on JobNode02
-   #SBATCH --job-name=sllm-worker-store
-   #SBATCH --output=sllm_worker.out
-   #SBATCH --error=sllm_worker.err
+   #SBATCH --job-name=pylet-worker-store
+   #SBATCH --output=pylet_worker.out
+   #SBATCH --error=pylet_worker.err
    #SBATCH --gres=gpu:1                   # Request 1 GPU
    #SBATCH --cpus-per-task=4              # Request 4 CPU cores
    #SBATCH --mem=16G                      # Request 16GB of RAM
@@ -296,8 +295,7 @@ We will start the worker node and store in the same script. Because the server l
    export PATH=$CUDA_HOME/bin:$PATH
    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 
-   ray start --address=$HEAD_NODE_IP:6379 --num-cpus=4 --num-gpus=1 \
-   --resources='{"worker_node": 1, "worker_id_0": 1}' --block &
+   pylet worker --head http://$HEAD_NODE_IP:8000 &
 
    sllm-store start &
 
@@ -305,7 +303,7 @@ We will start the worker node and store in the same script. Because the server l
    ```
    - Read the HPC's documentation to find out which partition you can use. Replace ```your_partition``` in the script with that partition name.
    - Replace ```/path/to/ServerlessLLM``` with the path to the ServerlessLLM installation directory.
-   - Replace ```<HEAD_NODE_IP>``` with the IP address of the head node.
+   - Replace ```<HEAD_NODE_IP>``` with the IP address of the Pylet head node.
    - Replace ```/opt/cuda-12.5.0``` with the path to your CUDA path.
 
 2. **Find the CUDA path**
@@ -314,17 +312,15 @@ We will start the worker node and store in the same script. Because the server l
    - Find it and replace ```/opt/cuda-12.5.0``` with the path to your CUDA path.
 3. **Submit the script on the other node**
 
-    Use ```sbatch start_worker_node.sh``` to submit the script to certain idle node (here we assume it is ```JobNode02```). In addition, We recommend that you place the head and worker on different nodes so that the Serve can start smoothly later, rather than queuing up for resource allocation.
+    Use ```sbatch start_pylet_worker.sh``` to submit the script to certain idle node (here we assume it is ```JobNode02```). In addition, We recommend that you place the Pylet head and worker on different nodes so that the SLLM Head can start smoothly later, rather than queuing up for resource allocation.
 4. **Expected output**
 
-   In ```sllm_worker.out```, you will see the following output:
+   In ```pylet_worker.out```, you will see the following output:
 
-   - The worker node expected output:
+   - The Pylet worker expected output:
       ```shell
-       Local node IP: xxx.xxx.xx.xx
-       --------------------
-       Ray runtime started.
-       --------------------
+      INFO:     Worker registered with head at http://<HEAD_NODE_IP>:8000
+      INFO:     Worker started successfully
       ```
    - The store expected output:
       ```shell
@@ -336,50 +332,52 @@ We will start the worker node and store in the same script. Because the server l
       I20241030 11:52:57.258795 1321560 checkpoint_store.cpp:83] Memory pool created with 4GB
       I20241030 11:52:57.262835 1321560 server.cpp:306] Server listening on 0.0.0.0:8073
       ```
-### Step 3: Start the Serve on the Head Node
-1. **Activate the ```sllm``` environment and start the serve.**
+### Step 3: Start the SLLM Head on the Head Node
+1. **Activate the ```sllm``` environment and start the SLLM head.**
 
-   Here is the example script, named```start_serve.sh```.
+   Here is the example script, named```start_sllm_head.sh```.
    ```shell
    #!/bin/sh
    #SBATCH --partition=your_partition
-   #SBATCH --nodelist=JobNode01           # This node should be the same as head
-   #SBATCH --output=serve.log
+   #SBATCH --nodelist=JobNode01           # This node should be the same as Pylet head
+   #SBATCH --output=sllm_head.log
 
    cd /path/to/ServerlessLLM
 
    conda activate sllm
 
-   sllm start --host <HEAD_NODE_IP>
-   # sllm start --host <HEAD_NODE_IP> --port <avail_port> # if you have changed the port
+   export PYLET_ENDPOINT=http://<HEAD_NODE_IP>:8000
+
+   sllm start --host <HEAD_NODE_IP> --pylet-endpoint $PYLET_ENDPOINT
+   # sllm start --host <HEAD_NODE_IP> --port <avail_port> --pylet-endpoint $PYLET_ENDPOINT # if you have changed the port
    ```
    - Replace `your_partition` in the script as before.
    - Replace `/path/to/ServerlessLLM` as before.
+   - Replace `<HEAD_NODE_IP>` with the IP address of the Pylet head node.
    - Replace `<avail_port>` you have found in Step 1 (if port 8343 is not available).
 2. **Submit the script on the head node**
 
-    Use ```sbatch start_serve.sh``` to submit the script to the head node (```JobNode01```).
+    Use ```sbatch start_sllm_head.sh``` to submit the script to the head node (```JobNode01```).
 
 3. **Expected output**
    ```shell
-   -- Connecting to existing Ray cluster at address: xxx.xxx.xx.xx:6379...
-   -- Connected to Ray cluster.
    INFO:     Started server process [1339357]
    INFO:     Waiting for application startup.
    INFO:     Application startup complete.
    INFO:     Uvicorn running on http://xxx.xxx.xx.xx:8343 (Press CTRL+C to quit)
    ```
 ### Step 4: Use sllm to manage models
-1. **You can do this step on login node, and set the ```LLM_SERVER_URL``` environment variable:**
+1. **You can do this step on login node, and set the ```LLM_SERVER_URL``` and ```PYLET_ENDPOINT``` environment variables:**
    ```shell
    $ conda activate sllm
    (sllm)$ export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343
+   (sllm)$ export PYLET_ENDPOINT=http://<HEAD_NODE_IP>:8000
    ```
    - Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
    - Replace ```8343``` with the actual port number (`<avail_port>` in Step1) if you have changed it.
 2. **Deploy a Model Using ```sllm```**
    ```shell
-   (sllm)$ sllm deploy --model facebook/opt-1.3b
+   (sllm)$ sllm deploy --model facebook/opt-1.3b --backend vllm
    ```
 ### Step 5: Query the Model Using OpenAI API Client
    **You can use the following command to query the model:**

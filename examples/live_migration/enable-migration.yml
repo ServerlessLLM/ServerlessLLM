@@ -1,5 +1,0 @@
-services:
-  # Head Node
-  sllm_head:
-    # Override the command to disable migration
-    command: ["--enable-storage-aware", "--enable-migration"]

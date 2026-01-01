@@ -56,7 +56,7 @@ Start the ServerlessLLM services using Docker Compose:
 docker compose up -d
 ```
 
-This command will start the Ray head node and a worker node as defined in the `docker-compose.yml` file.
+This command will start the Pylet head node (cluster manager), a Pylet worker node (GPU), and the SLLM head node (control plane) as defined in the `docker-compose.yml` file.
 
 Verify that the services are ready:
 
@@ -67,14 +67,10 @@ docker logs sllm_head
 Ensure the services are ready before proceeding. You should see output similar to the following:
 
 ```bash
-...
-(SllmController pid=1435) INFO 05-26 15:40:49 controller.py:68] Starting scheduler
 INFO:     Started server process [1]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8343 (Press CTRL+C to quit)
-(FcfsScheduler pid=1604) INFO 05-26 15:40:49 fcfs_scheduler.py:54] Starting FCFS scheduler
-(FcfsScheduler pid=1604) INFO 05-26 15:40:49 fcfs_scheduler.py:111] Starting control loop
 ```
 
 ## Deploy a Model Using sllm
@@ -88,7 +84,7 @@ export LLM_SERVER_URL=http://127.0.0.1:8343
 Deploy a model to the ServerlessLLM cluster using the `sllm`:
 
 ```bash
-sllm deploy --model facebook/opt-1.3b
+sllm deploy --model facebook/opt-1.3b --backend vllm
 ```
 > Note: This command will take some time to download the model from the Hugging Face Model Hub.
 > You can use any model from the [Hugging Face Model Hub](https://huggingface.co/models) by specifying its name in the `--model` argument.
@@ -108,6 +104,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -125,7 +122,7 @@ Expected output:
 To delete a deployed model, execute the following command:
 
 ```bash
-sllm delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b --backend vllm
 ```
 
 This command removes the specified model from the ServerlessLLM server.

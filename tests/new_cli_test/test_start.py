@@ -17,7 +17,7 @@ class TestStartCommand(unittest.TestCase):
         self,
         mock_start_head,
     ):
-        result = self.runner.invoke(cli, ["start", "head"])
+        result = self.runner.invoke(cli, ["start"])
         self.assertEqual(result.exit_code, 0)
         mock_start_head.assert_called_once()
         call_kwargs = mock_start_head.call_args[1]
@@ -31,6 +31,16 @@ class TestStartCommand(unittest.TestCase):
     ):
         result = self.runner.invoke(
             cli, ["start", "worker", "--head-node-url", "http://127.0.0.1:8343"]
+    @mock.patch("sllm.cli.clic.start_head")
+    def test_start_with_pylet_endpoint(self, mock_start_head):
+        """Test start with --pylet-endpoint flag."""
+        result = self.runner.invoke(
+            cli,
+            [
+                "start",
+                "--pylet-endpoint",
+                "http://pylet:8000",
+            ],
         )
         self.assertEqual(result.exit_code, 0)
         mock_start_head.assert_called_once()
@@ -39,12 +49,11 @@ class TestStartCommand(unittest.TestCase):
 
     @mock.patch("sllm.cli.clic.start_head")
     def test_start_with_database_path(self, mock_start_head):
-        """Test start with --database-path flag (v1-beta)."""
+        """Test start with --database-path flag."""
         result = self.runner.invoke(
             cli,
             [
                 "start",
-                "head",
                 "--database-path",
                 "/custom/path/state.db",
             ],
@@ -56,12 +65,11 @@ class TestStartCommand(unittest.TestCase):
 
     @mock.patch("sllm.cli.clic.start_head")
     def test_start_with_storage_path(self, mock_start_head):
-        """Test start with --storage-path flag (v1-beta)."""
+        """Test start with --storage-path flag."""
         result = self.runner.invoke(
             cli,
             [
                 "start",
-                "head",
                 "--storage-path",
                 "/mnt/models",
             ],
@@ -72,13 +80,12 @@ class TestStartCommand(unittest.TestCase):
         self.assertEqual(call_kwargs["storage_path"], "/mnt/models")
 
     @mock.patch("sllm.cli.clic.start_head")
-    def test_start_with_all_v1beta_options(self, mock_start_head):
-        """Test start with all v1-beta options."""
+    def test_start_with_all_options(self, mock_start_head):
+        """Test start with all options."""
         result = self.runner.invoke(
             cli,
             [
                 "start",
-                "head",
                 "--host",
                 "localhost",
                 "--port",
@@ -100,28 +107,20 @@ class TestStartCommand(unittest.TestCase):
         self.assertEqual(call_kwargs["database_path"], "/var/lib/sllm/state.db")
         self.assertEqual(call_kwargs["storage_path"], "/models")
 
-    def test_start_without_subcommand_shows_help(self):
-        # Test that start command shows help when no subcommand provided
-        result = self.runner.invoke(cli, ["start"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Usage:", result.output)
-        self.assertIn("head", result.output)
-        self.assertIn("worker", result.output)
-
     @mock.patch(
         "sllm.cli.clic.start_head",
         side_effect=Exception("Head start failed"),
     )
     def test_start_exception(self, mock_start_head):
         # Test that exceptions during head start are handled
-        result = self.runner.invoke(cli, ["start", "head"])
+        result = self.runner.invoke(cli, ["start"])
         # The CLI should handle exceptions gracefully
         mock_start_head.assert_called_once()
 
     @mock.patch("sllm.cli.clic.start_head")
     def test_start_with_custom_host_port(self, mock_start_head):
         result = self.runner.invoke(
-            cli, ["start", "head", "--host", "localhost", "--port", "9000"]
+            cli, ["start", "--host", "localhost", "--port", "9000"]
         )
         self.assertEqual(result.exit_code, 0)
         mock_start_head.assert_called_once()
@@ -129,7 +128,6 @@ class TestStartCommand(unittest.TestCase):
         self.assertEqual(call_kwargs["host"], "localhost")
         self.assertEqual(call_kwargs["port"], 9000)
 
-<<<<<<< HEAD
     # Commenting out the old storage-aware and migration test since those features
     # may have been restructured in the refactor, but keeping it for reference
     # @mock.patch("sllm.cli._cli_utils.uvicorn.run")
@@ -172,43 +170,24 @@ class TestStartCommand(unittest.TestCase):
     #     mock_controller_cls.options.return_value.remote.assert_called_once_with(
     #         expected_config
     #     )
-=======
     def test_start_head_help_shows_v1beta_options(self):
         """Test that head help shows v1-beta options."""
         result = self.runner.invoke(cli, ["start", "head", "--help"])
+    def test_start_help_shows_options(self):
+        """Test that start help shows all options."""
+        result = self.runner.invoke(cli, ["start", "--help"])
         self.assertEqual(result.exit_code, 0)
-        # Should show v1-beta options
         self.assertIn("--pylet-endpoint", result.output)
         self.assertIn("--database-path", result.output)
         self.assertIn("--storage-path", result.output)
-
-    def test_deprecated_redis_options_show_warning(self):
-        """Test that deprecated Redis options show warning."""
-        with mock.patch("sllm.cli.clic.start_head"):
-            result = self.runner.invoke(
-                cli,
-                [
-                    "start",
-                    "head",
-                    "--redis-host",
-                    "localhost",
-                    "--redis-port",
-                    "6379",
-                ],
-            )
-            # Should still work but may show deprecation warning
-            self.assertEqual(result.exit_code, 0)
->>>>>>> v1-beta
 
     def test_start_with_storage_aware_and_migration(self):
         # Test that head subcommand exists
         result_head = self.runner.invoke(cli, ["start", "head", "--help"])
         self.assertEqual(result_head.exit_code, 0)
 
-<<<<<<< HEAD
         result_worker = self.runner.invoke(cli, ["start", "worker", "--help"])
         self.assertEqual(result_worker.exit_code, 0)
-=======
 
 class TestStartWorkerCommand(unittest.TestCase):
     """Tests for worker start command.
@@ -226,7 +205,8 @@ class TestStartWorkerCommand(unittest.TestCase):
         # Worker command was removed - should show error
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("No such command 'worker'", result.output)
->>>>>>> v1-beta
+        self.assertIn("--host", result.output)
+        self.assertIn("--port", result.output)
 
 
 if __name__ == "__main__":

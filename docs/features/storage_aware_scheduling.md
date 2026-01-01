@@ -2,122 +2,94 @@
 sidebar_position: 0
 ---
 
-# Storage Aware Scheduling with Docker Compose
+# Storage-Aware Scheduling
 
-## Pre-requisites
+In v1-beta, storage-aware scheduling is enabled by default. The system automatically places model instances on nodes that have the model cached, reducing cold-start latency.
 
-We will use Docker Compose to run a ServerlessLLM cluster in this example. Therefore, please make sure you have read the [Quickstart Guide](../getting_started.md) before proceeding.
+## How It Works
+
+Storage-aware placement is built into the Reconciler and StorageManager components:
+
+1. **StorageManager** tracks which models are cached on which nodes
+2. **Reconciler** uses `StorageManager.select_best_node()` when creating new instances
+3. No special flags or configuration needed - it just works
+
+### Placement Scoring
+
+When the Reconciler needs to create a new instance, `StorageManager.score_node()` evaluates each eligible node:
+
+- **+100 points** if the model is already cached on the node
+- **-10 points** per existing instance of the same model on that node (spreading)
+
+The node with the highest score is selected. This ensures:
+- Models are placed on nodes where they are cached (fast loading)
+- Instances are spread across nodes when possible (load balancing)
+
+### Example Flow
+
+1. User deploys model `meta-llama/Llama-3.1-8B` with `desired_replicas=1`
+2. Reconciler sees 0 instances, needs to create 1
+3. Reconciler calls `StorageManager.select_best_node()`:
+   - Gets list of online workers with enough GPUs
+   - Scores each worker (cache hit = +100)
+   - Selects highest-scoring node
+4. Instance is created on the selected node via Pylet
+5. If the model is cached on that node, sllm-store loads it quickly
 
 ## Usage
 
-Start a local Docker-based ray cluster using Docker Compose.
-
-### Step 1: Clone the ServerlessLLM Repository
-
-If you haven't already, clone the ServerlessLLM repository:
+Deploy models normally - storage-aware placement happens automatically:
 
 ```bash
-git clone https://github.com/ServerlessLLM/ServerlessLLM.git
-cd ServerlessLLM/examples/storage_aware_scheduling
+# Deploy a model
+sllm deploy --model meta-llama/Llama-3.1-8B --backend vllm
+
+# Check status
+sllm status
 ```
 
-### Step 2: Configuration
-
-Set the Model Directory. Create a directory on your host machine where models will be stored and set the `MODEL_FOLDER` environment variable to point to this directory:
+Query the model:
 
 ```bash
-export MODEL_FOLDER=/path/to/your/models
+curl http://localhost:8343/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "meta-llama/Llama-3.1-8B",
+    "backend": "vllm",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ]
+  }'
 ```
 
-Replace `/path/to/your/models` with the actual path where you want to store the models.
+## Pre-caching Models
 
-### Step 3: Enable Storage Aware Scheduling in Docker Compose
-
-The Docker Compose configuration is already located in the `examples/storage_aware_scheduling` directory. To activate storage-aware scheduling, ensure the `docker-compose.yml` file includes the necessary configurations(`sllm_head` service should include the `--enable-storage-aware` command).
-
-:::tip
-Recommend to adjust the number of GPUs and `mem_pool_size` based on the resources available on your machine.
-:::
-
-
-### Step 4: Start the Services
-
-Start the ServerlessLLM services using Docker Compose:
+For optimal performance, pre-cache models on worker nodes using `sllm-store`:
 
 ```bash
-docker compose up -d
+# On a worker node, save a model to local storage
+sllm-store save --model meta-llama/Llama-3.1-8B --storage-path /models
 ```
 
-This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
+When sllm-store reports its cached models to the head node, the StorageManager updates its cache view. Future deployments of that model will prefer nodes where it is cached.
 
-:::tip
-Use the following command to monitor the logs of the head node:
+## Observability
+
+Check which nodes have which models cached:
 
 ```bash
-docker logs -f sllm_head
-```
-:::
+# View sllm-store cache on a worker
+sllm-store list --storage-path /models
 
-### Step 5: Deploy Models with Placement Spec
-
-In the `examples/storage_aware_scheduling` directory, the example configuration files (`config-opt-2.7b.json` and `config-opt-1.3b.json`) are already given.
-
-> Note: Storage aware scheduling currently only supports the "transformers" backend. Support for other backends will come soon.
-
-2. Deploy models with the placement spec files.
-
-```bash
-conda activate sllm
-export LLM_SERVER_URL=http://127.0.0.1:8343
-
-sllm deploy --config config-opt-2.7b.json
-sllm deploy --config config-opt-1.3b.json
+# Check SLLM database for node storage info (from sllm_head container)
+sqlite3 /var/lib/sllm/state.db "SELECT * FROM node_storage;"
 ```
 
-3. Verify the deployment.
+## Comparison with v1-alpha
 
-```bash
-curl $LLM_SERVER_URL/v1/chat/completions \
--H "Content-Type: application/json" \
--d '{
-        "model": "facebook/opt-2.7b",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "What is your name?"}
-        ]
-    }'
-
-curl $LLM_SERVER_URL/v1/chat/completions \
--H "Content-Type: application/json" \
--d '{
-        "model": "facebook/opt-1.3b",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "What is your name?"}
-        ]
-    }'
-```
-
-As shown in the log message, the model "facebook/opt-2.7b" is scheduled on server 0, while the model "facebook/opt-1.3b" is scheduled on server 1.
-
-```log
-(StorageAwareScheduler pid=1543) INFO 11-12 23:48:27 storage_aware_scheduler.py:137] Sorted scheduling options: [('0', 4.583079601378258)]
-(StorageAwareScheduler pid=1543) INFO 11-12 23:48:27 storage_aware_scheduler.py:144] Allocated node 0 for model facebook/opt-2.7b
-(StorageAwareScheduler pid=1543) INFO 11-12 23:48:38 storage_aware_scheduler.py:137] Sorted scheduling options: [('1', 2.266678696047572)]
-(StorageAwareScheduler pid=1543) INFO 11-12 23:48:38 storage_aware_scheduler.py:144] Allocated node 1 for model facebook/opt-1.3b
-```
-
-### Step 6: Clean Up
-
-Delete the model deployment by running the following command:
-
-```bash
-sllm delete facebook/opt-1.3b facebook/opt-2.7b
-```
-
-If you need to stop and remove the containers, you can use the following commands:
-
-```bash
-docker compose down
-```
-
+| Aspect | v1-alpha | v1-beta |
+|--------|----------|---------|
+| Enable flag | `--enable-storage-aware` required | Always enabled (default) |
+| Component | `StorageAwareScheduler` class | `StorageManager.select_best_node()` |
+| Integration | Separate scheduler process | Built into Reconciler |
+| Configuration | Config files with placement specs | Automatic, no config needed |

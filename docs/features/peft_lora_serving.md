@@ -1,6 +1,11 @@
 ---
 sidebar_position: 2
 ---
+
+:::warning
+**Note: LoRA serving is not yet available in v1-beta.** The `transformers` backend required for LoRA is not integrated with the Pylet-based architecture. This documentation is kept as a reference for the upcoming implementation.
+:::
+
 # PEFT LoRA Serving
 
 This example illustrates the process of deploying and serving a base large language model enhanced with LoRA (Low-Rank Adaptation) adapters in a ServerlessLLM cluster. It demonstrates how to start the cluster, deploy a base model with multiple LoRA adapters, perform inference using different adapters, and update or remove the adapters dynamically.
@@ -19,7 +24,7 @@ We will use the following example base model & LoRA adapters
 
 ## Usage
 
-Start a local Docker-based ray cluster using Docker Compose.
+Start a local Docker-based cluster using Docker Compose.
 
 ### Step 1: Download the Docker Compose File
 
@@ -53,7 +58,7 @@ Start the ServerlessLLM services using Docker Compose:
 docker compose up -d
 ```
 
-This command will start the Ray head node and two worker nodes defined in the `docker-compose.yml` file.
+This command will start the Pylet head node and worker nodes defined in the `docker-compose.yml` file.
 
 :::tip
 Use the following command to monitor the logs of the head node:
@@ -108,7 +113,7 @@ sllm deploy --model facebook/opt-125m --backend transformers --enable-lora --lor
 
 Delete the lora adapters by running the following command (this command will only delete lora adapters, the base model won't be deleted):
 ```bash
-sllm delete facebook/opt-125m --lora-adapters "demo-lora1 demo-lora2"
+sllm delete facebook/opt-125m --backend transformers --lora-adapters "demo-lora1 demo-lora2"
 ```
 If you need to stop and remove the containers, you can use the following commands:
 ```bash

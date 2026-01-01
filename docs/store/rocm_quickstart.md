@@ -144,7 +144,7 @@ Currently, `pip install .` does not work with ROCm. We suggest you build `sllm-s
 
 
 
-If there's a customized PyTorch version installed, you may need to run the following command to modify the `torch` version in `requirements.txt`:
+1. If there's a customized PyTorch version installed, you may need to run the following command to modify the `torch` version in `requirements.txt`:
 
 ```bash
 python3 using_existing_torch.py

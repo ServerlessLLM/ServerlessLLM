@@ -19,7 +19,7 @@ You can add more worker machines with GPUs as needed to scale out your deploymen
 Ensure you have the following installed and configured on all machines (both head node and worker machines):
 
 1. **Docker**: Installed on your system. You can download it from [here](https://docs.docker.com/get-docker/).
-2. **Network connectivity**: Ensure all machines can communicate with each other on the required ports (6379 for Ray, 8343 for ServerlessLLM API, and 8073 for storage service).
+2. **Network connectivity**: Ensure all machines can communicate with each other on the required ports (8000 for Pylet, 8343 for ServerlessLLM API, and 8080-8179 for vLLM instance ports).
 
 :::tip
 The **ServerlessLLM CLI** (`pip install serverless-llm`) can be installed on any machine that needs to manage model deployments. This could be your local computer or any machine within the cluster that can connect to the head node.
@@ -34,11 +34,13 @@ These requirements are only necessary for the worker machines that will run the 
 
 ## Multi-Machine Setup
 
-We'll start a head node on one machine using Docker, then add a worker node from another machine using Docker containers with host networking.
+We'll start a Pylet head (cluster manager) on one machine, then add a Pylet worker node from another machine, and finally start the SLLM head (control plane) using Docker containers with host networking.
 
-### Step 1: Start the Head Node
+### Step 1: Start the Pylet Head Node
 
-1. **Start the head node using Docker:**
+The Pylet head is the cluster manager that coordinates workers and schedules GPU instances.
+
+1. **Start the Pylet head node using Docker:**
 
 ```bash
 # Get the machine's IP address that will be accessible to other machines
@@ -46,55 +48,40 @@ export HEAD_IP=$(hostname -I | awk '{print $1}')
 echo "Head node IP address: $HEAD_IP"
 
 docker run -d \
-  --name sllm_head \
+  --name pylet_head \
   --network host \
-  -e MODE=HEAD \
-  -e RAY_NODE_IP=$HEAD_IP \
-  serverlessllm/sllm:latest
+  python:3.10-slim \
+  sh -c "pip install pylet httpx && pylet start"
 ```
 
 :::important
-For multi-machine setups, setting the `RAY_NODE_IP` is critical. It should be set to an IP address that is accessible from all worker machines. The command above attempts to automatically determine your machine's primary IP, but in complex network environments, you may need to specify it manually.
+For multi-machine setups, make note of the `HEAD_IP`. This IP address must be accessible from all worker machines. The command above attempts to automatically determine your machine's primary IP, but in complex network environments, you may need to specify it manually.
 
 If your machine has multiple network interfaces, ensure you use the IP that other machines in your network can access.
 :::
 
 :::tip
-If you don't have the ServerlessLLM Docker image locally, Docker will automatically pull it from the registry. You can also adjust the CPU and resource allocations by setting additional environment variables like `RAY_NUM_CPUS` and `RAY_RESOURCES`.
+If you don't have the Docker image locally, Docker will automatically pull it from the registry.
 :::
 
-2. **Verify the head node is running and note the external IP:**
+2. **Verify the Pylet head node is running:**
 
 ```bash
-docker logs sllm_head
+curl http://localhost:8000/workers
 ```
 
-Expected output should include:
+Expected output should show an empty worker list initially:
 
-```bash
-> docker logs sllm_head
-...
-2025-05-29 14:29:46,211	INFO scripts.py:744 -- Local node IP: 129.215.164.107
-...
-(SllmController pid=380) INFO 05-29 14:29:53 controller.py:59] Starting store manager
-(SllmController pid=380) INFO 05-29 14:29:56 controller.py:68] Starting scheduler
-(StoreManager pid=417) INFO 05-29 14:29:56 store_manager.py:226] Initializing store manager
-(StoreManager pid=417) INFO 05-29 14:29:56 store_manager.py:237] Initializing cluster and collecting hardware info
-(StoreManager pid=417) ERROR 05-29 14:29:56 store_manager.py:242] No worker nodes found
-INFO:     Started server process [1]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8343 (Press CTRL+C to quit)
-(FcfsScheduler pid=456) INFO 05-29 14:29:56 fcfs_scheduler.py:54] Starting FCFS scheduler
-(FcfsScheduler pid=456) INFO 05-29 14:29:56 fcfs_scheduler.py:111] Starting control loop
+```json
+[]
 ```
 
-Make note of the IP address shown in the logs. This is the address that worker nodes will use to connect to the head node.
+Make note of the IP address of this machine. This is the address that worker nodes will use to connect to the Pylet head.
 
-### Step 2: Start Worker Node on a Different Machine
+### Step 2: Start Pylet Worker Node on a Different Machine
 
 :::tip
-You can adjust the memory pool size and other parameters based on the resources available on your worker machine.
+You can adjust the GPU units and other parameters based on the resources available on your worker machine.
 :::
 
 1. **On the worker machine, create a directory for model storage:**
@@ -106,93 +93,110 @@ export MODEL_FOLDER=/path/to/your/models
 
 Replace `/path/to/your/models` with the actual path where you want to store the models.
 
-2. **Start the worker node:**
+2. **Start the Pylet worker node:**
 
 ```bash
-# Replace with the actual IP address of the head node from the previous step
+# Replace with the actual IP address of the Pylet head node from the previous step
 # DO NOT copy-paste this line directly - update with your actual head node IP
 export HEAD_IP=<HEAD_NODE_IP>
 ```
 
 ```bash
-# Get the worker machine's IP address that will be accessible to the head node
-export WORKER_IP=$(hostname -I | awk '{print $1}')
-echo "Worker node IP address: $WORKER_IP"
-
 docker run -d \
-  --name sllm_worker_0 \
+  --name pylet_worker_0 \
   --network host \
   --gpus '"device=0"' \
-  -e WORKER_ID=0 \
+  -e MODE=PYLET_WORKER \
+  -e PYLET_HEAD=${HEAD_IP}:8000 \
+  -e GPU_UNITS=1 \
   -e STORAGE_PATH=/models \
-  -e MODE=WORKER \
-  -e RAY_HEAD_ADDRESS=${HEAD_IP}:6379 \
-  -e RAY_NODE_IP=$WORKER_IP \
   -v ${MODEL_FOLDER}:/models \
-  serverlessllm/sllm:latest \
-  --mem-pool-size 4GB --registration-required true
+  serverlessllm/sllm:latest
 ```
 
 :::important
-For multi-machine setups, setting the `RAY_NODE_IP` on worker nodes is just as critical as on the head node. It should be set to an IP address that is accessible from the head node. Without this, workers might report internal Docker IPs that aren't accessible across machines.
+For multi-machine setups, ensure the `PYLET_HEAD` environment variable points to the correct IP address and port (8000) of the Pylet head node.
 
-Make sure to replace `192.168.1.100` with the actual IP address of your head node that you noted earlier.
+Make sure to replace `<HEAD_NODE_IP>` with the actual IP address of your Pylet head node that you noted earlier.
 :::
 
 3. **Verify worker node is connected:**
 
-On the worker machine, check if the worker has properly connected to the Ray cluster:
+On the head node machine, check if the worker has properly connected to the Pylet cluster:
 
 ```bash
-docker exec -it sllm_worker_0 bash -c "source /opt/conda/etc/profile.d/conda.sh && conda activate worker && ray status"
+curl http://localhost:8000/workers
 ```
 
-Expected output should include both the head node and worker node resources:
+Expected output should include the worker node:
 
-```bash
-> docker exec -it sllm_worker_0 bash -c "source /opt/conda/etc/profile.d/conda.sh && conda activate worker && ray status"
-======== Autoscaler status: 2025-05-29 14:42:30.434645 ========
-Node status
----------------------------------------------------------------
-Active:
- 1 node_f0a8e97ca64c64cebd551f469a38d0d66ce304f7cc1cc9696fe33cf3
- 1 node_3b7db178afb8bdb16460d0cb6463dc7b9b3afbcc00753c3be110c9b3
-Pending:
- (no pending nodes)
-Recent failures:
- (no failures)
-
-Resources
----------------------------------------------------------------
-Usage:
- 3.0/52.0 CPU
- 0.0/1.0 GPU
- 0.30000000000000004/1.0 control_node
- 0B/526.36GiB memory
- 0B/18.63GiB object_store_memory
- 0.0/1.0 worker_id_0
- 0.0/1.0 worker_node
-
-Demands:
- (no resource demands)
+```json
+[
+  {
+    "id": "worker-0",
+    "gpu_units": 1,
+    "status": "ready"
+  }
+]
 ```
 
-This output confirms that both the head node and worker node are properly connected and their resources are recognized by the Ray cluster.
+This output confirms that the worker node is properly connected and its resources are recognized by the Pylet cluster.
 
 :::tip
 **Adding more worker nodes:** You can add more worker nodes by repeating Step 2 on additional machines with GPUs. Just make sure to:
-1. Use a unique `WORKER_ID` for each worker (1, 2, 3, etc.)
-2. Point each worker to the same head node IP address
-3. Ensure each worker has its own `RAY_NODE_IP` set correctly
+1. Use a unique container name for each worker (e.g., `pylet_worker_1`, `pylet_worker_2`, etc.)
+2. Point each worker to the same Pylet head IP address
+3. Adjust `GPU_UNITS` based on the number of GPUs available on each worker
 :::
 
-### Step 3: Use `sllm` to manage models
+### Step 3: Start the SLLM Head Node
+
+The SLLM head is the control plane that provides the API gateway, load balancing, and autoscaling.
+
+1. **On the same machine as the Pylet head (or another machine), start the SLLM head:**
+
+```bash
+# Replace with the actual IP address of the Pylet head node
+export HEAD_IP=<HEAD_NODE_IP>
+
+docker run -d \
+  --name sllm_head \
+  --network host \
+  -e MODE=HEAD \
+  -e PYLET_ENDPOINT=http://${HEAD_IP}:8000 \
+  -e STORAGE_PATH=/models \
+  -v ${MODEL_FOLDER}:/models \
+  serverlessllm/sllm:latest
+```
+
+2. **Verify the SLLM head is running:**
+
+```bash
+docker logs sllm_head
+```
+
+Expected output should include:
+
+```bash
+Starting SLLM head (v1-beta)...
+  Host: 0.0.0.0
+  Port: 8343
+  Pylet: http://<HEAD_NODE_IP>:8000
+  Database: /var/lib/sllm/state.db
+  Storage: /models
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8343 (Press CTRL+C to quit)
+```
+
+### Step 4: Use `sllm` to manage models
 
 #### Configure the Environment
 
 **On any machine with `sllm` installed, set the `LLM_SERVER_URL` environment variable:**
 
-> Replace `<HEAD_NODE_IP>` with the actual IP address of the head node.
+> Replace `<HEAD_NODE_IP>` with the actual IP address of the SLLM head node.
 
 ```bash
 export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343
@@ -201,7 +205,7 @@ export LLM_SERVER_URL=http://<HEAD_NODE_IP>:8343
 #### Deploy a Model Using `sllm`
 
 ```bash
-sllm deploy --model facebook/opt-1.3b
+sllm deploy --model facebook/opt-1.3b --backend vllm
 ```
 
 > Note: This command will spend some time downloading the model from the Hugging Face Model Hub. You can use any model from the [Hugging Face Model Hub](https://huggingface.co/models) by specifying the model name in the `--model` argument.
@@ -212,7 +216,7 @@ Expected output:
 INFO 07-24 06:51:32 deploy.py:83] Model registered successfully.
 ```
 
-### Step 4: Query the Model Using OpenAI API Client
+### Step 5: Query the Model Using OpenAI API Client
 
 **You can query the model using any OpenAI API client. For example, use the following command:**
 
@@ -225,6 +229,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
         "model": "facebook/opt-1.3b",
+        "backend": "vllm",
         "messages": [
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": "What is your name?"}
@@ -235,7 +240,7 @@ curl $LLM_SERVER_URL/v1/chat/completions \
 Expected output:
 
 ```json
-{"id":"chatcmpl-23d3c0e5-70a0-4771-acaf-bcb2851c6ea6","object":"chat.completion","created":1721706121,"model":"facebook/opt-1.3b","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}
+{"id":"chatcmpl-23d3c0e5-70a0-4771-acaf-bcb2851c6ea6","object":"chat.completion","created":1721706121,"model":"facebook/opt-1.3b:vllm","choices":[{"index":0,"message":{"role":"assistant","content":"system: You are a helpful assistant.\nuser: What is your name?\nsystem: I am a helpful assistant.\n"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":16,"completion_tokens":26,"total_tokens":42}}
 ```
 
 #### Delete a Deployed Model Using `sllm`
@@ -243,7 +248,7 @@ Expected output:
 When you're done using a model, you can delete it:
 
 ```bash
-sllm delete facebook/opt-1.3b
+sllm delete facebook/opt-1.3b --backend vllm
 ```
 
 This will remove the specified model from the ServerlessLLM server.
@@ -256,12 +261,12 @@ To stop and remove all ServerlessLLM containers:
 
 ```bash
 # On head node machine
-docker stop sllm_head
-docker rm sllm_head
+docker stop sllm_head pylet_head
+docker rm sllm_head pylet_head
 
 # On each worker machine
-docker stop sllm_worker_0  # Use appropriate container name (sllm_worker_1, sllm_worker_2, etc.)
-docker rm sllm_worker_0
+docker stop pylet_worker_0  # Use appropriate container name (pylet_worker_1, pylet_worker_2, etc.)
+docker rm pylet_worker_0
 ```
 
 2. **Optional: Remove the Docker image:**
@@ -270,27 +275,24 @@ docker rm sllm_worker_0
 docker rmi serverlessllm/sllm:latest
 ```
 
-:::tip
-If you don't have the ServerlessLLM Docker image locally, Docker will automatically pull it from the registry. You can also adjust the CPU and resource allocations by setting additional environment variables like `RAY_NUM_CPUS` and `RAY_RESOURCES`.
-:::
-
 ## Troubleshooting
 
 ### Network Issues
 
-1. **Connection refused errors**: Ensure that firewalls on all machines allow traffic on ports 6379, 8343, and 8073.
+1. **Connection refused errors**: Ensure that firewalls on all machines allow traffic on ports 8000 (Pylet), 8343 (SLLM API), and 8080-8179 (vLLM instance ports).
 
-2. **Ray cluster connection issues**:
-   - Verify that the head node IP address is correct and that the Ray port (6379) is accessible from worker machines
-   - Ensure both head and worker nodes have their `RAY_NODE_IP` set to an IP address that is accessible from other machines
+2. **Pylet cluster connection issues**:
+   - Verify that the Pylet head IP address is correct and that port 8000 is accessible from worker machines
    - Check that you're not using private Docker network IPs (typically 172.x.x.x) which aren't accessible across machines
 
-3. **Workers can't connect to head node**:
-   - Make sure the `RAY_HEAD_ADDRESS` points to the external IP of the head node, not localhost or an internal Docker IP
-   - Verify network connectivity with `ping` or `telnet` from worker machines to the head node IP on port 6379
+3. **Workers can't connect to Pylet head**:
+   - Make sure the `PYLET_HEAD` environment variable points to the external IP of the Pylet head node, not localhost or an internal Docker IP
+   - Verify network connectivity with `ping` or `curl http://<HEAD_IP>:8000/workers` from worker machines
 
 4. **GPU access issues**: Make sure the NVIDIA Docker toolkit is properly installed and that the `--gpus` flag is used for worker containers.
 
 ### Container Management
 
 - **View running containers**: `docker ps`
+- **Check Pylet cluster status**: `curl http://localhost:8000/workers`
+- **Check Pylet instances**: `curl http://localhost:8000/instances`

@@ -61,7 +61,7 @@ initialize_head_node() {
   echo "  Database: ${DATABASE_PATH}"
   echo "  Storage: ${STORAGE_PATH}"
 
-  exec sllm start head \
+  exec sllm start \
     --host "$HEAD_HOST" \
     --port "$HEAD_PORT" \
     --pylet-endpoint "$PYLET_ENDPOINT" \

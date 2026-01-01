@@ -457,11 +457,13 @@ def deploy_model(
     try:
         response = requests.post(url, headers=headers, json=config_data)
         if response.status_code == 200:
-            backend_used = config_data.get("backend", "vllm")
-            print(
-                f"[✅ SUCCESS] Model '{config_data['model']}' deployed "
-                f"with backend '{backend_used}'."
+            data = response.json()
+            deployment_id = data.get(
+                "deployment_id",
+                f"{config_data['model']}:{config_data.get('backend', 'vllm')}",
             )
+            print(f"Deployment created: {deployment_id}")
+            print(f"  View status: sllm status {deployment_id}")
         else:
             print(
                 f"[❌ ERROR] Deploy failed with status {response.status_code}: {response.text}"
@@ -537,34 +539,140 @@ def delete_deployment(models, backend, lora_adapters=None):
 
 
 # ----------------------------- STATUS COMMAND ----------------------------- #
-def show_status():
-    """Query the information of registered deployments."""
-    endpoint = "/v1/models"
+def _fetch_status():
+    """Fetch cluster status from /status endpoint."""
     base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
-    url = base_url.rstrip("/") + endpoint
-    headers = {"Content-Type": "application/json"}
+    url = f"{base_url.rstrip('/')}/status"
+    response = requests.get(url)
+    response.raise_for_status()
+    return response.json()
 
+
+def show_status(deployment_id: Optional[str] = None, show_nodes: bool = False):
+    """Show cluster status."""
     try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                # Support both "data" (new) and "models" (legacy) keys
-                deployments = data.get("data", data.get("models", []))
-                if deployments:
-                    print("Deployment status retrieved successfully:")
-                    for deployment in deployments:
-                        if isinstance(deployment, dict) and "id" in deployment:
-                            print(f"- {deployment['id']}")
-                        else:
-                            print(f"- {deployment}")
-                else:
-                    print("No deployments currently registered.")
-            except ValueError:
-                print("[❌ ERROR] Invalid JSON received from server.")
-        else:
-            print(
-                f"[❌ ERROR] Failed with status {response.status_code}: {response.text}"
-            )
+        data = _fetch_status()
     except requests.exceptions.RequestException as e:
-        print(f"[EXCEPTION] Failed to query status: {str(e)}")
+        print(f"Error: Failed to connect to server: {e}")
+        sys.exit(1)
+
+    if show_nodes:
+        _show_nodes(data.get("nodes", []))
+    elif deployment_id:
+        _show_deployment_detail(data, deployment_id)
+    else:
+        _show_deployments_table(data.get("deployments", []))
+
+
+def _show_deployments_table(deployments: List[dict]):
+    """Show deployments in table format."""
+    if not deployments:
+        print("No deployments.")
+        return
+
+    # Column widths
+    id_width = max(len("DEPLOYMENT"), max(len(d["id"]) for d in deployments))
+    status_width = len("STATUS")
+    replica_width = len("REPLICAS")
+
+    # Header
+    print(
+        f"{'DEPLOYMENT':<{id_width}}  "
+        f"{'STATUS':<{status_width}}  "
+        f"{'REPLICAS':<{replica_width}}"
+    )
+
+    # Rows
+    for d in deployments:
+        ready = d.get("ready_replicas", 0)
+        desired = d.get("desired_replicas", 0)
+        replica_str = f"{ready}/{desired}"
+        print(
+            f"{d['id']:<{id_width}}  "
+            f"{d['status']:<{status_width}}  "
+            f"{replica_str:<{replica_width}}"
+        )
+
+
+def _show_deployment_detail(data: dict, deployment_id: str):
+    """Show detailed info for a single deployment."""
+    deployments = data.get("deployments", [])
+    deployment = next(
+        (d for d in deployments if d["id"] == deployment_id), None
+    )
+
+    if not deployment:
+        print(f"Deployment '{deployment_id}' not found.")
+        sys.exit(1)
+
+    ready = deployment.get("ready_replicas", 0)
+    desired = deployment.get("desired_replicas", 0)
+
+    print(f"Deployment: {deployment['id']}")
+    print(f"Status:     {deployment['status']}")
+    print(f"Replicas:   {ready}/{desired}")
+    print()
+
+    instances = deployment.get("instances", [])
+    if instances:
+        print("Instances:")
+        # Column widths
+        id_width = max(len("ID"), max(len(i["id"]) for i in instances))
+        node_width = max(
+            len("NODE"), max(len(i.get("node", "-")) for i in instances)
+        )
+        ep_width = max(
+            len("ENDPOINT"), max(len(i.get("endpoint", "-")) for i in instances)
+        )
+        status_width = max(
+            len("STATUS"), max(len(i.get("status", "-")) for i in instances)
+        )
+
+        print(
+            f"  {'ID':<{id_width}}  "
+            f"{'NODE':<{node_width}}  "
+            f"{'ENDPOINT':<{ep_width}}  "
+            f"{'STATUS':<{status_width}}"
+        )
+
+        for inst in instances:
+            print(
+                f"  {inst['id']:<{id_width}}  "
+                f"{inst.get('node', '-'):<{node_width}}  "
+                f"{inst.get('endpoint', '-'):<{ep_width}}  "
+                f"{inst.get('status', '-'):<{status_width}}"
+            )
+    else:
+        print("Instances: (none)")
+
+
+def _show_nodes(nodes: List[dict]):
+    """Show nodes in table format."""
+    if not nodes:
+        print("No nodes.")
+        return
+
+    # Column widths
+    name_width = max(len("NODE"), max(len(n.get("name", "-")) for n in nodes))
+    status_width = max(
+        len("STATUS"), max(len(n.get("status", "-")) for n in nodes)
+    )
+    gpu_width = len("GPUS")
+
+    # Header
+    print(
+        f"{'NODE':<{name_width}}  "
+        f"{'STATUS':<{status_width}}  "
+        f"{'GPUS':<{gpu_width}}"
+    )
+
+    # Rows
+    for n in nodes:
+        available = n.get("available_gpus", 0)
+        total = n.get("total_gpus", 0)
+        gpu_str = f"{available}/{total}"
+        print(
+            f"{n.get('name', '-'):<{name_width}}  "
+            f"{n.get('status', '-'):<{status_width}}  "
+            f"{gpu_str:<{gpu_width}}"
+        )
