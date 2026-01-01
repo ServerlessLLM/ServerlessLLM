@@ -99,7 +99,7 @@ class AutoScaler:
         if demand > 0:
             desired = math.ceil(demand / target_pending_requests)
         else:
-            desired = min_instances
+            desired = 0
 
         desired = max(min_instances, min(desired, max_instances))
         effective_capacity = current_instances + limbo_up - limbo_down
