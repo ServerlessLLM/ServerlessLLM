@@ -1,0 +1,212 @@
+[
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_25",
+        "loading_time": 2.8188066482543945,
+        "end_to_end_time": 1.1001033782958984,
+        "throughput": 55.449334311191095,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_19",
+        "loading_time": 2.785247802734375,
+        "end_to_end_time": 0.818810224533081,
+        "throughput": 74.49833694344093,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_26",
+        "loading_time": 2.720197916030884,
+        "end_to_end_time": 0.8360302448272705,
+        "throughput": 72.96386748855362,
+        "output_text": "The quick brown fox jumps over the lazy dog. This is a well-known pangram, a sentence that uses all the letters of the alphabet at least once. It has been used as a demonstration of a font or keyboard's capabilities.\nIn a previous post, I mentioned that I was experimenting with a"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_1",
+        "loading_time": 4.400865793228149,
+        "end_to_end_time": 0.8157739639282227,
+        "throughput": 74.77561517931356,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_6",
+        "loading_time": 4.540167808532715,
+        "end_to_end_time": 0.8228764533996582,
+        "throughput": 74.13020478102472,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence is known as a pangram, a sentence that uses all the letters of the alphabet at least once. It is often used to demonstrate a font or keyboard.\nThe sentence was first published in 1886 in a book called \"The C"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_29",
+        "loading_time": 2.721191644668579,
+        "end_to_end_time": 0.8179128170013428,
+        "throughput": 74.58007593479228,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_16",
+        "loading_time": 4.661416053771973,
+        "end_to_end_time": 0.8216738700866699,
+        "throughput": 74.23870007399132,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_15",
+        "loading_time": 4.615709066390991,
+        "end_to_end_time": 0.8215668201446533,
+        "throughput": 74.24837335721485,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The five boxing wizards jump quickly. The five boxing wizards jump quickly. The five boxing wizards jump quickly. The five boxing wizards jump quickly. The five boxing wizards jump quickly. The five boxing wizards jump quickly. The"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_20",
+        "loading_time": 4.7755701541900635,
+        "end_to_end_time": 0.8472378253936768,
+        "throughput": 71.99867401063662,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence is often used as a demonstration of a typewriter or keyboard's capabilities, as it contains all 26 letters of the alphabet at least once. The sentence is known as a pangram, a phrase that uses every letter of the alphabet at"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_24",
+        "loading_time": 2.848921298980713,
+        "end_to_end_time": 0.8400042057037354,
+        "throughput": 72.61868403253489,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_18",
+        "loading_time": 4.833909511566162,
+        "end_to_end_time": 0.836395263671875,
+        "throughput": 72.93202466523151,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence is often used as a demonstration of a font or keyboard because it contains all 26 letters of the alphabet.\nThe quick brown fox jumps over the lazy dog. This sentence is often used as a demonstration of a font or keyboard because it contains"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_17",
+        "loading_time": 4.72443699836731,
+        "end_to_end_time": 0.8324835300445557,
+        "throughput": 73.27472292062666,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_14",
+        "loading_time": 4.653977155685425,
+        "end_to_end_time": 0.8370347023010254,
+        "throughput": 72.8763094675881,
+        "output_text": "The quick brown fox jumps over the lazy dog. This is a famous pangram, a sentence that uses all the letters of the alphabet at least once. It is often used as a demonstration of a font or keyboard.\nPangram sentences are typically short, and they are often used in typing demonstrations"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_0",
+        "loading_time": 4.528665542602539,
+        "end_to_end_time": 0.8198962211608887,
+        "throughput": 74.3996598906509,
+        "output_text": "The quick brown fox jumps over the lazy dog. This is a sentence that contains all the letters of the alphabet at least once. It is often used as a demonstration of a font or keyboard.\nThe quick brown fox jumps over the lazy dog. This is a sentence that contains all the letters of the"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_7",
+        "loading_time": 4.484553575515747,
+        "end_to_end_time": 0.8273334503173828,
+        "throughput": 73.73085178243318,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_22",
+        "loading_time": 4.44885516166687,
+        "end_to_end_time": 0.8312444686889648,
+        "throughput": 73.38394695871953,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_13",
+        "loading_time": 4.454829216003418,
+        "end_to_end_time": 0.8260321617126465,
+        "throughput": 73.84700357613944,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly at the five boxing wizards jump quickly at the five boxing wizards jump quickly. Pack my box with five dozen liquor jugs.\nThe quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly at the five"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_11",
+        "loading_time": 4.452623128890991,
+        "end_to_end_time": 0.8291382789611816,
+        "throughput": 73.57035798229728,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_4",
+        "loading_time": 4.8243608474731445,
+        "end_to_end_time": 0.8245749473571777,
+        "throughput": 73.97750828534072,
+        "output_text": "The quick brown fox jumps over the lazy dog. This is a common sentence used to demonstrate the use of all the letters in the alphabet. It is often used in typing and keyboarding demonstrations. It is a pangram, a sentence that uses all the letters of the alphabet at least once. It"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_5",
+        "loading_time": 5.649550914764404,
+        "end_to_end_time": 0.9067432880401611,
+        "throughput": 67.27372653824179,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_21",
+        "loading_time": 5.295279502868652,
+        "end_to_end_time": 0.8111667633056641,
+        "throughput": 75.20031978555556,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_12",
+        "loading_time": 4.327012062072754,
+        "end_to_end_time": 0.838144063949585,
+        "throughput": 72.77985089168298,
+        "output_text": "The quick brown fox jumps over the lazy dog. This is a sentence that is often used to demonstrate a font or keyboard layout because it contains all the letters of the alphabet at least once.\nThis sentence is known as a pangram, a sentence that uses all the letters of the alphabet at least once"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_9",
+        "loading_time": 4.28073263168335,
+        "end_to_end_time": 0.8350009918212891,
+        "throughput": 73.05380544153356,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_23",
+        "loading_time": 4.335219144821167,
+        "end_to_end_time": 0.8653533458709717,
+        "throughput": 70.49143600248516,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence is commonly used as a demonstration of a typist's skills, as it contains all the letters of the alphabet at least once.\nThe quick brown fox jumps over the lazy dog.\nThe quick brown fox jumps over the lazy dog.\nThe quick"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_3",
+        "loading_time": 4.380849838256836,
+        "end_to_end_time": 0.8605568408966064,
+        "throughput": 70.88433570110796,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_28",
+        "loading_time": 4.33679723739624,
+        "end_to_end_time": 0.8252482414245605,
+        "throughput": 73.9171523646031,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_10",
+        "loading_time": 4.672279119491577,
+        "end_to_end_time": 0.8293852806091309,
+        "throughput": 73.54844777954025,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_2",
+        "loading_time": 6.033998489379883,
+        "end_to_end_time": 0.8231675624847412,
+        "throughput": 74.10398900543501,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence is known as a pangram, a sentence that uses all the letters of the alphabet at least once. It is often used as a demonstration of a font or keyboard.\nThis is a sentence that uses all the letters of the alphabet at least"
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_8",
+        "loading_time": 6.257131576538086,
+        "end_to_end_time": 0.8226101398468018,
+        "throughput": 74.15420385087921,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "meta-llama/Llama-3.1-8B-Instruct_27",
+        "loading_time": 5.2319557666778564,
+        "end_to_end_time": 0.8415770530700684,
+        "throughput": 72.48296490199245,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    }
+]

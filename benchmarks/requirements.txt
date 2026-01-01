@@ -1,0 +1,21 @@
+accelerate
+addict
+easydict
+matplotlib
+pandas
+
+# For DeepSeek-OCR (vision-language model)
+pillow
+
+# For GPT-oss-20b
+# Uses standard transformers, no extra deps needed
+
+# Reporting
+seaborn
+sentencepiece
+tokenizers>=0.20.3
+torch>=2.0.0
+tqdm
+# Additional dependencies for benchmark models
+# Core dependencies
+transformers>=4.46.3
