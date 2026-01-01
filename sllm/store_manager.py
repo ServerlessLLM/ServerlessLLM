@@ -26,6 +26,7 @@ import ray
 from sllm.hardware_info_collector import collect_all_info
 from sllm.logger import init_logger
 from sllm.model_downloader import (
+    SglangModelDownloader,
     VllmModelDownloader,
     download_lora_adapter,
     download_transformers_model,
@@ -79,9 +80,10 @@ class SllmLocalStore:
             if backend == "transformers":
                 model_size = self.client.register_model(model_path)
                 self.disk_models[model_name] = ([model_path], model_size)
-            elif backend == "vllm":
+            elif backend in ["vllm", "sglang"]:
+                # SGLang uses "tp_size", vLLM uses "tensor_parallel_size"
                 tensor_parallel_size = backend_config.get(
-                    "tensor_parallel_size", 1
+                    "tp_size", backend_config.get("tensor_parallel_size", 1)
                 )
                 model_size = 0
                 model_path_list = []
@@ -447,6 +449,18 @@ class StoreManager:
                         backend_config.get("tensor_parallel_size", 1),
                         backend_config.get("torch_dtype", "float16"),
                     )
+                elif backend == "sglang":
+                    await self.download_sglang_model(
+                        model_name,
+                        pretrained_model_name_or_path,
+                        node_id,
+                        model_config.get("num_gpus", 1),
+                        backend_config.get(
+                            "tp_size",
+                            backend_config.get("tensor_parallel_size", 1),
+                        ),
+                        backend_config.get("torch_dtype", "auto"),
+                    )
                 else:
                     logger.error(f"Backend {backend} not supported")
                     break
@@ -539,6 +553,33 @@ class StoreManager:
             .remote()
         )
         return await vllm_backend_downloader.download_vllm_model.remote(
+            model_name,
+            pretrained_model_name_or_path,
+            torch_dtype,
+            tensor_parallel_size,
+        )
+
+    async def download_sglang_model(
+        self,
+        model_name,
+        pretrained_model_name_or_path,
+        node_id,
+        num_gpus,
+        tensor_parallel_size,
+        torch_dtype,
+    ):
+        logger.info(
+            f"Downloading {pretrained_model_name_or_path} to node {node_id}"
+        )
+        sglang_backend_downloader = (
+            ray.remote(SglangModelDownloader)
+            .options(
+                num_gpus=num_gpus,
+                resources={"worker_node": 0.1, f"worker_id_{node_id}": 0.1},
+            )
+            .remote()
+        )
+        return await sglang_backend_downloader.download_sglang_model.remote(
             model_name,
             pretrained_model_name_or_path,
             torch_dtype,
