@@ -215,6 +215,40 @@ class TestRoundRobinLoadBalancing:
         endpoint = router._select_endpoint("unknown-model:vllm")
         assert endpoint is None
 
+    @pytest.mark.asyncio
+    async def test_round_robin_consistent_regardless_of_insertion_order(
+        self, router, database
+    ):
+        """Test that round-robin is consistent regardless of endpoint insertion order.
+
+        This verifies the fix for the SQLite ordering bug - without ORDER BY,
+        endpoints could be returned in different orders, causing the same
+        round-robin index to select different endpoints.
+        """
+        deployment_id = "test-model:vllm"
+
+        # Add endpoints in reverse order (not alphabetical)
+        database.add_deployment_endpoint(deployment_id, "192.168.1.30:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.20:8080")
+
+        # Collect selected endpoints - should cycle in sorted order
+        selected = []
+        for _ in range(6):
+            endpoint = router._select_endpoint(deployment_id)
+            selected.append(endpoint)
+
+        # Should cycle through in sorted order: 10, 20, 30, 10, 20, 30
+        expected = [
+            "192.168.1.10:8080",
+            "192.168.1.20:8080",
+            "192.168.1.30:8080",
+            "192.168.1.10:8080",
+            "192.168.1.20:8080",
+            "192.168.1.30:8080",
+        ]
+        assert selected == expected
+
 
 # ============================================================================ #
 # Cold-Start Buffering Tests
