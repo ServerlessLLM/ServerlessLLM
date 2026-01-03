@@ -333,11 +333,18 @@ class Reconciler:
             deployment: Deployment to create instance for
             existing: Existing instances for storage-aware placement
         """
-        # Get backend config
         backend_config = deployment.backend_config or {}
         tp = backend_config.get("tensor_parallel_size", 1)
 
-        # Select best node
+        download_node = await self.storage_manager.ensure_model_downloaded(
+            deployment.model_name, deployment.backend
+        )
+        if not download_node:
+            logger.warning(
+                f"[{deployment.id}] Failed to download model, cannot create instance"
+            )
+            return
+
         node = await self.storage_manager.select_best_node(
             deployment.model_name, tp, existing
         )
