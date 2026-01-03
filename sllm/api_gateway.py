@@ -174,6 +174,17 @@ def create_app(
         auto_scaling_config = body.get("auto_scaling_config", {})
 
         try:
+            storage_manager = getattr(request.app.state, "storage_manager", None)
+            if storage_manager:
+                node = await storage_manager.ensure_model_downloaded(
+                    model_name, backend
+                )
+                if not node:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Failed to download model {model_name}",
+                    )
+
             # Create deployment in database
             deployment = db.create_deployment(
                 model_name=model_name,

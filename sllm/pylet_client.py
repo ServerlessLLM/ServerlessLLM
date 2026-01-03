@@ -290,6 +290,18 @@ class PyletClient:
         await asyncio.to_thread(instance.wait_running, timeout=timeout)
         return self._to_instance_info(instance)
 
+    async def wait_instance_completed(
+        self, instance_id: str, timeout: int = 600
+    ) -> Optional[InstanceInfo]:
+        await self._ensure_initialized()
+        deadline = asyncio.get_event_loop().time() + timeout
+        while asyncio.get_event_loop().time() < deadline:
+            instance = await asyncio.to_thread(pylet.get, id=instance_id)
+            if instance.status in ("COMPLETED", "FAILED", "STOPPED"):
+                return self._to_instance_info(instance)
+            await asyncio.sleep(2)
+        return None
+
     # -------------------------------------------------------------------------
     # SLLM-Specific Helpers
     # -------------------------------------------------------------------------

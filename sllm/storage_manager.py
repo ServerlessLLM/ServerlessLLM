@@ -28,6 +28,7 @@ Responsibilities:
 """
 
 import asyncio
+import random
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
 
@@ -82,6 +83,7 @@ class StorageManager:
         # In-memory cache view (refreshed from database)
         self._cache_view: Dict[str, Set[str]] = {}  # node_name -> set of models
         self._store_endpoints: Dict[str, str] = {}  # node_name -> endpoint
+        self._download_locks: Dict[str, asyncio.Lock] = {}
 
     async def recover_from_db(self):
         """Recover state from database on startup."""
@@ -421,6 +423,103 @@ class StorageManager:
         )
 
         return best_node
+
+    # -------------------------------------------------------------------------
+    # Model Download
+    # -------------------------------------------------------------------------
+
+    async def download_model(
+        self,
+        model_name: str,
+        backend: str,
+        num_nodes: int = 1,
+        retries: int = 2,
+    ) -> List[str]:
+        lock = self._download_locks.setdefault(model_name, asyncio.Lock())
+        async with lock:
+            existing_nodes = set(self.get_nodes_with_model(model_name))
+            if existing_nodes and num_nodes <= len(existing_nodes):
+                return list(existing_nodes)[:num_nodes]
+
+            workers = await self.pylet_client.get_online_workers()
+            if not workers:
+                logger.warning("No online workers available for model download")
+                return list(existing_nodes) if existing_nodes else []
+
+            available = [w for w in workers if w.worker_id not in existing_nodes]
+            if not available:
+                logger.info(f"Model {model_name} already on all available nodes")
+                return list(existing_nodes)
+
+            targets = random.sample(available, min(num_nodes, len(available)))
+            target_ids = [w.worker_id for w in targets]
+            logger.info(f"Downloading {model_name} to nodes: {target_ids}")
+
+            succeeded = list(existing_nodes)
+            for node in target_ids:
+                for attempt in range(retries):
+                    try:
+                        if await self._download_model_on_node(node, model_name, backend):
+                            succeeded.append(node)
+                            break
+                    except Exception as e:
+                        logger.warning(
+                            f"Download attempt {attempt + 1} failed for "
+                            f"{model_name} on {node}: {e}"
+                        )
+                else:
+                    logger.error(f"Failed to download {model_name} to {node}")
+
+            logger.info(f"Downloaded {model_name} to {len(succeeded)} nodes")
+            return succeeded
+
+    async def ensure_model_downloaded(
+        self, model_name: str, backend: str
+    ) -> Optional[str]:
+        nodes = await self.download_model(model_name, backend, num_nodes=1)
+        return nodes[0] if nodes else None
+
+    async def download_to_nodes(
+        self, model_name: str, backend: str, num_nodes: int = 1
+    ) -> List[str]:
+        return await self.download_model(model_name, backend, num_nodes=num_nodes)
+
+    async def _download_model_on_node(
+        self, node_name: str, model_name: str, backend: str
+    ) -> bool:
+        endpoint = await self.ensure_store_on_node(node_name)
+        if not endpoint:
+            return False
+
+        command = (
+            f"sllm-store save "
+            f"--model {model_name} "
+            f"--backend {backend} "
+            f"--storage-path {self.storage_path}"
+        )
+
+        safe_model = model_name.replace("/", "-")
+        instance = await self.pylet_client.submit(
+            command=command,
+            name=f"download-{safe_model}",
+            target_worker=node_name,
+            gpu_indices=[0],
+            exclusive=False,
+            labels={
+                "type": "model-download",
+                "model": model_name,
+                "node": node_name,
+            },
+            venv=VENV_SLLM_STORE,
+        )
+
+        final = await self.pylet_client.wait_instance_completed(
+            instance.instance_id, timeout=600
+        )
+        if final and final.status == "COMPLETED":
+            logger.info(f"Downloaded {model_name} on {node_name}")
+            return True
+        return False
 
     # -------------------------------------------------------------------------
     # Utilities
