@@ -31,6 +31,7 @@ Terminology:
 - model_name: HuggingFace model name (what users specify in requests)
 """
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import Any, Optional
@@ -176,16 +177,10 @@ def create_app(
         try:
             storage_manager = getattr(request.app.state, "storage_manager", None)
             if storage_manager:
-                node = await storage_manager.ensure_model_downloaded(
-                    model_name, backend
+                asyncio.create_task(
+                    storage_manager.ensure_model_downloaded(model_name, backend)
                 )
-                if not node:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"Failed to download model {model_name}",
-                    )
 
-            # Create deployment in database
             deployment = db.create_deployment(
                 model_name=model_name,
                 backend=backend,

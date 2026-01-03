@@ -498,10 +498,11 @@ class StorageManager:
             f"--storage-path {self.storage_path}"
         )
 
+        import uuid
         safe_model = model_name.replace("/", "-")
         instance = await self.pylet_client.submit(
             command=command,
-            name=f"download-{safe_model}",
+            name=f"download-{safe_model}-{uuid.uuid4().hex[:8]}",
             target_worker=node_name,
             gpu_indices=[0],
             exclusive=False,
