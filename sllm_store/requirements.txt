@@ -6,3 +6,4 @@ grpcio-tools==1.64.0
 peft>=0.16.0
 torch>=2.7.0
 transformers>=4.52.4
+vllm==0.11.2
