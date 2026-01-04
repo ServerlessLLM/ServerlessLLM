@@ -428,61 +428,33 @@ class StorageManager:
     # Model Download
     # -------------------------------------------------------------------------
 
-    async def download_model(
-        self,
-        model_name: str,
-        backend: str,
-        num_nodes: int = 1,
-        retries: int = 2,
-    ) -> List[str]:
+    async def ensure_model_on_node(
+        self, model_name: str, backend: str
+    ) -> Optional[str]:
+        nodes = self.get_nodes_with_model(model_name)
+        if nodes:
+            return nodes[0]
+
         lock = self._download_locks.setdefault(model_name, asyncio.Lock())
+        if lock.locked():
+            logger.debug(f"Download already in progress for {model_name}")
+            return None
+
         async with lock:
-            existing_nodes = set(self.get_nodes_with_model(model_name))
-            if existing_nodes and num_nodes <= len(existing_nodes):
-                return list(existing_nodes)[:num_nodes]
+            nodes = self.get_nodes_with_model(model_name)
+            if nodes:
+                return nodes[0]
 
             workers = await self.pylet_client.get_online_workers()
             if not workers:
                 logger.warning("No online workers available for model download")
-                return list(existing_nodes) if existing_nodes else []
+                return None
 
-            available = [w for w in workers if w.worker_id not in existing_nodes]
-            if not available:
-                logger.info(f"Model {model_name} already on all available nodes")
-                return list(existing_nodes)
+            node = random.choice(workers).worker_id
+            logger.info(f"Downloading {model_name} to {node}")
 
-            targets = random.sample(available, min(num_nodes, len(available)))
-            target_ids = [w.worker_id for w in targets]
-            logger.info(f"Downloading {model_name} to nodes: {target_ids}")
-
-            succeeded = list(existing_nodes)
-            for node in target_ids:
-                for attempt in range(retries):
-                    try:
-                        if await self._download_model_on_node(node, model_name, backend):
-                            succeeded.append(node)
-                            break
-                    except Exception as e:
-                        logger.warning(
-                            f"Download attempt {attempt + 1} failed for "
-                            f"{model_name} on {node}: {e}"
-                        )
-                else:
-                    logger.error(f"Failed to download {model_name} to {node}")
-
-            logger.info(f"Downloaded {model_name} to {len(succeeded)} nodes")
-            return succeeded
-
-    async def ensure_model_downloaded(
-        self, model_name: str, backend: str
-    ) -> Optional[str]:
-        nodes = await self.download_model(model_name, backend, num_nodes=1)
-        return nodes[0] if nodes else None
-
-    async def download_to_nodes(
-        self, model_name: str, backend: str, num_nodes: int = 1
-    ) -> List[str]:
-        return await self.download_model(model_name, backend, num_nodes=num_nodes)
+            success = await self._download_model_on_node(node, model_name, backend)
+            return node if success else None
 
     async def _download_model_on_node(
         self, node_name: str, model_name: str, backend: str
@@ -520,6 +492,9 @@ class StorageManager:
         if final and final.status == "COMPLETED":
             logger.info(f"Downloaded {model_name} on {node_name}")
             return True
+
+        status = final.status if final else "unknown"
+        logger.error(f"Download failed for {model_name} on {node_name}: status={status}")
         return False
 
     # -------------------------------------------------------------------------

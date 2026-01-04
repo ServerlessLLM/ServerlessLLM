@@ -336,21 +336,12 @@ class Reconciler:
         backend_config = deployment.backend_config or {}
         tp = backend_config.get("tensor_parallel_size", 1)
 
-        download_node = await self.storage_manager.ensure_model_downloaded(
+        node = await self.storage_manager.ensure_model_on_node(
             deployment.model_name, deployment.backend
-        )
-        if not download_node:
-            logger.warning(
-                f"[{deployment.id}] Failed to download model, cannot create instance"
-            )
-            return
-
-        node = await self.storage_manager.select_best_node(
-            deployment.model_name, tp, existing
         )
         if not node:
             logger.warning(
-                f"[{deployment.id}] No suitable node for new instance"
+                f"[{deployment.id}] Model not available, waiting for download"
             )
             return
 

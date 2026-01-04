@@ -175,12 +175,6 @@ def create_app(
         auto_scaling_config = body.get("auto_scaling_config", {})
 
         try:
-            storage_manager = getattr(request.app.state, "storage_manager", None)
-            if storage_manager:
-                asyncio.create_task(
-                    storage_manager.ensure_model_downloaded(model_name, backend)
-                )
-
             deployment = db.create_deployment(
                 model_name=model_name,
                 backend=backend,
