@@ -391,9 +391,10 @@ def create_app(
                     f"Model {model_name} not cached, will download to {download_node}"
                 )
             else:
-                logger.warning("No Pylet client, cannot check workers")
-                # No storage manager - assume model will be available (legacy behavior)
-                model_cached = True
+                raise HTTPException(
+                    status_code=503,
+                    detail="Model not cached and Pylet client is unavailable to orchestrate a download.",
+                )
 
         # Parse configuration
         backend_config = body.get("backend_config", {})
