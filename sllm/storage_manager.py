@@ -502,6 +502,16 @@ class StorageManager:
         )
         if final and final.status == "COMPLETED":
             logger.info(f"Downloaded {model_name} on {node_name}")
+            # Update cache view so subsequent calls know the model is available
+            if node_name not in self._cache_view:
+                self._cache_view[node_name] = set()
+            self._cache_view[node_name].add(model_name)
+            # Persist to database
+            self.database.upsert_node_storage(
+                node_name=node_name,
+                sllm_store_endpoint=self._store_endpoints.get(node_name),
+                cached_models=list(self._cache_view[node_name]),
+            )
             return True
 
         status = final.status if final else "unknown"
@@ -512,52 +522,37 @@ class StorageManager:
     _download_model_on_node = download_model_on_node
 
     async def verify_model_on_node(self, node_name: str, model_name: str) -> bool:
-        """Verify that a model is actually cached on a node.
+        """Verify that a model is cached on a node.
 
-        Performs a synchronous check via sllm-store to confirm the model
-        exists on disk, rather than trusting the potentially stale cache.
+        Checks the in-memory cache which is updated immediately after downloads
+        and persisted to the database.
 
         Args:
             node_name: Node to check
             model_name: Model to verify
 
         Returns:
-            True if model is verified to be on node, False otherwise
+            True if model is in cache for this node, False otherwise
         """
-        endpoint = await self.get_store_endpoint(node_name)
-        if not endpoint:
-            logger.warning(f"Cannot verify model on {node_name}: no sllm-store endpoint")
-            return False
+        # Check in-memory cache (updated after downloads in download_model_on_node)
+        if model_name in self._cache_view.get(node_name, set()):
+            logger.debug(f"Model {model_name} verified in cache for {node_name}")
+            return True
 
-        try:
-            import aiohttp
+        # Also check database in case cache was cleared or we restarted
+        node_storage = self.database.get_node_storage(node_name)
+        if node_storage and model_name in node_storage.cached_models:
+            # Update in-memory cache from database
+            if node_name not in self._cache_view:
+                self._cache_view[node_name] = set()
+            self._cache_view[node_name].add(model_name)
+            logger.debug(f"Model {model_name} found in database for {node_name}")
+            return True
 
-            # Query sllm-store for cached models
-            url = f"http://{endpoint}/models"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                    if resp.status != 200:
-                        logger.warning(
-                            f"Failed to verify model on {node_name}: status {resp.status}"
-                        )
-                        return False
-
-                    data = await resp.json()
-                    cached_models = data.get("models", [])
-
-                    if model_name in cached_models:
-                        return True
-                    else:
-                        logger.warning(
-                            f"Model {model_name} not found on {node_name} "
-                            f"(cached: {cached_models})"
-                        )
-                        return False
-
-        except Exception as e:
-            logger.warning(f"Error verifying model on {node_name}: {e}")
-            # On error, fall back to trusting cache
-            return model_name in self._cache_view.get(node_name, set())
+        logger.warning(
+            f"Model {model_name} not found in cache or database for {node_name}"
+        )
+        return False
 
     # -------------------------------------------------------------------------
     # Utilities
