@@ -33,6 +33,7 @@ Terminology:
 
 import asyncio
 import os
+import random
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
@@ -48,6 +49,28 @@ from sllm.router import Router, RouterConfig
 from sllm.storage_manager import StorageManager
 
 logger = init_logger(__name__)
+
+
+async def _select_download_node(pylet: PyletClient) -> str:
+    """Select a random online worker for model download.
+
+    Args:
+        pylet: Pylet client for querying workers
+
+    Returns:
+        Worker ID of selected node
+
+    Raises:
+        HTTPException: If no workers are available
+    """
+    workers = await pylet.get_online_workers()
+    if not workers:
+        raise HTTPException(
+            status_code=503,
+            detail="No worker nodes available for model download",
+        )
+    return random.choice(workers).worker_id
+
 
 # CORS origins
 origins_env = os.getenv("ALLOWED_ORIGINS", "")
@@ -127,7 +150,6 @@ def create_app(
                         continue
 
                     # Check if original download_node is online
-                    import random
                     online_ids = {w.worker_id for w in workers}
                     if deployment.download_node and deployment.download_node in online_ids:
                         download_node = deployment.download_node
@@ -310,15 +332,8 @@ def create_app(
                 )
             else:
                 # Deployment exists but model not cached - trigger download
-                import random
                 if pylet:
-                    workers = await pylet.get_online_workers()
-                    if not workers:
-                        raise HTTPException(
-                            status_code=503,
-                            detail="No worker nodes available for model download",
-                        )
-                    download_node = random.choice(workers).worker_id
+                    download_node = await _select_download_node(pylet)
 
                     # Update deployment to downloading status
                     db.update_deployment_download_status(
@@ -354,15 +369,8 @@ def create_app(
 
         # New deployment - select node for download if model not cached
         if not model_cached:
-            import random
             if pylet:
-                workers = await pylet.get_online_workers()
-                if not workers:
-                    raise HTTPException(
-                        status_code=503,
-                        detail="No worker nodes available for model download",
-                    )
-                download_node = random.choice(workers).worker_id
+                download_node = await _select_download_node(pylet)
                 logger.info(
                     f"Model {model_name} not cached, will download to {download_node}"
                 )
@@ -435,7 +443,7 @@ def create_app(
                 detail="Deployment registration failed due to internal error",
             )
 
-    def _update_status_with_retry(
+    async def _update_status_with_retry(
         db: Database,
         deployment_id: str,
         status: str,
@@ -448,8 +456,6 @@ def create_app(
         Retries on database errors to handle transient failures.
         Returns True if update succeeded, False if deployment was deleted.
         """
-        import time
-
         for attempt in range(max_retries):
             try:
                 updated = db.update_deployment_download_status_if_not_deleting(
@@ -461,12 +467,12 @@ def create_app(
                 return updated
             except Exception as e:
                 if attempt < max_retries - 1:
-                    wait_time = 0.5 * (2 ** attempt)  # Exponential backoff
+                    wait_time = 0.5 * (2**attempt)  # Exponential backoff
                     logger.warning(
                         f"Status update failed for {deployment_id}, "
                         f"retrying in {wait_time}s (attempt {attempt + 1}/{max_retries}): {e}"
                     )
-                    time.sleep(wait_time)
+                    await asyncio.sleep(wait_time)
                 else:
                     logger.critical(
                         f"CRITICAL: Failed to update status for {deployment_id} after "
@@ -490,7 +496,7 @@ def create_app(
 
             if success:
                 # Use conditional update with retry to handle transient DB errors
-                updated = _update_status_with_retry(
+                updated = await _update_status_with_retry(
                     db, deployment_id, status="active", download_node=node_name
                 )
                 if updated:
@@ -501,7 +507,7 @@ def create_app(
                         "skipping status update"
                     )
             else:
-                updated = _update_status_with_retry(
+                updated = await _update_status_with_retry(
                     db,
                     deployment_id,
                     status="failed",
@@ -517,7 +523,7 @@ def create_app(
 
         except Exception as e:
             logger.error(f"Error downloading model for {deployment_id}: {e}")
-            _update_status_with_retry(
+            await _update_status_with_retry(
                 db,
                 deployment_id,
                 status="failed",
@@ -613,11 +619,11 @@ def create_app(
         # Verify deployment exists and is ready for inference
         db: Database = request.app.state.database
         deployment = db.get_deployment(model_name, backend)
-        if not deployment or deployment.status not in ("ready", "active"):
+        if not deployment or deployment.status != "active":
             status_msg = f" (status: {deployment.status})" if deployment else ""
             raise HTTPException(
                 status_code=404,
-                detail=f"Deployment '{deployment_id}' not found or not ready{status_msg}",
+                detail=f"Deployment '{deployment_id}' not found or not active{status_msg}",
             )
 
         # Get router

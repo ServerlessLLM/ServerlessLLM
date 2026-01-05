@@ -236,9 +236,6 @@ class Database:
             ALTER TABLE deployments ADD COLUMN failure_reason TEXT
         """)
 
-        # Migrate existing 'active' status to 'ready' for consistency
-        # (keeping 'active' as an alias, but new deployments use 'ready')
-
         logger.info("Added download tracking columns (v4 migration)")
 
     # -------------------------------------------------------------------------
@@ -457,14 +454,6 @@ class Database:
         conn = self._get_connection()
         rows = conn.execute(
             "SELECT * FROM deployments WHERE status = 'downloading'"
-        ).fetchall()
-        return [self._row_to_deployment(row) for row in rows]
-
-    def get_ready_deployments(self) -> List[Deployment]:
-        """Get all deployments that are ready for instance creation (status='active')."""
-        conn = self._get_connection()
-        rows = conn.execute(
-            "SELECT * FROM deployments WHERE status = 'active'"
         ).fetchall()
         return [self._row_to_deployment(row) for row in rows]
 

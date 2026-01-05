@@ -140,7 +140,7 @@ class Reconciler:
 
         Skip 'pending', 'downloading', 'failed', 'deleting' deployments.
         """
-        deployments = self.database.get_ready_deployments()
+        deployments = self.database.get_active_deployments()
 
         for deployment in deployments:
             try:
@@ -339,14 +339,21 @@ class Reconciler:
         backend_config = deployment.backend_config or {}
         tp = backend_config.get("tensor_parallel_size", 1)
 
-        node = await self.storage_manager.ensure_model_on_node(
-            deployment.model_name, deployment.backend
+        # Try to select best node considering load balancing
+        node = await self.storage_manager.select_best_node(
+            deployment.model_name, tp, existing
         )
+
         if not node:
-            logger.warning(
-                f"[{deployment.id}] Model not available, waiting for download"
+            # No node has the model with enough GPUs - try to download
+            node = await self.storage_manager.ensure_model_on_node(
+                deployment.model_name, deployment.backend
             )
-            return
+            if not node:
+                logger.warning(
+                    f"[{deployment.id}] Model not available, waiting for download"
+                )
+                return
 
         # Verify model is actually on node before scheduling (handles cache staleness)
         model_verified = await self.storage_manager.verify_model_on_node(

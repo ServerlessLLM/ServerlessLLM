@@ -127,32 +127,6 @@ def delete(models, backend, lora_adapters):
 
 
 @cli.command()
-@click.option("--model", required=True, help="Model name from HuggingFace model hub")
-@click.option("--backend", default="vllm", help="Backend framework (e.g., vllm, sglang)")
-@click.option("--num-nodes", default=1, type=int, help="Number of nodes to download to")
-def pull(model, backend, num_nodes):
-    """Pre-download a model to cluster nodes."""
-    base_url = os.getenv("LLM_SERVER_URL", "http://127.0.0.1:8343")
-    url = f"{base_url.rstrip('/')}/pull"
-    click.echo(f"Pulling {model} to {num_nodes} node(s)...")
-    try:
-        response = requests.post(
-            url,
-            headers={"Content-Type": "application/json"},
-            json={"model": model, "backend": backend, "num_nodes": num_nodes},
-        )
-        if response.status_code == 200:
-            nodes = response.json().get("nodes", [])
-            click.echo(f"Model pulled to {len(nodes)} node(s): {', '.join(nodes)}")
-        else:
-            click.echo(f"[ERROR] Pull failed ({response.status_code}): {response.text}")
-            sys.exit(1)
-    except Exception as e:
-        click.echo(f"[ERROR] Failed to pull model: {e}")
-        sys.exit(1)
-
-
-@cli.command()
 @click.option(
     "--host",
     default="0.0.0.0",
