@@ -53,8 +53,7 @@ class Deployment:
     Status values:
     - "pending": Deployment created, checking model availability
     - "downloading": Model download in progress on download_node
-    - "ready": Model downloaded, instances can be created
-    - "active": Alias for "ready" (backward compatibility)
+    - "active": Model available, ready for scaling and instance creation
     - "deleting": Being cleaned up
     - "failed": Download or other operation failed
     """
@@ -462,10 +461,10 @@ class Database:
         return [self._row_to_deployment(row) for row in rows]
 
     def get_ready_deployments(self) -> List[Deployment]:
-        """Get all deployments that are ready for instances (ready or active)."""
+        """Get all deployments that are ready for instance creation (status='active')."""
         conn = self._get_connection()
         rows = conn.execute(
-            "SELECT * FROM deployments WHERE status IN ('ready', 'active')"
+            "SELECT * FROM deployments WHERE status = 'active'"
         ).fetchall()
         return [self._row_to_deployment(row) for row in rows]
 

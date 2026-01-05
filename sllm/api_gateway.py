@@ -101,10 +101,10 @@ def create_app(
                 if sm:
                     nodes_with_model = sm.get_nodes_with_model(deployment.model_name)
                     if nodes_with_model:
-                        # Model is available, mark as ready
+                        # Model is available, mark as active
                         db.update_deployment_download_status(
                             deployment.id,
-                            status="ready",
+                            status="active",
                             download_node=nodes_with_model[0],
                         )
                         logger.info(
@@ -378,7 +378,7 @@ def create_app(
         try:
             # Determine initial status based on model availability
             if model_cached:
-                initial_status = "ready"
+                initial_status = "active"
             else:
                 initial_status = "downloading"
 
@@ -409,10 +409,10 @@ def create_app(
                 )
 
             # Return appropriate response
-            if initial_status == "ready":
+            if initial_status == "active":
                 return {
                     "deployment_id": deployment_id,
-                    "status": "ready",
+                    "status": "active",
                     "message": f"Deployment {deployment_id} registered successfully",
                 }
             else:
@@ -491,10 +491,10 @@ def create_app(
             if success:
                 # Use conditional update with retry to handle transient DB errors
                 updated = _update_status_with_retry(
-                    db, deployment_id, status="ready", download_node=node_name
+                    db, deployment_id, status="active", download_node=node_name
                 )
                 if updated:
-                    logger.info(f"Deployment {deployment_id} is now ready")
+                    logger.info(f"Deployment {deployment_id} is now active")
                 else:
                     logger.info(
                         f"Deployment {deployment_id} was deleted during download, "

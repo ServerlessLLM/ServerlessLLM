@@ -136,9 +136,10 @@ class Reconciler:
         logger.info("Reconciler loop stopped")
 
     async def _reconcile_all(self):
-        """Reconcile all ready deployments (status='ready' or 'active')."""
-        # Only reconcile deployments that are ready for instances
-        # Skip 'pending', 'downloading', 'failed' deployments
+        """Reconcile all active deployments (status='active').
+
+        Skip 'pending', 'downloading', 'failed', 'deleting' deployments.
+        """
         deployments = self.database.get_ready_deployments()
 
         for deployment in deployments:
