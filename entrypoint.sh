@@ -24,9 +24,9 @@ set -e
 DEFAULT_RAY_PORT=6379
 DEFAULT_RAY_RESOURCES_HEAD='{"control_node": 1}'
 DEFAULT_RAY_NUM_CPUS=20
-DEFAULT_RAY_HEAD_ADDRESS="sllm_head:6379"
+DEFAULT_RAY_HEAD_ADDRESS="sllm-head:6379"
 DEFAULT_STORAGE_PATH="/models"
-export STORAGE_PATH=DEFAULT_STORAGE_PATH
+export STORAGE_PATH="/models"
 
 # Source conda
 source /opt/conda/etc/profile.d/conda.sh
@@ -57,6 +57,25 @@ initialize_head_node() {
   # Display and execute the command
   echo "Executing: $CMD"
   eval "$CMD"
+
+  # Wait for at least one worker node to join
+  echo "Waiting for worker nodes to join Ray cluster..."
+  MAX_RETRIES=60
+  RETRY_COUNT=0
+  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    WORKER_COUNT=$(python -c "import ray; ray.init(address='auto'); nodes=[n for n in ray.nodes() if n.get('Resources',{}).get('worker_node',0)>0]; print(len(nodes))" 2>/dev/null || echo "0")
+    if [ "$WORKER_COUNT" -gt 0 ]; then
+      echo "Found $WORKER_COUNT worker node(s)!"
+      break
+    fi
+    echo "No worker nodes found yet, retrying in 10s... ($RETRY_COUNT/$MAX_RETRIES)"
+    sleep 10
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+  done
+
+  if [ "$WORKER_COUNT" -eq 0 ]; then
+    echo "WARNING: No worker nodes found after timeout, starting anyway..."
+  fi
 
   # Start sllm with any additional arguments passed to the script
   echo "Starting sllm with arguments: $@"

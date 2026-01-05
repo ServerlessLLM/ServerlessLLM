@@ -74,6 +74,7 @@ COPY sllm/routers /app/sllm/routers
 COPY sllm/schedulers /app/sllm/schedulers
 COPY sllm/serve /app/sllm/serve
 COPY sllm/*.py /app/sllm/
+COPY examples /app/examples
 COPY README.md /app/
 RUN conda run -n build python setup.py bdist_wheel
 
@@ -125,6 +126,9 @@ RUN conda run -n worker pip install /app/sllm_store/dist/*.whl && \
 
 # Apply vLLM patch in worker environment
 RUN conda run -n worker bash -c "cd /app && ./vllm_patch/patch.sh"
+
+# Copy examples from builder stage
+COPY --from=builder /app/examples /app/examples
 
 # Install MoE-CAP from GitHub for both environments
 RUN git clone https://github.com/Auto-CAP/MoE-CAP.git /app/MoE-CAP && \
