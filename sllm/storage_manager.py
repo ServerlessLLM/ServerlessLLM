@@ -453,7 +453,9 @@ class StorageManager:
             node = random.choice(workers).worker_id
             logger.info(f"Downloading {model_name} to {node}")
 
-            success = await self._download_model_on_node(node, model_name, backend)
+            success = await self._download_model_on_node(
+                node, model_name, backend
+            )
             return node if success else None
 
     async def download_model_on_node(
@@ -471,7 +473,9 @@ class StorageManager:
         """
         endpoint = await self.ensure_store_on_node(node_name)
         if not endpoint:
-            logger.error(f"Cannot download to {node_name}: sllm-store not available")
+            logger.error(
+                f"Cannot download to {node_name}: sllm-store not available"
+            )
             return False
 
         command = (
@@ -482,6 +486,7 @@ class StorageManager:
         )
 
         import uuid
+
         safe_model = model_name.replace("/", "-")
         instance = await self.pylet_client.submit(
             command=command,
@@ -515,13 +520,17 @@ class StorageManager:
             return True
 
         status = final.status if final else "unknown"
-        logger.error(f"Download failed for {model_name} on {node_name}: status={status}")
+        logger.error(
+            f"Download failed for {model_name} on {node_name}: status={status}"
+        )
         return False
 
     # Alias for backward compatibility
     _download_model_on_node = download_model_on_node
 
-    async def verify_model_on_node(self, node_name: str, model_name: str) -> bool:
+    async def verify_model_on_node(
+        self, node_name: str, model_name: str
+    ) -> bool:
         """Verify that a model is cached on a node.
 
         Checks the in-memory cache which is updated immediately after downloads
@@ -536,7 +545,9 @@ class StorageManager:
         """
         # Check in-memory cache (updated after downloads in download_model_on_node)
         if model_name in self._cache_view.get(node_name, set()):
-            logger.debug(f"Model {model_name} verified in cache for {node_name}")
+            logger.debug(
+                f"Model {model_name} verified in cache for {node_name}"
+            )
             return True
 
         # Also check database in case cache was cleared or we restarted
@@ -546,7 +557,9 @@ class StorageManager:
             if node_name not in self._cache_view:
                 self._cache_view[node_name] = set()
             self._cache_view[node_name].add(model_name)
-            logger.debug(f"Model {model_name} found in database for {node_name}")
+            logger.debug(
+                f"Model {model_name} found in database for {node_name}"
+            )
             return True
 
         logger.warning(

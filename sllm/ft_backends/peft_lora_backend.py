@@ -129,15 +129,15 @@ class PeftLoraBackend(SllmFineTuningBackend):
                 return
             device_map = self.backend_config.get("device_map", "auto")
             # Support both 'dtype' (new) and 'torch_dtype' (deprecated) for backward compat
-            dtype = self.backend_config.get("dtype") or self.backend_config.get("torch_dtype", torch.float16)
+            dtype = self.backend_config.get("dtype") or self.backend_config.get(
+                "torch_dtype", torch.float16
+            )
 
             if isinstance(dtype, str):
                 dtype = getattr(torch, dtype, torch.float16)
 
             if dtype is None:
-                logger.warning(
-                    f"Invalid dtype: {dtype}. Using torch.float16"
-                )
+                logger.warning(f"Invalid dtype: {dtype}. Using torch.float16")
                 dtype = torch.float16
 
             # Use default model class if not provided

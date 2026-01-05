@@ -61,7 +61,9 @@ class Deployment:
     id: str  # deployment_id: "meta-llama/Llama-3.1-8B:vllm"
     model_name: str  # HuggingFace model: "meta-llama/Llama-3.1-8B"
     backend: str  # "vllm" or "sglang"
-    status: str  # "pending", "downloading", "ready", "active", "deleting", "failed"
+    status: (
+        str  # "pending", "downloading", "ready", "active", "deleting", "failed"
+    )
     desired_replicas: int
     min_replicas: int
     max_replicas: int
@@ -70,7 +72,9 @@ class Deployment:
     backend_config: Optional[Dict]
     created_at: str
     updated_at: str
-    download_node: Optional[str] = None  # Node where model is being/was downloaded
+    download_node: Optional[str] = (
+        None  # Node where model is being/was downloaded
+    )
     failure_reason: Optional[str] = None  # Reason for failed status
 
     @staticmethod
@@ -297,7 +301,9 @@ class Database:
         except sqlite3.IntegrityError:
             raise ValueError(f"Deployment {deployment_id} already exists")
 
-        logger.info(f"Created deployment {deployment_id} with status={initial_status}")
+        logger.info(
+            f"Created deployment {deployment_id} with status={initial_status}"
+        )
         return self.get_deployment(model_name, backend)
 
     def get_deployment(
@@ -488,8 +494,12 @@ class Database:
             backend_config=backend_config,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
-            download_node=row["download_node"] if "download_node" in row.keys() else None,
-            failure_reason=row["failure_reason"] if "failure_reason" in row.keys() else None,
+            download_node=row["download_node"]
+            if "download_node" in row.keys()
+            else None,
+            failure_reason=row["failure_reason"]
+            if "failure_reason" in row.keys()
+            else None,
         )
 
     # -------------------------------------------------------------------------

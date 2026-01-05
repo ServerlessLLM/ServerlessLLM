@@ -116,13 +116,17 @@ def create_app(
         if not downloading:
             return
 
-        logger.info(f"Recovering {len(downloading)} stale downloading deployments")
+        logger.info(
+            f"Recovering {len(downloading)} stale downloading deployments"
+        )
 
         for deployment in downloading:
             try:
                 # Check if model is now cached
                 if sm:
-                    nodes_with_model = sm.get_nodes_with_model(deployment.model_name)
+                    nodes_with_model = sm.get_nodes_with_model(
+                        deployment.model_name
+                    )
                     if nodes_with_model:
                         # Model is available, mark as active
                         db.update_deployment_download_status(
@@ -151,7 +155,10 @@ def create_app(
 
                     # Check if original download_node is online
                     online_ids = {w.worker_id for w in workers}
-                    if deployment.download_node and deployment.download_node in online_ids:
+                    if (
+                        deployment.download_node
+                        and deployment.download_node in online_ids
+                    ):
                         download_node = deployment.download_node
                     else:
                         download_node = random.choice(workers).worker_id
@@ -212,7 +219,9 @@ def create_app(
 
         # Recover stale downloads from previous run
         if database:
-            await _recover_stale_downloads(database, storage_manager, pylet_client)
+            await _recover_stale_downloads(
+                database, storage_manager, pylet_client
+            )
 
         # Start router if provided
         if router:
@@ -337,13 +346,20 @@ def create_app(
 
                     # Update deployment to downloading status
                     db.update_deployment_download_status(
-                        deployment_id, status="downloading", download_node=download_node
+                        deployment_id,
+                        status="downloading",
+                        download_node=download_node,
                     )
 
                     # Trigger async download
                     asyncio.create_task(
                         _trigger_model_download(
-                            sm, db, deployment_id, model_name, backend, download_node
+                            sm,
+                            db,
+                            deployment_id,
+                            model_name,
+                            backend,
+                            download_node,
                         )
                     )
 
@@ -406,13 +422,20 @@ def create_app(
                 download_node=download_node,
             )
 
-            logger.info(f"Registered deployment {deployment_id} with status={initial_status}")
+            logger.info(
+                f"Registered deployment {deployment_id} with status={initial_status}"
+            )
 
             # If downloading, trigger async download task
             if initial_status == "downloading" and sm and download_node:
                 asyncio.create_task(
                     _trigger_model_download(
-                        sm, db, deployment_id, model_name, backend, download_node
+                        sm,
+                        db,
+                        deployment_id,
+                        model_name,
+                        backend,
+                        download_node,
                     )
                 )
 
@@ -491,8 +514,12 @@ def create_app(
     ):
         """Background task to download model and update deployment status."""
         try:
-            logger.info(f"Starting model download for {deployment_id} on {node_name}")
-            success = await sm.download_model_on_node(node_name, model_name, backend)
+            logger.info(
+                f"Starting model download for {deployment_id} on {node_name}"
+            )
+            success = await sm.download_model_on_node(
+                node_name, model_name, backend
+            )
 
             if success:
                 # Use conditional update with retry to handle transient DB errors

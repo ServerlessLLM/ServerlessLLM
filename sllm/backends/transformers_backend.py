@@ -224,7 +224,9 @@ class TransformersBackend(SllmBackend):
         """Load the transformers model and tokenizer"""
         device_map = self.backend_config.get("device_map", "auto")
         # Support both 'dtype' (new) and 'torch_dtype' (deprecated) for backward compat
-        dtype = self.backend_config.get("dtype") or self.backend_config.get("torch_dtype", "float16")
+        dtype = self.backend_config.get("dtype") or self.backend_config.get(
+            "torch_dtype", "float16"
+        )
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype, torch.float16)
@@ -492,7 +494,9 @@ class TransformersBackend(SllmBackend):
         storage_path = os.getenv("STORAGE_PATH", "./models")
         device_map = self.backend_config.get("device_map", "auto")
         # Support both 'dtype' (new) and 'torch_dtype' (deprecated) for backward compat
-        dtype = self.backend_config.get("dtype") or self.backend_config.get("torch_dtype", "float16")
+        dtype = self.backend_config.get("dtype") or self.backend_config.get(
+            "torch_dtype", "float16"
+        )
 
         if isinstance(dtype, str):
             dtype = getattr(torch, dtype, torch.float16)
