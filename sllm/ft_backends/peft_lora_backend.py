@@ -128,16 +128,17 @@ class PeftLoraBackend(SllmFineTuningBackend):
             if self.status != FineTuningBackendStatus.UNINITIALIZED:
                 return
             device_map = self.backend_config.get("device_map", "auto")
-            torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
+            # Support both 'dtype' (new) and 'torch_dtype' (deprecated) for backward compat
+            dtype = self.backend_config.get("dtype") or self.backend_config.get("torch_dtype", torch.float16)
 
-            if isinstance(torch_dtype, str):
-                torch_dtype = getattr(torch, torch_dtype, torch.float16)
+            if isinstance(dtype, str):
+                dtype = getattr(torch, dtype, torch.float16)
 
-            if torch_dtype is None:
+            if dtype is None:
                 logger.warning(
-                    f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
+                    f"Invalid dtype: {dtype}. Using torch.float16"
                 )
-                torch_dtype = torch.float16
+                dtype = torch.float16
 
             # Use default model class if not provided
             hf_model_class = self.backend_config.get(
@@ -151,7 +152,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
             self.model = load_model(
                 model_path,
                 device_map=device_map,
-                torch_dtype=torch_dtype,
+                dtype=dtype,
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )

@@ -136,8 +136,10 @@ class Reconciler:
         logger.info("Reconciler loop stopped")
 
     async def _reconcile_all(self):
-        """Reconcile all active deployments."""
-        deployments = self.database.get_active_deployments()
+        """Reconcile all ready deployments (status='ready' or 'active')."""
+        # Only reconcile deployments that are ready for instances
+        # Skip 'pending', 'downloading', 'failed' deployments
+        deployments = self.database.get_ready_deployments()
 
         for deployment in deployments:
             try:
@@ -343,6 +345,19 @@ class Reconciler:
             logger.warning(
                 f"[{deployment.id}] Model not available, waiting for download"
             )
+            return
+
+        # Verify model is actually on node before scheduling (handles cache staleness)
+        model_verified = await self.storage_manager.verify_model_on_node(
+            node, deployment.model_name
+        )
+        if not model_verified:
+            logger.warning(
+                f"[{deployment.id}] Model verification failed on {node}, "
+                "will retry next cycle"
+            )
+            # Clear stale cache entry so next cycle picks a different node or triggers download
+            self.storage_manager.clear_cache_view(node)
             return
 
         # Ensure sllm-store is running on node

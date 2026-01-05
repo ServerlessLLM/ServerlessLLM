@@ -456,11 +456,22 @@ class StorageManager:
             success = await self._download_model_on_node(node, model_name, backend)
             return node if success else None
 
-    async def _download_model_on_node(
+    async def download_model_on_node(
         self, node_name: str, model_name: str, backend: str
     ) -> bool:
+        """Download a model to a specific node.
+
+        Args:
+            node_name: Target node for download
+            model_name: Model to download
+            backend: Backend type (vllm, sglang)
+
+        Returns:
+            True if download succeeded, False otherwise
+        """
         endpoint = await self.ensure_store_on_node(node_name)
         if not endpoint:
+            logger.error(f"Cannot download to {node_name}: sllm-store not available")
             return False
 
         command = (
@@ -496,6 +507,57 @@ class StorageManager:
         status = final.status if final else "unknown"
         logger.error(f"Download failed for {model_name} on {node_name}: status={status}")
         return False
+
+    # Alias for backward compatibility
+    _download_model_on_node = download_model_on_node
+
+    async def verify_model_on_node(self, node_name: str, model_name: str) -> bool:
+        """Verify that a model is actually cached on a node.
+
+        Performs a synchronous check via sllm-store to confirm the model
+        exists on disk, rather than trusting the potentially stale cache.
+
+        Args:
+            node_name: Node to check
+            model_name: Model to verify
+
+        Returns:
+            True if model is verified to be on node, False otherwise
+        """
+        endpoint = await self.get_store_endpoint(node_name)
+        if not endpoint:
+            logger.warning(f"Cannot verify model on {node_name}: no sllm-store endpoint")
+            return False
+
+        try:
+            import aiohttp
+
+            # Query sllm-store for cached models
+            url = f"http://{endpoint}/models"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status != 200:
+                        logger.warning(
+                            f"Failed to verify model on {node_name}: status {resp.status}"
+                        )
+                        return False
+
+                    data = await resp.json()
+                    cached_models = data.get("models", [])
+
+                    if model_name in cached_models:
+                        return True
+                    else:
+                        logger.warning(
+                            f"Model {model_name} not found on {node_name} "
+                            f"(cached: {cached_models})"
+                        )
+                        return False
+
+        except Exception as e:
+            logger.warning(f"Error verifying model on {node_name}: {e}")
+            # On error, fall back to trusting cache
+            return model_name in self._cache_view.get(node_name, set())
 
     # -------------------------------------------------------------------------
     # Utilities
