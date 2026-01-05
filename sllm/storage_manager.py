@@ -29,6 +29,7 @@ Responsibilities:
 
 import asyncio
 import random
+import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
 
@@ -65,6 +66,7 @@ class StorageManager:
         pylet_client: PyletClient,
         storage_path: str = "/models",
         head_url: str = "http://localhost:8343",
+        download_timeout: int = 600,
     ):
         """
         Initialize StorageManager.
@@ -74,11 +76,13 @@ class StorageManager:
             pylet_client: Pylet client for instance management
             storage_path: Path to model storage on workers
             head_url: SLLM head URL for sllm-store to report back
+            download_timeout: Timeout in seconds for model downloads (default: 600)
         """
         self.database = database
         self.pylet_client = pylet_client
         self.storage_path = storage_path
         self.head_url = head_url
+        self.download_timeout = download_timeout
 
         # In-memory cache view (refreshed from database)
         self._cache_view: Dict[str, Set[str]] = {}  # node_name -> set of models
@@ -485,8 +489,6 @@ class StorageManager:
             f"--storage-path {self.storage_path}"
         )
 
-        import uuid
-
         safe_model = model_name.replace("/", "-")
         instance = await self.pylet_client.submit(
             command=command,
@@ -503,7 +505,7 @@ class StorageManager:
         )
 
         final = await self.pylet_client.wait_instance_completed(
-            instance.instance_id, timeout=600
+            instance.instance_id, timeout=self.download_timeout
         )
         if final and final.status == "COMPLETED":
             logger.info(f"Downloaded {model_name} on {node_name}")
@@ -597,6 +599,7 @@ def init_storage_manager(
     pylet_client: PyletClient,
     storage_path: str = "/models",
     head_url: str = "http://localhost:8343",
+    download_timeout: int = 600,
 ) -> StorageManager:
     """Initialize the global StorageManager instance."""
     global _storage_manager
@@ -605,5 +608,6 @@ def init_storage_manager(
         pylet_client=pylet_client,
         storage_path=storage_path,
         head_url=head_url,
+        download_timeout=download_timeout,
     )
     return _storage_manager

@@ -20,7 +20,6 @@ import sys
 from typing import Optional
 
 import click
-import requests
 
 from sllm.cli._cli_utils import (
     delete_deployment,
