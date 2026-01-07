@@ -15,11 +15,11 @@
 #  See the License for the specific language governing permissions and         #
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
-ARG CUDA_VERSION=12.1.1
+ARG CUDA_VERSION=12.8.1
 #################### BASE BUILD IMAGE ####################
 # prepare basic build environment
-FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS builder
-ARG CUDA_VERSION=12.1.1
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS builder
+ARG CUDA_VERSION=12.8.1
 ARG PYTHON_VERSION=3.10
 ARG TARGETPLATFORM
 ENV DEBIAN_FRONTEND=noninteractive
@@ -134,7 +134,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # sglang venv: SGLang inference backend
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv /opt/venvs/sglang --python 3.10 && \
-    uv pip install --python /opt/venvs/sglang/bin/python sglang
+    uv pip install --python /opt/venvs/sglang/bin/python sglang --prerelease=allow
 
 # Copy vLLM patch
 COPY sllm_store/vllm_patch /app/vllm_patch
@@ -155,6 +155,24 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venvs/vllm/bin/python \
         /app/sllm_store/dist/*.whl /app/dist/*.whl
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venvs/sglang/bin/python \
+        /app/sllm_store/dist/*.whl /app/dist/*.whl
+
+# Install MoE-CAP for expert distribution tracking
+RUN git clone https://github.com/Auto-CAP/MoE-CAP.git /tmp/MoE-CAP
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venvs/head/bin/python /tmp/MoE-CAP
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venvs/vllm/bin/python /tmp/MoE-CAP
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venvs/sglang/bin/python /tmp/MoE-CAP
+
+RUN rm -rf /tmp/MoE-CAP
 
 # Apply vLLM patch in vllm venv
 RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /app && ./vllm_patch/patch.sh"

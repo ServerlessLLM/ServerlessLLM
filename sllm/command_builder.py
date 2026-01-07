@@ -23,7 +23,9 @@ from sllm.database import Deployment
 
 VENV_VLLM = "/opt/venvs/vllm"
 VENV_SGLANG = "/opt/venvs/sglang"
-VENV_SLLM_STORE = "/opt/venvs/sllm-store"
+VENV_SLLM_STORE = "/opt/venvs/sllm-store"  # Use system/conda environment
+VENV_MOE_CAP_SGL = "/opt/venvs/sglang"
+VENV_MOE_CAP_VLLM = "/opt/venvs/vllm"
 
 
 def build_vllm_command(
@@ -105,9 +107,93 @@ def build_sglang_command(
     return " ".join(cmd_parts), VENV_SGLANG
 
 
+def build_moe_cap_sglang_command(
+    deployment: Deployment, storage_path: str = "/models"
+) -> Tuple[str, str]:
+    """Build SGLang launch_server command for Pylet submission."""
+    config = deployment.backend_config or {}
+    tp = config.get("tensor_parallel_size", 1)
+
+    cmd_parts = [
+        "python -m moe_cap.systems.sglang",
+        f"--model-path {deployment.model_name}",
+        f"--served-model-name {deployment.model_name}",
+        "--expert-distribution-recorder-mode stat",
+        "--port $PORT",
+        "--host 0.0.0.0",
+        f"--tp {tp}",
+    ]
+
+    if config.get("mem_fraction_static"):
+        cmd_parts.append(
+            f"--mem-fraction-static {config['mem_fraction_static']}"
+        )
+
+    if config.get("dtype"):
+        cmd_parts.append(f"--dtype {config['dtype']}")
+
+    if config.get("trust_remote_code"):
+        cmd_parts.append("--trust-remote-code")
+
+    extra_args = config.get("extra_args", [])
+    if extra_args:
+        if isinstance(extra_args, list):
+            cmd_parts.extend(extra_args)
+        elif isinstance(extra_args, str):
+            cmd_parts.append(extra_args)
+
+    return " ".join(cmd_parts), VENV_MOE_CAP_SGL
+
+
+def build_moe_cap_vllm_command(
+    deployment: Deployment, storage_path: str = "/models"
+) -> Tuple[str, str]:
+    """Build vLLM serve command for Pylet submission."""
+    config = deployment.backend_config or {}
+    tp = config.get("tensor_parallel_size", 1)
+    max_model_len = config.get("max_model_len")
+    gpu_memory_utilization = config.get("gpu_memory_utilization")
+    dtype = config.get("dtype")
+    trust_remote_code = config.get("trust_remote_code", False)
+
+    cmd_parts = [
+        "python -m moe_cap.systems.vllm",
+        deployment.model_name,
+        f"--served-model-name {deployment.model_name}",
+        "--port $PORT",
+        "--enable-expert-distribution-metrics",
+        "--max-num-batched-tokens 131072",
+        "--host 0.0.0.0",
+        f"--tensor-parallel-size {tp}",
+    ]
+
+    if max_model_len:
+        cmd_parts.append(f"--max-model-len {max_model_len}")
+
+    if gpu_memory_utilization:
+        cmd_parts.append(f"--gpu-memory-utilization {gpu_memory_utilization}")
+
+    if dtype:
+        cmd_parts.append(f"--dtype {dtype}")
+
+    if trust_remote_code:
+        cmd_parts.append("--trust-remote-code")
+
+    extra_args = config.get("extra_args", [])
+    if extra_args:
+        if isinstance(extra_args, list):
+            cmd_parts.extend(extra_args)
+        elif isinstance(extra_args, str):
+            cmd_parts.append(extra_args)
+
+    return " ".join(cmd_parts), VENV_MOE_CAP_VLLM
+
+
 BUILDERS = {
     "vllm": build_vllm_command,
     "sglang": build_sglang_command,
+    "moe-cap-sglang": build_moe_cap_sglang_command,
+    "moe-cap-vllm": build_moe_cap_vllm_command,
 }
 
 

@@ -1,0 +1,17 @@
+{
+    "model": "Qwen/Qwen-30B-A3B",
+    "backend": "moe-cap-sglang",
+    "num_gpus": 4,
+    "auto_scaling_config": {
+        "metric": "concurrency",
+        "target": 10,
+        "min_instances": 0,
+        "max_instances": 1,
+        "keep_alive": 60
+    },
+    "backend_config": {
+        "pretrained_model_name_or_path": "Qwen/Qwen-30B-A3B",
+        "tensor_parallel_size": 4,
+        "torch_dtype": "bfloat16"
+    }
+}

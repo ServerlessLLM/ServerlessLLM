@@ -28,6 +28,7 @@ Responsibilities:
 """
 
 import asyncio
+import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
 
@@ -199,6 +200,32 @@ class StorageManager:
             self._store_endpoints[node_name] = existing_instance.endpoint
             return existing_instance.endpoint
 
+        # Check if instance exists but is not running (stale instance)
+        # and cancel it before creating a new one
+        base_instance_name = f"sllm-store-{node_name}"
+        stale_instance = await self.pylet_client.get_instance_by_name(
+            base_instance_name
+        )
+        if stale_instance:
+            logger.info(
+                f"Found stale sllm-store instance {base_instance_name} "
+                f"in state {stale_instance.status}, cancelling..."
+            )
+            try:
+                await self.pylet_client.cancel_instance(
+                    stale_instance.instance_id
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to cancel stale instance {base_instance_name}: {e}. "
+                    f"Will use unique name for new instance."
+                )
+                # If we can't cancel (e.g., already failed), use a unique name
+                # to avoid name collision
+                base_instance_name = (
+                    f"sllm-store-{node_name}-{uuid.uuid4().hex[:8]}"
+                )
+
         # Get worker info
         worker = await self.pylet_client.get_worker(node_name)
         if not worker or worker.status != "ONLINE":
@@ -218,7 +245,7 @@ class StorageManager:
 
             instance = await self.pylet_client.submit(
                 command=command,
-                name=f"sllm-store-{node_name}",
+                name=base_instance_name,
                 target_worker=node_name,
                 gpu_indices=list(range(worker.total_gpus)),
                 exclusive=False,  # Shares GPUs with inference

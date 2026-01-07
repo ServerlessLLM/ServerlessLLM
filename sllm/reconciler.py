@@ -52,8 +52,8 @@ logger = init_logger(__name__)
 
 # Reconciler configuration
 RECONCILE_INTERVAL_SECONDS = 3
-HEALTH_CHECK_TIMEOUT_SECONDS = 5
-STARTUP_TIMEOUT_SECONDS = 300
+HEALTH_CHECK_TIMEOUT_SECONDS = 10
+STARTUP_TIMEOUT_SECONDS = 600  # 10 minutes for large model loading
 
 
 @dataclass
@@ -196,7 +196,11 @@ class Reconciler:
         # 2. Health check starting instances
         for inst in list(state.starting):
             if inst.status == "RUNNING":
-                if await self._is_healthy(inst.endpoint):
+                logger.debug(
+                    f"[{deployment.id}] Health checking instance "
+                    f"{inst.instance_id} at endpoint={inst.endpoint}"
+                )
+                if inst.endpoint and await self._is_healthy(inst.endpoint):
                     # Add to deployment_endpoints table
                     self.database.add_deployment_endpoint(
                         deployment.id, inst.endpoint
@@ -208,11 +212,16 @@ class Reconciler:
                         f"[{deployment.id}] Instance {inst.instance_id} is now "
                         f"ready at {inst.endpoint}"
                     )
+                elif not inst.endpoint:
+                    logger.debug(
+                        f"[{deployment.id}] Instance {inst.instance_id} RUNNING "
+                        f"but no endpoint yet"
+                    )
                 elif self._is_startup_timeout(inst.instance_id):
                     # Startup timeout - clean up
                     logger.warning(
                         f"[{deployment.id}] Instance {inst.instance_id} "
-                        f"startup timeout"
+                        f"startup timeout (endpoint={inst.endpoint})"
                     )
                     await self._cleanup_instance(deployment.id, inst)
                     state.starting.remove(inst)
@@ -298,19 +307,41 @@ class Reconciler:
             True if healthy
         """
         if not endpoint or not self._session:
+            logger.debug(
+                f"Health check skipped: endpoint={endpoint}, session={self._session is not None}"
+            )
             return False
 
-        try:
-            url = f"http://{endpoint}/health"
-            async with self._session.get(
-                url,
-                timeout=aiohttp.ClientTimeout(
-                    total=HEALTH_CHECK_TIMEOUT_SECONDS
-                ),
-            ) as resp:
-                return resp.status == 200
-        except Exception:
-            return False
+        # Extract port and try multiple hosts since server binds to 0.0.0.0
+        parts = endpoint.split(":")
+        if len(parts) == 2:
+            port = parts[1]
+            hosts_to_try = [parts[0], "localhost", "127.0.0.1", "0.0.0.0"]
+        else:
+            hosts_to_try = [endpoint]
+            port = None
+
+        for host in hosts_to_try:
+            try:
+                if port:
+                    url = f"http://{host}:{port}/health"
+                else:
+                    url = f"http://{host}/health"
+                logger.debug(f"Health check trying: {url}")
+                async with self._session.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(
+                        total=HEALTH_CHECK_TIMEOUT_SECONDS
+                    ),
+                ) as resp:
+                    logger.debug(f"Health check {url} status={resp.status}")
+                    if resp.status == 200:
+                        return True
+            except Exception as e:
+                logger.debug(f"Health check {url} failed: {e}")
+                continue
+
+        return False
 
     def _is_startup_timeout(self, instance_id: str) -> bool:
         """Check if instance has exceeded startup timeout."""
@@ -402,16 +433,22 @@ class Reconciler:
                 deployment_id, inst.endpoint
             )
 
-        # Cancel in Pylet
-        try:
-            await self.pylet_client.cancel_instance(inst.instance_id)
-        except Exception as e:
-            logger.warning(f"Failed to cancel instance {inst.instance_id}: {e}")
+        # Only cancel if not already in terminal state
+        # FAILED, COMPLETED, CANCELLED are terminal - no need to cancel
+        if inst.status not in ("FAILED", "COMPLETED", "CANCELLED"):
+            try:
+                await self.pylet_client.cancel_instance(inst.instance_id)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to cancel instance {inst.instance_id}: {e}"
+                )
 
         # Clean up tracking
         self._startup_times.pop(inst.instance_id, None)
 
-        logger.info(f"Cleaned up instance {inst.instance_id}")
+        logger.info(
+            f"Cleaned up instance {inst.instance_id} (status={inst.status}, reason={inst.failure_reason})"
+        )
 
     async def _remove_instance(self, deployment_id: str, inst: InstanceInfo):
         """Remove an instance during scale-down with graceful draining.

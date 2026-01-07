@@ -57,7 +57,7 @@ logger = init_logger(__name__)
 class RouterConfig:
     """Router configuration."""
 
-    max_buffer_size: int = 10
+    max_buffer_size: int = 10000
     cold_start_timeout: float = 120.0
     request_timeout: float = 300.0
     retry_failed_endpoint: bool = True
@@ -133,7 +133,12 @@ class Router:
     async def start(self):
         """Start the router background tasks."""
         if self._session is None:
-            self._session = aiohttp.ClientSession()
+            # Create session with high connection limits for concurrent requests
+            connector = aiohttp.TCPConnector(
+                limit=0,  # No limit on total connections
+                limit_per_host=0,  # No limit per host
+            )
+            self._session = aiohttp.ClientSession(connector=connector)
         if self._drain_task is None:
             self._drain_task = asyncio.create_task(self._buffer_drain_loop())
         logger.info("Router started")
@@ -346,29 +351,38 @@ class Router:
                             deployment_id
                         )
                         if endpoints:
-                            try:
-                                request = buffer.get_nowait()
-                                endpoint = self._select_next_endpoint(
-                                    deployment_id, endpoints
-                                )
-                                logger.info(
-                                    f"[{deployment_id}] Draining buffered "
-                                    f"request to {endpoint}"
-                                )
+                            # Drain ALL buffered requests concurrently
+                            tasks = []
+                            requests_to_drain = []
+
+                            # Collect ALL requests to drain in parallel
+                            while True:
                                 try:
-                                    result = await self._forward_to_endpoint(
-                                        deployment_id,
-                                        endpoint,
-                                        request.payload,
-                                        request.path,
+                                    request = buffer.get_nowait()
+                                    requests_to_drain.append(request)
+                                    endpoint = self._select_next_endpoint(
+                                        deployment_id, endpoints
                                     )
-                                    if not request.future.done():
-                                        request.future.set_result(result)
-                                except Exception as e:
-                                    if not request.future.done():
-                                        request.future.set_exception(e)
-                            except asyncio.QueueEmpty:
-                                pass
+                                    logger.info(
+                                        f"[{deployment_id}] Draining buffered "
+                                        f"request to {endpoint}"
+                                    )
+                                    task = asyncio.create_task(
+                                        self._forward_buffered_request(
+                                            deployment_id,
+                                            endpoint,
+                                            request,
+                                        )
+                                    )
+                                    tasks.append(task)
+                                except asyncio.QueueEmpty:
+                                    break
+
+                            # Wait for all drain tasks to complete
+                            if tasks:
+                                await asyncio.gather(
+                                    *tasks, return_exceptions=True
+                                )
 
                 await asyncio.sleep(0.1)
 
@@ -379,6 +393,26 @@ class Router:
                 await asyncio.sleep(1)
 
         logger.debug("Buffer drain loop stopped")
+
+    async def _forward_buffered_request(
+        self,
+        deployment_id: str,
+        endpoint: str,
+        request: BufferedRequest,
+    ):
+        """Forward a single buffered request and resolve its future."""
+        try:
+            result = await self._forward_to_endpoint(
+                deployment_id,
+                endpoint,
+                request.payload,
+                request.path,
+            )
+            if not request.future.done():
+                request.future.set_result(result)
+        except Exception as e:
+            if not request.future.done():
+                request.future.set_exception(e)
 
     def _push_metrics(self, deployment_id: str):
         """Push metrics immediately to autoscaler."""
