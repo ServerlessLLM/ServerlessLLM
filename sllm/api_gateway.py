@@ -283,7 +283,7 @@ def create_app(
         """Register a new deployment.
 
         Checks if model is available on any node. If not, triggers async
-        download and returns status='downloading'. Otherwise returns 'ready'.
+        download and returns status='downloading'. Otherwise returns 'active'.
         """
         try:
             body = await request.json()
