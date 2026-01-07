@@ -261,7 +261,9 @@ class Database:
         """Create a new deployment entry.
 
         Args:
-            initial_status: Starting status ('pending', 'downloading', 'ready')
+            initial_status: Starting status ('pending' or 'downloading'). The
+                'ready' status is reserved for future use and is not currently
+                used in the deployment lifecycle.
             download_node: Node where model download is happening (if downloading)
         """
         conn = self._get_connection()
