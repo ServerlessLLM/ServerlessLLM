@@ -301,8 +301,7 @@ class PyletClient:
                 if instance.status in ("COMPLETED", "FAILED", "STOPPED"):
                     return self._to_instance_info(instance)
             except Exception as e:
-                logger.warning(f"Error checking instance {instance_id}: {e}")
-                return None
+                logger.warning(f"Error checking instance {instance_id}, will retry: {e}")
             await asyncio.sleep(2)
         return None
 
