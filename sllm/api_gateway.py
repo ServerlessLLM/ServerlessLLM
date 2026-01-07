@@ -474,7 +474,7 @@ def create_app(
                 )
 
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=409, detail=str(e))
         except Exception as e:
             logger.error(f"Failed to register deployment: {e}", exc_info=True)
             raise HTTPException(
