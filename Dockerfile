@@ -79,7 +79,7 @@ RUN python setup.py bdist_wheel
 # - Has nvcc (needed by SGLang's flashinfer JIT during CUDA graph capture)
 # - Each venv installs its own torch version (vLLM/SGLang need 2.9.x)
 # - Cleaner dependency management (no unused pytorch base)
-FROM nvidia/cuda:${CUDA_VERSION}-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu22.04
 
 # Set environment for v1-beta architecture
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -92,7 +92,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Install runtime dependencies + uv
 RUN apt-get update -y && \
-    apt-get install -y curl netcat-openbsd gcc g++ libnuma1 && \
+    apt-get install -y curl netcat-openbsd gcc g++ libnuma1 git && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -139,6 +139,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Copy vLLM patch
 COPY sllm_store/vllm_patch /app/vllm_patch
 
+# Copy examples folder
+COPY examples /app/examples
+
 # Copy the built wheels from the builder
 COPY --from=builder /app/sllm_store/dist /app/sllm_store/dist
 COPY --from=builder /app/dist /app/dist
@@ -163,17 +166,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install MoE-CAP for expert distribution tracking
 RUN git clone https://github.com/Auto-CAP/MoE-CAP.git /tmp/MoE-CAP
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python /opt/venvs/head/bin/python /tmp/MoE-CAP
+# Install MoE-CAP in editable mode in each venv
+RUN bash -c "source /opt/venvs/head/bin/activate && cd /tmp/MoE-CAP && uv pip install -e ."
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python /opt/venvs/vllm/bin/python /tmp/MoE-CAP
+RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /tmp/MoE-CAP && uv pip install -e ."
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --python /opt/venvs/sglang/bin/python /tmp/MoE-CAP
-
-RUN rm -rf /tmp/MoE-CAP
-
+RUN bash -c "source /opt/venvs/sglang/bin/activate && cd /tmp/MoE-CAP && uv pip install -e ."
 # Apply vLLM patch in vllm venv
 RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /app && ./vllm_patch/patch.sh"
 

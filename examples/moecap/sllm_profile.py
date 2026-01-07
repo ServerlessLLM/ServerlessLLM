@@ -177,8 +177,8 @@ class SLLMProfiler:
         self.config = config
         self.api_url = api_url
         self.backend = backend
-        self.database_path = database_path or os.path.expanduser(
-            "~/.sllm/state.db"
+        self.database_path = database_path or os.environ.get(
+            "SLLM_DATABASE_PATH", os.path.expanduser("~/.sllm/state.db")
         )
         self.num_samples = num_samples
         self.backend_url = None  # Will be discovered from database
