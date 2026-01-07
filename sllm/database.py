@@ -62,7 +62,7 @@ class Deployment:
     model_name: str  # HuggingFace model: "meta-llama/Llama-3.1-8B"
     backend: str  # "vllm" or "sglang"
     status: (
-        str  # "pending", "downloading", "ready", "active", "deleting", "failed"
+        str  # "pending", "downloading", "active", "deleting", "failed"
     )
     desired_replicas: int
     min_replicas: int
@@ -261,7 +261,9 @@ class Database:
         """Create a new deployment entry.
 
         Args:
-            initial_status: Starting status ('pending', 'downloading', 'ready')
+            initial_status: Starting status ('pending' or 'downloading'). The
+                'ready' status is reserved for future use and is not currently
+                used in the deployment lifecycle.
             download_node: Node where model download is happening (if downloading)
         """
         conn = self._get_connection()
@@ -387,7 +389,7 @@ class Database:
 
         Args:
             deployment_id: Deployment to update
-            status: New status ('downloading', 'ready', 'failed')
+            status: New status ('downloading', 'active', 'failed')
             download_node: Node where download is happening/happened
             failure_reason: Error message if status is 'failed'
 

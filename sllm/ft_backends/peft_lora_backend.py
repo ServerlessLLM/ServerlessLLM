@@ -152,7 +152,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
             self.model = load_model(
                 model_path,
                 device_map=device_map,
-                dtype=dtype,
+                torch_dtype=dtype,
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
             )

@@ -283,7 +283,7 @@ def create_app(
         """Register a new deployment.
 
         Checks if model is available on any node. If not, triggers async
-        download and returns status='downloading'. Otherwise returns 'ready'.
+        download and returns status='downloading'. Otherwise returns 'active'.
         """
         try:
             body = await request.json()
@@ -408,7 +408,7 @@ def create_app(
             else:
                 raise HTTPException(
                     status_code=503,
-                    detail="No Pylet client available to download model",
+                    detail="Model not cached and Pylet client is unavailable to orchestrate a download.",
                 )
 
         # Parse configuration
