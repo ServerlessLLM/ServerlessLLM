@@ -59,7 +59,14 @@ class VllmModelDownloader:
 
         import torch
         from huggingface_hub import snapshot_download
-        from vllm import LLM
+
+        try:
+            from vllm import LLM
+        except ImportError:
+            raise ImportError(
+                "vLLM is required for the vllm backend but is not installed. "
+                "Install it with: pip install vllm"
+            )
 
         # set the model storage path
         storage_path = os.getenv("STORAGE_PATH", storage_path)
@@ -351,7 +358,13 @@ def load(
         start_load_time = time.time()
 
         if backend == "vllm":
-            from vllm import LLM
+            try:
+                from vllm import LLM
+            except ImportError:
+                raise ImportError(
+                    "vLLM is required for the vllm backend but is not installed. "
+                    "Install it with: pip install vllm"
+                )
 
             model_full_path = os.path.join(storage_path, model_name)
             llm = LLM(
@@ -432,7 +445,13 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
             "The capital of France is",
             "The future of AI is",
         ]
-        from vllm import SamplingParams
+        try:
+            from vllm import SamplingParams
+        except ImportError:
+            raise ImportError(
+                "vLLM is required for the vllm backend but is not installed. "
+                "Install it with: pip install vllm"
+            )
 
         sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
         outputs = model.generate(prompts, sampling_params)

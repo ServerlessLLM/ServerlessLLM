@@ -299,6 +299,21 @@ def create_app(
             )
 
         backend = body.get("backend", "vllm")
+
+        # Validate backend is supported and installed
+        from sllm.command_builder import BUILDERS, check_backend_available
+
+        if backend not in BUILDERS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown backend: {backend}. Supported backends: {', '.join(BUILDERS.keys())}",
+            )
+
+        try:
+            check_backend_available(backend)
+        except ImportError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
         deployment_id = Deployment.make_id(model_name, backend)
 
         db: Database = request.app.state.database
@@ -391,9 +406,10 @@ def create_app(
                     f"Model {model_name} not cached, will download to {download_node}"
                 )
             else:
-                logger.warning("No Pylet client, cannot check workers")
-                # No storage manager - assume model will be available (legacy behavior)
-                model_cached = True
+                raise HTTPException(
+                    status_code=503,
+                    detail="No Pylet client available to download model",
+                )
 
         # Parse configuration
         backend_config = body.get("backend_config", {})

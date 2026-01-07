@@ -494,7 +494,7 @@ class StorageManager:
             command=command,
             name=f"download-{safe_model}-{uuid.uuid4().hex[:8]}",
             target_worker=node_name,
-            gpu_indices=[0],
+            gpu=1,  # Let Pylet scheduler choose any available GPU
             exclusive=False,
             labels={
                 "type": "model-download",

@@ -296,9 +296,15 @@ class PyletClient:
         await self._ensure_initialized()
         deadline = asyncio.get_event_loop().time() + timeout
         while asyncio.get_event_loop().time() < deadline:
-            instance = await asyncio.to_thread(pylet.get, id=instance_id)
-            if instance.status in ("COMPLETED", "FAILED", "STOPPED"):
-                return self._to_instance_info(instance)
+            try:
+                instance = await asyncio.to_thread(pylet.get, id=instance_id)
+                if instance.status in ("COMPLETED", "FAILED", "STOPPED"):
+                    return self._to_instance_info(instance)
+            except Exception as e:
+                logger.warning(
+                    f"Error checking instance {instance_id}: {e}"
+                )
+                return None
             await asyncio.sleep(2)
         return None
 
