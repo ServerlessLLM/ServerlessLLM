@@ -435,6 +435,16 @@ class StorageManager:
     async def ensure_model_on_node(
         self, model_name: str, backend: str
     ) -> Optional[str]:
+        """Ensure model is available on some node, starting download if needed.
+
+        This method is non-blocking. If a download is needed, it starts in the
+        background and returns None immediately. The caller should retry on the
+        next reconciliation cycle.
+
+        Returns:
+            Node name if model is already available, None if download started
+            or in progress.
+        """
         nodes = self.get_nodes_with_model(model_name)
         if nodes:
             return nodes[0]
@@ -444,23 +454,34 @@ class StorageManager:
             logger.debug(f"Download already in progress for {model_name}")
             return None
 
+        # Try to acquire lock without blocking
+        if not lock.locked():
+            # Start download in background - don't block the reconciler
+            asyncio.create_task(
+                self._background_download(lock, model_name, backend)
+            )
+
+        return None
+
+    async def _background_download(
+        self, lock: asyncio.Lock, model_name: str, backend: str
+    ) -> None:
+        """Background task to download a model."""
         async with lock:
+            # Double-check model isn't already available
             nodes = self.get_nodes_with_model(model_name)
             if nodes:
-                return nodes[0]
+                return
 
             workers = await self.pylet_client.get_online_workers()
             if not workers:
                 logger.warning("No online workers available for model download")
-                return None
+                return
 
             node = random.choice(workers).worker_id
-            logger.info(f"Downloading {model_name} to {node}")
+            logger.info(f"Downloading {model_name} to {node} (background)")
 
-            success = await self._download_model_on_node(
-                node, model_name, backend
-            )
-            return node if success else None
+            await self._download_model_on_node(node, model_name, backend)
 
     async def download_model_on_node(
         self, node_name: str, model_name: str, backend: str
