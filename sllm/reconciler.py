@@ -364,8 +364,9 @@ class Reconciler:
                 f"[{deployment.id}] Model verification failed on {node}, "
                 "will retry next cycle"
             )
-            # Clear stale cache entry so next cycle picks a different node or triggers download
-            self.storage_manager.clear_cache_view(node)
+            # Clear stale cache entry for this model on this node so next cycle can pick
+            # a different node or trigger a re-download without affecting other models
+            self.storage_manager.clear_model_cache_view(node, deployment.model_name)
             return
 
         # Ensure sllm-store is running on node
