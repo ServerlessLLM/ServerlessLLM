@@ -366,7 +366,9 @@ class Reconciler:
             )
             # Clear stale cache entry for this model on this node so next cycle can pick
             # a different node or trigger a re-download without affecting other models
-            self.storage_manager.clear_model_cache_view(node, deployment.model_name)
+            self.storage_manager.clear_model_cache_view(
+                node, deployment.model_name
+            )
             return
 
         # Ensure sllm-store is running on node

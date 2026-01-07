@@ -64,9 +64,9 @@ class VllmModelDownloader:
             from vllm import LLM
         except ImportError:
             raise ImportError(
-                "vLLM is required for the vllm backend but is not installed. "
+                "vLLM is required but not installed. "
                 "Install it with: pip install vllm"
-            )
+            ) from None
 
         # set the model storage path
         storage_path = os.getenv("STORAGE_PATH", storage_path)
@@ -362,9 +362,9 @@ def load(
                 from vllm import LLM
             except ImportError:
                 raise ImportError(
-                    "vLLM is required for the vllm backend but is not installed. "
+                    "vLLM is required but not installed. "
                     "Install it with: pip install vllm"
-                )
+                ) from None
 
             model_full_path = os.path.join(storage_path, model_name)
             llm = LLM(
@@ -449,9 +449,9 @@ def example_inferences(backend, model=None, model_name=None, adapter_name=None):
             from vllm import SamplingParams
         except ImportError:
             raise ImportError(
-                "vLLM is required for the vllm backend but is not installed. "
+                "vLLM is required but not installed. "
                 "Install it with: pip install vllm"
-            )
+            ) from None
 
         sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
         outputs = model.generate(prompts, sampling_params)

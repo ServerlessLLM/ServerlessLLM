@@ -52,17 +52,17 @@ def check_backend_available(backend: str) -> None:
             import vllm  # noqa: F401
         except ImportError:
             raise ImportError(
-                "vLLM is required for the vllm backend but is not installed. "
+                "vLLM is required but not installed. "
                 "Install it with: pip install vllm"
-            )
+            ) from None
     elif backend == "sglang":
         try:
             import sglang  # noqa: F401
         except ImportError:
             raise ImportError(
-                f"SGLang is required for the sglang backend but is not installed. "
-                f"Install it with: {BACKEND_INSTALL_INSTRUCTIONS['sglang']}"
-            )
+                "SGLang is required but not installed. "
+                "Install it with: pip install 'sglang[all]'"
+            ) from None
     else:
         raise ValueError(
             f"Unknown backend: {backend}. Supported backends: vllm, sglang"

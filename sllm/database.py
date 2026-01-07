@@ -61,9 +61,7 @@ class Deployment:
     id: str  # deployment_id: "meta-llama/Llama-3.1-8B:vllm"
     model_name: str  # HuggingFace model: "meta-llama/Llama-3.1-8B"
     backend: str  # "vllm" or "sglang"
-    status: (
-        str  # "pending", "downloading", "active", "deleting", "failed"
-    )
+    status: str  # "pending", "downloading", "active", "deleting", "failed"
     desired_replicas: int
     min_replicas: int
     max_replicas: int
