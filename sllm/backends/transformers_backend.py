@@ -507,7 +507,7 @@ class TransformersBackend(SllmBackend):
             lora_path,
             device_map=device_map,
             storage_path=storage_path,
-            dtype=dtype,
+            torch_dtype=dtype,
         )
         logger.info(f"Loaded LoRA adapter {lora_name} from {lora_path}")
 
