@@ -28,7 +28,7 @@ VENV_SLLM_STORE = "/opt/venvs/sllm-store"
 # Backend install instructions
 BACKEND_INSTALL_INSTRUCTIONS = {
     "vllm": "pip install vllm",
-    "sglang": "pip install 'sglang[all]'",
+    "sglang": "pip install sglang",
 }
 
 
@@ -61,7 +61,7 @@ def check_backend_available(backend: str) -> None:
         except ImportError:
             raise ImportError(
                 "SGLang is required but not installed. "
-                "Install it with: pip install 'sglang[all]'"
+                "Install it with: pip install sglang"
             ) from None
     else:
         raise ValueError(
