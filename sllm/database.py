@@ -389,7 +389,7 @@ class Database:
 
         Args:
             deployment_id: Deployment to update
-            status: New status ('downloading', 'ready', 'failed')
+            status: New status ('downloading', 'active', 'failed')
             download_node: Node where download is happening/happened
             failure_reason: Error message if status is 'failed'
 
