@@ -1,0 +1,239 @@
+# ---------------------------------------------------------------------------- #
+#  ServerlessLLM v1-beta Kubernetes Deployment                                 #
+#                                                                              #
+#  Architecture:                                                               #
+#    pylet_head (cluster manager) -> pylet_worker (GPU) -> vLLM/sllm-store     #
+#    sllm_head (control plane) connects to pylet_head for instance management  #
+# ---------------------------------------------------------------------------- #
+#
+# PersistentVolumeClaim for model storage
+# Uncomment if you need to create the PVC
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: model-pvc
+# spec:
+#   accessModes:
+#     - ReadWriteMany
+#   resources:
+#     requests:
+#       storage: 100Gi
+#   storageClassName: <your-storage-class>
+---
+# Service for Pylet Head (cluster manager)
+apiVersion: v1
+kind: Service
+metadata:
+  name: pylet-head
+  labels:
+    app: pylet-head
+spec:
+  type: ClusterIP
+  ports:
+    - name: pylet
+      port: 8000
+      targetPort: 8000
+  selector:
+    app: pylet-head
+---
+# Service for SLLM Head (control plane)
+apiVersion: v1
+kind: Service
+metadata:
+  name: sllm-head
+  labels:
+    app: sllm-head
+spec:
+  type: ClusterIP
+  ports:
+    - name: sllm
+      port: 8343
+      targetPort: 8343
+  selector:
+    app: sllm-head
+---
+# Pylet Head Deployment (cluster manager)
+# Manages workers and schedules GPU instances
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pylet-head
+  labels:
+    app: pylet-head
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pylet-head
+  template:
+    metadata:
+      labels:
+        app: pylet-head
+        kueue.x-k8s.io/queue-name: eidf230ns-user-queue
+    spec:
+      containers:
+        - name: pylet-head
+          image: python:3.10-slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install pylet httpx &&
+              pylet start
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: 4
+              memory: '8Gi'
+            limits:
+              cpu: 4
+              memory: '8Gi'
+          readinessProbe:
+            httpGet:
+              path: /workers
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /workers
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+# SLLM Head Deployment (control plane)
+# API Gateway, Load Balancers, Reconciler, Autoscaler
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sllm-head
+  labels:
+    app: sllm-head
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sllm-head
+  template:
+    metadata:
+      labels:
+        app: sllm-head
+        kueue.x-k8s.io/queue-name: eidf230ns-user-queue
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.product: "NVIDIA-A100-SXM4-40GB-MIG-3g.20gb"
+      containers:
+        - name: sllm-head
+          image: seanjiang01/sllm:latest
+          ports:
+            - containerPort: 8343
+          env:
+            - name: MODE
+              value: "HEAD"
+            - name: PYLET_ENDPOINT
+              value: "http://pylet-head:8000"
+            - name: STORAGE_PATH
+              value: "/models"
+            - name: SLLM_DATABASE_PATH
+              value: "/models/.sllm/state.db"
+            - name: SGLANG_EXPERT_DISTRIBUTION_RECORDER_DIR
+              value: "/models/expert_records"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+          resources:
+            requests:
+              cpu: 24
+              memory: '128Gi'
+            limits:
+              cpu: 24
+              memory: '128Gi'
+              nvidia.com/gpu: "1"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8343
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8343
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: model-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Gi
+---
+# Pylet Worker Deployment (GPU worker)
+# Registers with pylet_head and executes vLLM/sllm-store instances
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pylet-worker-0
+  labels:
+    app: pylet-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pylet-worker
+      worker-id: "0"
+  template:
+    metadata:
+      labels:
+        app: pylet-worker
+        worker-id: "0"
+        kueue.x-k8s.io/queue-name: eidf230ns-user-queue
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.product: "NVIDIA-H100-80GB-HBM3"
+      containers:
+        - name: pylet-worker
+          image: seanjiang01/sllm:latest
+          env:
+            - name: MODE
+              value: "PYLET_WORKER"
+            - name: PYLET_HEAD
+              value: "pylet-head:8000"
+            - name: GPU_UNITS
+              value: "4"
+            - name: STORAGE_PATH
+              value: "/models"
+            
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+            - name: shm
+              mountPath: /dev/shm
+          resources:
+            requests:
+              cpu: 24
+              memory: '128Gi'
+            limits:
+              cpu: 24
+              memory: '128Gi'
+              nvidia.com/gpu: "4"
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: model-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Gi
