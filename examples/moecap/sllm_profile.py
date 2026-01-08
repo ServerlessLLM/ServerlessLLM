@@ -304,10 +304,6 @@ class SLLMProfiler:
 
                 if row:
                     endpoint = row[0]
-                    # Extract port and use 0.0.0.0 as host
-                    parts = endpoint.split(":")
-                    if len(parts) == 2:
-                        endpoint = f"0.0.0.0:{parts[1]}"
                     # Add http:// prefix if not present
                     if not endpoint.startswith(
                         "http://"
