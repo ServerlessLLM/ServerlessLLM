@@ -312,34 +312,22 @@ class Reconciler:
             )
             return False
 
-        # Extract port and try multiple hosts since server binds to 0.0.0.0
-        parts = endpoint.split(":")
-        if len(parts) == 2:
-            port = parts[1]
-            hosts_to_try = [parts[0], "localhost", "127.0.0.1", "0.0.0.0"]
-        else:
-            hosts_to_try = [endpoint]
-            port = None
-
-        for host in hosts_to_try:
-            try:
-                if port:
-                    url = f"http://{host}:{port}/health"
-                else:
-                    url = f"http://{host}/health"
-                logger.debug(f"Health check trying: {url}")
-                async with self._session.get(
-                    url,
-                    timeout=aiohttp.ClientTimeout(
-                        total=HEALTH_CHECK_TIMEOUT_SECONDS
-                    ),
-                ) as resp:
-                    logger.debug(f"Health check {url} status={resp.status}")
-                    if resp.status == 200:
-                        return True
-            except Exception as e:
-                logger.debug(f"Health check {url} failed: {e}")
-                continue
+        # Only check the actual endpoint - don't try localhost/127.0.0.1
+        # as that would check the wrong host in a distributed environment
+        try:
+            url = f"http://{endpoint}/health"
+            logger.debug(f"Health check trying: {url}")
+            async with self._session.get(
+                url,
+                timeout=aiohttp.ClientTimeout(
+                    total=HEALTH_CHECK_TIMEOUT_SECONDS
+                ),
+            ) as resp:
+                logger.debug(f"Health check {url} status={resp.status}")
+                if resp.status == 200:
+                    return True
+        except Exception as e:
+            logger.debug(f"Health check {url} failed: {e}")
 
         return False
 
