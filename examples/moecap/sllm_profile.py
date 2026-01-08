@@ -403,9 +403,13 @@ class SLLMProfiler:
 
         # The server dumps the file to: ~/expert_records/{model_path}/expert_distribution_record.jsonl
         # Use expanduser to resolve ~ to the user's home directory
-        server_output_base = os.path.join(
-            os.path.expanduser("~"), "expert_records"
+        server_output_base = os.environ.get(
+            "SGLANG_EXPERT_DISTRIBUTION_RECORDER_DIR"
         )
+        if server_output_base is None:
+            server_output_base = os.path.join(
+                os.path.expanduser("~"), "expert_records"
+            )
         record_path = os.path.join(
             server_output_base,
             self.hf_model_name,
