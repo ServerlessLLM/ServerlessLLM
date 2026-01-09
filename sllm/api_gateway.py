@@ -164,10 +164,12 @@ def create_app(
         # Check if already exists
         db: Database = request.app.state.database
         if db.get_deployment(model_name, backend):
-            raise HTTPException(
-                status_code=409,
-                detail=f"Deployment {deployment_id} is already registered",
-            )
+            logger.warning(f"Deployment {deployment_id} already exists")
+            return {
+                "deployment_id": deployment_id,
+                "status": "active",
+                "message": f"Deployment {deployment_id} already exists",
+            }
 
         # Parse configuration
         backend_config = body.get("backend_config", {})
