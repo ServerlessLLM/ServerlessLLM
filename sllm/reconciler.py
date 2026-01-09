@@ -136,7 +136,10 @@ class Reconciler:
         logger.info("Reconciler loop stopped")
 
     async def _reconcile_all(self):
-        """Reconcile all active deployments."""
+        """Reconcile all active deployments (status='active').
+
+        Skip 'pending', 'downloading', 'failed', 'deleting' deployments.
+        """
         deployments = self.database.get_active_deployments()
 
         for deployment in deployments:
@@ -333,17 +336,38 @@ class Reconciler:
             deployment: Deployment to create instance for
             existing: Existing instances for storage-aware placement
         """
-        # Get backend config
         backend_config = deployment.backend_config or {}
         tp = backend_config.get("tensor_parallel_size", 1)
 
-        # Select best node
+        # Try to select best node considering load balancing
         node = await self.storage_manager.select_best_node(
             deployment.model_name, tp, existing
         )
+
         if not node:
+            # No node has the model with enough GPUs - try to download
+            node = await self.storage_manager.ensure_model_on_node(
+                deployment.model_name, deployment.backend
+            )
+            if not node:
+                logger.warning(
+                    f"[{deployment.id}] Model not available, waiting for download"
+                )
+                return
+
+        # Verify model is actually on node before scheduling (handles cache staleness)
+        model_verified = await self.storage_manager.verify_model_on_node(
+            node, deployment.model_name
+        )
+        if not model_verified:
             logger.warning(
-                f"[{deployment.id}] No suitable node for new instance"
+                f"[{deployment.id}] Model verification failed on {node}, "
+                "will retry next cycle"
+            )
+            # Clear stale cache entry for this model on this node so next cycle can pick
+            # a different node or trigger a re-download without affecting other models
+            self.storage_manager.clear_model_cache_view(
+                node, deployment.model_name
             )
             return
 

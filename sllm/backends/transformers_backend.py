@@ -223,10 +223,13 @@ class TransformersBackend(SllmBackend):
     async def _load_model(self):
         """Load the transformers model and tokenizer"""
         device_map = self.backend_config.get("device_map", "auto")
-        torch_dtype = self.backend_config.get("torch_dtype", "float16")
+        # Support both 'dtype' (new) and 'torch_dtype' (deprecated) for backward compat
+        dtype = self.backend_config.get("dtype") or self.backend_config.get(
+            "torch_dtype", "float16"
+        )
 
-        if isinstance(torch_dtype, str):
-            torch_dtype = getattr(torch, torch_dtype, torch.float16)
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype, torch.float16)
 
         hf_model_class = self.backend_config.get(
             "hf_model_class", "AutoModelForCausalLM"
@@ -251,7 +254,7 @@ class TransformersBackend(SllmBackend):
             self.model = load_model(
                 model_path,
                 device_map=device_map,
-                torch_dtype=torch_dtype,
+                torch_dtype=dtype,
                 storage_path=storage_path,
                 hf_model_class=hf_model_class,
                 quantization_config=quantization_config,
@@ -490,10 +493,13 @@ class TransformersBackend(SllmBackend):
         lora_path = os.path.join("transformers", lora_path)
         storage_path = os.getenv("STORAGE_PATH", "./models")
         device_map = self.backend_config.get("device_map", "auto")
-        torch_dtype = self.backend_config.get("torch_dtype", "float16")
+        # Support both 'dtype' (new) and 'torch_dtype' (deprecated) for backward compat
+        dtype = self.backend_config.get("dtype") or self.backend_config.get(
+            "torch_dtype", "float16"
+        )
 
-        if isinstance(torch_dtype, str):
-            torch_dtype = getattr(torch, torch_dtype, torch.float16)
+        if isinstance(dtype, str):
+            dtype = getattr(torch, dtype, torch.float16)
 
         self.model = load_lora(
             self.model,
@@ -501,7 +507,7 @@ class TransformersBackend(SllmBackend):
             lora_path,
             device_map=device_map,
             storage_path=storage_path,
-            torch_dtype=torch_dtype,
+            torch_dtype=dtype,
         )
         logger.info(f"Loaded LoRA adapter {lora_name} from {lora_path}")
 

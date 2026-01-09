@@ -25,6 +25,49 @@ VENV_VLLM = "/opt/venvs/vllm"
 VENV_SGLANG = "/opt/venvs/sglang"
 VENV_SLLM_STORE = "/opt/venvs/sllm-store"
 
+# Backend install instructions
+BACKEND_INSTALL_INSTRUCTIONS = {
+    "vllm": "pip install vllm",
+    "sglang": "pip install sglang",
+}
+
+
+def check_backend_available(backend: str) -> None:
+    """
+    Check if a backend is available (importable).
+
+    Raises ImportError with helpful message if not installed.
+    Note: This checks the current Python environment. On distributed setups,
+    backends run in separate venvs on worker nodes.
+
+    Args:
+        backend: Backend name ("vllm" or "sglang")
+
+    Raises:
+        ImportError: If backend is not installed
+        ValueError: If backend is unknown
+    """
+    if backend == "vllm":
+        try:
+            import vllm  # noqa: F401
+        except ImportError:
+            raise ImportError(
+                "vLLM is required but not installed. "
+                "Install it with: pip install vllm"
+            ) from None
+    elif backend == "sglang":
+        try:
+            import sglang  # noqa: F401
+        except ImportError:
+            raise ImportError(
+                "SGLang is required but not installed. "
+                "Install it with: pip install sglang"
+            ) from None
+    else:
+        raise ValueError(
+            f"Unknown backend: {backend}. Supported backends: vllm, sglang"
+        )
+
 
 def build_vllm_command(
     deployment: Deployment, storage_path: str = "/models"

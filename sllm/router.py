@@ -58,8 +58,8 @@ class RouterConfig:
     """Router configuration."""
 
     max_buffer_size: int = 10
-    cold_start_timeout: float = 120.0
-    request_timeout: float = 300.0
+    cold_start_timeout: float = 180.0  # 3 minutes for cold start
+    request_timeout: float = 300.0  # 5 minutes for request
     retry_failed_endpoint: bool = True
 
 

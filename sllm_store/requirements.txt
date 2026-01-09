@@ -6,3 +6,6 @@ grpcio-tools==1.64.0
 peft>=0.16.0
 torch>=2.7.0
 transformers>=4.52.4
+# vllm and sglang are optional - install separately based on backend choice
+# pip install vllm   (for vLLM backend)
+# pip install sglang (for SGLang backend)
