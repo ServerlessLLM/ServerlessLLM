@@ -315,6 +315,35 @@ class TestDeploymentEndpoints:
         assert endpoints_a == ["192.168.1.10:8080"]
         assert endpoints_b == ["192.168.1.20:8080"]
 
+    def test_endpoints_returned_in_sorted_order(self, database):
+        """Test that endpoints are returned in consistent sorted order.
+
+        This is important for round-robin load balancing - without consistent
+        ordering, the same round-robin index could select different endpoints
+        on different calls.
+        """
+        # Add endpoints in reverse/random order
+        database.add_deployment_endpoint("test-model:vllm", "192.168.1.30:8080")
+        database.add_deployment_endpoint("test-model:vllm", "192.168.1.10:8080")
+        database.add_deployment_endpoint("test-model:vllm", "192.168.1.20:8080")
+
+        endpoints = database.get_deployment_endpoints("test-model:vllm")
+
+        # Should be sorted alphabetically
+        assert endpoints == [
+            "192.168.1.10:8080",
+            "192.168.1.20:8080",
+            "192.168.1.30:8080",
+        ]
+
+        # Verify ordering is consistent across multiple calls
+        for _ in range(5):
+            assert database.get_deployment_endpoints("test-model:vllm") == [
+                "192.168.1.10:8080",
+                "192.168.1.20:8080",
+                "192.168.1.30:8080",
+            ]
+
     def test_get_all_healthy_endpoints(self, database):
         """Test getting all healthy endpoints grouped by deployment."""
         database.add_deployment_endpoint("model-a:vllm", "192.168.1.10:8080")

@@ -598,7 +598,8 @@ class Database:
         conn = self._get_connection()
         rows = conn.execute(
             "SELECT endpoint FROM deployment_endpoints "
-            "WHERE deployment_id = ? AND status = 'healthy'",
+            "WHERE deployment_id = ? AND status = 'healthy' "
+            "ORDER BY endpoint",
             (deployment_id,),
         ).fetchall()
         return [row[0] for row in rows]

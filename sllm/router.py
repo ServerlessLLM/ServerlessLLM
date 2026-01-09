@@ -70,7 +70,7 @@ class BufferedRequest:
     deployment_id: str
     payload: Dict[str, Any]
     path: str
-    future: asyncio.Future = field(default_factory=asyncio.Future)
+    endpoint_future: asyncio.Future = field(default_factory=asyncio.Future)
 
 
 class Router:
@@ -288,7 +288,7 @@ class Router:
         payload: Dict[str, Any],
         path: str,
     ) -> Dict[str, Any]:
-        """Buffer request during cold start and wait for result."""
+        """Buffer request during cold start and wait for endpoint."""
         # Get or create buffer for deployment
         if deployment_id not in self._buffers:
             self._buffers[deployment_id] = asyncio.Queue(
@@ -297,14 +297,14 @@ class Router:
 
         buffer = self._buffers[deployment_id]
 
-        # Create request with future
+        # Create request with future to receive endpoint when available
         loop = asyncio.get_event_loop()
-        future = loop.create_future()
+        endpoint_future = loop.create_future()
         request = BufferedRequest(
             deployment_id=deployment_id,
             payload=payload,
             path=path,
-            future=future,
+            endpoint_future=endpoint_future,
         )
 
         try:
@@ -318,9 +318,10 @@ class Router:
             logger.warning(f"[{deployment_id}] Buffer full, rejecting request")
             raise Exception("Service overloaded - buffer full")
 
+        # Phase 1: Wait for endpoint to become available (cold start timeout)
         try:
-            return await asyncio.wait_for(
-                future, timeout=self.config.cold_start_timeout
+            endpoint = await asyncio.wait_for(
+                endpoint_future, timeout=self.config.cold_start_timeout
             )
         except asyncio.TimeoutError:
             logger.error(
@@ -332,8 +333,13 @@ class Router:
                 f"{self.config.cold_start_timeout}s"
             )
 
+        # Phase 2: Forward to endpoint (request timeout applies)
+        return await self._forward_to_endpoint(
+            deployment_id, endpoint, payload, path
+        )
+
     async def _buffer_drain_loop(self):
-        """Background task to drain buffers when endpoints become available."""
+        """Background task to notify waiters when endpoints become available."""
         logger.debug("Buffer drain loop started")
 
         while not self._shutdown:
@@ -352,21 +358,12 @@ class Router:
                                     deployment_id, endpoints
                                 )
                                 logger.info(
-                                    f"[{deployment_id}] Draining buffered "
-                                    f"request to {endpoint}"
+                                    f"[{deployment_id}] Endpoint available, "
+                                    f"unblocking request to {endpoint}"
                                 )
-                                try:
-                                    result = await self._forward_to_endpoint(
-                                        deployment_id,
-                                        endpoint,
-                                        request.payload,
-                                        request.path,
-                                    )
-                                    if not request.future.done():
-                                        request.future.set_result(result)
-                                except Exception as e:
-                                    if not request.future.done():
-                                        request.future.set_exception(e)
+                                # Signal endpoint availability (caller forwards)
+                                if not request.endpoint_future.done():
+                                    request.endpoint_future.set_result(endpoint)
                             except asyncio.QueueEmpty:
                                 pass
 

@@ -215,6 +215,40 @@ class TestRoundRobinLoadBalancing:
         endpoint = router._select_endpoint("unknown-model:vllm")
         assert endpoint is None
 
+    @pytest.mark.asyncio
+    async def test_round_robin_consistent_regardless_of_insertion_order(
+        self, router, database
+    ):
+        """Test that round-robin is consistent regardless of endpoint insertion order.
+
+        This verifies the fix for the SQLite ordering bug - without ORDER BY,
+        endpoints could be returned in different orders, causing the same
+        round-robin index to select different endpoints.
+        """
+        deployment_id = "test-model:vllm"
+
+        # Add endpoints in reverse order (not alphabetical)
+        database.add_deployment_endpoint(deployment_id, "192.168.1.30:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
+        database.add_deployment_endpoint(deployment_id, "192.168.1.20:8080")
+
+        # Collect selected endpoints - should cycle in sorted order
+        selected = []
+        for _ in range(6):
+            endpoint = router._select_endpoint(deployment_id)
+            selected.append(endpoint)
+
+        # Should cycle through in sorted order: 10, 20, 30, 10, 20, 30
+        expected = [
+            "192.168.1.10:8080",
+            "192.168.1.20:8080",
+            "192.168.1.30:8080",
+            "192.168.1.10:8080",
+            "192.168.1.20:8080",
+            "192.168.1.30:8080",
+        ]
+        assert selected == expected
+
 
 # ============================================================================ #
 # Cold-Start Buffering Tests
@@ -273,25 +307,28 @@ class TestColdStartBuffering:
             )
         )
 
-        # Start request in background
-        task = asyncio.create_task(
-            router.handle_request(
-                payload, "/v1/chat/completions", deployment_id=deployment_id
-            )
-        )
+        # Start the router's drain loop
+        await router.start()
 
-        # Wait a bit for buffering
-        await asyncio.sleep(0.05)
-
-        # Add endpoint - should trigger drain
-        database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
-
-        # Wait for completion
         try:
+            # Start request in background
+            task = asyncio.create_task(
+                router.handle_request(
+                    payload, "/v1/chat/completions", deployment_id=deployment_id
+                )
+            )
+
+            # Wait a bit for buffering
+            await asyncio.sleep(0.05)
+
+            # Add endpoint - should trigger drain
+            database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
+
+            # Wait for completion
             result = await asyncio.wait_for(task, timeout=1.0)
             assert "choices" in result
-        except asyncio.TimeoutError:
-            pytest.skip("Buffer drain mechanism not yet implemented")
+        finally:
+            await router.stop()
 
     @pytest.mark.asyncio
     async def test_buffer_full_returns_503(self, router_small_buffer, database):
@@ -343,6 +380,77 @@ class TestColdStartBuffering:
         assert "timeout" in str(exc_info.value).lower() or "503" in str(
             exc_info.value
         )
+
+    @pytest.mark.asyncio
+    async def test_slow_inference_does_not_trigger_cold_start_timeout(
+        self, database, mock_autoscaler, mock_http_client
+    ):
+        """Test that slow inference doesn't trigger cold-start timeout.
+
+        This verifies the fix for the bug where cold_start_timeout included
+        both waiting-for-endpoint AND inference time. Now cold_start_timeout
+        only applies to waiting for endpoint; request_timeout applies to
+        inference.
+
+        Scenario:
+        - cold_start_timeout = 0.3s
+        - request_timeout = 2.0s
+        - Endpoint becomes available after 0.1s
+        - Inference takes 0.5s
+
+        Before fix: Would fail with cold-start timeout (0.1 + 0.5 > 0.3)
+        After fix: Should succeed (endpoint available in 0.1s < 0.3s)
+        """
+        from sllm.router import Router, RouterConfig
+
+        config = RouterConfig(
+            max_buffer_size=10,
+            cold_start_timeout=0.3,  # Short cold start timeout
+            request_timeout=2.0,  # Longer request timeout
+        )
+        router = Router(
+            database=database,
+            autoscaler=mock_autoscaler,
+            config=config,
+        )
+        router._session = mock_http_client
+
+        deployment_id = "test-model:vllm"
+        payload = {"model": deployment_id, "messages": []}
+
+        # Configure mock to take 0.5s (longer than cold_start_timeout)
+        async def slow_inference():
+            await asyncio.sleep(0.5)
+            return {"choices": [{"message": {"content": "Hello!"}}]}
+
+        mock_http_client.post.return_value.__aenter__.return_value.status = 200
+        mock_http_client.post.return_value.__aenter__.return_value.json = (
+            slow_inference
+        )
+
+        # Start the router's drain loop
+        await router.start()
+
+        try:
+            # Start request - will buffer since no endpoint
+            task = asyncio.create_task(
+                router.handle_request(
+                    payload,
+                    "/v1/chat/completions",
+                    deployment_id=deployment_id,
+                )
+            )
+
+            # Wait a bit, then add endpoint (simulates instance becoming ready)
+            await asyncio.sleep(0.1)
+            database.add_deployment_endpoint(deployment_id, "192.168.1.10:8080")
+
+            # Request should complete successfully despite slow inference
+            result = await asyncio.wait_for(task, timeout=2.0)
+            assert "choices" in result
+
+        finally:
+            await router.stop()
 
 
 # ============================================================================ #
