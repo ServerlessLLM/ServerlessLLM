@@ -31,6 +31,7 @@ Terminology:
 - model_name: HuggingFace model name (what users specify in requests)
 """
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import Any, Optional
@@ -163,11 +164,45 @@ def create_app(
 
         # Check if already exists
         db: Database = request.app.state.database
-        if db.get_deployment(model_name, backend):
-            raise HTTPException(
-                status_code=409,
-                detail=f"Deployment {deployment_id} is already registered",
-            )
+        existing = db.get_deployment(model_name, backend)
+        if existing:
+            if existing.status == "deleting":
+                # Wait for deletion to complete before re-creating
+                logger.info(
+                    f"Deployment {deployment_id} is being deleted, "
+                    "waiting for deletion to complete..."
+                )
+                max_wait_seconds = 60
+                poll_interval = 0.5
+                waited = 0.0
+                while waited < max_wait_seconds:
+                    await asyncio.sleep(poll_interval)
+                    waited += poll_interval
+                    existing = db.get_deployment(model_name, backend)
+                    if not existing:
+                        # Deletion complete, proceed with creation
+                        logger.info(
+                            f"Deployment {deployment_id} deletion complete, "
+                            "proceeding with new deployment"
+                        )
+                        break
+                else:
+                    # Timeout waiting for deletion
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"Timeout waiting for deployment {deployment_id} "
+                            "deletion to complete. Please retry later."
+                        ),
+                    )
+            else:
+                # Deployment exists and is active
+                logger.warning(f"Deployment {deployment_id} already exists")
+                return {
+                    "deployment_id": deployment_id,
+                    "status": existing.status,
+                    "message": f"Deployment {deployment_id} already exists",
+                }
 
         # Parse configuration
         backend_config = body.get("backend_config", {})
