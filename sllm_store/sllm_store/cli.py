@@ -40,6 +40,21 @@ from transformers import (
 from peft import PeftModel
 
 
+def resolve_storage_path(cli_path: Optional[str]) -> str:
+    """
+    Resolve storage path with priority:
+    1. CLI specified --storage-path (highest priority)
+    2. Environment variable SLLM_STORAGE_PATH
+    3. Default ~/models/ (lowest priority)
+    """
+    if cli_path is not None:
+        return os.path.expanduser(cli_path)
+    env_path = os.getenv("SLLM_STORAGE_PATH")
+    if env_path:
+        return os.path.expanduser(env_path)
+    return os.path.expanduser("~/models/")
+
+
 class VllmModelDownloader:
     def __init__(self):
         pass
@@ -49,7 +64,7 @@ class VllmModelDownloader:
         model_name: str,
         torch_dtype: str,
         tensor_parallel_size: int = 1,
-        storage_path: str = "./models",
+        storage_path: Optional[str] = None,
         local_model_path: Optional[str] = None,
         pattern: Optional[str] = None,
         max_size: Optional[int] = None,
@@ -61,8 +76,8 @@ class VllmModelDownloader:
         from huggingface_hub import snapshot_download
         from vllm import LLM
 
-        # set the model storage path
-        storage_path = os.getenv("STORAGE_PATH", storage_path)
+        # Resolve storage path with priority: CLI > env var > default
+        storage_path = resolve_storage_path(storage_path)
 
         def _run_writer(input_dir, model_name):
             # load models from the input directory
@@ -150,7 +165,11 @@ def cli():
 @cli.command()
 @click.option("--host", default="0.0.0.0", help="Host")
 @click.option("--port", default=8073, help="Port")
-@click.option("--storage-path", default="./models", help="Storage path")
+@click.option(
+    "--storage-path",
+    default=None,
+    help="Storage path (default: $SLLM_STORAGE_PATH or ~/models/)",
+)
 @click.option("--num-thread", default=4, help="Number of I/O threads")
 @click.option(
     "--chunk-size", default="32MB", help="Chunk size, e.g., 4KB, 1MB, 1GB"
@@ -179,6 +198,9 @@ def start(
     registration_required,
 ):
     """Start the gRPC server."""
+    # Resolve storage path with priority: CLI > env var > default
+    storage_path = resolve_storage_path(storage_path)
+
     # Convert the chunk size to bytes
     chunk_size = to_num_bytes(chunk_size)
 
@@ -223,8 +245,8 @@ def start(
 )
 @click.option(
     "--storage-path",
-    default="./models",
-    help="Local path to save the model",
+    default=None,
+    help="Local path to save the model (default: $SLLM_STORAGE_PATH or ~/models/)",  # noqa: E501
 )
 def save(
     model_name,
@@ -239,6 +261,8 @@ def save(
 
     This command is for adding new models to the sllm-store's local storage.
     """
+    # Resolve storage path with priority: CLI > env var > default
+    storage_path = resolve_storage_path(storage_path)
 
     logger.info(
         f"Saving model {adapter_name if adapter_name else model_name} "
@@ -248,6 +272,7 @@ def save(
     try:
         if backend == "vllm":
             downloader = VllmModelDownloader()
+            storage_path = storage_path + "/" + "vllm"
             downloader.download_vllm_model(
                 model_name,
                 "float16",
@@ -315,8 +340,8 @@ def save(
 @click.option(
     "--storage-path",
     type=str,
-    default="./models",
-    help="Local path where model is saved",
+    default=None,
+    help="Local path where model is saved (default: $STORAGE_PATH or ~/models/)",  # noqa: E501
 )
 def load(
     model_name,
@@ -330,6 +355,8 @@ def load(
 
     This command is for loading new models from the sllm-store's local storage.
     """
+    # Resolve storage path with priority: CLI > env var > default
+    storage_path = resolve_storage_path(storage_path)
 
     logger.info(
         f"Loading model {adapter_name if adapter_name else model_name} "
