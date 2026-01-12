@@ -272,7 +272,7 @@ def save(
     try:
         if backend == "vllm":
             downloader = VllmModelDownloader()
-            storage_path = storage_path + "/" + "vllm"
+            storage_path = os.path.join(storage_path, "vllm")
             downloader.download_vllm_model(
                 model_name,
                 "float16",
