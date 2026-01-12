@@ -341,7 +341,7 @@ def save(
     "--storage-path",
     type=str,
     default=None,
-    help="Local path where model is saved (default: $STORAGE_PATH or ~/models/)",  # noqa: E501
+    help="Local path where model is saved (default: $SLLM_STORAGE_PATH or ~/models/)",  # noqa: E501
 )
 def load(
     model_name,
