@@ -308,51 +308,64 @@ def create_app(
         )
         pylet: Optional[PyletClient] = request.app.state.pylet_client
 
-        # Check if model is cached
+        existing = db.get_deployment(model_name, backend)
         model_cached = False
         if storage_manager:
             nodes_with_model = storage_manager.get_nodes_with_model(model_name)
-            if nodes_with_model:
-                model_cached = True
-                logger.info(
-                    f"Model {model_name} already cached on nodes: {nodes_with_model}"
-                )
+            model_cached = bool(nodes_with_model)
 
-        # Handle existing deployment
-        existing = db.get_deployment(model_name, backend)
-        if existing:
-            if model_cached:
+        # Fast path: model is cached
+        if model_cached:
+            if existing:
                 raise HTTPException(
                     status_code=409,
                     detail=f"Deployment {deployment_id} is already registered",
                 )
-            if existing.status == "downloading":
-                return JSONResponse(
-                    status_code=202,
-                    content={
-                        "deployment_id": deployment_id,
-                        "status": "downloading",
-                        "download_node": existing.download_node,
-                        "message": f"Model download already in progress on {existing.download_node}",
-                    },
+            backend_config = body.get("backend_config", {})
+            auto_scaling_config = body.get("auto_scaling_config", {})
+            try:
+                db.create_deployment(
+                    model_name=model_name,
+                    backend=backend,
+                    min_replicas=auto_scaling_config.get("min_instances", 0),
+                    max_replicas=auto_scaling_config.get("max_instances", 1),
+                    target_pending_requests=auto_scaling_config.get(
+                        "target_ongoing_requests", 5
+                    ),
+                    keep_alive_seconds=auto_scaling_config.get(
+                        "keep_alive_seconds", 0
+                    ),
+                    backend_config=backend_config,
+                    initial_status="active",
                 )
-            # Existing deployment but model not cached - fall through to trigger download
+            except ValueError as e:
+                raise HTTPException(status_code=409, detail=str(e))
+            logger.info(f"Registered deployment {deployment_id} (model cached)")
+            return {
+                "deployment_id": deployment_id,
+                "status": "active",
+                "message": f"Deployment {deployment_id} registered successfully",
+            }
 
-        # setup the download if necessary (select the node)
-        download_node = None
-        needs_download = not model_cached
-        if needs_download:
-            if not pylet:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Model not cached and no Pylet client available",
-                )
-            download_node = await _select_download_node(pylet)
-            logger.info(
-                f"Model {model_name} not cached, will download to {download_node}"
+        # Slow path: model not cached, need to download
+        if existing and existing.status == "downloading":
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "deployment_id": deployment_id,
+                    "status": "downloading",
+                    "download_node": existing.download_node,
+                    "message": f"Download in progress on {existing.download_node}",
+                },
             )
 
-        # Create or update deployment
+        if not pylet:
+            raise HTTPException(
+                status_code=503,
+                detail="Model not cached and no Pylet client available",
+            )
+        download_node = await _select_download_node(pylet)
+
         try:
             if existing:
                 db.update_deployment_download_status(
@@ -361,8 +374,8 @@ def create_app(
                     download_node=download_node,
                 )
                 logger.info(
-                    f"Deployment {deployment_id} exists but model not cached, "
-                    f"triggering download to {download_node}"
+                    f"Deployment {deployment_id} model not cached, "
+                    f"downloading to {download_node}"
                 )
             else:
                 backend_config = body.get("backend_config", {})
@@ -379,44 +392,12 @@ def create_app(
                         "keep_alive_seconds", 0
                     ),
                     backend_config=backend_config,
-                    initial_status="downloading"
-                    if needs_download
-                    else "active",
+                    initial_status="downloading",
                     download_node=download_node,
                 )
                 logger.info(
-                    f"Registered deployment {deployment_id} "
-                    f"(status={'downloading' if needs_download else 'active'})"
+                    f"Registered deployment {deployment_id} (downloading)"
                 )
-
-            # trigger the download
-            if needs_download and storage_manager:
-                asyncio.create_task(
-                    _trigger_model_download(
-                        storage_manager,
-                        db,
-                        deployment_id,
-                        model_name,
-                        backend,
-                        download_node,
-                    )
-                )
-                return JSONResponse(
-                    status_code=202,
-                    content={
-                        "deployment_id": deployment_id,
-                        "status": "downloading",
-                        "download_node": download_node,
-                        "message": f"Model download started on {download_node}",
-                    },
-                )
-
-            return {
-                "deployment_id": deployment_id,
-                "status": "active",
-                "message": f"Deployment {deployment_id} registered successfully",
-            }
-
         except ValueError as e:
             raise HTTPException(status_code=409, detail=str(e))
         except Exception as e:
@@ -425,6 +406,28 @@ def create_app(
                 status_code=500,
                 detail="Deployment registration failed due to internal error",
             )
+
+        if storage_manager:
+            asyncio.create_task(
+                _trigger_model_download(
+                    storage_manager,
+                    db,
+                    deployment_id,
+                    model_name,
+                    backend,
+                    download_node,
+                )
+            )
+
+        return JSONResponse(
+            status_code=202,
+            content={
+                "deployment_id": deployment_id,
+                "status": "downloading",
+                "download_node": download_node,
+                "message": f"Download started on {download_node}",
+            },
+        )
 
     async def _update_status_with_retry(
         db: Database,
