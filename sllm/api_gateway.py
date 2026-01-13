@@ -211,6 +211,7 @@ def create_app(
             router.set_autoscaler(autoscaler)
 
         if database:
+            storage_manager = getattr(app.state, "storage_manager", None)
             await _recover_stale_downloads(
                 database, storage_manager, pylet_client
             )
