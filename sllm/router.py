@@ -218,6 +218,7 @@ class Router:
         endpoint: str,
         payload: Dict[str, Any],
         path: str,
+        _retries_left: int = 1,
     ) -> Dict[str, Any]:
         """Forward request to a specific endpoint."""
         url = f"http://{endpoint}{path}"
@@ -250,7 +251,7 @@ class Router:
             logger.error(f"[{deployment_id}] Request to {endpoint} failed: {e}")
 
             # Retry on another endpoint if available and configured
-            if self.config.retry_failed_endpoint:
+            if self.config.retry_failed_endpoint and _retries_left > 0:
                 endpoints = self.database.get_deployment_endpoints(
                     deployment_id
                 )
@@ -267,7 +268,11 @@ class Router:
                     # Decrement in-flight before retry (will be incremented again)
                     self._in_flight[deployment_id] -= 1
                     return await self._forward_to_endpoint(
-                        deployment_id, other_endpoint, payload, path
+                        deployment_id,
+                        other_endpoint,
+                        payload,
+                        path,
+                        _retries_left - 1,
                     )
 
             raise Exception(f"Failed to forward request: {e}")
