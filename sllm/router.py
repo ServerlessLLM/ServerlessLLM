@@ -294,7 +294,6 @@ class Router:
         path: str,
     ) -> Dict[str, Any]:
         """Buffer request during cold start and wait for endpoint."""
-        # Get or create buffer for deployment
         if deployment_id not in self._buffers:
             self._buffers[deployment_id] = asyncio.Queue(
                 maxsize=self.config.max_buffer_size

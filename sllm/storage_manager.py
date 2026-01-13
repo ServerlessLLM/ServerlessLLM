@@ -192,12 +192,10 @@ class StorageManager:
         Returns:
             sllm-store endpoint (ip:port) or None if failed
         """
-        # Check if already running
         existing = await self.get_store_endpoint(node_name)
         if existing:
             return existing
 
-        # Check for existing instance in Pylet
         existing_instance = await self.pylet_client.get_store_instance(
             node_name
         )
@@ -205,7 +203,6 @@ class StorageManager:
             self._store_endpoints[node_name] = existing_instance.endpoint
             return existing_instance.endpoint
 
-        # Get worker info
         worker = await self.pylet_client.get_worker(node_name)
         if not worker or worker.status != "ONLINE":
             logger.warning(
@@ -213,7 +210,6 @@ class StorageManager:
             )
             return None
 
-        # Start sllm-store instance
         try:
             command = (
                 f"sllm-store start "
@@ -239,7 +235,6 @@ class StorageManager:
                 venv=VENV_SLLM_STORE,
             )
 
-            # Wait for it to be running
             instance = await self.pylet_client.wait_instance_running(
                 instance.instance_id, timeout=60
             )
@@ -299,11 +294,9 @@ class StorageManager:
         Args:
             report: Storage report from sllm-store
         """
-        # Update in-memory cache
         self._cache_view[report.node_name] = set(report.cached_models)
         self._store_endpoints[report.node_name] = report.sllm_store_endpoint
 
-        # Persist to database
         self.database.upsert_node_storage(
             node_name=report.node_name,
             sllm_store_endpoint=report.sllm_store_endpoint,
@@ -450,11 +443,11 @@ class StorageManager:
             return nodes[0]
 
         lock = self._download_locks.setdefault(model_name, asyncio.Lock())
-        if lock.locked():
+        if not lock.acquire_nowait():
             logger.debug(f"Download already in progress for {model_name}")
             return None
 
-        # Start download in background - lock acquisition happens inside
+        # Lock acquired - start background task which will release it when done
         asyncio.create_task(
             self._background_download(lock, model_name, backend)
         )
@@ -464,27 +457,26 @@ class StorageManager:
     async def _background_download(
         self, lock: asyncio.Lock, model_name: str, backend: str
     ) -> None:
-        """Background task to download a model."""
+        """Background task to download a model. Lock is already held by caller."""
         try:
-            async with lock:
-                # Double-check model isn't already available
-                nodes = self.get_nodes_with_model(model_name)
-                if nodes:
-                    return
+            # Double-check model isn't already available
+            nodes = self.get_nodes_with_model(model_name)
+            if nodes:
+                return
 
-                workers = await self.pylet_client.get_online_workers()
-                if not workers:
-                    logger.warning(
-                        "No online workers available for model download"
-                    )
-                    return
+            workers = await self.pylet_client.get_online_workers()
+            if not workers:
+                logger.warning("No online workers available for model download")
+                return
 
-                node = random.choice(workers).worker_id
-                logger.info(f"Downloading {model_name} to {node} (background)")
+            node = random.choice(workers).worker_id
+            logger.info(f"Downloading {model_name} to {node} (background)")
 
-                await self.download_model_on_node(node, model_name, backend)
+            await self.download_model_on_node(node, model_name, backend)
         except Exception as e:
             logger.error(f"Background download failed for {model_name}: {e}")
+        finally:
+            lock.release()
 
     async def download_model_on_node(
         self, node_name: str, model_name: str, backend: str

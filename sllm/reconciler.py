@@ -36,6 +36,7 @@ Terminology:
 """
 
 import asyncio
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
@@ -380,16 +381,11 @@ class Reconciler:
             )
             return
 
-        # Build command and get venv path
         command, venv_path = build_instance_command(
             deployment, self.storage_path
         )
 
-        # Create instance via Pylet
-        # Use gpu=N to let Pylet auto-allocate GPUs
         try:
-            import uuid
-
             safe_model = deployment.model_name.replace("/", "-")
             instance_name = f"{safe_model}-{uuid.uuid4().hex[:8]}"
 
@@ -421,19 +417,16 @@ class Reconciler:
 
     async def _cleanup_instance(self, deployment_id: str, inst: InstanceInfo):
         """Clean up a failed or timed-out instance."""
-        # Remove from deployment_endpoints table
         if inst.endpoint:
             self.database.remove_deployment_endpoint(
                 deployment_id, inst.endpoint
             )
 
-        # Cancel in Pylet
         try:
             await self.pylet_client.cancel_instance(inst.instance_id)
         except Exception as e:
             logger.warning(f"Failed to cancel instance {inst.instance_id}: {e}")
 
-        # Clean up tracking
         self._startup_times.pop(inst.instance_id, None)
 
         logger.info(f"Cleaned up instance {inst.instance_id}")
@@ -453,7 +446,6 @@ class Reconciler:
             # Wait briefly for in-flight requests to complete
             await asyncio.sleep(2.0)
 
-        # Cancel in Pylet
         try:
             await self.pylet_client.cancel_instance(inst.instance_id)
         except Exception as e:

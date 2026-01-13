@@ -196,38 +196,31 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Store dependencies in app state
-        # Note: Some may already be set on app.state before lifespan runs
-        # (e.g., storage_manager is created after create_app but before serve)
+        # Note: storage_manager may be set externally after create_app but before serve
         app.state.database = database
         app.state.pylet_client = pylet_client
         app.state.router = router
         app.state.autoscaler = autoscaler
-        # Only set storage_manager if passed (may be set later externally)
         if storage_manager is not None:
             app.state.storage_manager = storage_manager
         elif not hasattr(app.state, "storage_manager"):
             app.state.storage_manager = None
         app.state.config = config
 
-        # Connect Router to Autoscaler for metrics push
         if router and autoscaler:
             router.set_autoscaler(autoscaler)
 
-        # Recover stale downloads from previous run
         if database:
             await _recover_stale_downloads(
                 database, storage_manager, pylet_client
             )
 
-        # Start router if provided
         if router:
             await router.start()
 
         logger.info("API Gateway started")
         yield
 
-        # Cleanup
         if router:
             await router.drain(timeout=10.0)
             await router.stop()
@@ -319,7 +312,6 @@ def create_app(
         )
         pylet: Optional[PyletClient] = request.app.state.pylet_client
 
-        # Check if model is cached on any node
         model_cached = False
         download_node = None
         nodes_with_model = []
@@ -332,7 +324,6 @@ def create_app(
                     f"Model {model_name} already cached on nodes: {nodes_with_model}"
                 )
 
-        # Check if deployment already exists
         existing = db.get_deployment(model_name, backend)
         if existing:
             if model_cached:
@@ -388,7 +379,6 @@ def create_app(
                         detail="No Pylet client available to check workers",
                     )
 
-        # New deployment - select node for download if model not cached
         if not model_cached:
             if pylet:
                 download_node = await _select_download_node(pylet)
@@ -401,7 +391,6 @@ def create_app(
                     detail="Model not cached and Pylet client is unavailable to orchestrate a download.",
                 )
 
-        # Parse configuration
         backend_config = body.get("backend_config", {})
         auto_scaling_config = body.get("auto_scaling_config", {})
 
@@ -589,11 +578,7 @@ def create_app(
             )
 
         try:
-            # Mark as deleting and set desired=0
-            # The Reconciler will handle the actual cleanup:
-            # - Cancel instances in Pylet
-            # - Remove endpoints from deployment_endpoints table
-            # - Delete from database
+            # Reconciler will cancel instances, remove endpoints, and delete from DB
             db.update_deployment_status(deployment_id, "deleting")
             db.update_desired_replicas(deployment_id, 0)
 
@@ -828,7 +813,6 @@ def create_app(
         if not node_name:
             raise HTTPException(status_code=400, detail="Missing 'node_name'")
 
-        # Try to use StorageManager for in-memory cache + DB update
         storage_manager = getattr(request.app.state, "storage_manager", None)
         if storage_manager:
             try:
@@ -842,7 +826,6 @@ def create_app(
                 await storage_manager.handle_storage_report(report)
             except Exception as e:
                 logger.warning(f"StorageManager update failed: {e}")
-                # Fall back to direct DB update
                 db: Database = request.app.state.database
                 db.upsert_node_storage(
                     node_name=node_name,
