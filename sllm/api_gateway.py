@@ -103,7 +103,7 @@ def create_app(
 
     async def _recover_stale_downloads(
         db: Database,
-        sm: Optional[StorageManager],
+        storage_manager: Optional[StorageManager],
         pylet: Optional[PyletClient],
     ):
         """Recover deployments stuck in 'downloading' status after restart.
@@ -123,12 +123,11 @@ def create_app(
         for deployment in downloading:
             try:
                 # Check if model is now cached
-                if sm:
-                    nodes_with_model = sm.get_nodes_with_model(
+                if storage_manager:
+                    nodes_with_model = storage_manager.get_nodes_with_model(
                         deployment.model_name
                     )
                     if nodes_with_model:
-                        # Model is available, mark as active
                         db.update_deployment_download_status(
                             deployment.id,
                             status="active",
@@ -140,7 +139,7 @@ def create_app(
                         continue
 
                 # Model not cached, try to retry download
-                if pylet and sm:
+                if pylet and storage_manager:
                     workers = await pylet.get_online_workers()
                     if not workers:
                         db.update_deployment_download_status(
@@ -167,10 +166,9 @@ def create_app(
                         f"Retrying download for {deployment.id} on {download_node}"
                     )
 
-                    # Trigger async download
                     asyncio.create_task(
                         _trigger_model_download(
-                            sm,
+                            storage_manager,
                             db,
                             deployment.id,
                             deployment.model_name,
@@ -179,7 +177,6 @@ def create_app(
                         )
                     )
                 else:
-                    # No pylet/sm, mark as failed
                     db.update_deployment_download_status(
                         deployment.id,
                         status="failed",
@@ -317,7 +314,9 @@ def create_app(
         deployment_id = Deployment.make_id(model_name, backend)
 
         db: Database = request.app.state.database
-        sm: Optional[StorageManager] = request.app.state.storage_manager
+        storage_manager: Optional[StorageManager] = (
+            request.app.state.storage_manager
+        )
         pylet: Optional[PyletClient] = request.app.state.pylet_client
 
         # Check if model is cached on any node
@@ -325,8 +324,8 @@ def create_app(
         download_node = None
         nodes_with_model = []
 
-        if sm:
-            nodes_with_model = sm.get_nodes_with_model(model_name)
+        if storage_manager:
+            nodes_with_model = storage_manager.get_nodes_with_model(model_name)
             if nodes_with_model:
                 model_cached = True
                 logger.info(
@@ -336,15 +335,12 @@ def create_app(
         # Check if deployment already exists
         existing = db.get_deployment(model_name, backend)
         if existing:
-            # Deployment exists - check if we need to trigger download
             if model_cached:
-                # Model is available, truly a conflict
                 raise HTTPException(
                     status_code=409,
                     detail=f"Deployment {deployment_id} is already registered",
                 )
             elif existing.status == "downloading":
-                # Already downloading
                 return JSONResponse(
                     status_code=202,
                     content={
@@ -355,21 +351,16 @@ def create_app(
                     },
                 )
             else:
-                # Deployment exists but model not cached - trigger download
                 if pylet:
                     download_node = await _select_download_node(pylet)
-
-                    # Update deployment to downloading status
                     db.update_deployment_download_status(
                         deployment_id,
                         status="downloading",
                         download_node=download_node,
                     )
-
-                    # Trigger async download
                     asyncio.create_task(
                         _trigger_model_download(
-                            sm,
+                            storage_manager,
                             db,
                             deployment_id,
                             model_name,
@@ -377,7 +368,6 @@ def create_app(
                             download_node,
                         )
                     )
-
                     logger.info(
                         f"Deployment {deployment_id} exists but model not cached, "
                         f"triggering download to {download_node}"
@@ -416,12 +406,7 @@ def create_app(
         auto_scaling_config = body.get("auto_scaling_config", {})
 
         try:
-            # Determine initial status based on model availability
-            if model_cached:
-                initial_status = "active"
-            else:
-                initial_status = "downloading"
-
+            initial_status = "active" if model_cached else "downloading"
             deployment = db.create_deployment(
                 model_name=model_name,
                 backend=backend,
@@ -442,11 +427,14 @@ def create_app(
                 f"Registered deployment {deployment_id} with status={initial_status}"
             )
 
-            # If downloading, trigger async download task
-            if initial_status == "downloading" and sm and download_node:
+            if (
+                initial_status == "downloading"
+                and storage_manager
+                and download_node
+            ):
                 asyncio.create_task(
                     _trigger_model_download(
-                        sm,
+                        storage_manager,
                         db,
                         deployment_id,
                         model_name,
@@ -455,7 +443,6 @@ def create_app(
                     )
                 )
 
-            # Return appropriate response
             if initial_status == "active":
                 return {
                     "deployment_id": deployment_id,
@@ -521,7 +508,7 @@ def create_app(
                     return False
 
     async def _trigger_model_download(
-        sm: StorageManager,
+        storage_manager: StorageManager,
         db: Database,
         deployment_id: str,
         model_name: str,
@@ -533,7 +520,7 @@ def create_app(
             logger.info(
                 f"Starting model download for {deployment_id} on {node_name}"
             )
-            success = await sm.download_model_on_node(
+            success = await storage_manager.download_model_on_node(
                 node_name, model_name, backend
             )
 
@@ -592,7 +579,6 @@ def create_app(
             )
 
         if deployment.status == "deleting":
-            # Already deleting
             return JSONResponse(
                 status_code=202,
                 content={
@@ -659,7 +645,6 @@ def create_app(
         backend = body.pop("backend", "vllm")
         deployment_id = Deployment.make_id(model_name, backend)
 
-        # Verify deployment exists and is ready for inference
         db: Database = request.app.state.database
         deployment = db.get_deployment(model_name, backend)
         if not deployment or deployment.status != "active":
@@ -669,7 +654,6 @@ def create_app(
                 detail=f"Deployment '{deployment_id}' not found or not active{status_msg}",
             )
 
-        # Get router
         router: Router = request.app.state.router
         if not router:
             raise HTTPException(
@@ -677,7 +661,6 @@ def create_app(
                 detail="Router not available",
             )
 
-        # Forward to router
         try:
             result = await router.handle_request(
                 body, path, deployment_id=deployment_id
@@ -745,7 +728,6 @@ def create_app(
         router: Router = request.app.state.router
         pylet_client: Optional[PyletClient] = request.app.state.pylet_client
 
-        # Get deployments
         deployments = db.get_all_deployments()
         deployment_status = []
 
@@ -868,7 +850,6 @@ def create_app(
                     cached_models=body.get("cached_models", []),
                 )
         else:
-            # No StorageManager, direct DB update
             db: Database = request.app.state.database
             db.upsert_node_storage(
                 node_name=node_name,

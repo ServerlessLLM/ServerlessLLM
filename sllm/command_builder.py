@@ -25,12 +25,6 @@ VENV_VLLM = "/opt/venvs/vllm"
 VENV_SGLANG = "/opt/venvs/sglang"
 VENV_SLLM_STORE = "/opt/venvs/sllm-store"
 
-# Backend install instructions
-BACKEND_INSTALL_INSTRUCTIONS = {
-    "vllm": "pip install vllm",
-    "sglang": "pip install sglang",
-}
-
 
 def check_backend_available(backend: str) -> None:
     """
