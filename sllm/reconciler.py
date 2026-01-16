@@ -45,6 +45,7 @@ import aiohttp
 from sllm.command_builder import build_instance_command
 from sllm.database import Database, Deployment
 from sllm.logger import init_logger
+from sllm.prometheus import PrometheusFileSD, PrometheusMetrics
 from sllm.pylet_client import InstanceInfo, PyletClient
 from sllm.storage_manager import StorageManager
 
@@ -82,6 +83,8 @@ class Reconciler:
         pylet_client: PyletClient,
         storage_manager: StorageManager,
         storage_path: str = "/models",
+        prometheus_sd: Optional[PrometheusFileSD] = None,
+        prometheus_metrics: Optional[PrometheusMetrics] = None,
     ):
         """
         Initialize the Reconciler.
@@ -96,6 +99,8 @@ class Reconciler:
         self.pylet_client = pylet_client
         self.storage_manager = storage_manager
         self.storage_path = storage_path
+        self.prometheus_sd = prometheus_sd
+        self.prometheus_metrics = prometheus_metrics
 
         # Track instance startup times for timeout detection
         self._startup_times: Dict[str, datetime] = {}
@@ -201,6 +206,7 @@ class Reconciler:
                     self.database.add_deployment_endpoint(
                         deployment.id, inst.endpoint
                     )
+                    self._update_prometheus_endpoints()
                     state.starting.remove(inst)
                     state.ready.append(inst)
                     self._startup_times.pop(inst.instance_id, None)
@@ -401,6 +407,7 @@ class Reconciler:
             self.database.remove_deployment_endpoint(
                 deployment_id, inst.endpoint
             )
+            self._update_prometheus_endpoints()
 
         # Cancel in Pylet
         try:
@@ -424,6 +431,7 @@ class Reconciler:
             self.database.remove_deployment_endpoint(
                 deployment_id, inst.endpoint
             )
+            self._update_prometheus_endpoints()
 
             # Wait briefly for in-flight requests to complete
             await asyncio.sleep(2.0)
@@ -480,6 +488,7 @@ class Reconciler:
         if not instances:
             # All instances gone - remove endpoints and delete from database
             self.database.remove_deployment_endpoints(deployment.id)
+            self._update_prometheus_endpoints()
             self.database.delete_deployment(deployment.id)
             logger.info(f"Completed deletion of {deployment.id}")
             return
@@ -487,6 +496,15 @@ class Reconciler:
         # Cancel remaining instances
         for inst in instances:
             await self._cleanup_instance(deployment.id, inst)
+
+    def _update_prometheus_endpoints(self) -> None:
+        if not self.prometheus_sd and not self.prometheus_metrics:
+            return
+        endpoints = self.database.get_all_healthy_endpoints()
+        if self.prometheus_sd:
+            self.prometheus_sd.write_targets(endpoints)
+        if self.prometheus_metrics:
+            self.prometheus_metrics.set_instance_counts(endpoints)
 
 
 # Global instance
@@ -503,6 +521,8 @@ def init_reconciler(
     pylet_client: PyletClient,
     storage_manager: StorageManager,
     storage_path: str = "/models",
+    prometheus_sd: Optional[PrometheusFileSD] = None,
+    prometheus_metrics: Optional[PrometheusMetrics] = None,
 ) -> Reconciler:
     """Initialize the global Reconciler instance."""
     global _reconciler
@@ -511,5 +531,7 @@ def init_reconciler(
         pylet_client=pylet_client,
         storage_manager=storage_manager,
         storage_path=storage_path,
+        prometheus_sd=prometheus_sd,
+        prometheus_metrics=prometheus_metrics,
     )
     return _reconciler

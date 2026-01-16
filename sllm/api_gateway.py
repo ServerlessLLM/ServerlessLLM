@@ -35,7 +35,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -113,6 +113,13 @@ def create_app(
         allow_headers=["Content-Type"],
         max_age=86400,
     )
+
+    from sllm.prometheus import render_metrics
+
+    @app.get("/metrics")
+    async def metrics():
+        payload, content_type = render_metrics()
+        return Response(content=payload, media_type=content_type)
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
