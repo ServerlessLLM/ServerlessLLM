@@ -167,34 +167,19 @@ def create_app(
         existing = db.get_deployment(model_name, backend)
         if existing:
             if existing.status == "deleting":
-                # Wait for deletion to complete before re-creating
+                # Following K8s behavior: do nothing while deletion is in progress
                 logger.info(
                     f"Deployment {deployment_id} is being deleted, "
-                    "waiting for deletion to complete..."
+                    "ignoring create request"
                 )
-                max_wait_seconds = 60
-                poll_interval = 0.5
-                waited = 0.0
-                while waited < max_wait_seconds:
-                    await asyncio.sleep(poll_interval)
-                    waited += poll_interval
-                    existing = db.get_deployment(model_name, backend)
-                    if not existing:
-                        # Deletion complete, proceed with creation
-                        logger.info(
-                            f"Deployment {deployment_id} deletion complete, "
-                            "proceeding with new deployment"
-                        )
-                        break
-                else:
-                    # Timeout waiting for deletion
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            f"Timeout waiting for deployment {deployment_id} "
-                            "deletion to complete. Please retry later."
-                        ),
-                    )
+                return {
+                    "deployment_id": deployment_id,
+                    "status": existing.status,
+                    "message": (
+                        f"Deployment {deployment_id} is currently being deleted. "
+                        "Please wait for deletion to complete and retry."
+                    ),
+                }
             else:
                 # Deployment exists and is active
                 logger.warning(f"Deployment {deployment_id} already exists")
