@@ -199,10 +199,6 @@ class Router:
 
         # Read endpoints from SQLite (every request, no cache)
         endpoints = self.database.get_deployment_endpoints(deployment_id)
-        if self._prometheus_metrics:
-            self._prometheus_metrics.set_instance_count(
-                deployment_id, len(endpoints)
-            )
 
         if endpoints:
             # Warm path: forward immediately
