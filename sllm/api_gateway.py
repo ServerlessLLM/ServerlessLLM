@@ -290,11 +290,34 @@ def create_app(
             )
 
         backend = body.get("backend", "vllm")
-        if backend not in BUILDERS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown backend: {backend}. Supported: {', '.join(BUILDERS.keys())}",
-            )
+        deployment_id = Deployment.make_id(model_name, backend)
+
+        # Check if already exists
+        db: Database = request.app.state.database
+        existing = db.get_deployment(model_name, backend)
+        if existing:
+            if existing.status == "deleting":
+                # Following K8s behavior: do nothing while deletion is in progress
+                logger.info(
+                    f"Deployment {deployment_id} is being deleted, "
+                    "ignoring create request"
+                )
+                return {
+                    "deployment_id": deployment_id,
+                    "status": existing.status,
+                    "message": (
+                        f"Deployment {deployment_id} is currently being deleted. "
+                        "Please wait for deletion to complete and retry."
+                    ),
+                }
+            else:
+                # Deployment exists and is active
+                logger.warning(f"Deployment {deployment_id} already exists")
+                return {
+                    "deployment_id": deployment_id,
+                    "status": existing.status,
+                    "message": f"Deployment {deployment_id} already exists",
+                }
 
         try:
             check_backend_available(backend)

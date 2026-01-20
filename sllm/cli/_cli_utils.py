@@ -463,8 +463,18 @@ def deploy_model(
                 "deployment_id",
                 f"{config_data['model']}:{config_data.get('backend', 'vllm')}",
             )
-            print(f"Deployment created: {deployment_id}")
-            print(f"  View status: sllm status {deployment_id}")
+            status = data.get("status", "active")
+            message = data.get("message")
+
+            if status == "deleting":
+                print(f"Deployment {deployment_id} is being deleted.")
+                print("  Please wait for deletion to complete and retry.")
+            elif message and "already exists" in message.lower():
+                print(f"Deployment already exists: {deployment_id}")
+                print(f"  View status: sllm status {deployment_id}")
+            else:
+                print(f"Deployment created: {deployment_id}")
+                print(f"  View status: sllm status {deployment_id}")
         else:
             print(
                 f"[❌ ERROR] Deploy failed with status {response.status_code}: {response.text}"
