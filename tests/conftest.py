@@ -293,6 +293,7 @@ def sample_deployment_data():
         "max_replicas": 4,
         "target_pending_requests": 10,
         "keep_alive_seconds": 60,
+        "initial_status": "active",
     }
 
 

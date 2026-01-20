@@ -156,8 +156,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venvs/vllm/bin/python \
         /app/sllm_store/dist/*.whl /app/dist/*.whl
 
-# Apply vLLM patch in vllm venv
+# Apply vLLM patch to both venvs that have vLLM installed
 RUN bash -c "source /opt/venvs/vllm/bin/activate && cd /app && ./vllm_patch/patch.sh"
+RUN bash -c "source /opt/venvs/sllm-store/bin/activate && cd /app && ./vllm_patch/patch.sh"
 
 # Copy the entrypoint
 COPY entrypoint.sh .
