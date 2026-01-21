@@ -46,6 +46,7 @@ import aiohttp
 
 from sllm.database import Database
 from sllm.logger import init_logger
+from sllm.prometheus import PrometheusMetrics
 
 if TYPE_CHECKING:
     from sllm.autoscaler import AutoScaler
@@ -91,6 +92,7 @@ class Router:
         database: Database,
         config: Optional[RouterConfig] = None,
         autoscaler: Optional["AutoScaler"] = None,
+        prometheus_metrics: Optional[PrometheusMetrics] = None,
     ):
         """
         Initialize the Router.
@@ -111,6 +113,7 @@ class Router:
 
         # Autoscaler reference (set after initialization)
         self._autoscaler: Optional[AutoScaler] = autoscaler
+        self._prometheus_metrics = prometheus_metrics
 
         # HTTP session (created lazily)
         self._session: Optional[aiohttp.ClientSession] = None
@@ -186,6 +189,9 @@ class Router:
         """
         if deployment_id is None:
             raise ValueError("deployment_id is required")
+
+        if self._prometheus_metrics:
+            self._prometheus_metrics.observe_request(deployment_id)
 
         # Ensure session exists
         if self._session is None:
@@ -484,8 +490,13 @@ def get_router() -> Optional[Router]:
 def init_router(
     database: Database,
     config: Optional[RouterConfig] = None,
+    prometheus_metrics: Optional[PrometheusMetrics] = None,
 ) -> Router:
     """Initialize the global Router instance."""
     global _router
-    _router = Router(database=database, config=config)
+    _router = Router(
+        database=database,
+        config=config,
+        prometheus_metrics=prometheus_metrics,
+    )
     return _router

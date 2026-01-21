@@ -144,12 +144,16 @@ sllm start [OPTIONS]
   SQLite database path (default: `/var/lib/sllm/state.db` or `SLLM_DATABASE_PATH` env var).
 - `--storage-path <path>`
   Model storage path (default: `/models` or `STORAGE_PATH` env var).
+- `--prometheus-sd-path <path>`
+  Prometheus file_sd output path (optional, `SLLM_PROMETHEUS_SD_PATH` env
+  var).
 
 **Examples:**
 ```bash
 sllm start
 sllm start --port 8080
 sllm start --pylet-endpoint http://pylet-head:8000 --storage-path /data/models
+sllm start --prometheus-sd-path /data/sllm_sd.json
 ```
 
 ---

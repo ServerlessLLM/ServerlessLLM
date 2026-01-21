@@ -43,6 +43,7 @@ class HeadConfig:
     pylet_endpoint: str = "http://localhost:8000"
     database_path: str = "/var/lib/sllm/state.db"
     storage_path: str = "/models"
+    prometheus_sd_path: Optional[str] = None
 
 
 # Global config instance
@@ -135,6 +136,7 @@ def start_head(
     pylet_endpoint: str = "http://localhost:8000",
     database_path: str = "/var/lib/sllm/state.db",
     storage_path: str = "/models",
+    prometheus_sd_path: Optional[str] = None,
 ):
     """Start the SLLM head node (control plane) - v1-beta with Pylet."""
     global _head_config
@@ -144,6 +146,7 @@ def start_head(
         pylet_endpoint=pylet_endpoint,
         database_path=database_path,
         storage_path=storage_path,
+        prometheus_sd_path=prometheus_sd_path,
     )
 
     logger.info("=" * 60)
@@ -152,6 +155,8 @@ def start_head(
     logger.info(f"Pylet endpoint: {pylet_endpoint}")
     logger.info(f"Database path: {database_path}")
     logger.info(f"Storage path: {storage_path}")
+    if prometheus_sd_path:
+        logger.info(f"Prometheus file_sd path: {prometheus_sd_path}")
     logger.info("=" * 60)
 
     try:
@@ -173,6 +178,7 @@ async def _run_head_node_v1beta():
     from sllm.api_gateway import create_app as create_head_app
     from sllm.autoscaler import init_autoscaler
     from sllm.database import init_database
+    from sllm.prometheus import PrometheusFileSD, get_metrics
     from sllm.pylet_client import init_pylet_client
     from sllm.reconciler import init_reconciler
     from sllm.router import init_router
@@ -181,6 +187,14 @@ async def _run_head_node_v1beta():
     # Initialize SQLite database
     logger.info(f"Initializing database at {config.database_path}")
     db = init_database(config.database_path)
+
+    prometheus_metrics = get_metrics()
+    prometheus_sd = None
+    endpoints = db.get_all_healthy_endpoints()
+    prometheus_metrics.set_instance_counts(endpoints)
+    if config.prometheus_sd_path:
+        prometheus_sd = PrometheusFileSD(config.prometheus_sd_path)
+        prometheus_sd.write_targets(endpoints)
 
     # Initialize Pylet client
     logger.info(f"Connecting to Pylet at {config.pylet_endpoint}")
@@ -195,7 +209,10 @@ async def _run_head_node_v1beta():
         )
 
     # Initialize Router (single global instance)
-    router = init_router(database=db)
+    router = init_router(
+        database=db,
+        prometheus_metrics=prometheus_metrics,
+    )
     logger.info("Router initialized")
 
     # Initialize Autoscaler
@@ -268,6 +285,8 @@ async def _run_head_node_v1beta():
             pylet_client=pylet_client,
             storage_manager=storage_manager,
             storage_path=config.storage_path,
+            prometheus_sd=prometheus_sd,
+            prometheus_metrics=prometheus_metrics,
         )
         await reconciler.start()
         reconciler_task = asyncio.create_task(reconciler.run())
