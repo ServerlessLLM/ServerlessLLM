@@ -1,0 +1,212 @@
+[
+    {
+        "model_name": "Qwen/Qwen3-32B_15",
+        "loading_time": 2.1944453716278076,
+        "end_to_end_time": 2.028033971786499,
+        "throughput": 29.585303222088477,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_8",
+        "loading_time": 3.339433431625366,
+        "end_to_end_time": 1.843902349472046,
+        "throughput": 32.539684120029165,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_10",
+        "loading_time": 3.226484537124634,
+        "end_to_end_time": 1.858433485031128,
+        "throughput": 32.28525555704515,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_3",
+        "loading_time": 3.230266809463501,
+        "end_to_end_time": 1.8332531452178955,
+        "throughput": 32.72870424715325,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_21",
+        "loading_time": 3.234248161315918,
+        "end_to_end_time": 1.902538776397705,
+        "throughput": 31.536807945436404,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_24",
+        "loading_time": 3.2364487648010254,
+        "end_to_end_time": 1.932389259338379,
+        "throughput": 31.04964473904347,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_16",
+        "loading_time": 3.2384796142578125,
+        "end_to_end_time": 1.9419035911560059,
+        "throughput": 30.897517401614305,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_12",
+        "loading_time": 3.2277114391326904,
+        "end_to_end_time": 1.9312374591827393,
+        "throughput": 31.06816291011194,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_13",
+        "loading_time": 3.2320005893707275,
+        "end_to_end_time": 1.8603312969207764,
+        "throughput": 32.25231984180028,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_2",
+        "loading_time": 3.2300100326538086,
+        "end_to_end_time": 1.8877220153808594,
+        "throughput": 31.78434086752685,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_27",
+        "loading_time": 3.2401387691497803,
+        "end_to_end_time": 1.9391815662384033,
+        "throughput": 30.940888179123498,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_9",
+        "loading_time": 3.2340102195739746,
+        "end_to_end_time": 1.879382848739624,
+        "throughput": 31.925373821644683,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_22",
+        "loading_time": 3.2309062480926514,
+        "end_to_end_time": 1.8367946147918701,
+        "throughput": 32.66560099687503,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 3.2467565536499023,
+        "end_to_end_time": 1.8415265083312988,
+        "throughput": 32.58166511779896,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_18",
+        "loading_time": 3.2266414165496826,
+        "end_to_end_time": 1.8709211349487305,
+        "throughput": 32.06976439530371,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_5",
+        "loading_time": 3.3156909942626953,
+        "end_to_end_time": 1.9007058143615723,
+        "throughput": 31.56722073802536,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_14",
+        "loading_time": 3.2465264797210693,
+        "end_to_end_time": 1.8791074752807617,
+        "throughput": 31.930052319671212,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_28",
+        "loading_time": 3.228916883468628,
+        "end_to_end_time": 1.8644788265228271,
+        "throughput": 32.18057461767877,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_4",
+        "loading_time": 3.229205369949341,
+        "end_to_end_time": 1.8955633640289307,
+        "throughput": 31.6528590595214,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_11",
+        "loading_time": 3.2251641750335693,
+        "end_to_end_time": 1.890570878982544,
+        "throughput": 31.736445677345056,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_25",
+        "loading_time": 3.5388271808624268,
+        "end_to_end_time": 1.8540613651275635,
+        "throughput": 32.361388424633866,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_29",
+        "loading_time": 3.230700731277466,
+        "end_to_end_time": 1.902137279510498,
+        "throughput": 31.543464631238702,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_26",
+        "loading_time": 3.229710340499878,
+        "end_to_end_time": 1.8700015544891357,
+        "throughput": 32.08553482533941,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_1",
+        "loading_time": 3.2309608459472656,
+        "end_to_end_time": 1.8499510288238525,
+        "throughput": 32.43329097102983,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_20",
+        "loading_time": 3.236142873764038,
+        "end_to_end_time": 1.8335373401641846,
+        "throughput": 32.723631357639704,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_7",
+        "loading_time": 3.236387014389038,
+        "end_to_end_time": 1.8602142333984375,
+        "throughput": 32.25434948445997,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_23",
+        "loading_time": 3.233125686645508,
+        "end_to_end_time": 1.8376719951629639,
+        "throughput": 32.65000509227395,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_6",
+        "loading_time": 3.2489194869995117,
+        "end_to_end_time": 1.8747117519378662,
+        "throughput": 32.004920189985874,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_17",
+        "loading_time": 3.2392189502716064,
+        "end_to_end_time": 1.8608179092407227,
+        "throughput": 32.24388571393428,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_19",
+        "loading_time": 3.23829984664917,
+        "end_to_end_time": 1.8269684314727783,
+        "throughput": 32.8412899568451,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? Peter Piper picked a peck of pickled peppers. A big black bug bit a big black bear. One one was a"
+    }
+]

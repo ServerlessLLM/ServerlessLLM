@@ -1,0 +1,5 @@
+accelerate
+torch>=2.0.0
+# GPT-oss-20b specific requirements
+transformers==4.55.1
+triton>=3.4

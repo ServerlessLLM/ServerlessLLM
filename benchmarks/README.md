@@ -1,120 +1,191 @@
-# Benchmarking for ServerlessLLM Store
+# ServerlessLLM Store Benchmarks
 
-Welcome to the benchmarking suite for ServerlessLLM Store. This suite is designed to measure the model loading performance of ServerlessLLM Store and compare it against several baselines on a variety of State-of-the-Art Large Language Models (LLMs).
+A benchmarking suite to measure the model loading performance of ServerlessLLM Store against baselines.
 
-## Table of Contents
+## Latest Benchmark Results: 6-10x Speedup over SafeTensors
 
-- [Hardware Requirements](#hardware-requirements)
-- [Prerequisites](#prerequisites)
-- [Setting Up the Environment](#setting-up-the-environment)
-- [Running the Benchmarks](#running-the-benchmarks)
-  - [1. Random Multi-Model Load Test](#1-random-multi-model-load-test)
-    - [1.1 Small Models](#11-small-models)
-    - [1.2 Large Models](#12-large-models)
-- [Contact](#contact)
+#### Cached Benchmark (5 runs per model)
 
-## Hardware Requirements
+Measures performance when loading the same model repeatedly.
 
-To ensure optimal performance and reliability of the ServerlessLLM Store benchmarking tests, we recommend the following hardware setup:
+| Model | Format | Avg (s) | Min (s) | Max (s) | Std Dev | Speedup |
+|-------|--------|---------|---------|---------|---------|---------|
+| Qwen/Qwen3-32B | SLLM | 1.253 | 1.165 | 1.508 | 0.144 | **9.95x** |
+| Qwen/Qwen3-32B | SafeTensors | 12.466 | 12.382 | 12.591 | 0.097 | - |
+| DeepSeek-R1-Distill-Qwen-32B | SLLM | 1.184 | 1.169 | 1.207 | 0.016 | **8.58x** |
+| DeepSeek-R1-Distill-Qwen-32B | SafeTensors | 10.165 | 9.973 | 10.324 | 0.134 | - |
 
-- **RAM:** A minimum of 32GB is required for small model tests. For large model tests, at least 150GB of RAM is recommended to effectively manage the pinned memory pool utilized by the ServerlessLLM Store server.
+![Cached Benchmark](results/h100_2025/images/cached_benchmark.png)
 
-- **GPU:** An NVIDIA GPU with at least 24GB of VRAM is necessary for small model tests. For large model tests, a setup with at least 160GB of available VRAM is essential to handle the extensive model parameters.
+#### Random Multi-Model Benchmark (30 runs)
 
-- **Storage:** A minimum of 500GB of disk space is required for small model tests, while at least 1.5TB is necessary for large model tests. Utilizing an NVMe SSD is highly recommended for its superior bandwidth, which is critical for optimizing ServerlessLLM Store's performance.
+Simulates real-world serving scenarios where different model copies are loaded in random order.
 
-The specifications used to obtain the following benchmark results are detailed in [this document](./server-specs.md).
+| Model | Format | Avg (s) | Min (s) | Max (s) | Std Dev | Speedup |
+|-------|--------|---------|---------|---------|---------|---------|
+| Qwen/Qwen3-32B | SLLM | 3.216 | 2.194 | 3.539 | 0.202 | **6.40x** |
+| Qwen/Qwen3-32B | SafeTensors | 20.592 | 17.880 | 28.763 | 2.535 | - |
+| DeepSeek-R1-Distill-Qwen-32B | SLLM | 3.220 | 2.503 | 3.425 | 0.141 | **5.93x** |
+| DeepSeek-R1-Distill-Qwen-32B | SafeTensors | 19.090 | 17.661 | 23.704 | 1.248 | - |
+| Llama-3.1-8B-Instruct | SLLM | 0.678 | 0.657 | 0.704 | 0.011 | **6.54x** |
+| Llama-3.1-8B-Instruct | SafeTensors | 4.437 | 2.720 | 6.257 | 0.895 | - |
 
+![Random Benchmark](results/h100_2025/images/random_benchmark.png)
 
-## Prerequisites
+### All Benchmark Results in Detail
 
-Before running the benchmarks, ensure the following dependencies are installed:
+- [H100 SXM Results (Dec 2025)](results/h100_2025/)
+- [A5000 Results (2024)](results/a5000_2024/)
 
-```bash
-pip install seaborn matplotlib pandas sentencepiece
-```
+## Running Benchmarks
 
-Additionally, you will need to log in to the Hugging Face CLI to enable loading models such as meta-llama/Meta-Llama-3-8B:
+### Quick Start
 
-```bash
-huggingface-cli login
-```
-
-## Setting Up the Environment
-
-Create a directory to store the models and establish a symbolic link to it. We highly recommend using a fast storage device such as an NVMe SSD to store the models:
-```bash
-mkdir /mnt/raid0nvme1/models
-ln -s /mnt/raid0nvme1/models models
-```
-
-Optionally, you can install the Flexible I/O Tester (FIO) to benchmark the storage device's performance:
-```bash
-apt install fio
-fio fio-config.ini
-```
-
-## Running the Benchmarks
-
-### 1. Random Multi-Model Load Test
-
-The random load test emulates **model serving scenarios** (such as Serverless LLM Inference), where a variety of different models are requested in random order, simulating a real-world use case.
-
-#### 1.1 Small Models
-
-Start the ServerlessLLM Store server with a 18GB memory pool:
+Choose your deployment method:
 
 ```bash
-sllm-store start --chunk-size=16MB --mem-pool-size=18GB --num-thread=4 --storage-path=./models
+# Bare Metal - run directly with sllm-store running
+./run-benchmark.sh --model-name facebook/opt-6.7b --benchmark-type random
+
+# Docker - containerized execution
+./deploy/docker/run.sh --model-name facebook/opt-6.7b
+
+# Kubernetes - see deploy/k8s/README.md
+kubectl apply -f deploy/k8s/configmap.yaml -f deploy/k8s/job.yaml
 ```
 
-In a separate terminal, run the following commands to benchmark the loading performance of several small models. We repeat each test 30 times to ensure statistical stability:
-```bash
-CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh facebook/opt-6.7b ./models 30
-CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh meta-llama/Meta-Llama-3-8B ./models 30
-CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh mistralai/Mistral-7B-v0.3 ./models 30
-CUDA_VISIBLE_DEVICES=0 bash benchmark_random_load.sh google/gemma-7b ./models 30
-```
+### Benchmark Types
 
-Plot the results with the following command, saving the output for review and documentation:
-
-```bash
-python plot.py --models facebook/opt-6.7b meta-llama/Meta-Llama-3-8B mistralai/Mistral-7B-v0.3 google/gemma-7b \
---test-name random --num-repeats 30 --results-dir results --output-file images/random_small_loading_latency.png
-```
-
-Here is an example of the output visualization:
-
-![Random Small Loading Latency](images/random_small_loading_latency.png)
-
-#### 1.2 Large Models
-
-Restart the ServerlessLLM Store server with an increased memory pool size to accommodate large models. Please note that the server startup can be lengthy due to the initialization of a 140GB memory pool:
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `random` | Loads N different model copies in random order | Simulates multi-model serving scenarios |
+| `cached` | Loads the same model N times | Measures cache/storage performance |
 
 ```bash
-sllm-store start --chunk-size=16MB --mem-pool-size=140GB --num-thread=4 --storage-path=./models
+# Random benchmark (default)
+./run-benchmark.sh --benchmark-type random --num-replicas 30
+
+# Cached benchmark
+./run-benchmark.sh --benchmark-type cached --num-replicas 5
 ```
 
-To benchmark the loading performance of several large models, run the following commands. We limit the number of repeats to 10 to manage disk capacity efficiently
+### Common Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--model-name` | `facebook/opt-6.7b` | Model to benchmark |
+| `--num-replicas` | `30` | Number of iterations |
+| `--mem-pool-size` | `32GB` | sllm-store memory pool |
+| `--benchmark-type` | `random` | Test type (random/cached) |
+| `--storage-path` | `./models` | Model storage directory |
+| `--results-path` | `./results` | Results output directory |
+| `--generate-plots` | `false` | Generate visualizations |
+
+## Deployment Methods
+
+### Bare Metal
+
+Requires `sllm-store` to be installed. The script automatically handles starting and stopping the server:
+
 ```bash
-bash benchmark_random_load.sh facebook/opt-66b ./models 10
-bash benchmark_random_load.sh meta-llama/Meta-Llama-3-70B ./models 10
-bash benchmark_random_load.sh mistralai/Mixtral-8x7B-v0.1 ./models 10
-bash benchmark_random_load.sh tiiuae/falcon-40b ./models 10
+# Ensure models directory exists
+mkdir -p ./models
+
+# Run benchmark (starts sllm-store automatically)
+./run-benchmark.sh \
+    --model-name facebook/opt-6.7b \
+    --benchmark-type random \
+    --num-replicas 30
 ```
 
-Plot the results using the following command:
+Results are saved to `./results/` by default.
+
+### Docker
+
+Use the official `serverlessllm/sllm` image:
 
 ```bash
-python plot.py --models facebook/opt-66b meta-llama/Meta-Llama-3-70B mistralai/Mixtral-8x7B-v0.1 tiiuae/falcon-40b \
---test-name random --num-repeats 10 --results-dir results --output-file images/random_large_loading_latency.png
+./deploy/docker/run.sh --model-name facebook/opt-6.7b
+
+# With gated model
+./deploy/docker/run.sh \
+    --model-name meta-llama/Meta-Llama-3-8B \
+    --hf-token $HF_TOKEN
+
+# Custom GPU and storage
+./deploy/docker/run.sh \
+    --gpu-limit 2 \
+    --storage-path /mnt/nvme \
+    --num-replicas 50
 ```
 
-<!-- Here is an example of the output visualization:
+See [deploy/docker/README.md](deploy/docker/README.md) for details.
 
-![Random Large Loading Latency](images/random_large_loading_latency.png) -->
+### Kubernetes
 
+Deploy using standard `kubectl` commands:
+
+```bash
+# Create scripts ConfigMap
+kubectl create configmap benchmark-scripts \
+    --from-file=run-benchmark.sh \
+    --from-file=download_models.py \
+    --from-file=test_loading.py \
+    --from-file=benchmark_utils.py \
+    --from-file=generate_report.py
+
+# Apply config and job
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl apply -f deploy/k8s/job.yaml
+
+# Monitor
+kubectl logs -f job/sllm-benchmark
+```
+
+See [deploy/k8s/README.md](deploy/k8s/README.md) for details.
+
+
+## Output
+
+Results are saved to `--results-path`:
+
+- `summary.txt` - Human-readable summary
+- `summary.json` - Machine-readable statistics
+- `*_{format}_{replicas}_{type}.json` - Raw benchmark data
+- `benchmark.log` - Full execution log
+
+## Plotting Results
+
+Generate visualizations with statistics:
+
+```bash
+python plot.py \
+    --models facebook/opt-6.7b meta-llama/Meta-Llama-3-8B \
+    --test-name random \
+    --num-repeats 30 \
+    --results-dir results/h100_2025/random \
+    --output-filename images/loading_latency.png
+```
+
+The script prints detailed statistics including:
+- Average, min, max, and standard deviation for both SLLM and SafeTensors
+- Speedup comparison
+
+## Directory Structure
+
+```
+benchmarks/
+├── run-benchmark.sh          # Main orchestration script
+├── plot.py                   # Visualization and statistics
+├── deploy/
+│   ├── docker/run.sh         # Docker launcher
+│   └── k8s/                  # Kubernetes YAML templates
+├── results/                  # Versioned benchmark results
+│   ├── h100_2025/           # Latest H100 SXM results
+│   └── a5000_2024/          # Previous A5000 results
+└── docs/                     # Detailed documentation
+```
 
 ## Contact
 
-If you have any questions or need help with the benchmarks, please feel free to reach out to [Y.Fu@ed.ac.uk](mailto:y.fu@ed.ac.uk) or submit an issue on GitHub.
+Questions? Contact [Y.Fu@ed.ac.uk](mailto:y.fu@ed.ac.uk) or open a GitHub issue.

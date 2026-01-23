@@ -1,0 +1,212 @@
+[
+    {
+        "model_name": "Qwen/Qwen3-32B_18",
+        "loading_time": 23.46240496635437,
+        "end_to_end_time": 2.2235774993896484,
+        "throughput": 26.98354341886867,
+        "output_text": "The quick brown fox jumps over the lazy dog. Can you figure out how many times the letter 'o' appears in this sentence? Remember to count both uppercase and lowercase instances. To determine how many times the letter 'o' appears in the sentence \"The quick brown fox jumps over the lazy dog"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_2",
+        "loading_time": 21.493126153945923,
+        "end_to_end_time": 1.9358010292053223,
+        "throughput": 30.9949210144965,
+        "output_text": "The quick brown fox jumps over the lazy dog. Can you figure out how many times the letter 'o' appears in this sentence? Sure! Let's count the number of times the letter 'o' appears in the sentence **\"The quick brown fox jumps over the lazy dog.\"**\n\nWe'll"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_27",
+        "loading_time": 22.31600785255432,
+        "end_to_end_time": 2.0027780532836914,
+        "throughput": 29.95838700230707,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx bat jumps over the lazy fang. \n\nIf the word \"jumps\" appears in a sentence, replace it with \"leaps\". If the word \"quick\" appears in a sentence,"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_28",
+        "loading_time": 28.762797355651855,
+        "end_to_end_time": 1.9485995769500732,
+        "throughput": 30.791344055360693,
+        "output_text": "The quick brown fox jumps over the lazy dog.  The sum of the reciprocals of the positive divisors of a certain number is 2.  What is this number?\n\nTo solve the problem, we need to find a number whose sum of the reciprocals of its positive divisors"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_25",
+        "loading_time": 22.813288927078247,
+        "end_to_end_time": 1.9285888671875,
+        "throughput": 31.110829799354388,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox is quick and brown. The lazy dog is lazy and not quick. The fox jumps over the dog. The dog does not jump over the fox. The fox is quick, the dog is lazy. The fox is brown, the"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_7",
+        "loading_time": 22.958863019943237,
+        "end_to_end_time": 1.9516830444335938,
+        "throughput": 30.742696756589826,
+        "output_text": "The quick brown fox jumps over the lazy dog. Can you figure out how many times the letter 'o' appears in this sentence? Sure! Let's count the number of times the letter **'o'** appears in the sentence:\n\n**Sentence:**  \n\"The quick brown fox jumps over the lazy"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_29",
+        "loading_time": 18.48050856590271,
+        "end_to_end_time": 1.95253324508667,
+        "throughput": 30.729310320827185,
+        "output_text": "The quick brown fox jumps over the lazy dog.  The five boxing wizards jump quickly.  How many letters are in the alphabet?\n\nThe two sentences provided are examples of **pangrams**, which are sentences that use every letter of the English alphabet at least once. \n\n- **\"The quick"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_21",
+        "loading_time": 18.74808359146118,
+        "end_to_end_time": 1.9536972045898438,
+        "throughput": 30.7110026359465,
+        "output_text": "The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps over the lazy dog.  The quick brown fox jumps"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_11",
+        "loading_time": 19.295916080474854,
+        "end_to_end_time": 1.983670949935913,
+        "throughput": 30.246951996720238,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence, though seemingly random, is a **pangram**\u2014a sentence that contains every letter of the English alphabet at least once. Pangrams have a rich history and serve multiple purposes in both linguistic and practical contexts. Let's delve into"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_3",
+        "loading_time": 18.00900173187256,
+        "end_to_end_time": 1.9450263977050781,
+        "throughput": 30.847910378385375,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx boar jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx boar jumps over the lazy dog. The quick"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_22",
+        "loading_time": 18.054486989974976,
+        "end_to_end_time": 1.9675190448760986,
+        "throughput": 30.495257545920428,
+        "output_text": "The quick brown fox jumps over the lazy dog. Can you count how many times the letter 'o' appears in this sentence?\n\nSure, let's count the number of times the letter 'o' appears in the given sentence.\n\nThe sentence is: **\"The quick brown fox jumps over the lazy"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_12",
+        "loading_time": 18.080733060836792,
+        "end_to_end_time": 1.9720418453216553,
+        "throughput": 30.425317871595944,
+        "output_text": "The quick brown fox jumps over the lazy dog.  Please count the number of vowels in this sentence.\nOkay, let's see. The user wants me to count the number of vowels in the sentence \"The quick brown fox jumps over the lazy dog.\" Alright, first, I need to remember which"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_16",
+        "loading_time": 18.843178272247314,
+        "end_to_end_time": 1.9684019088745117,
+        "throughput": 30.481579869177562,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence, often used to test typewriters and keyboards, is also a perfect pangram\u2014containing every letter of the English alphabet at least once. But beyond its utility in testing devices, this sentence is a window into the intricate and often"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_26",
+        "loading_time": 21.938425064086914,
+        "end_to_end_time": 1.9699339866638184,
+        "throughput": 30.45787341413049,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence is known as a what?\nThe sentence \"The quick brown fox jumps over the lazy dog\" is known as a **pangram**. A pangram is a sentence that contains every letter of the alphabet at least once. Pangrams"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_17",
+        "loading_time": 21.3139910697937,
+        "end_to_end_time": 1.9881503582000732,
+        "throughput": 30.178804008726804,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_10",
+        "loading_time": 23.309940576553345,
+        "end_to_end_time": 2.013155698776245,
+        "throughput": 29.803954078898485,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet. How many letters does it take to write out the numbers from one to twelve in English? For example, \"one\" has three letters, \"two\" has three letters, and so on. Add up"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_5",
+        "loading_time": 18.547722578048706,
+        "end_to_end_time": 1.991960048675537,
+        "throughput": 30.12108603277172,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx boar jumps over the lazy dog. The quick brown fox jumps over the lazy dog. How many times does the word 'the' appear in the above text? Let's count the occurrences of"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_9",
+        "loading_time": 18.27250838279724,
+        "end_to_end_time": 1.9625656604766846,
+        "throughput": 30.57222553533658,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx cat jumps over the lazy dog. Pack my box with five dozen liquor jugs. The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx cat"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_8",
+        "loading_time": 22.066953420639038,
+        "end_to_end_time": 1.9415738582611084,
+        "throughput": 30.90276465389607,
+        "output_text": "The quick brown fox jumps over the lazy dog. This is a well-known pangram. A pangram is a phrase that uses all the letters of the alphabet at least once. \n\nPangrams are often used to test typewriters and computer keyboards. They can also be used to test handwriting"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_14",
+        "loading_time": 20.924864530563354,
+        "end_to_end_time": 1.9633324146270752,
+        "throughput": 30.560285946991147,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence contains every letter of the English alphabet at least once. How many letters are there in this sentence, including spaces and punctuation? To determine the total number of characters in the sentence \"The quick brown fox jumps over the lazy dog.\", we need"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_0",
+        "loading_time": 18.150525093078613,
+        "end_to_end_time": 1.9567947387695312,
+        "throughput": 30.66238824708263,
+        "output_text": "The quick brown fox jumps over the lazy dog. \n\nHow many letters does the word \"jumps\" have? To determine how many letters are in the word \"jumps,\" we simply count each letter from the beginning to the end of the word.\n\n1. The first letter is **j**"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_19",
+        "loading_time": 19.370514631271362,
+        "end_to_end_time": 1.9199628829956055,
+        "throughput": 31.250604129588964,
+        "output_text": "The quick brown fox jumps over the lazy dog. The sentence contains every letter of the alphabet at least once. This type of sentence is called a pangram. A pangram is a sentence that uses every letter of the alphabet at least once. Pangrams are used to test typewriters and fonts"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_4",
+        "loading_time": 23.591553688049316,
+        "end_to_end_time": 2.1763455867767334,
+        "throughput": 27.569150949442143,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox is quick and brown. The lazy dog is lazy and brown. The quick brown fox jumps over the lazy dog. The lazy dog is brown and lazy. The quick brown fox is quick and jumps. The quick brown fox is brown"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_13",
+        "loading_time": 18.669174671173096,
+        "end_to_end_time": 1.9634058475494385,
+        "throughput": 30.559142968269683,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. The quick onyx\nboa\nconstrictor jumps over the eager young wolf. The quick onyx boa constrictor jumps over the eager\nyoung wolf. The quick onyx boa constrictor jumps over"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_23",
+        "loading_time": 18.104796648025513,
+        "end_to_end_time": 1.9323363304138184,
+        "throughput": 31.050495224685207,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? She sells seashells by the seashore. Peter Piper picked a peck of pickled peppers. A big black"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_1",
+        "loading_time": 21.825617790222168,
+        "end_to_end_time": 1.9740135669708252,
+        "throughput": 30.3949278788755,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_20",
+        "loading_time": 20.645272254943848,
+        "end_to_end_time": 1.9516901969909668,
+        "throughput": 30.742584090705307,
+        "output_text": "The quick brown fox jumps over the lazy dog. This sentence is known as what type of sentence that contains every letter of the alphabet at least once?\n\nThe quick brown fox jumps over the lazy dog. This sentence is known as what type of sentence that contains every letter of the alphabet at least once?\n\n"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_24",
+        "loading_time": 17.88037371635437,
+        "end_to_end_time": 1.914022445678711,
+        "throughput": 31.347594765914067,
+        "output_text": "The quick brown fox jumps over the lazy dog. Can you figure out how many times the letter 'o' appears in this sentence? Sure! Let's count the number of times the letter **'o'** appears in the sentence:\n\n**Sentence:** \"The quick brown fox jumps over the lazy"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_15",
+        "loading_time": 18.913347244262695,
+        "end_to_end_time": 1.9303398132324219,
+        "throughput": 31.082610216450902,
+        "output_text": "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck chuck if a woodchuck could chuck wood? The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly. How much wood would a woodchuck"
+    },
+    {
+        "model_name": "Qwen/Qwen3-32B_6",
+        "loading_time": 22.911438465118408,
+        "end_to_end_time": 1.974255084991455,
+        "throughput": 30.391209553480618,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    }
+]

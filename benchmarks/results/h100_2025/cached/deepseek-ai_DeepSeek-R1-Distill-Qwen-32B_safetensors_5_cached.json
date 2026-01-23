@@ -1,0 +1,37 @@
+[
+    {
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B_0",
+        "loading_time": 10.324429273605347,
+        "end_to_end_time": 2.3818206787109375,
+        "throughput": 25.610660174893493,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B_0",
+        "loading_time": 10.255064010620117,
+        "end_to_end_time": 2.422274351119995,
+        "throughput": 25.182944273754632,
+        "output_text": "The quick brown fox jumps over the lazy dog. The dog is very lazy. The fox is very quick. The dog is very lazy. The fox is very quick. The dog is very lazy. The fox is very quick. The dog is very lazy. The fox is very quick. The dog"
+    },
+    {
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B_0",
+        "loading_time": 10.140877723693848,
+        "end_to_end_time": 2.4163849353790283,
+        "throughput": 25.244322254654218,
+        "output_text": "The quick brown fox jumps over the lazy dog. The dog barks. The fox jumps. The dog is lazy. The fox is quick. The dog is brown. The fox is quick brown. The dog is lazy brown. The fox is quick brown fox. The dog is lazy brown dog."
+    },
+    {
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B_0",
+        "loading_time": 10.13266658782959,
+        "end_to_end_time": 2.396174907684326,
+        "throughput": 25.457240122320897,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    },
+    {
+        "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B_0",
+        "loading_time": 9.973067045211792,
+        "end_to_end_time": 2.40976881980896,
+        "throughput": 25.31363153949179,
+        "output_text": "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."
+    }
+]
