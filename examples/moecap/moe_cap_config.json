@@ -1,5 +1,5 @@
 {
-    "model": "Qwen/Qwen-30B-A3B",
+    "model": "Qwen/Qwen3-30B-A3B",
     "backend": "moe-cap-sglang",
     "num_gpus": 4,
     "auto_scaling_config": {
@@ -10,7 +10,7 @@
         "keep_alive": 60
     },
     "backend_config": {
-        "pretrained_model_name_or_path": "Qwen/Qwen-30B-A3B",
+        "pretrained_model_name_or_path": "Qwen/Qwen3-30B-A3B",
         "tensor_parallel_size": 4,
         "torch_dtype": "bfloat16"
     }
