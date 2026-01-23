@@ -1,0 +1,20 @@
+{
+    "model": "unsloth/gpt-oss-120b",
+    "backend": "sglang",
+    "num_gpus": 2,
+    "auto_scaling_config": {
+        "metric": "concurrency",
+        "target": 1000,
+        "min_instances": 0,
+        "max_instances": 4,
+        "keep_alive": 60
+    },
+    "backend_config": {
+        "pretrained_model_name_or_path": "unsloth/gpt-oss-120b",
+        "tensor_parallel_size": 2,
+        "random_seed": 2026011702,
+        "tool_call_parser": "gpt-oss",
+        "reasoning_parser": "gpt-oss",
+        "mem_fraction_static": 0.96
+    }
+}
