@@ -1,0 +1,17 @@
+{
+    "model": "Qwen/Qwen3-235B-A22B",
+    "backend": "moe-cap-sglang",
+    "num_gpus": 4,
+    "auto_scaling_config": {
+        "metric": "concurrency",
+        "target": 10,
+        "min_instances": 0,
+        "max_instances": 1,
+        "keep_alive": 60
+    },
+    "backend_config": {
+        "pretrained_model_name_or_path": "Qwen/Qwen3-235B-A22B",
+        "tensor_parallel_size": 4,
+        "torch_dtype": "bfloat16"
+    }
+}
