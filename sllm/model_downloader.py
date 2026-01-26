@@ -328,7 +328,7 @@ class SglangModelDownloader:
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
         except Exception as e:
-            logger.info(f"An error occurred while saving the model: {e}")
+            logger.error(f"An error occurred while saving the model: {e}")
             # remove the output dir
             if os.path.exists(os.path.join(storage_path, "sglang", model_name)):
                 shutil.rmtree(os.path.join(storage_path, "sglang", model_name))
