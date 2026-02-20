@@ -121,6 +121,8 @@ install_requires = fetch_requirements("requirements.txt")
 
 extras = {}
 
+extras["vllm"] = fetch_requirements("requirements-vllm.txt")
+
 extras["test"] = [
     "pytest",
     "accelerate>=0.27.2",
