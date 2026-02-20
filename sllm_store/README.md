@@ -158,7 +158,7 @@ ServerlessLLM Store is the storage layer of [ServerlessLLM](../README.md), enabl
 
 ## 📄 Citation
 
-If you use ServerlessLLM Store in your research, please cite our [OSDI'24 paper](https://www.usenix.org/conference/osdi24/presentation/fu):
+If you use ServerlessLLM Store in your research, please cite our [OSDI'24 paper](https://www.usenix.org/system/files/osdi24-fu.pdf):
 
 ```bibtex
 @inproceedings{fu2024serverlessllm,
