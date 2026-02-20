@@ -176,7 +176,9 @@ class VllmBackend(SllmBackend):
                 "pretrained_model_name_or_path"
             )
         else:
-            storage_path = os.getenv("STORAGE_PATH", "./models")
+            storage_path = os.getenv(
+                "STORAGE_PATH", os.path.expanduser("~/models")
+            )
             model_path = os.path.join(storage_path, "vllm", model)
             filtered_engine_config["model"] = model_path
             filtered_engine_config["load_format"] = "serverless_llm"

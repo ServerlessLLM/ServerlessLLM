@@ -84,7 +84,7 @@ def test_init_backend(transformers_backend, backend_config):
     ) as mock_load_model:
         transformers_backend.init_backend()
         mock_load_model.assert_called_once()
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
         model_path = os.path.join(
             "transformers",
             backend_config["pretrained_model_name_or_path"],
@@ -110,7 +110,7 @@ def test_init_encoder_backend(encoder_backend, encoder_config):
     ) as mock_load_model:
         encoder_backend.init_backend()
         mock_load_model.assert_called_once()
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
         model_path = os.path.join(
             "transformers",
             encoder_config["pretrained_model_name_or_path"],

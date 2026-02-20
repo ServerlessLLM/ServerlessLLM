@@ -131,7 +131,9 @@ class TransformersBackend(SllmBackend):
                 "quantization_config", None
             )
 
-            storage_path = os.getenv("STORAGE_PATH", "./models")
+            storage_path = os.getenv(
+                "STORAGE_PATH", os.path.expanduser("~/models")
+            )
             model_path = os.path.join("transformers", self.model_name)
             self.model = load_model(
                 model_path,
@@ -343,7 +345,7 @@ class TransformersBackend(SllmBackend):
             return
 
         lora_path = os.path.join("transformers", lora_path)
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
         device_map = self.backend_config.get("device_map", "auto")
         torch_dtype = self.backend_config.get("torch_dtype", torch.float16)
         torch_dtype = getattr(torch, torch_dtype)

@@ -135,10 +135,10 @@ Once installed, refer to the [Quick Start Guide](https://serverlessllm.github.io
 
 If you encounter errors such as:
 ```bash
-No such file or directory: `./models/vllm`
+No such file or directory: `~/models/vllm`
 ```
 
-This usually indicates a permission or accessibility issue with the `./models` folder. Resolve this by:
+This usually indicates a permission or accessibility issue with the `~/models` folder. Resolve this by:
 
 1. Checking the folder status:
 ```bash
@@ -150,6 +150,6 @@ If the folder appears in red, it is inaccessible.
 2. Deleting and recreating the folder:
 ```bash
 # Run this command in the WSL terminal
-sudo rm -rf ./models
-mkdir ./models
+sudo rm -rf ~/models
+mkdir ~/models
 ```

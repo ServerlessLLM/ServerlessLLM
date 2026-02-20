@@ -21,7 +21,7 @@
 <p align="center">
   <a href="https://serverlessllm.github.io"><b>Docs</b></a> •
   <a href="#-quick-start-90-seconds"><b>Quick Start</b></a> •
-  <a href="https://www.usenix.org/conference/osdi24/presentation/fu"><b>OSDI'24 Paper</b></a>
+  <a href="https://www.usenix.org/system/files/osdi24-fu.pdf"><b>OSDI'24 Paper</b></a>
 </p>
 
 ---
@@ -157,7 +157,7 @@ sllm-store save --model Qwen/Qwen3-0.6B --backend transformers
 
 ```bash
 # Start the store server first
-sllm-store start --storage-path ./models --mem-pool-size 4GB
+sllm-store start --storage-path ~/models --mem-pool-size 4GB
 ```
 
 ### Load it 6-10x Faster in Your Python Code
@@ -252,7 +252,7 @@ Maintained by 10+ contributors worldwide. Community contributions are welcome!
 
 ## 📄 Citation
 
-If you use ServerlessLLM in your research, please cite our [OSDI'24 paper](https://www.usenix.org/conference/osdi24/presentation/fu):
+If you use ServerlessLLM in your research, please cite our [OSDI'24 paper](https://www.usenix.org/system/files/osdi24-fu.pdf):
 
 ```bibtex
 @inproceedings{fu2024serverlessllm,

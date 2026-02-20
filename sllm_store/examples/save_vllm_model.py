@@ -13,7 +13,7 @@ class VllmModelDownloader:
         model_name: str,
         torch_dtype: str,
         tensor_parallel_size: int = 1,
-        storage_path: str = "./models",
+        storage_path: str = os.path.expanduser("~/models"),
         local_model_path: Optional[str] = None,
         pattern: Optional[str] = None,
         max_size: Optional[int] = None,
@@ -26,7 +26,9 @@ class VllmModelDownloader:
         from vllm import LLM
 
         # set the model storage path
-        storage_path = os.getenv("STORAGE_PATH", storage_path)
+        storage_path = os.getenv(
+            "STORAGE_PATH", storage_path
+        ) or os.path.expanduser("~/models")
 
         def _run_writer(input_dir, model_name):
             # load models from the input directory
@@ -108,7 +110,7 @@ parser.add_argument(
 parser.add_argument(
     "--storage-path",
     type=str,
-    default="./models",
+    default=os.path.expanduser("~/models"),
     help="Local path to save the model.",
 )
 parser.add_argument(

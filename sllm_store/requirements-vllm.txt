@@ -1,0 +1,7 @@
+accelerate>=1.7.0
+attrs>=22.2.0
+bitsandbytes==0.46.0
+click==8.1.7
+peft>=0.16.0
+pillow>=10.3.0
+vllm

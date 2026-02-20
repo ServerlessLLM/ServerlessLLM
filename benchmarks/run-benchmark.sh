@@ -16,7 +16,7 @@ OPTIONS:
   -m, --model-name NAME        Model to benchmark (default: facebook/opt-6.7b)
   -n, --num-replicas N         Number of test replicas (default: 30)
   -p, --mem-pool-size SIZE     Memory pool size (default: 32GB)
-  -s, --storage-path PATH      Model storage directory (default: ./models)
+  -s, --storage-path PATH      Model storage directory (default: ~/models)
   -r, --results-path PATH      Results output directory (default: ./results)
   -t, --benchmark-type TYPE    Test type: random|cached (default: random)
       --generate-plots         Generate visualization plots
@@ -91,7 +91,7 @@ done
 MODEL_NAME="${CLI_MODEL_NAME:-${MODEL_NAME:-facebook/opt-6.7b}}"
 NUM_REPLICAS="${CLI_NUM_REPLICAS:-${NUM_REPLICAS:-30}}"
 MEM_POOL_SIZE="${CLI_MEM_POOL_SIZE:-${MEM_POOL_SIZE:-32GB}}"
-STORAGE_PATH="${CLI_STORAGE_PATH:-${STORAGE_PATH:-./models}}"
+STORAGE_PATH="${CLI_STORAGE_PATH:-${STORAGE_PATH:-$HOME/models}}"
 RESULTS_PATH="${CLI_RESULTS_PATH:-${RESULTS_PATH:-./results}}"
 BENCHMARK_TYPE="${CLI_BENCHMARK_TYPE:-${BENCHMARK_TYPE:-random}}"
 GENERATE_PLOTS="${CLI_GENERATE_PLOTS:-${GENERATE_PLOTS:-false}}"

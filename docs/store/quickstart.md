@@ -50,7 +50,7 @@ We highly recommend using a fast storage device (e.g., NVMe SSD) to store the mo
 For example, create a directory `models` on the NVMe SSD and link it to the local path.
 ```bash
 mkdir -p /mnt/nvme/models   # Replace '/mnt/nvme' with your NVMe SSD path.
-ln -s /mnt/nvme/models ./models
+ln -s /mnt/nvme/models ~/models
 ```
 :::
 
@@ -63,8 +63,8 @@ import torch
 from transformers import AutoModelForCausalLM
 model = AutoModelForCausalLM.from_pretrained('facebook/opt-1.3b', torch_dtype=torch.float16)
 
-# Replace './models' with your local path.
-save_model(model, './models/facebook/opt-1.3b')
+# Replace '~/models' with your local path.
+save_model(model, '~/models/facebook/opt-1.3b')
 ```
 
 2. Launch the checkpoint store server in a separate process:
@@ -94,7 +94,7 @@ for i in range(num_gpus):
     torch.cuda.synchronize()
 
 start = time.time()
-model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path="./models/", fully_parallel=True)
+model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path=os.path.expanduser("~/models"), fully_parallel=True)
 # Please note the loading time depends on the model size and the hardware bandwidth.
 print(f"Model loading time: {time.time() - start:.2f}s")
 
@@ -164,7 +164,7 @@ from vllm import LLM, SamplingParams
 
 import os
 
-storage_path = os.getenv("STORAGE_PATH", "./models")
+storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
 model_name = "facebook/opt-1.3b"
 model_path = os.path.join(storage_path, model_name)
 
@@ -211,8 +211,8 @@ from sllm_store.transformers import save_lora
 from transformers import AutoModelForCausalLM
 model = AutoModelForCausalLM.from_pretrained('facebook/opt-1.3b', torch_dtype=torch.float16) -->
 
-# Replace './models' with your local path.
-save_lora(adapter, './models/facebook/opt-1.3b')
+# Replace '~/models' with your local path.
+save_lora(adapter, '~/models/facebook/opt-1.3b')
 ```
 
 2. Launch the checkpoint store server in a separate process:
@@ -227,9 +227,9 @@ import time
 import torch
 from sllm_store.transformers import load_model, load_lora
 
-model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path="./models/", fully_parallel=True)
+model = load_model("facebook/opt-1.3b", device_map="auto", torch_dtype=torch.float16, storage_path=os.path.expanduser("~/models"), fully_parallel=True)
 
-model = load_lora("facebook/opt-1.3b", adapter_name="demo_lora", adapter_path="ft_facebook/opt-1.3b_adapter1", device_map="auto", torch_dtype=torch.float16, storage_path="./models/")
+model = load_lora("facebook/opt-1.3b", adapter_name="demo_lora", adapter_path="ft_facebook/opt-1.3b_adapter1", device_map="auto", torch_dtype=torch.float16, storage_path=os.path.expanduser("~/models"))
 
 # Please note the loading time depends on the base model size and the hardware bandwidth.
 print(f"Model loading time: {time.time() - start:.2f}s")

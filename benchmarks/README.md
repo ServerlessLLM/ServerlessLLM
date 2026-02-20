@@ -77,7 +77,7 @@ kubectl apply -f deploy/k8s/configmap.yaml -f deploy/k8s/job.yaml
 | `--num-replicas` | `30` | Number of iterations |
 | `--mem-pool-size` | `32GB` | sllm-store memory pool |
 | `--benchmark-type` | `random` | Test type (random/cached) |
-| `--storage-path` | `./models` | Model storage directory |
+| `--storage-path` | `~/models` | Model storage directory |
 | `--results-path` | `./results` | Results output directory |
 | `--generate-plots` | `false` | Generate visualizations |
 
@@ -89,7 +89,7 @@ Requires `sllm-store` to be installed. The script automatically handles starting
 
 ```bash
 # Ensure models directory exists
-mkdir -p ./models
+mkdir -p ~/models
 
 # Run benchmark (starts sllm-store automatically)
 ./run-benchmark.sh \
