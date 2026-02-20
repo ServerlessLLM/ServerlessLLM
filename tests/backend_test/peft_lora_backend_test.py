@@ -180,7 +180,10 @@ def test_init_backend_with_local_tokenizer(
 
     mock_tokenizer_from_pretrained.assert_called_once_with(
         os.path.join(
-            os.path.expanduser("~/models"), "transformers", "facebook/opt-125m", "tokenizer"
+            os.path.expanduser("~/models"),
+            "transformers",
+            "facebook/opt-125m",
+            "tokenizer",
         )
     )
 

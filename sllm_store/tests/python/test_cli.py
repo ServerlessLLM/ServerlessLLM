@@ -283,7 +283,9 @@ class TestCliCommands(unittest.TestCase):
             0,
             f"Command failed with output: {result.output}",
         )
-        expected_folder = Path(os.path.expanduser("~/models")) / TEST_MODEL_TRANSFORMERS
+        expected_folder = (
+            Path(os.path.expanduser("~/models")) / TEST_MODEL_TRANSFORMERS
+        )
         self.assertTrue(
             expected_folder.is_dir(),
             f"Folder does not exist: {expected_folder}",

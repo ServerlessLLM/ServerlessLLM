@@ -131,7 +131,9 @@ class TransformersBackend(SllmBackend):
                 "quantization_config", None
             )
 
-            storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
+            storage_path = os.getenv(
+                "STORAGE_PATH", os.path.expanduser("~/models")
+            )
             model_path = os.path.join("transformers", self.model_name)
             self.model = load_model(
                 model_path,

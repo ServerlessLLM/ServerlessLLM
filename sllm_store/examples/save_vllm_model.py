@@ -26,7 +26,9 @@ class VllmModelDownloader:
         from vllm import LLM
 
         # set the model storage path
-        storage_path = os.getenv("STORAGE_PATH", storage_path) or os.path.expanduser("~/models")
+        storage_path = os.getenv(
+            "STORAGE_PATH", storage_path
+        ) or os.path.expanduser("~/models")
 
         def _run_writer(input_dir, model_name):
             # load models from the input directory
