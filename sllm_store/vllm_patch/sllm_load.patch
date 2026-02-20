@@ -118,7 +118,7 @@ index 000000000..c65b46989
 +        
 +        # vLLM needs a local model path to read model config but
 +        # ServerlessLLM Store requires a global model path as the model ID
-+        storage_path = os.getenv("STORAGE_PATH", "./models")
++        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
 +        model_path = remove_prefix(local_model_path, storage_path)
 +        
 +        with set_default_torch_dtype(vllm_config.model_config.dtype):

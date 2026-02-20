@@ -12,7 +12,7 @@ TEST_ADAPTER_MODEL = (
     "jeanlucmarsh/opt-125m-pattern-based_finetuning_with_lora-mnli-mm-d3_fs2"
 )
 TEST_DIRECTORY_SAVE = "./test_save_models"
-TEST_DIRECTORY_LOAD = "./models"
+TEST_DIRECTORY_LOAD = os.path.expanduser("~/models")
 
 
 class TestCliCommands(unittest.TestCase):
@@ -283,7 +283,7 @@ class TestCliCommands(unittest.TestCase):
             0,
             f"Command failed with output: {result.output}",
         )
-        expected_folder = Path("./models") / TEST_MODEL_TRANSFORMERS
+        expected_folder = Path(os.path.expanduser("~/models")) / TEST_MODEL_TRANSFORMERS
         self.assertTrue(
             expected_folder.is_dir(),
             f"Folder does not exist: {expected_folder}",

@@ -100,7 +100,7 @@ sllm-store save --model Qwen/Qwen3-0.6B --backend transformers
 
 ```bash
 sllm-store start \
-  --storage-path ./models \
+  --storage-path ~/models \
   --mem-pool-size 4GB \
   --num-threads 4
 ```

@@ -179,7 +179,7 @@ def fully_parallel_load(
     storage_path: Optional[str] = None,
 ):
     if not storage_path:
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
 
     start = time.time()
     device_map = _transform_device_map_to_dict(device_map)
@@ -286,7 +286,7 @@ def best_effort_load(
         raise ValueError("CPU is not supported in device_map.")
 
     if not storage_path:
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
     start = time.time()
     config = AutoConfig.from_pretrained(
         f"{os.path.join(storage_path, model_path)}", trust_remote_code=True
@@ -416,7 +416,7 @@ def load_lora(
     torch_dtype: Optional[torch.dtype] = None,
 ):
     if not storage_path:
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
 
     config_path = os.path.join(
         storage_path, adapter_path, "adapter_config.json"

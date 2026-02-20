@@ -45,7 +45,7 @@ def download_transformers_model(
     torch_dtype: str,
     hf_model_class: str,
 ) -> bool:
-    storage_path = os.getenv("STORAGE_PATH", "./models")
+    storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
     model_path = os.path.join(storage_path, "transformers", model_name)
     tokenizer_path = os.path.join(
         storage_path, "transformers", model_name, "tokenizer"
@@ -100,7 +100,7 @@ def download_lora_adapter(
     hf_model_class: str,
     torch_dtype: str,
 ) -> bool:
-    storage_path = os.getenv("STORAGE_PATH", "./models")
+    storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
     adapter_path = os.path.join(
         storage_path, "transformers", adapter_name_or_path
     )
@@ -174,7 +174,7 @@ class VllmModelDownloader:
         from vllm import LLM
 
         # set the storage path
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
         model_path = os.path.join(storage_path, "vllm", model_name)
         if os.path.exists(model_path):
             logger.info(f"{model_path} already exists")

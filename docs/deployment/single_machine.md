@@ -132,7 +132,7 @@ ray start --address=0.0.0.0:6379 --num-cpus=4 --num-gpus=1 \
 
 ### 2. Start the ServerlessLLM Store Server
 
-Next, start the ServerlessLLM Store server. By default, it uses `./models` as the storage path.
+Next, start the ServerlessLLM Store server. By default, it uses `~/models` as the storage path.
 
 Open a new terminal and run:
 

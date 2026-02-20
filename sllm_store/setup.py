@@ -121,7 +121,10 @@ install_requires = fetch_requirements("requirements.txt")
 
 extras = {}
 
-extras["vllm"] = fetch_requirements("requirements-vllm.txt")
+extras["vllm"] = [
+    "vllm",
+    "pillow>=10.3.0",
+]
 
 extras["test"] = [
     "pytest",

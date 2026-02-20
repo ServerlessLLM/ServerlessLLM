@@ -33,7 +33,7 @@ pip install serverless-llm-store
 ```
 
 ## Example Workflow
-1. Firstly, start the ServerlessLLM Store server. By default, it uses ./models as the storage path.
+1. Firstly, start the ServerlessLLM Store server. By default, it uses ~/models as the storage path.
 Launch the checkpoint store server in a separate process:
 ``` bash
 # 'mem_pool_size' is the maximum size of the memory pool in GB. It should be larger than the model size.

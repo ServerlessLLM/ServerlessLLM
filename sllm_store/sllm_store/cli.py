@@ -44,12 +44,12 @@ def resolve_storage_path(cli_path: Optional[str]) -> str:
     """
     Resolve storage path with priority:
     1. CLI specified --storage-path (highest priority)
-    2. Environment variable SLLM_STORAGE_PATH
+    2. Environment variable STORAGE_PATH
     3. Default ~/models/ (lowest priority)
     """
     if cli_path is not None:
         return os.path.expanduser(cli_path)
-    env_path = os.getenv("SLLM_STORAGE_PATH")
+    env_path = os.getenv("STORAGE_PATH")
     if env_path:
         return os.path.expanduser(env_path)
     return os.path.expanduser("~/models/")
@@ -168,7 +168,7 @@ def cli():
 @click.option(
     "--storage-path",
     default=None,
-    help="Storage path (default: $SLLM_STORAGE_PATH or ~/models/)",
+    help="Storage path (default: $STORAGE_PATH or ~/models/)",
 )
 @click.option("--num-thread", default=4, help="Number of I/O threads")
 @click.option(
@@ -246,7 +246,7 @@ def start(
 @click.option(
     "--storage-path",
     default=None,
-    help="Local path to save the model (default: $SLLM_STORAGE_PATH or ~/models/)",  # noqa: E501
+    help="Local path to save the model (default: $STORAGE_PATH or ~/models/)",  # noqa: E501
 )
 def save(
     model_name,
@@ -341,7 +341,7 @@ def save(
     "--storage-path",
     type=str,
     default=None,
-    help="Local path where model is saved (default: $SLLM_STORAGE_PATH or ~/models/)",  # noqa: E501
+    help="Local path where model is saved (default: $STORAGE_PATH or ~/models/)",  # noqa: E501
 )
 def load(
     model_name,
@@ -380,7 +380,7 @@ def load(
         if backend == "vllm":
             from vllm import LLM
 
-            model_full_path = os.path.join(storage_path, model_name)
+            model_full_path = os.path.join(storage_path, "vllm", model_name)
             llm = LLM(
                 model=model_full_path,
                 load_format="serverless_llm",

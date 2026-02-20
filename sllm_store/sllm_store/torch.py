@@ -106,7 +106,7 @@ def load_dict_non_blocking(
         raise ValueError(f"Failed to load model {model_path} into CPU")
 
     if not storage_path:
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
     with open(
         os.path.join(storage_path, model_path, "tensor_index.json"), "r"
     ) as f:

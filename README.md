@@ -157,7 +157,7 @@ sllm-store save --model Qwen/Qwen3-0.6B --backend transformers
 
 ```bash
 # Start the store server first
-sllm-store start --storage-path ./models --mem-pool-size 4GB
+sllm-store start --storage-path ~/models --mem-pool-size 4GB
 ```
 
 ### Load it 6-10x Faster in Your Python Code

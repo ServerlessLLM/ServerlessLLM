@@ -20,7 +20,7 @@ parser.add_argument(
 parser.add_argument(
     "--storage-path",
     type=str,
-    default="./models",
+    default=os.path.expanduser("~/models"),
     help="Local path stored the model.",
 )
 

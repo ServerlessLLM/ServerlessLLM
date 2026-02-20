@@ -145,7 +145,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
             )
             logger.info(f"Using model class: {hf_model_class}")
 
-            storage_path = os.getenv("STORAGE_PATH", "./models")
+            storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
             model_path = os.path.join("transformers", self.model_name)
 
             self.model = load_model(
@@ -276,7 +276,7 @@ class PeftLoraBackend(SllmFineTuningBackend):
 
         training_config = request_data.get("training_config")
         logger.info(f"Creating training config: {training_config}")
-        storage_path = os.getenv("STORAGE_PATH", "./models")
+        storage_path = os.getenv("STORAGE_PATH", os.path.expanduser("~/models"))
         output_dir = request_data.get(
             "output_dir", f"ft_{self.model_name}_adapter"
         )

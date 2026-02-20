@@ -156,7 +156,7 @@ def test_init_backend_success(
     mock_load_model.assert_called_once()
     call_args = mock_load_model.call_args
     assert call_args[0][0] == os.path.join(
-        "./models", "transformers", "facebook/opt-125m"
+        os.path.expanduser("~/models"), "transformers", "facebook/opt-125m"
     )
     assert call_args[1]["device_map"] == "auto"
     assert call_args[1]["torch_dtype"] == torch.float16
@@ -180,7 +180,7 @@ def test_init_backend_with_local_tokenizer(
 
     mock_tokenizer_from_pretrained.assert_called_once_with(
         os.path.join(
-            "./models", "transformers", "facebook/opt-125m", "tokenizer"
+            os.path.expanduser("~/models"), "transformers", "facebook/opt-125m", "tokenizer"
         )
     )
 
