@@ -28,6 +28,7 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
         num_thread,
         chunk_size,
         registration_required,
+        enable_odirect,
     ):
         if not storage_path:
             logger.error("storage_path is empty")
@@ -41,11 +42,16 @@ class StorageServicer(storage_pb2_grpc.StorageServicer):
             f"StorageServicer: storage_path={storage_path}, "
             f"mem_pool_size={mem_pool_size}, num_thread={num_thread}, "
             f"chunk_size={chunk_size}, "
-            f"registration_required={registration_required}"
+            f"registration_required={registration_required}, "
+            f"enable_odirect={enable_odirect}"
         )
 
         self.storage = CheckpointStore(
-            storage_path, mem_pool_size, num_thread, chunk_size
+            storage_path,
+            mem_pool_size,
+            num_thread,
+            chunk_size,
+            enable_odirect,
         )
         self.registration_required = registration_required
 
@@ -214,6 +220,7 @@ async def serve(
     chunk_size,
     mem_pool_size,
     registration_required,
+    enable_odirect,
 ):
     server = grpc.aio.server()
     storage_pb2_grpc.add_StorageServicer_to_server(
@@ -223,6 +230,7 @@ async def serve(
             num_thread,
             chunk_size,
             registration_required,
+            enable_odirect,
         ),
         server,
     )

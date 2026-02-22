@@ -31,17 +31,19 @@
 
 CheckpointStore::CheckpointStore(const std::string& storage_path,
                                  size_t memory_pool_size, int num_thread,
-                                 size_t chunk_size)
+                                 size_t chunk_size, bool enable_odirect)
     : storage_path_(storage_path),
       memory_pool_size_(memory_pool_size),
       num_thread_(num_thread),
-      chunk_size_(chunk_size) {
+      chunk_size_(chunk_size),
+      enable_odirect_(enable_odirect) {
   // Get number of GPUs
   cudaGetDeviceCount(&num_gpus_);
   LOG(INFO) << "Number of GPUs: " << num_gpus_;
 
   LOG(INFO) << "I/O threads: " << num_thread
             << ", chunk size: " << chunk_size / MB << "MB";
+  LOG(INFO) << "O_DIRECT enabled: " << enable_odirect_;
   LOG(INFO) << "Storage path: " << storage_path_;
 
   for (size_t i = 0; i < num_gpus_; ++i) {
@@ -93,7 +95,7 @@ int64_t CheckpointStore::RegisterModelInfo(const std::string& model_path) {
     return model->GetModelSize();
   }
 
-  auto model = std::make_shared<Model>(model_path);
+  auto model = std::make_shared<Model>(model_path, enable_odirect_);
 
   int ret = model->Initialize(storage_path_);
   if (ret != 0) {

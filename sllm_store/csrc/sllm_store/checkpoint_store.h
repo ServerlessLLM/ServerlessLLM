@@ -40,7 +40,8 @@
 class CheckpointStore {
  public:
   CheckpointStore(const std::string& storage_path, size_t memory_pool_size,
-                  int num_thread, size_t chunk_size);
+                  int num_thread, size_t chunk_size,
+                  bool enable_odirect = true);
   ~CheckpointStore();
 
   int64_t RegisterModelInfo(const std::string& model_path);
@@ -87,6 +88,7 @@ class CheckpointStore {
   std::shared_ptr<PinnedMemoryPool> memory_pool_;
   int num_thread_;
   size_t chunk_size_;
+  bool enable_odirect_ = true;
 
   std::queue<std::future<int>> async_tasks_;
 

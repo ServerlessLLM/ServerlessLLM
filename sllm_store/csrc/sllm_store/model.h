@@ -50,7 +50,8 @@ using GpuReplicaPtr = std::shared_ptr<GpuReplica>;
 
 class Model {
  public:
-  Model(const std::filesystem::path& model_path) : model_path_(model_path) {}
+  Model(const std::filesystem::path& model_path, bool enable_odirect = true)
+      : model_path_(model_path), enable_odirect_(enable_odirect) {}
   int Initialize(const std::filesystem::path storage_path);
   int AllocatePinnedMemory(std::shared_ptr<PinnedMemoryPool> pool);
   int ToHost(int num_threads);
@@ -71,6 +72,7 @@ class Model {
 
   // Model path
   const std::string model_path_;
+  bool enable_odirect_ = true;
 
   // Model info needs to be initialized
   size_t model_size_;

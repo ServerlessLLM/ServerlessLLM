@@ -173,6 +173,12 @@ def cli():
     default=False,
     help="Require registration before loading model",
 )
+@click.option(
+    "--enable-odirect/--disable-odirect",
+    default=True,
+    show_default=True,
+    help="Use O_DIRECT when loading model files from disk.",
+)
 def start(
     host,
     port,
@@ -182,6 +188,7 @@ def start(
     mem_pool_size,
     disk_size,
     registration_required,
+    enable_odirect,
 ):
     """Start the gRPC server."""
     # Convert the chunk size to bytes
@@ -203,6 +210,7 @@ def start(
                 # disk size is not used
                 # disk_size=disk_size,
                 registration_required=registration_required,
+                enable_odirect=enable_odirect,
             )
         )
     except KeyboardInterrupt:

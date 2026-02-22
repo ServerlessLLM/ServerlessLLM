@@ -92,26 +92,30 @@ int Model::ToHost(int num_threads) {
       return -1;
     }
 
-    // Open file
-    int fd = open(tensor_path.c_str(), O_DIRECT | O_RDONLY);
+    // Open file, optionally with O_DIRECT.
+    int flags = O_RDONLY;
+    if (enable_odirect_) {
+      flags |= O_DIRECT;
+    }
+    int fd = open(tensor_path.c_str(), flags);
     if (fd < 0) {
-        // open() failed
-        if (errno == EINVAL) {
-            LOG(WARNING) << "O_DIRECT not supported on " << tensor_path
-                        << ", retrying without it";
-            fd = open(tensor_path.c_str(), O_RDONLY);
-            if (fd < 0) {
-                std::string err = "open() failed for file (no O_DIRECT): " +
-                                  tensor_path.string() + ", error: " + strerror(errno);
-                LOG(ERROR) << err;
-                return -1;
-            }
-        } else {
-            std::string err = "open() failed for file: " + tensor_path.string() +
-                              ", error: " + strerror(errno);
-            LOG(ERROR) << err;
-            return -1;
+      if (enable_odirect_ && errno == EINVAL) {
+        LOG(WARNING) << "O_DIRECT not supported on " << tensor_path
+                     << ", retrying without it";
+        fd = open(tensor_path.c_str(), O_RDONLY);
+        if (fd < 0) {
+          std::string err = "open() failed for file (no O_DIRECT): " +
+                            tensor_path.string() +
+                            ", error: " + strerror(errno);
+          LOG(ERROR) << err;
+          return -1;
         }
+      } else {
+        std::string err = "open() failed for file: " + tensor_path.string() +
+                          ", error: " + strerror(errno);
+        LOG(ERROR) << err;
+        return -1;
+      }
     }
 
     file_descriptors.push_back(fd);
