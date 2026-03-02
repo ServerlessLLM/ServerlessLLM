@@ -82,8 +82,8 @@ jobs:
       - name: Rename wheel for PyPI
         shell: bash
         run: |
-          # Rename the wheel file to use manylinux1 tag for PyPI compatibility
-          mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
+          # Copy the wheel file to use manylinux1 tag for PyPI compatibility
+          cp dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
 
       - name: Fix sdist filename
         shell: bash
@@ -160,7 +160,7 @@ jobs:
       - name: Rename wheel
         working-directory: sllm_store  # Specify the directory
         run: |
-          mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
+          cp dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
 
       - name: Fix sdist filename
         working-directory: sllm_store
