@@ -477,15 +477,23 @@ class Reconciler:
             deployment.id
         )
 
-        if not instances:
+        # Treat cancelled/failed instances as already gone — pylet never
+        # removes them from its registry, so we must filter them out to
+        # avoid looping forever trying to cancel already-cancelled instances.
+        active_instances = [
+            inst for inst in instances
+            if inst.status not in ("CANCELLED", "FAILED", "UNKNOWN", "COMPLETED")
+        ]
+
+        if not active_instances:
             # All instances gone - remove endpoints and delete from database
             self.database.remove_deployment_endpoints(deployment.id)
             self.database.delete_deployment(deployment.id)
             logger.info(f"Completed deletion of {deployment.id}")
             return
 
-        # Cancel remaining instances
-        for inst in instances:
+        # Cancel remaining active instances
+        for inst in active_instances:
             await self._cleanup_instance(deployment.id, inst)
 
 

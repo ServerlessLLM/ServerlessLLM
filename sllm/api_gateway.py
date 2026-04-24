@@ -54,6 +54,10 @@ origins = [origin for origin in origins_env.split(",") if origin]
 origins += ["http://localhost", "http://localhost:3000"]
 
 
+from sllm.batch_scheduler import BatchScheduler
+
+# ...
+
 def create_app(
     database: Optional[Database] = None,
     pylet_client: Optional[PyletClient] = None,
@@ -63,17 +67,16 @@ def create_app(
 ) -> FastAPI:
     """
     Create the SLLM API Gateway FastAPI application.
-
-    Args:
-        database: SQLite database instance
-        pylet_client: Pylet client instance (may be None if Pylet unavailable)
-        router: Global Router instance for request routing
-        autoscaler: AutoScaler instance (for connecting Router to it)
-        config: Head configuration
-
-    Returns:
-        FastAPI application
     """
+    
+    # Initialize Scheduler if database and router are present and enabled
+    scheduler: Optional[BatchScheduler] = None
+    if database and router:
+        if os.getenv("ENABLE_BATCH_SCHEDULER", "1").lower() in ("1", "true", "yes"):
+            scheduler = BatchScheduler(database, router)
+            logger.info("BatchScheduler enabled via config")
+        else:
+            logger.info("BatchScheduler disabled via config")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -83,19 +86,40 @@ def create_app(
         app.state.router = router
         app.state.autoscaler = autoscaler
         app.state.config = config
+        app.state.scheduler = scheduler
 
         # Connect Router to Autoscaler for metrics push
         if router and autoscaler:
             router.set_autoscaler(autoscaler)
 
+        # Connect Scheduler to Autoscaler for proactive scaling
+        if scheduler and autoscaler:
+            scheduler.set_autoscaler(autoscaler)
+
+        # Connect Scheduler to StorageManager for checkpoint prefetch
+        storage_manager = getattr(app.state, "storage_manager", None)
+        if scheduler and storage_manager:
+            scheduler.set_storage_manager(storage_manager)
+
+        # Connect Scheduler to PyletClient for GPU-aware scaling
+        if scheduler and pylet_client:
+            scheduler.set_pylet_client(pylet_client)
+
         # Start router if provided
         if router:
             await router.start()
+
+        # Start Scheduler if initialized (default: BatchScheduler)
+        if scheduler:
+            await scheduler.start()
 
         logger.info("API Gateway started")
         yield
 
         # Cleanup
+        if scheduler and scheduler.running:
+            await scheduler.stop()
+
         if router:
             await router.drain(timeout=10.0)
             await router.stop()
@@ -283,6 +307,242 @@ def create_app(
                 status_code=500,
                 detail=f"Failed to delete deployment: {str(e)}",
             )
+
+    # -------------------------------------------------------------------------
+    # File Management Endpoints
+    # -------------------------------------------------------------------------
+
+    MAX_UPLOAD_SIZE = int(os.getenv("SLLM_MAX_UPLOAD_BYTES", str(100 * 1024 * 1024)))  # 100MB default
+    MAX_TASKS_PER_BATCH = int(os.getenv("SLLM_MAX_TASKS_PER_BATCH", "50000"))
+
+    @app.post("/v1/files")
+    async def upload_file_handler(request: Request):
+        """Upload a file that contains batch requests."""
+        # Check Content-Length header early to reject oversized uploads
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum upload size is {MAX_UPLOAD_SIZE} bytes"
+            )
+
+        try:
+            form = await request.form()
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid form data: {str(e)}")
+
+        file = form.get("file")
+        purpose = form.get("purpose", "batch")
+
+        if not file or not hasattr(file, "filename"):
+            raise HTTPException(status_code=400, detail="Missing file in form data")
+
+        import uuid
+        import os as _os
+        file_id = f"file_{uuid.uuid4().hex[:12]}"
+
+        # Save file to disk
+        upload_dir = "sllm_files"
+        _os.makedirs(upload_dir, exist_ok=True)
+        file_path = _os.path.join(upload_dir, f"{file_id}.jsonl")
+
+        file_content = await file.read()
+
+        if len(file_content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum upload size is {MAX_UPLOAD_SIZE} bytes"
+            )
+
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+            
+        db: Database = request.app.state.database
+        file_obj = db.create_file(
+            file_id=file_id,
+            filename=file.filename,
+            bytes_size=len(file_content),
+            purpose=purpose
+        )
+        
+        return {
+            "id": file_obj.id,
+            "object": "file",
+            "bytes": file_obj.bytes,
+            "created_at": file_obj.created_at,
+            "filename": file_obj.filename,
+            "purpose": file_obj.purpose
+        }
+
+    @app.get("/v1/files")
+    async def list_files_handler(request: Request):
+        db: Database = request.app.state.database
+        files = db.get_all_files()
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": f.id,
+                    "object": "file",
+                    "bytes": f.bytes,
+                    "created_at": f.created_at,
+                    "filename": f.filename,
+                    "purpose": f.purpose
+                } for f in files
+            ]
+        }
+
+    # -------------------------------------------------------------------------
+    # Batch Job Endpoints
+    # -------------------------------------------------------------------------
+
+    @app.post("/v1/batches")
+    async def create_batch_handler(request: Request):
+        """Create a new batch job."""
+        try:
+            body = await request.json()
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid JSON payload: {str(e)}"
+            )
+
+        input_file_id = body.get("input_file_id")
+        tasks = body.get("tasks")
+        if not input_file_id and not tasks:
+            raise HTTPException(
+                status_code=400,
+                detail="Request body must include either 'tasks' list or 'input_file_id'",
+            )
+
+        import uuid
+        import json
+        import os
+
+        db: Database = request.app.state.database
+        batch_id = f"batch_{uuid.uuid4().hex[:8]}"
+
+        # Handle file-based tasks
+        if input_file_id:
+            logger.info(f"Processing batch from file: {input_file_id}")
+            file_obj = db.get_file(input_file_id)
+            if not file_obj:
+                raise HTTPException(status_code=404, detail=f"File {input_file_id} not found")
+                
+            file_path = f"sllm_files/{input_file_id}.jsonl"
+            if not os.path.exists(file_path):
+                raise HTTPException(status_code=500, detail="File content missing on disk")
+                
+            tasks = []
+            line_idx = 0
+            try:
+                with open(file_path, "r") as f:
+                    for line_idx, line in enumerate(f):
+                        line = line.strip()
+                        if not line: continue
+                        task_data = json.loads(line)
+                        tasks.append(task_data)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to parse jsonl file at line {line_idx+1}: {e}")
+
+        # Validate tasks
+        if len(tasks) > MAX_TASKS_PER_BATCH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Too many tasks ({len(tasks)}). Maximum is {MAX_TASKS_PER_BATCH} per batch."
+            )
+
+        for task in tasks:
+            if not all(
+                k in task for k in ("custom_id", "method", "url", "body")
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Each task must have custom_id, method, url, and body",
+                )
+
+        try:
+            # Create batch job
+            metadata = body.get("metadata", {})
+
+            db.create_batch_job(batch_id, metadata=metadata, input_file_id=input_file_id)
+
+            # Bulk-insert tasks in a single transaction (off event loop)
+            task_rows = [
+                {
+                    "task_id": f"task_{uuid.uuid4().hex[:16]}",
+                    "custom_id": task["custom_id"],
+                    "method": task["method"],
+                    "url": task["url"],
+                    "body": task["body"],
+                }
+                for task in tasks
+            ]
+            await asyncio.get_event_loop().run_in_executor(
+                None, db.create_batch_tasks_bulk, task_rows, batch_id
+            )
+
+            logger.info(f"Created batch job {batch_id} with {len(tasks)} tasks")
+
+            return {
+                "id": batch_id,
+                "object": "batch",
+                "status": "pending",
+                "request_counts": {
+                    "total": len(tasks),
+                    "completed": 0,
+                    "failed": 0,
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to create batch job: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Internal error creating batch job",
+            )
+
+    @app.get("/v1/batches/{batch_id}")
+    async def get_batch_handler(batch_id: str, request: Request):
+        """Get batch job status."""
+        db: Database = request.app.state.database
+        batch_job = db.get_batch_job(batch_id)
+
+        if not batch_job:
+            raise HTTPException(
+                status_code=404, detail=f"Batch job {batch_id} not found"
+            )
+
+        batch_tasks = db.get_batch_tasks(batch_id)
+
+        completed_count = sum(
+            1 for t in batch_tasks if t.status == "completed"
+        )
+        failed_count = sum(1 for t in batch_tasks if t.status == "failed")
+
+        return {
+            "id": batch_job.id,
+            "object": "batch",
+            "status": batch_job.status,
+            "metadata": batch_job.metadata,
+            "created_at": batch_job.created_at,
+            "request_counts": {
+                "total": len(batch_tasks),
+                "completed": completed_count,
+                "failed": failed_count,
+            },
+            "tasks": [
+                {
+                    "id": t.id,
+                    "custom_id": t.custom_id,
+                    "status": t.status,
+                    "body": t.body,
+                    "output": t.output,
+                    "started_at": t.started_at,
+                    "completed_at": t.completed_at,
+                }
+                for t in batch_tasks
+            ],
+        }
 
     # -------------------------------------------------------------------------
     # Inference Endpoints
@@ -533,5 +793,81 @@ def create_app(
         )
 
         return {"status": "ok"}
+
+    # ========================================================================
+    # Admin Endpoints for Experiment Control
+    # ========================================================================
+
+    @app.post("/admin/set_strategy")
+    async def set_batch_strategy(request: Request):
+        """Set batch scheduling strategy at runtime (for experiments).
+
+        Body:
+            strategy: "sync", "chunked", or "semaphore"
+            buffer_limit: Concurrency limit (default: 10)
+            enable_model_grouping: Whether to sort tasks by model (default: true)
+            enable_johnsons_rule: Whether to reorder groups via Johnson's Rule (default: true)
+            enable_prefetch: Whether to prefetch next model checkpoint (default: current)
+            prefetch_threshold: Fraction of group done before prefetch fires (default: current)
+        """
+        scheduler = request.app.state.scheduler
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Batch scheduler not available")
+
+        body = await request.json()
+        strategy = body.get("strategy", "semaphore")
+        buffer_limit = body.get("buffer_limit", 10)
+        enable_model_grouping = body.get("enable_model_grouping", True)
+        enable_johnsons_rule = body.get("enable_johnsons_rule", True)
+        enable_prefetch = body.get("enable_prefetch", scheduler.enable_prefetch)
+        prefetch_threshold = body.get("prefetch_threshold", scheduler.prefetch_threshold)
+        forced_group_order = body.get("force_group_order", [])
+
+        try:
+            scheduler.set_strategy(strategy, buffer_limit, enable_model_grouping, enable_johnsons_rule, forced_group_order)
+            scheduler.enable_prefetch = enable_prefetch
+            scheduler.prefetch_threshold = prefetch_threshold
+
+            # Tensor parallelism config: {"model_name": tp_size, ...}
+            tp_config = body.get("tp_config")
+            if tp_config and isinstance(tp_config, dict):
+                scheduler.set_tp_config(tp_config)
+
+            if not scheduler.running:
+                await scheduler.start()
+
+            logger.info(
+                f"Scheduler: prefetch={enable_prefetch}, threshold={prefetch_threshold}, johnsons_rule={enable_johnsons_rule}"
+            )
+
+            return {
+                "status": "ok",
+                "strategy": strategy,
+                "buffer_limit": buffer_limit,
+                "enable_model_grouping": enable_model_grouping,
+                "enable_johnsons_rule": enable_johnsons_rule,
+                "enable_prefetch": enable_prefetch,
+                "prefetch_threshold": prefetch_threshold,
+                "tp_config": {**scheduler._auto_tp_cache, **scheduler._tp_config},
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/admin/get_strategy")
+    async def get_batch_strategy(request: Request):
+        """Get current batch scheduling strategy."""
+        scheduler = request.app.state.scheduler
+        if not scheduler:
+            raise HTTPException(status_code=503, detail="Batch scheduler not available")
+
+        return {
+            "strategy": scheduler.strategy,
+            "buffer_limit": scheduler.buffer_limit,
+            "enable_model_grouping": scheduler.enable_model_grouping,
+            "enable_johnsons_rule": scheduler.enable_johnsons_rule,
+            "enable_prefetch": scheduler.enable_prefetch,
+            "prefetch_threshold": scheduler.prefetch_threshold,
+            "tp_config": {**scheduler._auto_tp_cache, **scheduler._tp_config},
+        }
 
     return app

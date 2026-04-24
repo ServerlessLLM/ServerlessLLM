@@ -47,8 +47,8 @@ class TestRouterConfig:
 
         config = RouterConfig()
 
-        assert config.max_buffer_size == 10
-        assert config.cold_start_timeout == 120.0
+        assert config.max_buffer_size == 100
+        assert config.cold_start_timeout == 180.0
         assert config.request_timeout == 300.0
 
     def test_custom_config(self):
@@ -86,8 +86,8 @@ class TestRouterInitialization:
 
         router = Router(database=database, autoscaler=mock_autoscaler)
 
-        assert router.config.max_buffer_size == 10
-        assert router.config.cold_start_timeout == 120.0
+        assert router.config.max_buffer_size == 100
+        assert router.config.cold_start_timeout == 180.0
 
     def test_init_custom_config(self, database, mock_autoscaler):
         """Test Router with custom config."""

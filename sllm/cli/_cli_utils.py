@@ -195,8 +195,11 @@ async def _run_head_node_v1beta():
         )
 
     # Initialize Router (single global instance)
-    router = init_router(database=db)
-    logger.info("Router initialized")
+    from sllm.router import RouterConfig
+    _buf_env = os.getenv("SLLM_ROUTER_BUFFER_SIZE")
+    router_config = RouterConfig(max_buffer_size=int(_buf_env)) if _buf_env else RouterConfig()
+    router = init_router(database=db, config=router_config)
+    logger.info(f"Router initialized with buffer_size={router_config.max_buffer_size}")
 
     # Initialize Autoscaler
     autoscaler = init_autoscaler(database=db)
@@ -238,6 +241,10 @@ async def _run_head_node_v1beta():
         )
         await storage_manager.recover_from_db()
         logger.info("StorageManager initialized")
+
+        # Expose StorageManager on app.state so the lifespan can wire it
+        # to the BatchScheduler for checkpoint prefetch
+        app.state.storage_manager = storage_manager
 
         # Start sllm-store on all worker nodes (expensive, do it eagerly)
         logger.info("Starting sllm-store on all worker nodes...")

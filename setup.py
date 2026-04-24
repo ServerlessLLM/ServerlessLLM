@@ -26,8 +26,16 @@ ROOT_DIR = os.path.dirname(__file__)
 
 
 def fetch_requirements(path):
+    # Keep only requirement specs: skip blanks, comments, and pip-flag lines
+    # (-r/-c/--index-url/etc.) so setuptools install_requires accepts them.
+    reqs = []
     with open(path, "r") as fd:
-        return [r.strip() for r in fd.readlines()]
+        for line in fd:
+            s = line.strip()
+            if not s or s.startswith("#") or s.startswith("-"):
+                continue
+            reqs.append(s)
+    return reqs
 
 
 def remove_prefix(text, prefix):
