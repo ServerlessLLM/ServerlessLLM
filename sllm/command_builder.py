@@ -21,9 +21,26 @@ from typing import Tuple
 
 from sllm.database import Deployment
 
-VENV_VLLM = "/opt/venvs/vllm"
-VENV_SGLANG = "/opt/venvs/sglang"
-VENV_SLLM_STORE = "/opt/venvs/sllm-store"
+import os
+
+# Detect environment
+if os.path.exists("/opt/venvs"):
+    VENV_VLLM = "/opt/venvs/vllm"
+    VENV_SGLANG = "/opt/venvs/sglang"
+    VENV_SLLM_STORE = "/opt/venvs/sllm-store"
+else:
+    # Local development fallback
+    # Assuming standard structure: root/.venv
+    # We need absolute path for Pylet
+    _cwd = os.getcwd()
+    _venv_path = os.path.join(_cwd, ".venv")
+    if not os.path.exists(_venv_path):
+         # Try to find it if we are in a subdir
+         _venv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.venv"))
+
+    VENV_VLLM = _venv_path
+    VENV_SGLANG = _venv_path
+    VENV_SLLM_STORE = _venv_path
 
 
 def build_vllm_command(
@@ -36,6 +53,7 @@ def build_vllm_command(
     gpu_memory_utilization = config.get("gpu_memory_utilization")
     dtype = config.get("dtype")
     trust_remote_code = config.get("trust_remote_code", False)
+    enforce_eager = config.get("enforce_eager", False)
 
     cmd_parts = [
         "vllm serve",
@@ -44,10 +62,15 @@ def build_vllm_command(
         "--port $PORT",
         "--host 0.0.0.0",
         f"--tensor-parallel-size {tp}",
+        "--enable-prefix-caching",
     ]
 
-    if max_model_len:
-        cmd_parts.append(f"--max-model-len {max_model_len}")
+    # Default max_model_len to 4096 if not specified.
+    # Many newer models (e.g. Qwen3-8B) default to 40960+ tokens,
+    # which exceeds single-GPU VRAM on A5000 (24GB).
+    if not max_model_len:
+        max_model_len = 4096
+    cmd_parts.append(f"--max-model-len {max_model_len}")
 
     if gpu_memory_utilization:
         cmd_parts.append(f"--gpu-memory-utilization {gpu_memory_utilization}")
@@ -57,6 +80,9 @@ def build_vllm_command(
 
     if trust_remote_code:
         cmd_parts.append("--trust-remote-code")
+
+    if enforce_eager:
+        cmd_parts.append("--enforce-eager")
 
     extra_args = config.get("extra_args", [])
     if extra_args:

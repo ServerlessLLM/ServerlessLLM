@@ -84,8 +84,24 @@ class AutoScaler:
         # Track idle time for keep_alive_seconds
         self._deployment_idle_times: Dict[str, int] = {}
 
+        # Batch-aware scaling: track active batch jobs per deployment
+        self._active_batches: Dict[str, set] = {}  # deployment_id -> set of batch_ids
+
         # Shutdown flag
         self._shutdown = asyncio.Event()
+
+    def register_active_batch(self, deployment_id: str, batch_id: str):
+        """Register an active batch job to prevent premature scale-down."""
+        if deployment_id not in self._active_batches:
+            self._active_batches[deployment_id] = set()
+        self._active_batches[deployment_id].add(batch_id)
+        logger.debug(f"Registered active batch {batch_id} for {deployment_id}")
+
+    def unregister_active_batch(self, deployment_id: str, batch_id: str):
+        """Unregister a completed batch job to allow scale-down."""
+        if deployment_id in self._active_batches:
+            self._active_batches[deployment_id].discard(batch_id)
+            logger.debug(f"Unregistered batch {batch_id} for {deployment_id}")
 
     def receive_metrics(
         self,
@@ -216,6 +232,15 @@ class AutoScaler:
         else:
             # Reset idle time if there's demand or we're scaling up
             self._deployment_idle_times[deployment.id] = 0
+
+        # Batch-aware scale-down: prevent scale-down if active batches exist
+        if desired < current_desired:
+            active_batches = self._active_batches.get(deployment.id, set())
+            if active_batches:
+                logger.info(
+                    f"[{deployment.id}] Preventing scale-down: {len(active_batches)} active batch jobs"
+                )
+                return  # Don't scale down while batches are running
 
         # Update if changed
         if desired != current_desired:

@@ -185,6 +185,20 @@ output = model.generate(**inputs)
 
 ---
 
+## 🖥️ Different Hardware / CUDA Version?
+
+`requirements.txt` pins the torch stack to **CUDA 12.8** and the build targets **sm_86** (A5000). For other setups, change two things before `pip install -r requirements.txt`:
+
+1. **CUDA wheel index** — in `requirements.txt`, replace `cu128` with your CUDA version (e.g. `cu121`, `cu124`), and update the pinned `torch` / `torchvision` / `torchaudio` / `nvidia-nccl-cu12` versions to a compatible set from [pytorch.org](https://pytorch.org/get-started/locally/).
+2. **GPU compute capability** — before building `sllm_store`, export the arch list matching your GPU (e.g. `8.0` for A100, `8.9` for L40/4090, `9.0` for H100):
+   ```bash
+   export TORCH_CUDA_ARCH_LIST="8.0"
+   ```
+
+Everything else (transformers, vllm, cmake, etc.) is hardware-agnostic.
+
+---
+
 ## 🎯 Key Features
 
 ### ⚡ Ultra-Fast Model Loading
