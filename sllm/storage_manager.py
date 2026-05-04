@@ -28,6 +28,8 @@ Responsibilities:
 """
 
 import asyncio
+import random
+import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set
 
@@ -64,6 +66,7 @@ class StorageManager:
         pylet_client: PyletClient,
         storage_path: str = "/models",
         head_url: str = "http://localhost:8343",
+        download_timeout: int = 600,
     ):
         """
         Initialize StorageManager.
@@ -73,15 +76,18 @@ class StorageManager:
             pylet_client: Pylet client for instance management
             storage_path: Path to model storage on workers
             head_url: SLLM head URL for sllm-store to report back
+            download_timeout: Timeout in seconds for model downloads (default: 600)
         """
         self.database = database
         self.pylet_client = pylet_client
         self.storage_path = storage_path
         self.head_url = head_url
+        self.download_timeout = download_timeout
 
         # In-memory cache view (refreshed from database)
         self._cache_view: Dict[str, Set[str]] = {}  # node_name -> set of models
         self._store_endpoints: Dict[str, str] = {}  # node_name -> endpoint
+        self._download_locks: Dict[str, asyncio.Lock] = {}
 
     async def recover_from_db(self):
         """Recover state from database on startup."""
@@ -186,12 +192,10 @@ class StorageManager:
         Returns:
             sllm-store endpoint (ip:port) or None if failed
         """
-        # Check if already running
         existing = await self.get_store_endpoint(node_name)
         if existing:
             return existing
 
-        # Check for existing instance in Pylet
         existing_instance = await self.pylet_client.get_store_instance(
             node_name
         )
@@ -199,7 +203,6 @@ class StorageManager:
             self._store_endpoints[node_name] = existing_instance.endpoint
             return existing_instance.endpoint
 
-        # Get worker info
         worker = await self.pylet_client.get_worker(node_name)
         if not worker or worker.status != "ONLINE":
             logger.warning(
@@ -207,7 +210,6 @@ class StorageManager:
             )
             return None
 
-        # Start sllm-store instance
         try:
             command = (
                 f"sllm-store start "
@@ -233,7 +235,6 @@ class StorageManager:
                 venv=VENV_SLLM_STORE,
             )
 
-            # Wait for it to be running
             instance = await self.pylet_client.wait_instance_running(
                 instance.instance_id, timeout=60
             )
@@ -293,11 +294,9 @@ class StorageManager:
         Args:
             report: Storage report from sllm-store
         """
-        # Update in-memory cache
         self._cache_view[report.node_name] = set(report.cached_models)
         self._store_endpoints[report.node_name] = report.sllm_store_endpoint
 
-        # Persist to database
         self.database.upsert_node_storage(
             node_name=report.node_name,
             sllm_store_endpoint=report.sllm_store_endpoint,
@@ -423,6 +422,170 @@ class StorageManager:
         return best_node
 
     # -------------------------------------------------------------------------
+    # Model Download
+    # -------------------------------------------------------------------------
+
+    async def ensure_model_on_node(
+        self, model_name: str, backend: str
+    ) -> Optional[str]:
+        """Ensure model is available on some node, starting download if needed.
+
+        This method is non-blocking. If a download is needed, it starts in the
+        background and returns None immediately. The caller should retry on the
+        next reconciliation cycle.
+
+        Returns:
+            Node name if model is already available, None if download started
+            or in progress.
+        """
+        nodes = self.get_nodes_with_model(model_name)
+        if nodes:
+            return nodes[0]
+
+        lock = self._download_locks.setdefault(model_name, asyncio.Lock())
+        if not lock.acquire_nowait():
+            logger.debug(f"Download already in progress for {model_name}")
+            return None
+
+        # Lock acquired - start background task which will release it when done
+        asyncio.create_task(
+            self._background_download(lock, model_name, backend)
+        )
+
+        return None
+
+    async def _background_download(
+        self, lock: asyncio.Lock, model_name: str, backend: str
+    ) -> None:
+        """Background task to download a model. Lock is already held by caller."""
+        try:
+            # Double-check model isn't already available
+            nodes = self.get_nodes_with_model(model_name)
+            if nodes:
+                return
+
+            workers = await self.pylet_client.get_online_workers()
+            if not workers:
+                logger.warning("No online workers available for model download")
+                return
+
+            node = random.choice(workers).worker_id
+            logger.info(f"Downloading {model_name} to {node} (background)")
+
+            await self.download_model_on_node(node, model_name, backend)
+        except Exception as e:
+            logger.error(f"Background download failed for {model_name}: {e}")
+        finally:
+            lock.release()
+
+    async def download_model_on_node(
+        self, node_name: str, model_name: str, backend: str
+    ) -> bool:
+        """Download a model to a specific node.
+
+        Args:
+            node_name: Target node for download
+            model_name: Model to download
+            backend: Backend type (vllm, sglang)
+
+        Returns:
+            True if download succeeded, False otherwise
+        """
+        endpoint = await self.ensure_store_on_node(node_name)
+        if not endpoint:
+            logger.error(
+                f"Cannot download to {node_name}: sllm-store not available"
+            )
+            return False
+
+        command = (
+            f"sllm-store save "
+            f"--model {model_name} "
+            f"--backend {backend} "
+            f"--storage-path {self.storage_path}"
+        )
+
+        safe_model = model_name.replace("/", "-")
+        instance = await self.pylet_client.submit(
+            command=command,
+            name=f"download-{safe_model}-{uuid.uuid4().hex[:8]}",
+            target_worker=node_name,
+            gpu=1,
+            exclusive=False,
+            labels={
+                "type": "model-download",
+                "model": model_name,
+                "node": node_name,
+            },
+            venv=VENV_SLLM_STORE,
+        )
+
+        final = await self.pylet_client.wait_instance_completed(
+            instance.instance_id, timeout=self.download_timeout
+        )
+        if final and final.status == "COMPLETED":
+            logger.info(f"Downloaded {model_name} on {node_name}")
+            # Update cache view so subsequent calls know the model is available
+            if node_name not in self._cache_view:
+                self._cache_view[node_name] = set()
+            self._cache_view[node_name].add(model_name)
+            # Persist to database
+            self.database.upsert_node_storage(
+                node_name=node_name,
+                sllm_store_endpoint=self._store_endpoints.get(node_name),
+                cached_models=list(self._cache_view[node_name]),
+            )
+            return True
+
+        status = final.status if final else "unknown"
+        logger.error(
+            f"Download failed for {model_name} on {node_name}: status={status}"
+        )
+        return False
+
+    # Alias for backward compatibility
+    _download_model_on_node = download_model_on_node
+
+    async def verify_model_on_node(
+        self, node_name: str, model_name: str
+    ) -> bool:
+        """Verify that a model is cached on a node.
+
+        Checks the in-memory cache which is updated immediately after downloads
+        and persisted to the database.
+
+        Args:
+            node_name: Node to check
+            model_name: Model to verify
+
+        Returns:
+            True if model is in cache for this node, False otherwise
+        """
+        # Check in-memory cache (updated after downloads in download_model_on_node)
+        if model_name in self._cache_view.get(node_name, set()):
+            logger.debug(
+                f"Model {model_name} verified in cache for {node_name}"
+            )
+            return True
+
+        # Also check database in case cache was cleared or we restarted
+        node_storage = self.database.get_node_storage(node_name)
+        if node_storage and model_name in node_storage.cached_models:
+            # Update in-memory cache from database
+            if node_name not in self._cache_view:
+                self._cache_view[node_name] = set()
+            self._cache_view[node_name].add(model_name)
+            logger.debug(
+                f"Model {model_name} found in database for {node_name}"
+            )
+            return True
+
+        logger.warning(
+            f"Model {model_name} not found in cache or database for {node_name}"
+        )
+        return False
+
+    # -------------------------------------------------------------------------
     # Utilities
     # -------------------------------------------------------------------------
 
@@ -452,6 +615,7 @@ def init_storage_manager(
     pylet_client: PyletClient,
     storage_path: str = "/models",
     head_url: str = "http://localhost:8343",
+    download_timeout: int = 600,
 ) -> StorageManager:
     """Initialize the global StorageManager instance."""
     global _storage_manager
@@ -460,5 +624,6 @@ def init_storage_manager(
         pylet_client=pylet_client,
         storage_path=storage_path,
         head_url=head_url,
+        download_timeout=download_timeout,
     )
     return _storage_manager

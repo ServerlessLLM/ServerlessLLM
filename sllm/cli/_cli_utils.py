@@ -237,6 +237,7 @@ async def _run_head_node_v1beta():
             head_url=head_url,
         )
         await storage_manager.recover_from_db()
+        app.state.storage_manager = storage_manager
         logger.info("StorageManager initialized")
 
         # Start sllm-store on all worker nodes (expensive, do it eagerly)

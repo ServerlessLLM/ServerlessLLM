@@ -86,9 +86,13 @@ class TestDatabase:
 
     def test_get_active_deployments(self, database):
         """Test getting only active deployments."""
-        # Create deployments with different statuses
-        database.create_deployment(model_name="active1", backend="vllm")
-        database.create_deployment(model_name="active2", backend="vllm")
+        # Create deployments with active status
+        database.create_deployment(
+            model_name="active1", backend="vllm", initial_status="active"
+        )
+        database.create_deployment(
+            model_name="active2", backend="vllm", initial_status="active"
+        )
 
         # Update one to deleting status
         conn = database._get_connection()
