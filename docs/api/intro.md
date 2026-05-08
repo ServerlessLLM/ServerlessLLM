@@ -8,3 +8,4 @@ Welcome to the ServerlessLLM API documentation. This section contains detailed i
 
 - [CLI API](./cli.md) - Documentation for the `sllm` command-line interface
 - [SLLM Store CLI](./sllm-store-cli.md) - Documentation for the `sllm-store` command-line interface
+- [Observability](./observability.md) - Prometheus metrics and service discovery

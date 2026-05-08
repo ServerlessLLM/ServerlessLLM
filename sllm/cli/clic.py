@@ -153,12 +153,19 @@ def delete(models, backend, lora_adapters):
     type=str,
     help="Model storage path. Default: /models",
 )
+@click.option(
+    "--prometheus-sd-path",
+    default=lambda: os.getenv("SLLM_PROMETHEUS_SD_PATH"),
+    type=str,
+    help="Prometheus file_sd output path (optional).",
+)
 def start(
     host,
     port,
     pylet_endpoint,
     database_path,
     storage_path,
+    prometheus_sd_path,
 ):
     """Start the SLLM head node (control plane)."""
     start_head(
@@ -167,6 +174,7 @@ def start(
         pylet_endpoint=pylet_endpoint,
         database_path=database_path,
         storage_path=storage_path,
+        prometheus_sd_path=prometheus_sd_path,
     )
 
 

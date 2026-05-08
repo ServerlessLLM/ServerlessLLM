@@ -233,3 +233,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Code agent related files
+AGENTS.md
+plan.md
