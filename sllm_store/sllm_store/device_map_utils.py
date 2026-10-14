@@ -164,13 +164,28 @@ def _compute_device_placement_from_map_fast(
                     no_split_modules[module] = tied_size
                     break
 
-        while next(iter(no_split_modules.values())) > next(
-            iter(max_memory.values())
-        ):
-            device_id, memory = max_memory.popitem()
+        # Drop leading devices that cannot hold the first module.
+        # The helpers below index devices positionally (0..n-1), so
+        # the remaining memory is re-keyed and placements are mapped
+        # back to the original device ids. The previous loop compared
+        # against the first device but popped the last one, silently
+        # discarding usable GPUs and crashing with StopIteration once
+        # the dict was empty.
+        device_ids = list(max_memory.keys())
+        first_size = next(iter(no_split_modules.values()))
+        num_dropped = 0
+        while max_memory and first_size > next(iter(max_memory.values())):
+            dropped_id = next(iter(max_memory))
+            dropped_mem = max_memory.pop(dropped_id)
             logger.warning(
-                f"Device {device_id} has insufficient memory {memory} for the first module."  # noqa: E501
+                f"Device {dropped_id} has insufficient memory {dropped_mem} for the first module."  # noqa: E501
             )
+            num_dropped += 1
+        if not max_memory:
+            raise RuntimeError(
+                "The first module is larger than any available device."
+            )
+        max_memory = {i: mem for i, mem in enumerate(max_memory.values())}
 
         total_size = sum(no_split_modules.values())
 
@@ -195,6 +210,11 @@ def _compute_device_placement_from_map_fast(
             raise RuntimeError(
                 "Failed to find a valid placement for the model."
             )
+
+        # Map positional indices back to the original device ids.
+        placement = {
+            m: device_ids[num_dropped + pos] for m, pos in placement.items()
+        }
 
         # reassign tied modules to the same device
         for tied_groups, shared_size in tied_modules:  # noqa: B007
@@ -270,6 +290,8 @@ def _get_balanced_placement(
                         )
 
     # Result
+    if dp[length][n][0] == float("inf"):
+        return None
     result = dp[length][n][-1]
     result_device_map = {}
     for i, partition in enumerate(result):
@@ -299,11 +321,11 @@ def _get_sequential_placement(
     for module, size in module_size.items():
         while current_device < n and size > device_memory[current_device]:
             current_device += 1
-        if size <= device_memory[current_device]:
-            result_device_map[module] = current_device
-        else:
+        if current_device >= n:
             raise RuntimeError(
-                f"Module {module} is too large for device {current_device}, memory {device_memory[current_device]}"  # noqa: E501
+                f"Module {module} of size {size} does not fit on any "
+                "remaining device."
             )
+        result_device_map[module] = current_device
 
     return result_device_map
