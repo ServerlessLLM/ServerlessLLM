@@ -32,6 +32,25 @@ def load_results(
     return results
 
 
+def _percentile(values: List[float], pct: float) -> float:
+    """The pct-th percentile (pct in 0..100) of a list of numbers.
+
+    Plain version: sort the samples, then p99 is "slower than all but the
+    worst 1% of loads". When the percentile falls between two samples we
+    blend them (standard linear interpolation).
+    """
+    if not values:
+        return float("nan")
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    # rank = fractional position in the sorted list; low/high bracket it
+    rank = (len(ordered) - 1) * pct / 100.0
+    low = int(rank)
+    high = min(low + 1, len(ordered) - 1)
+    return ordered[low] + (ordered[high] - ordered[low]) * (rank - low)
+
+
 def calculate_stats(data: List[Dict]) -> Dict:
     """Calculate statistics from benchmark data."""
     if not data:
@@ -53,6 +72,12 @@ def calculate_stats(data: List[Dict]) -> Dict:
             / len(loading_times)
         )
         ** 0.5,
+        # tail percentiles: what the slow loads look like, not just the average
+        "p50_loading_time": _percentile(loading_times, 50),
+        "p90_loading_time": _percentile(loading_times, 90),
+        "p95_loading_time": _percentile(loading_times, 95),
+        "p99_loading_time": _percentile(loading_times, 99),
+        "p999_loading_time": _percentile(loading_times, 99.9),
         "avg_throughput": sum(throughputs) / len(throughputs)
         if throughputs
         else 0,
@@ -112,6 +137,32 @@ def generate_text_report(
         )
 
     report.append("-" * 60)
+
+    # Loading-time tail: the slow-case numbers (p50/p99/p99.9) the average hides.
+    report.append("")
+    report.append("Loading-time tail (seconds):")
+    report.append("-" * 60)
+    report.append(
+        f"{'Format':<15} {'p50':<10} {'p99':<10} {'p99.9':<10} {'p99/avg':<10}"
+    )
+    report.append("-" * 60)
+    for label, s in (("SLLM", sllm_stats), ("SafeTensors", safetensors_stats)):
+        if s:
+            # p99/avg > 1 means the worst loads are slower than the headline average
+            ratio = (
+                s["p99_loading_time"] / s["avg_loading_time"]
+                if s.get("avg_loading_time")
+                else float("nan")
+            )
+            report.append(
+                f"{label:<15} "
+                f"{s['p50_loading_time']:<10.3f} "
+                f"{s['p99_loading_time']:<10.3f} "
+                f"{s['p999_loading_time']:<10.3f} "
+                f"{ratio:<10.2f}"
+            )
+    report.append("-" * 60)
+    report.append("")
 
     # Speedup calculation
     if sllm_stats and safetensors_stats:
