@@ -78,6 +78,9 @@ std::unordered_map<std::string, uint64_t> SaveTensors(
     showProgressBar(progress, "Saving tensors: ");
   }
 
+  // Finish before returning offsets: Python must not publish an index for a
+  // checkpoint whose final write failed.
+  writer.finish();
   return tensor_offsets;
 }
 

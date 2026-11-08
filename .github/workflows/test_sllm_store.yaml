@@ -9,6 +9,18 @@ on:
       - 'sllm_store/**'
 
 jobs:
+  checkpoint_writer_tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install C++ test dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ libgtest-dev
+      - name: Build and test checkpoint writer (CPU only)
+        run: |
+          cmake -S sllm_store/tests/cpp/checkpoint -B build/checkpoint
+          cmake --build build/checkpoint --parallel 2
+          ctest --test-dir build/checkpoint --output-on-failure
+
   sllm_store_tests:
     runs-on: [self-hosted, nvidia]
     if: contains(github.event.pull_request.labels.*.name, 'ready-for-gpu-testing')

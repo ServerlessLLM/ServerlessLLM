@@ -17,6 +17,7 @@
 //  ----------------------------------------------------------------------------
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 const size_t kAlignment = 4096;       // 4k
@@ -25,16 +26,28 @@ const size_t kBufferSize = 1L << 30;  // 1GB
 // A write buffer that writes to a file (4k aligned).
 class AlignedBuffer {
  public:
-  explicit AlignedBuffer(const std::string& filename);
+  explicit AlignedBuffer(const std::string& filename,
+                         size_t buffer_size = kBufferSize);
   ~AlignedBuffer();
+
+  AlignedBuffer(const AlignedBuffer&) = delete;
+  AlignedBuffer& operator=(const AlignedBuffer&) = delete;
 
   size_t writeData(const void* data, size_t size);
   size_t writePadding(size_t padding_size);
 
+  // Flush an aligned, zero-padded tail and close the file. Returns its physical
+  // size. Must be called explicitly so I/O errors can propagate to the caller.
+  size_t finish();
+
  private:
+  void flush();
+
+  std::string filename_;
   int fd_;
   size_t buf_size_;
   size_t buf_pos_;
   size_t file_offset_;
   void* buffer_;
+  bool finished_ = false;
 };
