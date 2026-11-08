@@ -20,75 +20,80 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <cerrno>
+#include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <new>
+#include <stdexcept>
+#include <system_error>
 
-AlignedBuffer::AlignedBuffer(const std::string& filename)
-    : fd_(-1), buf_size_(kBufferSize), buf_pos_(0), file_offset_(0) {
-  fd_ = open(filename.c_str(), O_WRONLY | O_CREAT | O_DIRECT, 0644);
-  if (fd_ < 0) {
-    std::cerr << "Failed to open file " << filename << std::endl;
+AlignedBuffer::AlignedBuffer(const std::string& filename, size_t buffer_size)
+    : filename_(filename),
+      fd_(-1),
+      buf_size_(buffer_size),
+      buf_pos_(0),
+      file_offset_(0),
+      buffer_(nullptr) {
+  if (buf_size_ == 0 || buf_size_ % kAlignment != 0) {
+    throw std::invalid_argument(
+        "Buffer size must be a positive multiple of the I/O alignment");
   }
-  buffer_ = aligned_alloc(kAlignment, kBufferSize);
+  buffer_ = aligned_alloc(kAlignment, buf_size_);
+  if (!buffer_) {
+    throw std::bad_alloc();
+  }
+  fd_ = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
+  if (fd_ < 0) {
+    const int error = errno;
+    free(buffer_);
+    throw std::system_error(error, std::generic_category(),
+                            "open " + filename_);
+  }
 }
 
 AlignedBuffer::~AlignedBuffer() {
-  // if the buffer is not written to file, write it to file
-  if (buffer_ && buf_pos_) {
-    pwrite(fd_, buffer_, buf_pos_, file_offset_);
-  }
-  if (buffer_) {
-    free(buffer_);
-  }
+  // finish() is explicit: destructors cannot safely report a failed write.
+  free(buffer_);
   if (fd_ >= 0) {
     close(fd_);
   }
 }
 
+void AlignedBuffer::flush() {
+  size_t written = 0;
+  while (written < buf_pos_) {
+    const ssize_t ret = pwrite(fd_, static_cast<char*>(buffer_) + written,
+                               buf_pos_ - written, file_offset_ + written);
+    if (ret < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      throw std::system_error(errno, std::generic_category(),
+                              "pwrite " + filename_);
+    }
+    if (ret == 0) {
+      throw std::runtime_error("pwrite made no progress for " + filename_);
+    }
+    written += static_cast<size_t>(ret);
+  }
+  file_offset_ += buf_pos_;
+  buf_pos_ = 0;
+}
+
 size_t AlignedBuffer::writeData(const void* data, size_t size) {
+  if (fd_ < 0) {
+    throw std::logic_error("Cannot write to a finished buffer");
+  }
   size_t written = 0;
   while (written < size) {
-    // if data size is larger than buffer size and buffer is empty
-    // write data directly to file
-    if (size - written > buf_size_ && buf_pos_ == 0) {
-      size_t direct_write_size = (size - written) / kAlignment * kAlignment;
-      // allocate aligned memory
-      void* direct_write_buf = aligned_alloc(kAlignment, direct_write_size);
-      if (!direct_write_buf) {
-        char err_msg[256];
-        strerror_r(errno, err_msg, sizeof(err_msg));
-        std::cerr << "Failed to allocate aligned memory: " << err_msg
-                  << std::endl;
-        std::cerr << "kAlignment: " << kAlignment
-                  << " direct_write_size: " << direct_write_size;
-        exit(1);
-      }
-      memcpy(direct_write_buf, (char*)data + written, direct_write_size);
-      ssize_t ret =
-          pwrite(fd_, direct_write_buf, direct_write_size, file_offset_);
-      if (ret < 0 || ret != direct_write_size) {
-        std::cerr << "Failed to write to file, ret: " << ret
-                  << " errno: " << errno << std::endl;
-        return written;
-      }
-      written += direct_write_size;
-      file_offset_ += direct_write_size;
-      free(direct_write_buf);
-    }
-    size_t to_write = std::min(size - written, buf_size_ - buf_pos_);
-    memcpy(static_cast<char*>(buffer_) + buf_pos_, (char*)data + written,
-           to_write);
+    const size_t to_write = std::min(size - written, buf_size_ - buf_pos_);
+    memcpy(static_cast<char*>(buffer_) + buf_pos_,
+           static_cast<const char*>(data) + written, to_write);
     buf_pos_ += to_write;
     written += to_write;
     if (buf_pos_ == buf_size_) {
-      ssize_t ret = pwrite(fd_, buffer_, buf_size_, file_offset_);
-      if (ret < 0 || ret != buf_size_) {
-        std::cerr << "Failed to write to file, ret: " << ret
-                  << " errno: " << errno << std::endl;
-        return written;
-      }
-      buf_pos_ = 0;
-      file_offset_ += buf_size_;
+      flush();
     }
   }
   return written;
@@ -96,18 +101,29 @@ size_t AlignedBuffer::writeData(const void* data, size_t size) {
 
 size_t AlignedBuffer::writePadding(size_t padding_size) {
   if (padding_size >= 8) {
-    std::cerr << "Padding size should be less than 8 bytes" << std::endl;
-    return 0;
+    throw std::invalid_argument("Padding size must be less than 8 bytes");
   }
-  buf_pos_ += padding_size;
-  if (buf_pos_ > buf_size_) {
-    std::cerr << "Padding size is too large" << std::endl;
-    return 0;
+  const char zeros[8] = {};
+  return writeData(zeros, padding_size);
+}
+
+size_t AlignedBuffer::finish() {
+  if (finished_) {
+    return file_offset_;
   }
-  if (buf_pos_ == buf_size_) {
-    pwrite(fd_, buffer_, buf_pos_, file_offset_);
-    buf_pos_ = 0;
-    file_offset_ += buf_size_;
+  if (buf_pos_) {
+    const size_t aligned_size =
+        (buf_pos_ + kAlignment - 1) / kAlignment * kAlignment;
+    memset(static_cast<char*>(buffer_) + buf_pos_, 0, aligned_size - buf_pos_);
+    buf_pos_ = aligned_size;
+    flush();
   }
-  return padding_size;
+  const int fd = fd_;
+  fd_ = -1;
+  if (close(fd) != 0) {
+    throw std::system_error(errno, std::generic_category(),
+                            "close " + filename_);
+  }
+  finished_ = true;
+  return file_offset_;
 }

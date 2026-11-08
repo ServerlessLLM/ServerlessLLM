@@ -6,6 +6,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(googletest)
 
+add_subdirectory(checkpoint)
+
 # Specify the test source file
 set(TEST_SOURCES test_load_to_host.cpp test_pinned_memory.cpp)
 
